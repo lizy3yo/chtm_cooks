@@ -18,6 +18,13 @@ export interface User {
 	createdAt: Date;
 	updatedAt: Date;
 	lastLogin?: Date;
+	// Email verification fields
+	emailVerified: boolean;
+	emailVerificationToken?: string;
+	emailVerificationExpires?: Date;
+	// Password reset fields
+	passwordResetToken?: string;
+	passwordResetExpires?: Date;
 	// Student-specific fields
 	yearLevel?: string;
 	block?: string;
