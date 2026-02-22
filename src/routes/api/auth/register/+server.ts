@@ -6,8 +6,18 @@ import { generateAccessToken, generateRefreshToken } from '$lib/server/utils/jwt
 import { validateEmail, validateRole, sanitizeInput } from '$lib/server/utils/validation';
 import type { RegisterRequest, User, AuthResponse, UserResponse } from '$lib/server/models/User';
 import { UserRole } from '$lib/server/models/User';
+import { rateLimit, RateLimitPresets, applyRateLimitHeaders } from '$lib/server/middleware/rateLimit';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async (event) => {
+	const { request } = event;
+	
+	// Apply rate limiting for registration
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.REGISTER);
+	
+	// If rate limit exceeded, return the error response
+	if (rateLimitResult instanceof Response) {
+		return rateLimitResult;
+	}
 	try {
 		const body: RegisterRequest = await request.json();
 
@@ -131,7 +141,14 @@ export const POST: RequestHandler = async ({ request }) => {
 			refreshToken
 		};
 
-		return json(response, { status: 201 });
+		// Add rate limit headers to successful response
+		const responseHeaders = new Headers();
+		applyRateLimitHeaders(responseHeaders, rateLimitResult);
+
+		return json(response, { 
+			status: 201,
+			headers: responseHeaders
+		});
 	} catch (error) {
 		console.error('Registration error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });

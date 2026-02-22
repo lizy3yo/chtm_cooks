@@ -1,8 +1,18 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { verifyRefreshToken, generateAccessToken, generateRefreshToken } from '$lib/server/utils/jwt';
+import { rateLimit, RateLimitPresets, applyRateLimitHeaders } from '$lib/server/middleware/rateLimit';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async (event) => {
+	const { request } = event;
+	
+	// Apply rate limiting for token refresh
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.REFRESH);
+	
+	// If rate limit exceeded, return the error response
+	if (rateLimitResult instanceof Response) {
+		return rateLimitResult;
+	}
 	try {
 		const { refreshToken } = await request.json();
 
@@ -26,9 +36,15 @@ export const POST: RequestHandler = async ({ request }) => {
 			role: payload.role
 		});
 
+		// Add rate limit headers to successful response
+		const responseHeaders = new Headers();
+		applyRateLimitHeaders(responseHeaders, rateLimitResult);
+		
 		return json({
 			accessToken: newAccessToken,
 			refreshToken: newRefreshToken
+		}, {
+			headers: responseHeaders
 		});
 	} catch (error) {
 		return json({ error: 'Invalid or expired refresh token' }, { status: 401 });
