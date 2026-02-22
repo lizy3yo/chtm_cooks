@@ -1,5 +1,7 @@
 import type { RateLimitConfig } from './config';
-import { getRedisClient } from './redis';
+import { getRedisClient, isUpstash } from './redis';
+import type IORedis from 'ioredis';
+import type { Redis as UpstashRedis } from '@upstash/redis';
 
 /**
  * Result of a sliding window rate limit check
@@ -43,9 +45,9 @@ export class SlidingWindow {
 		const blockKey = `${key}:blocked`;
 
 		// Check if client is currently blocked
-		const blockExpiry = await redis.get(blockKey);
+		const blockExpiry = await redis.get<string>(blockKey);
 		if (blockExpiry) {
-			const expiryTime = parseInt(blockExpiry, 10);
+			const expiryTime = parseInt(blockExpiry as string, 10);
 			return {
 				allowed: false,
 				count: config.maxRequests + 1,
@@ -57,31 +59,54 @@ export class SlidingWindow {
 		// Generate unique request ID
 		const requestId = `${now}:${Math.random().toString(36).substring(2, 15)}`;
 
-		// Perform sliding window operations atomically using pipeline
-		const pipeline = redis.pipeline();
+		let count: number;
 
-		// 1. Remove old entries outside the current window
-		pipeline.zremrangebyscore(key, '-inf', windowStart);
+		// Handle Upstash Redis (REST API)
+		if (isUpstash()) {
+			const upstashClient = redis as UpstashRedis;
+			
+			// Remove old entries
+			await upstashClient.zremrangebyscore(key, '-inf', windowStart);
+			
+			// Add current request
+			await upstashClient.zadd(key, { score: now, member: requestId });
+			
+			// Count requests in window
+			count = await upstashClient.zcard(key);
+			
+			// Set expiration
+			await upstashClient.expire(key, Math.ceil(config.windowMs / 1000) + 1);
+		} 
+		// Handle Local Redis (ioredis)
+		else {
+			const ioredisClient = redis as IORedis;
+			
+			// Perform sliding window operations atomically using pipeline
+			const pipeline = ioredisClient.pipeline();
 
-		// 2. Add current request with timestamp as score
-		pipeline.zadd(key, now, requestId);
+			// 1. Remove old entries outside the current window
+			pipeline.zremrangebyscore(key, '-inf', windowStart);
 
-		// 3. Count requests in current window
-		pipeline.zcard(key);
+			// 2. Add current request with timestamp as score
+			pipeline.zadd(key, now, requestId);
 
-		// 4. Set expiration on the key (cleanup)
-		pipeline.expire(key, Math.ceil(config.windowMs / 1000) + 1);
+			// 3. Count requests in current window
+			pipeline.zcard(key);
 
-		// Execute all operations atomically
-		const results = await pipeline.exec();
+			// 4. Set expiration on the key (cleanup)
+			pipeline.expire(key, Math.ceil(config.windowMs / 1000) + 1);
 
-		if (!results) {
-			throw new Error('Redis pipeline execution failed');
+			// Execute all operations atomically
+			const results = await pipeline.exec();
+
+			if (!results) {
+				throw new Error('Redis pipeline execution failed');
+			}
+
+			// Extract count from pipeline results
+			// Pipeline results format: [[error, result], [error, result], ...]
+			count = (results[2]?.[1] as number) || 0;
 		}
-
-		// Extract count from pipeline results
-		// Pipeline results format: [[error, result], [error, result], ...]
-		const count = (results[2][1] as number) || 0;
 
 		// Calculate reset time
 		const resetTime = now + config.windowMs;
@@ -93,7 +118,16 @@ export class SlidingWindow {
 				const blockExpiryTime = now + config.blockDurationMs;
 				const blockDurationSeconds = Math.ceil(config.blockDurationMs / 1000);
 				
-				await redis.setex(blockKey, blockDurationSeconds, blockExpiryTime.toString());
+				// Set block with expiration (syntax differs between Upstash and ioredis)
+				if (isUpstash()) {
+					// Upstash: use set with ex option
+					const upstashClient = redis as UpstashRedis;
+					await upstashClient.set(blockKey, blockExpiryTime.toString(), { ex: blockDurationSeconds });
+				} else {
+					// ioredis: use setex
+					const ioredisClient = redis as IORedis;
+					await ioredisClient.setex(blockKey, blockDurationSeconds, blockExpiryTime.toString());
+				}
 				
 				return {
 					allowed: false,
@@ -127,10 +161,20 @@ export class SlidingWindow {
 		try {
 			const redis = getRedisClient();
 			
-			// Get the most recent entry
-			const members = await redis.zrevrange(key, 0, 0);
+			let members: string[];
 			
-			if (members.length > 0) {
+			// Handle Upstash Redis
+			if (isUpstash()) {
+				const upstashClient = redis as UpstashRedis;
+				members = await upstashClient.zrange<string[]>(key, -1, -1);
+			} 
+			// Handle Local Redis (ioredis)
+			else {
+				const ioredisClient = redis as IORedis;
+				members = await ioredisClient.zrevrange(key, 0, 0);
+			}
+			
+			if (members && members.length > 0) {
 				// Remove it from the sorted set
 				await redis.zrem(key, members[0]);
 			}
