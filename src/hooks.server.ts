@@ -8,7 +8,7 @@ import {
 	getRequestDuration,
 	addRequestIdHeader
 } from '$lib/server/middleware/requestContext';
-import { logRequest, logError } from '$lib/server/utils/logger';
+import { logRequest, logError, logInfo } from '$lib/server/utils/logger';
 import {
 	formatErrorResponse,
 	isOperationalError,
@@ -17,6 +17,21 @@ import {
 } from '$lib/server/errors/errorFormatter';
 import type { AppError } from '$lib/server/errors/AppError';
 import { securityHeadersMiddleware } from '$lib/server/middleware/security';
+import { initializeIndexes } from '$lib/server/db/indexes';
+
+/**
+ * Initialize database indexes on server startup
+ * This ensures all required indexes are created for optimal query performance
+ */
+(async () => {
+	try {
+		logInfo('Initializing database indexes...');
+		const result = await initializeIndexes();
+		logInfo(`Database indexes initialized: ${result.created} created, ${result.existed} existed, ${result.failed} failed`);
+	} catch (error) {
+		logError(error as Error, { context: 'index-initialization' });
+	}
+})();
 
 /**
  * Request Context Handler
