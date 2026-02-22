@@ -48,6 +48,18 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: 'Account is deactivated' }, { status: 403 });
 		}
 
+		// Check if email is verified
+		if (!user.emailVerified) {
+			return json(
+				{ 
+					error: 'Email not verified',
+					message: 'Please verify your email address before logging in. Check your inbox for the verification link.',
+					code: 'EMAIL_NOT_VERIFIED'
+				},
+				{ status: 403 }
+			);
+		}
+
 		// Verify password
 		const isPasswordValid = await comparePassword(body.password, user.password);
 		if (!isPasswordValid) {

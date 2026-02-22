@@ -7,6 +7,8 @@ import { validateEmail, validateRole, sanitizeInput } from '$lib/server/utils/va
 import type { RegisterRequest, User, AuthResponse, UserResponse } from '$lib/server/models/User';
 import { UserRole } from '$lib/server/models/User';
 import { rateLimit, RateLimitPresets, applyRateLimitHeaders } from '$lib/server/middleware/rateLimit';
+import { generateEmailVerificationToken, hashToken } from '$lib/server/utils/tokens';
+import { sendVerificationEmail } from '$lib/server/services/email';
 
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
@@ -87,6 +89,10 @@ export const POST: RequestHandler = async (event) => {
 		// Hash password
 		const hashedPassword = await hashPassword(body.password);
 
+		// Generate email verification token
+		const { token: verificationToken, expires: verificationExpires } = generateEmailVerificationToken(24); // 24 hours
+		const hashedVerificationToken = hashToken(verificationToken);
+
 		// Create user document
 		const newUser: User = {
 			email,
@@ -95,6 +101,9 @@ export const POST: RequestHandler = async (event) => {
 			firstName,
 			lastName,
 			isActive: true,
+			emailVerified: false,
+			emailVerificationToken: hashedVerificationToken,
+			emailVerificationExpires: verificationExpires,
 			createdAt: new Date(),
 			updatedAt: new Date(),
 			// Add student-specific fields if role is STUDENT
@@ -107,6 +116,12 @@ export const POST: RequestHandler = async (event) => {
 
 		// Insert user
 		const result = await usersCollection.insertOne(newUser);
+
+		// Send verification email (non-blocking to not delay response)
+		sendVerificationEmail(newUser.email, newUser.firstName, verificationToken).catch((error) => {
+			console.error('Failed to send verification email:', error);
+			// Don't fail registration if email fails - user can request resend
+		});
 
 		// Generate tokens
 		const tokenPayload = {
