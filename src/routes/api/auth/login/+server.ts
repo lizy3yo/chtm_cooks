@@ -5,8 +5,18 @@ import { comparePassword } from '$lib/server/utils/password';
 import { generateAccessToken, generateRefreshToken } from '$lib/server/utils/jwt';
 import { validateEmail, sanitizeInput } from '$lib/server/utils/validation';
 import type { LoginRequest, User, AuthResponse, UserResponse } from '$lib/server/models/User';
+import { rateLimit, RateLimitPresets, applyRateLimitHeaders, markRequestSuccess } from '$lib/server/middleware/rateLimit';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async (event) => {
+	const { request } = event;
+	
+	// Apply rate limiting for login (strict limits to prevent brute force)
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.LOGIN);
+	
+	// If rate limit exceeded, return the error response
+	if (rateLimitResult instanceof Response) {
+		return rateLimitResult;
+	}
 	try {
 		const body: LoginRequest = await request.json();
 
@@ -41,8 +51,12 @@ export const POST: RequestHandler = async ({ request }) => {
 		// Verify password
 		const isPasswordValid = await comparePassword(body.password, user.password);
 		if (!isPasswordValid) {
+			// Failed login - rate limit will count this
 			return json({ error: 'Invalid credentials' }, { status: 401 });
 		}
+		
+		// Mark successful login - remove from rate limit counter
+		await markRequestSuccess(event, RateLimitPresets.LOGIN);
 
 		// Update last login
 		await usersCollection.updateOne({ _id: user._id }, { $set: { lastLogin: new Date() } });
@@ -74,7 +88,14 @@ export const POST: RequestHandler = async ({ request }) => {
 			refreshToken
 		};
 
-		return json(response, { status: 200 });
+		// Add rate limit headers to successful response
+		const responseHeaders = new Headers();
+		applyRateLimitHeaders(responseHeaders, rateLimitResult);
+
+		return json(response, { 
+			status: 200,
+			headers: responseHeaders
+		});
 	} catch (error) {
 		console.error('Login error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
