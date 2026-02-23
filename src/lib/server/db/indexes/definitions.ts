@@ -67,7 +67,6 @@ export const userIndexes: IndexDefinition[] = [
 		fields: { emailVerificationToken: 1 },
 		options: {
 			unique: true,
-			sparse: true, // Only index documents that have this field
 			name: 'idx_users_email_verification_token',
 			partialFilterExpression: {
 				emailVerificationToken: { $exists: true },
@@ -95,7 +94,6 @@ export const userIndexes: IndexDefinition[] = [
 		fields: { passwordResetToken: 1 },
 		options: {
 			unique: true,
-			sparse: true,
 			name: 'idx_users_password_reset_token',
 			partialFilterExpression: {
 				passwordResetToken: { $exists: true },
