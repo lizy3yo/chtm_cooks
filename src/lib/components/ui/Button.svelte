@@ -25,11 +25,11 @@
 	const baseClasses = 'inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50';
 	
 	const variantClasses = {
-		primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 active:bg-blue-800',
+		primary: 'bg-gradient-to-r from-pink-600 to-rose-600 text-white hover:from-pink-700 hover:to-rose-700 focus:ring-pink-500 active:from-pink-800 active:to-rose-800 shadow-md hover:shadow-lg',
 		secondary: 'bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500 active:bg-gray-800',
-		outline: 'border-2 border-gray-300 bg-transparent text-gray-700 hover:bg-gray-50 focus:ring-gray-500',
+		outline: 'border-2 border-pink-300 bg-transparent text-pink-700 hover:bg-pink-50 focus:ring-pink-500',
 		danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 active:bg-red-800',
-		ghost: 'bg-transparent text-gray-700 hover:bg-gray-100 focus:ring-gray-500'
+		ghost: 'bg-transparent text-gray-700 hover:bg-pink-50 focus:ring-pink-500'
 	};
 	
 	const sizeClasses = {

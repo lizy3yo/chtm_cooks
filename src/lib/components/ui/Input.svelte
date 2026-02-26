@@ -24,7 +24,7 @@
 		`block w-full rounded-lg border px-4 py-3 text-sm transition-colors focus:outline-none focus:ring-2 ${
 			error
 				? 'border-red-300 bg-red-50 text-red-900 placeholder-red-300 focus:border-red-500 focus:ring-red-500'
-				: 'border-gray-300 bg-white text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:ring-blue-500'
+				: 'border-gray-300 bg-white text-gray-900 placeholder-gray-400 focus:border-pink-500 focus:ring-pink-500'
 		} disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500 ${className}`
 	);
 </script>
