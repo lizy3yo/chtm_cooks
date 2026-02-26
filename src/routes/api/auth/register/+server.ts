@@ -4,11 +4,12 @@ import { getDatabase } from '$lib/server/db/mongodb';
 import { hashPassword, validatePassword } from '$lib/server/utils/password';
 import { generateAccessToken, generateRefreshToken } from '$lib/server/utils/jwt';
 import { validateEmail, validateRole, sanitizeInput } from '$lib/server/utils/validation';
-import type { RegisterRequest, User, AuthResponse, UserResponse } from '$lib/server/models/User';
+import type { RegisterRequest, User, UserResponse } from '$lib/server/models/User';
 import { UserRole } from '$lib/server/models/User';
 import { rateLimit, RateLimitPresets, applyRateLimitHeaders } from '$lib/server/middleware/rateLimit';
 import { generateEmailVerificationToken, hashToken } from '$lib/server/utils/tokens';
 import { sendVerificationEmail } from '$lib/server/services/email';
+import { setAuthTokens } from '$lib/server/middleware/auth/cookies';
 
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
@@ -150,20 +151,20 @@ export const POST: RequestHandler = async (event) => {
 			})
 		};
 
-		const response: AuthResponse = {
-			user: userResponse,
-			accessToken,
-			refreshToken
-		};
+		// Set auth tokens as httpOnly cookies
+		setAuthTokens(event, accessToken, refreshToken);
 
 		// Add rate limit headers to successful response
 		const responseHeaders = new Headers();
 		applyRateLimitHeaders(responseHeaders, rateLimitResult);
 
-		return json(response, { 
-			status: 201,
-			headers: responseHeaders
-		});
+		return json(
+			{ success: true, user: userResponse }, 
+			{ 
+				status: 201,
+				headers: responseHeaders
+			}
+		);
 	} catch (error) {
 		console.error('Registration error:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });

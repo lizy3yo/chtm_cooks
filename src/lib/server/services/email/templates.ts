@@ -182,7 +182,7 @@ export function emailVerificationTemplate(firstName: string, verificationToken: 
  * @returns HTML email template
  */
 export function passwordResetTemplate(firstName: string, resetToken: string): string {
-	const resetUrl = `${getAppUrl()}/reset-password?token=${resetToken}`;
+	const resetUrl = `${getAppUrl()}/auth/reset-password?token=${resetToken}`;
 
 	const content = `
         <div class="content">
@@ -224,8 +224,7 @@ export function passwordResetSuccessTemplate(firstName: string): string {
             <p>Your password has been successfully reset. You can now log in to your CHTM Cooks account with your new password.</p>
             
             <center>
-                <a href="${getAppUrl()}/login" class="button">Log In Now</a>
-            </center>
+				<a href="${getAppUrl()}/auth/login" class="button">Log In Now</a>
             
             <div class="warning">
                 <p><strong>🔒 Security Alert:</strong> If you didn't make this change, please contact our support team immediately.</p>
@@ -252,8 +251,7 @@ export function emailVerificationSuccessTemplate(firstName: string): string {
             <p>You now have full access to all CHTM Cooks features. Start exploring and enjoy your culinary journey!</p>
             
             <center>
-                <a href="${getAppUrl()}/login" class="button">Get Started</a>
-            </center>
+				<a href="${getAppUrl()}/auth/login" class="button">Get Started</a>
             
             <p>Thank you for being part of our community!</p>
             

@@ -171,7 +171,7 @@ function getOrGenerateHeaders(
  * Uses default configuration based on environment
  */
 export const securityHeadersMiddleware: Handle = createSecurityHeadersMiddleware({
-	logWarnings: true,
+	logWarnings: false,
 	enableScoring: true
 });
 

@@ -42,6 +42,8 @@ export const POST: RequestHandler = async (event) => {
 		// Find user
 		const user = await usersCollection.findOne({ email: sanitizedEmail });
 
+		console.log(`[Forgot Password] Request for email: ${sanitizedEmail}`);
+
 		// Always return success to prevent email enumeration attacks
 		const responseHeaders = new Headers();
 		applyRateLimitHeaders(responseHeaders, rateLimitResult);
@@ -49,6 +51,7 @@ export const POST: RequestHandler = async (event) => {
 		const successMessage = 'If an account exists with this email, a password reset link has been sent.';
 
 		if (!user) {
+			console.log(`[Forgot Password] User not found: ${sanitizedEmail}`);
 			// Don't reveal that user doesn't exist
 			return json(
 				{
@@ -64,6 +67,7 @@ export const POST: RequestHandler = async (event) => {
 
 		// Check if user is active
 		if (!user.isActive) {
+			console.log(`[Forgot Password] User is inactive: ${sanitizedEmail}`);
 			// Don't reveal account status
 			return json(
 				{
@@ -77,12 +81,16 @@ export const POST: RequestHandler = async (event) => {
 			);
 		}
 
+		console.log(`[Forgot Password] User found and active: ${user.email}`);
+
 		// Generate password reset token
 		const { token, expires } = generatePasswordResetToken(1); // 1 hour
 		const hashedToken = hashToken(token);
 
+		console.log(`[Forgot Password] Token generated, expires: ${expires}`);
+
 		// Update user with reset token
-		await usersCollection.updateOne(
+		const updateResult = await usersCollection.updateOne(
 			{ _id: user._id },
 			{
 				$set: {
@@ -93,11 +101,19 @@ export const POST: RequestHandler = async (event) => {
 			}
 		);
 
+		console.log(`[Forgot Password] Database updated, matched: ${updateResult.matchedCount}, modified: ${updateResult.modifiedCount}`);
+
 		// Send password reset email
+		console.log(`[Forgot Password] Attempting to send email to: ${user.email}`);
 		try {
 			await sendPasswordResetEmail(user.email, user.firstName, token);
+			console.log(`[Forgot Password] ✅ Email sent successfully to: ${user.email}`);
 		} catch (emailError) {
-			console.error('Failed to send password reset email:', emailError);
+			console.error(`[Forgot Password] ❌ Failed to send password reset email to ${user.email}:`, emailError);
+			if (emailError instanceof Error) {
+				console.error(`[Forgot Password] Error details: ${emailError.message}`);
+				console.error(`[Forgot Password] Stack trace:`, emailError.stack);
+			}
 			// Don't reveal this to the user for security reasons
 			// Just log it and return success
 		}

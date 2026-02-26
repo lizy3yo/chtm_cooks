@@ -1,0 +1,602 @@
+{
+	"info": {
+		"name": "CHTM Cooks Authentication API",
+		"description": "Complete authentication system with email verification, password reset, and shortcut key login",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"version": "2.0.0"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5173",
+			"type": "string"
+		},
+		{
+			"key": "accessToken",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refreshToken",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Register Student",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.environment.set('accessToken', jsonData.accessToken);",
+									"    pm.environment.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"juan.delacruz@gordoncollege.edu.ph\",\n  \"password\": \"SecurePass123!\",\n  \"firstName\": \"Juan\",\n  \"lastName\": \"Dela Cruz\",\n  \"yearLevel\": \"3rd Year\",\n  \"block\": \"A\",\n  \"agreedToTerms\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						},
+						"description": "Register a new student account. Email must be @gordoncollege.edu.ph domain. A verification email will be sent."
+					},
+					"response": []
+				},
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.environment.set('accessToken', jsonData.accessToken);",
+									"    pm.environment.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"juan.delacruz@gordoncollege.edu.ph\",\n  \"password\": \"SecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						},
+						"description": "Login with email and password. Returns access and refresh tokens. Email must be verified to login."
+					},
+					"response": []
+				},
+				{
+					"name": "Shortcut Key Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.environment.set('accessToken', jsonData.accessToken);",
+									"    pm.environment.set('refreshToken', jsonData.refreshToken);",
+									"    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.refreshToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"shortcutKey\": \"STAFF_device_fingerprint_hash\",\n  \"deviceFingerprint\": \"device_fingerprint_hash\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/shortcut-login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "shortcut-login"]
+						},
+						"description": "Login using keyboard shortcut credentials. Used by instructors, custodians, and superadmins."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/me",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "me"]
+						},
+						"description": "Get current authenticated user's information"
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.environment.set('accessToken', jsonData.accessToken);",
+									"    pm.collectionVariables.set('accessToken', jsonData.accessToken);",
+									"}"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/refresh",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "refresh"]
+						},
+						"description": "Refresh access token using refresh token"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Email Verification",
+			"item": [
+				{
+					"name": "Verify Email",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/verify-email?token=VERIFICATION_TOKEN_HERE",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "verify-email"],
+							"query": [
+								{
+									"key": "token",
+									"value": "VERIFICATION_TOKEN_HERE",
+									"description": "Email verification token from email link"
+								}
+							]
+						},
+						"description": "Verify user's email address. Token is sent via email after registration. GET request with token in query parameter."
+					},
+					"response": []
+				},
+				{
+					"name": "Resend Verification Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"juan.delacruz@gordoncollege.edu.ph\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/resend-verification",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "resend-verification"]
+						},
+						"description": "Request a new verification email if the previous one expired or was lost. Rate limited to prevent abuse."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Password Management",
+			"item": [
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"juan.delacruz@gordoncollege.edu.ph\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/forgot-password",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "forgot-password"]
+						},
+						"description": "Request a password reset link. Link is sent to email and expires in 1 hour. Response is always success to prevent email enumeration."
+					},
+					"response": []
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"RESET_TOKEN_FROM_EMAIL\",\n  \"password\": \"NewSecurePass123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/reset-password",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "reset-password"]
+						},
+						"description": "Reset password using token from email. Token expires in 1 hour. Password must meet strength requirements."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Shortcut Keys Management",
+			"item": [
+				{
+					"name": "Create Shortcut Key",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"userId\": \"USER_OBJECT_ID\",\n  \"shortcutKey\": \"STAFF_device_fingerprint\",\n  \"deviceFingerprint\": \"device_fingerprint_hash\",\n  \"expiresInDays\": 365\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/shortcut-keys",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "shortcut-keys"]
+						},
+						"description": "Create a new shortcut key for staff/admin. Requires superadmin role. Device fingerprint binds key to specific device."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User's Shortcut Keys",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/shortcut-keys?userId=USER_OBJECT_ID",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "shortcut-keys"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "USER_OBJECT_ID",
+									"description": "MongoDB ObjectId of the user"
+								}
+							]
+						},
+						"description": "Get all shortcut keys for a specific user. Requires superadmin role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Shortcut Key",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/shortcut-keys?keyId=SHORTCUT_KEY_OBJECT_ID",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "shortcut-keys"],
+							"query": [
+								{
+									"key": "keyId",
+									"value": "SHORTCUT_KEY_OBJECT_ID",
+									"description": "MongoDB ObjectId of the shortcut key to delete"
+								}
+							]
+						},
+						"description": "Delete/revoke a shortcut key. Requires superadmin role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Dashboard",
+			"item": [
+				{
+					"name": "Get Dashboard Stats",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/dashboard/stats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "dashboard", "stats"]
+						},
+						"description": "Get role-based dashboard statistics. Returns different data based on user role:\n- Superadmin: Full system stats (total users, role counts, shortcut keys, weekly stats, recent users)\n- Instructor/Custodian: Student count only\n- Student: Minimal data (role + message)"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User Management",
+			"item": [
+				{
+					"name": "List Users",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/users?page=1&limit=10&role=instructor&search=",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users"],
+							"query": [
+								{
+									"key": "page",
+									"value": "1",
+									"description": "Page number (default: 1)"
+								},
+								{
+									"key": "limit",
+									"value": "10",
+									"description": "Items per page (default: 10, max: 100)"
+								},
+								{
+									"key": "role",
+									"value": "instructor",
+									"description": "Filter by role: student, instructor, custodian, superadmin (optional)",
+									"disabled": true
+								},
+								{
+									"key": "search",
+									"value": "",
+									"description": "Search by name or email (optional)",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List all users with pagination and filtering. Requires superadmin role.\n\nReturns:\n- users: Array of user objects\n- pagination: { page, limit, totalUsers, totalPages, hasNext, hasPrev }"
+					},
+					"response": []
+				},
+				{
+					"name": "Create User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/users",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"instructor@example.com\",\n  \"password\": \"SecurePass123\",\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"role\": \"instructor\"\n}"
+						},
+						"description": "Create a new user (instructor, custodian, or superadmin). Requires superadmin role.\n\nFields:\n- email: Valid email address (required)\n- password: Min 8 characters (required)\n- firstName: User's first name (required)\n- lastName: User's last name (required)\n- role: instructor, custodian, or superadmin (required)\n\nNote: Email is automatically verified. User does not need to verify email."
+					},
+					"response": []
+				},
+				{
+					"name": "Update User",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/users?userId=USER_ID_HERE",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "USER_ID_HERE",
+									"description": "The ID of the user to update"
+								}
+							]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstName\": \"Jane\",\n  \"lastName\": \"Smith\",\n  \"role\": \"custodian\",\n  \"isActive\": true\n}"
+						},
+						"description": "Update an existing user. Requires superadmin role.\n\nUpdatable Fields:\n- firstName: User's first name (optional)\n- lastName: User's last name (optional)\n- role: instructor, custodian, or superadmin (optional)\n- isActive: Account status (optional)\n\nNote: Cannot change role to 'student'. Cannot update own user ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete User",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}",
+								"type": "text"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/api/users?userId=USER_ID_HERE",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "users"],
+							"query": [
+								{
+									"key": "userId",
+									"value": "USER_ID_HERE",
+									"description": "The ID of the user to delete"
+								}
+							]
+						},
+						"description": "Delete a user permanently. Requires superadmin role.\n\nNote: Cannot delete yourself. This action is irreversible."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "System Health",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "health"]
+						},
+						"description": "Check if API is running"
+					},
+					"response": []
+				},
+				{
+					"name": "Database Stats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/db-stats",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "db-stats"]
+						},
+						"description": "Get database statistics"
+					},
+					"response": []
+				},
+				{
+					"name": "Cache Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/cache/health",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "cache", "health"]
+						},
+						"description": "Check Redis cache connection"
+					},
+					"response": []
+				}
+			]
+		}
+	]
+}

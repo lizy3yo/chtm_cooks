@@ -1,5 +1,7 @@
 // See https://svelte.dev/docs/kit/types#app.d.ts
 // for information about these interfaces
+import type { JWTPayload } from '$lib/server/utils/jwt';
+
 declare global {
 	namespace App {
 		interface Error {
@@ -12,6 +14,7 @@ declare global {
 			startTime: number;
 			userId?: string;
 			userRole?: string;
+			user?: JWTPayload; // Cookie-based authenticated user
 		}
 		// interface PageData {}
 		// interface PageState {}

@@ -18,6 +18,7 @@ import {
 import type { AppError } from '$lib/server/errors/AppError';
 import { securityHeadersMiddleware } from '$lib/server/middleware/security';
 import { initializeIndexes } from '$lib/server/db/indexes';
+import { attachUser } from '$lib/server/middleware/auth/verify';
 
 /**
  * Initialize database indexes on server startup
@@ -27,7 +28,12 @@ import { initializeIndexes } from '$lib/server/db/indexes';
 	try {
 		logInfo('Initializing database indexes...');
 		const result = await initializeIndexes();
-		logInfo(`Database indexes initialized: ${result.created} created, ${result.existed} existed, ${result.failed} failed`);
+		const message = `Database indexes initialized: ${result.created} created, ${result.existed} existed, ${result.failed} failed, ${result.pending} pending`;
+		logInfo(message);
+		
+		if (result.failed > 0) {
+			logWarn(`Some indexes failed to create (${result.failed} failures). Check logs for details.`);
+		}
 	} catch (error) {
 		logError(error as Error, { context: 'index-initialization' });
 	}
@@ -63,6 +69,18 @@ const requestContextHandler: Handle = async ({ event, resolve }) => {
 	);
 
 	return response;
+};
+
+/**
+ * Authentication Handler
+ * Attaches user to event.locals if authenticated
+ * Uses httpOnly cookies for secure token storage
+ */
+const authHandler: Handle = async ({ event, resolve }) => {
+	// Attach user from cookie-based auth
+	attachUser(event);
+	
+	return resolve(event);
 };
 
 /**
@@ -177,10 +195,11 @@ const errorHandler: Handle = async ({ event, resolve }) => {
 
 /**
  * Combine all handlers in sequence
- * Execution order matters: context -> security -> cors -> error handling
+ * Execution order: context -> auth -> security -> cors -> error handling
  */
 export const handle = sequence(
 	requestContextHandler,
+	authHandler,
 	securityHeadersMiddleware,
 	corsHandler,
 	errorHandler

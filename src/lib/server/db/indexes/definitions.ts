@@ -359,11 +359,133 @@ export const sessionIndexes: IndexDefinition[] = [
 */
 
 /**
+ * ============================================================================
+ * REMEMBER TOKEN COLLECTION INDEXES
+ * ============================================================================
+ * Collection: remember_tokens
+ * Average Document Size: ~300 bytes
+ * Expected Growth: 5k-500k tokens (users can have up to 5 tokens)
+ * TTL: 30-90 days
+ */
+
+export const rememberTokenIndexes: IndexDefinition[] = [
+	/**
+	 * 1. SELECTOR INDEX (Critical - Token Lookup)
+	 * Used for: Fast token validation during auto-login
+	 * Query Pattern: db.remember_tokens.findOne({ selector: "abc123", isRevoked: false })
+	 */
+	{
+		collection: 'remember_tokens',
+		type: 'compound',
+		fields: { selector: 1, isRevoked: 1 },
+		options: {
+			unique: false,
+			name: 'idx_remember_tokens_selector_revoked'
+		},
+		description: 'Fast lookup for remember-me tokens by selector',
+		priority: 'critical',
+		usedFor: [
+			'Auto-login token validation',
+			'Remember-me cookie verification'
+		],
+		impact: {
+			readImprovement: '100x faster - O(log n) vs O(n)',
+			writeImpact: '~2% slower on token creation',
+			storageSize: '~30KB for 10k tokens, ~3MB for 1M tokens'
+		}
+	},
+
+	/**
+	 * 2. USER ID + ACTIVE STATUS INDEX (High Priority)
+	 * Used for: Getting all active sessions for a user
+	 * Query Pattern: db.remember_tokens.find({ userId: ObjectId, isRevoked: false })
+	 */
+	{
+		collection: 'remember_tokens',
+		type: 'compound',
+		fields: { userId: 1, isRevoked: 1, expiresAt: 1 },
+		options: {
+			unique: false,
+			name: 'idx_remember_tokens_user_active'
+		},
+		description: 'Fast lookup of active sessions for a user',
+		priority: 'high',
+		usedFor: [
+			'List active sessions in user settings',
+			'Enforce max sessions per user limit',
+			'Revoke all user tokens on logout'
+		],
+		impact: {
+			readImprovement: '50x faster for multi-token queries',
+			writeImpact: '~2% slower on token creation',
+			storageSize: '~40KB for 10k tokens'
+		}
+	},
+
+	/**
+	 * 3. EXPIRATION TTL INDEX (Automatic Cleanup)
+	 * Used for: Automatic deletion of expired tokens
+	 * MongoDB will automatically delete documents where expiresAt < current time
+	 */
+	{
+		collection: 'remember_tokens',
+		type: 'single',
+		fields: { expiresAt: 1 },
+		options: {
+			unique: false,
+			name: 'idx_remember_tokens_ttl',
+			expireAfterSeconds: 0 // Delete immediately when expiresAt is reached
+		},
+		description: 'TTL index for automatic cleanup of expired tokens',
+		priority: 'high',
+		usedFor: [
+			'Automatic deletion of expired remember-me tokens',
+			'Database maintenance and cleanup'
+		],
+		impact: {
+			readImprovement: 'N/A (maintenance index)',
+			writeImpact: 'Minimal - MongoDB handles cleanup automatically',
+			storageSize: '~20KB for 10k tokens'
+		}
+	},
+
+	/**
+	 * 4. REVOKED TOKENS CLEANUP INDEX
+	 * Used for: Cleaning up old revoked tokens
+	 * Query Pattern: db.remember_tokens.deleteMany({ isRevoked: true, revokedAt: { $lt: cutoffDate } })
+	 */
+	{
+		collection: 'remember_tokens',
+		type: 'compound',
+		fields: { isRevoked: 1, revokedAt: 1 },
+		options: {
+			unique: false,
+			name: 'idx_remember_tokens_revoked_cleanup',
+			partialFilterExpression: {
+				isRevoked: true
+			}
+		},
+		description: 'Efficient cleanup of old revoked tokens',
+		priority: 'medium',
+		usedFor: [
+			'Periodic cleanup of revoked tokens (30+ days old)',
+			'Database maintenance operations'
+		],
+		impact: {
+			readImprovement: '30x faster for cleanup queries',
+			writeImpact: '~1% on token revocation',
+			storageSize: '~15KB for 10k revoked tokens'
+		}
+	}
+];
+
+/**
  * ALL INDEX DEFINITIONS
  * Export all indexes in one array for easy access
  */
 export const allIndexDefinitions: IndexDefinition[] = [
-	...userIndexes
+	...userIndexes,
+	...rememberTokenIndexes
 	// ...sessionIndexes,
 	// ...otherCollectionIndexes,
 ];

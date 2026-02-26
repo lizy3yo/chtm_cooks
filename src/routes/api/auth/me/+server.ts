@@ -1,25 +1,29 @@
+/**
+ * Get Current User Endpoint
+ * 
+ * Returns the currently authenticated user's information
+ * Uses httpOnly cookie for authentication
+ */
+
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { authenticateToken } from '$lib/server/middleware/auth';
+import { requireAuth } from '$lib/server/middleware/auth/verify';
 import { getDatabase } from '$lib/server/db/mongodb';
 import { ObjectId } from 'mongodb';
 import type { User, UserResponse } from '$lib/server/models/User';
 import { UserRole } from '$lib/server/models/User';
+import { AppError } from '$lib/server/errors';
 
-export const GET: RequestHandler = async ({ request }) => {
+export const GET: RequestHandler = async (event) => {
 	try {
-		const authHeader = request.headers.get('Authorization');
-		const auth = authenticateToken(authHeader);
-
-		if (!auth.success || !auth.payload) {
-			return auth.error!;
-		}
+		// Require authentication (throws if not authenticated)
+		const authUser = requireAuth(event);
 
 		// Get user from database
 		const db = await getDatabase();
 		const usersCollection = db.collection<User>('users');
 
-		const user = await usersCollection.findOne({ _id: new ObjectId(auth.payload.userId) });
+		const user = await usersCollection.findOne({ _id: new ObjectId(authUser.userId) });
 
 		if (!user) {
 			return json({ error: 'User not found' }, { status: 404 });
@@ -41,9 +45,15 @@ export const GET: RequestHandler = async ({ request }) => {
 			})
 		};
 
-		return json(userResponse);
+		return json({ user: userResponse });
 	} catch (error) {
 		console.error('Get user error:', error);
+		
+		// If it's an AppError, return its status code
+		if (error instanceof AppError) {
+			return json({ error: error.message }, { status: error.statusCode });
+		}
+		
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
 };

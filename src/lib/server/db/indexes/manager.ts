@@ -85,16 +85,34 @@ class IndexManager {
 		} catch (error) {
 			const executionTimeMs = Date.now() - startTime;
 			const errorMessage = error instanceof Error ? error.message : String(error);
+			const indexName = definition.options?.name || 'unknown';
 
+			// Handle collection not existing yet (this is expected for new collections)
+			if (errorMessage.includes('ns does not exist') || errorMessage.includes('namespace not found')) {
+				logWarn(
+					`Collection '${definition.collection}' does not exist yet. Index '${indexName}' will be created when collection is first used.`
+				);
+				
+				return {
+					collection: definition.collection,
+					indexName,
+					success: true,
+					action: 'pending',
+					message: `Collection does not exist yet, index will be created on first use`,
+					executionTimeMs
+				};
+			}
+
+			// For other errors, log as actual errors
 			logError(error as Error, {
 				context: 'createIndex',
 				collection: definition.collection,
-				indexName: definition.options?.name
+				indexName
 			});
 
 			return {
 				collection: definition.collection,
-				indexName: definition.options?.name || 'unknown',
+				indexName,
 				success: false,
 				action: 'failed',
 				message: `Failed to create index: ${errorMessage}`,
@@ -131,16 +149,24 @@ class IndexManager {
 		const created = results.filter((r) => r.action === 'created').length;
 		const existed = results.filter((r) => r.action === 'exists').length;
 		const failed = results.filter((r) => r.action === 'failed').length;
+		const pending = results.filter((r) => r.action === 'pending').length;
 
 		logInfo(
-			`Bulk index creation completed: ${created} created, ${existed} existed, ${failed} failed (${totalExecutionTimeMs}ms)`
+			`Bulk index creation completed: ${created} created, ${existed} existed, ${failed} failed, ${pending} pending (${totalExecutionTimeMs}ms)`
 		);
+
+		if (pending > 0) {
+			logInfo(
+				`${pending} index(es) pending - collections don't exist yet. Indexes will be created automatically when collections are first used.`
+			);
+		}
 
 		return {
 			totalIndexes: definitions.length,
 			created,
 			existed,
 			failed,
+			pending,
 			results,
 			totalExecutionTimeMs
 		};
@@ -509,7 +535,9 @@ export async function initializeIndexes(): Promise<BulkIndexCreationResult> {
 	const result = await indexManager.createAllIndexes();
 
 	if (result.failed > 0) {
-		logWarn(`Some indexes failed to create (${result.failed} failures)`);
+		logWarn(`Some indexes failed to create (${result.failed} failures). Check error logs for details.`);
+	} else if (result.pending > 0) {
+		logInfo('All existing collections have indexes. Some collections are pending creation.');
 	} else {
 		logInfo('All indexes initialized successfully');
 	}
