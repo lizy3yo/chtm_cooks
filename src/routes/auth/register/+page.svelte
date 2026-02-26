@@ -457,7 +457,7 @@
 				<div class="relative mb-6">
 					<div class="h-2 bg-gray-200 rounded-full overflow-hidden">
 						<div 
-							class="h-full bg-blue-600 transition-all duration-300 ease-in-out"
+							class="h-full bg-gradient-to-r from-pink-600 to-rose-600 transition-all duration-300 ease-in-out"
 							style="width: {(currentStep / totalSteps) * 100}%"
 						></div>
 					</div>
@@ -474,7 +474,7 @@
 						>
 							<div 
 								class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold mb-2 transition-all relative
-									{currentStep === step.number ? 'bg-blue-600 text-white scale-110' : 
+									{currentStep === step.number ? 'bg-gradient-to-br from-pink-600 to-rose-600 text-white scale-110' : 
 									currentStep > step.number ? 'bg-green-500 text-white' : 
 									'bg-gray-200 text-gray-500'}"
 							>
@@ -637,7 +637,7 @@
 								<input
 									type="checkbox"
 									bind:checked={showPassword}
-									class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+									class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
 								/>
 								<span class="ml-2 text-sm text-gray-600">Show passwords</span>
 							</label>
@@ -665,7 +665,7 @@
 											markTouched('yearLevel');
 											updateFieldError('yearLevel');
 										}}
-										class="block w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-gray-100"
+										class="block w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:cursor-not-allowed disabled:bg-gray-100 transition-colors duration-200"
 									>
 										<option value="">Select Year</option>
 										{#each yearLevels as year}
@@ -716,7 +716,7 @@
 									<button 
 										type="button" 
 										onclick={() => goToStep(1)}
-										class="mt-3 text-xs text-blue-600 hover:text-blue-500 font-medium"
+										class="mt-3 text-xs text-pink-600 hover:text-pink-500 font-medium"
 									>
 										Edit
 									</button>
@@ -731,7 +731,7 @@
 									<button 
 										type="button" 
 										onclick={() => goToStep(2)}
-										class="mt-3 text-xs text-blue-600 hover:text-blue-500 font-medium"
+										class="mt-3 text-xs text-pink-600 hover:text-pink-500 font-medium"
 									>
 										Edit
 									</button>
@@ -752,7 +752,7 @@
 									<button 
 										type="button" 
 										onclick={() => goToStep(3)}
-										class="mt-3 text-xs text-blue-600 hover:text-blue-500 font-medium"
+										class="mt-3 text-xs text-pink-600 hover:text-pink-500 font-medium"
 									>
 										Edit
 									</button>
@@ -770,7 +770,7 @@
 											markTouched('agreedToTerms');
 											updateFieldError('agreedToTerms');
 										}}
-										class="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500
+										class="mt-1 h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500
 											{errors.agreedToTerms ? 'border-red-500' : ''}"
 									/>
 									<span class="ml-3 text-sm text-gray-600">
@@ -778,7 +778,7 @@
 										<button
 											type="button"
 											onclick={() => showTermsModal = true}
-											class="font-medium text-blue-600 hover:text-blue-500 underline"
+											class="font-medium text-pink-600 hover:text-pink-500 underline"
 										>
 											Terms and Conditions
 										</button>
@@ -786,7 +786,7 @@
 										<button
 											type="button"
 											onclick={() => showPrivacyModal = true}
-											class="font-medium text-blue-600 hover:text-blue-500 underline"
+											class="font-medium text-pink-600 hover:text-pink-500 underline"
 										>
 											Privacy Policy
 										</button>
@@ -852,7 +852,7 @@
 	{#snippet footer()}
 		<p class="text-sm text-gray-600">
 			Already have an account?
-			<a href="/auth/login" class="font-medium text-blue-600 hover:text-blue-500">
+			<a href="/auth/login" class="font-medium text-pink-600 hover:text-pink-500">
 				Sign in
 			</a>
 		</p>
@@ -936,7 +936,7 @@
 					<button
 						type="button"
 						onclick={() => showTermsModal = false}
-						class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+						class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-gradient-to-r from-pink-600 to-rose-600 text-base font-medium text-white hover:from-pink-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 sm:ml-3 sm:w-auto sm:text-sm"
 					>
 						Close
 					</button>
@@ -1028,7 +1028,7 @@
 					<button
 						type="button"
 						onclick={() => showPrivacyModal = false}
-						class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm"
+						class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-gradient-to-r from-pink-600 to-rose-600 text-base font-medium text-white hover:from-pink-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 sm:ml-3 sm:w-auto sm:text-sm"
 					>
 						Close
 					</button>

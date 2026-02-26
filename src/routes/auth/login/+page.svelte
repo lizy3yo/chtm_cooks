@@ -61,12 +61,12 @@
 </script>
 
 <svelte:head>
-	<title>Student Login - CHTM Cooks</title>
+	<title>Sign In - CHTM Cooks</title>
 </svelte:head>
 
 <AuthLayout
 	title="Welcome Back"
-	subtitle="Sign in to your student account"
+	subtitle="Sign in to your account"
 >
 	{#snippet children()}
 		<form onsubmit={handleSubmit} class="space-y-6" novalidate>
@@ -104,38 +104,41 @@
 					disabled={isSubmitting}
 				/>
 				
-				<div class="mt-3 flex items-center justify-between gap-4">
+				<div class="mt-4 flex items-center justify-between gap-4 flex-wrap">
 					<!-- Remember Me Checkbox -->
-					<label class="flex items-center cursor-pointer">
+					<label class="flex items-center cursor-pointer group">
 						<input
 							type="checkbox"
 							bind:checked={rememberMe}
-							class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
+							class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500 focus:ring-offset-0 transition-colors duration-200"
 							disabled={isSubmitting}
 						/>
-						<span class="ml-2 text-sm text-gray-700 select-none">
-							Remember me 
+						<span class="ml-2 text-sm text-gray-700 select-none group-hover:text-gray-900 transition-colors duration-200">
+							Remember me
 						</span>
 					</label>
 					
 					<!-- Show Password Checkbox -->
-					<label class="flex items-center cursor-pointer">
+					<label class="flex items-center cursor-pointer group">
 						<input
 							type="checkbox"
 							bind:checked={showPassword}
-							class="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
+							class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500 focus:ring-offset-0 transition-colors duration-200"
 							disabled={isSubmitting}
 						/>
-						<span class="ml-2 text-sm text-gray-600 select-none">Show password</span>
+						<span class="ml-2 text-sm text-gray-600 select-none group-hover:text-gray-900 transition-colors duration-200">Show password</span>
 					</label>
 				</div>
 				
-				<div class="mt-2 text-right">
+				<div class="mt-4 text-right">
 					<a 
 						href="/auth/forgot-password" 
-						class="text-sm font-medium text-blue-600 hover:text-blue-500"
+						class="inline-flex items-center gap-1 text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors duration-200 group"
 					>
-						Forgot password?
+						<span>Forgot password?</span>
+						<svg class="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+						</svg>
 					</a>
 				</div>
 			</div>
@@ -148,6 +151,11 @@
 				fullWidth
 				loading={isSubmitting}
 			>
+				{#if !isSubmitting}
+					<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+					</svg>
+				{/if}
 				Sign In
 			</Button>
 		</form>
@@ -156,8 +164,8 @@
 	{#snippet footer()}
 		<p class="text-sm text-gray-600">
 			Don't have an account?
-			<a href="/auth/register" class="font-medium text-blue-600 hover:text-blue-500">
-				Sign up
+			<a href="/auth/register" class="font-semibold text-pink-600 hover:text-pink-700 transition-colors duration-200">
+				Create one now
 			</a>
 		</p>
 	{/snippet}

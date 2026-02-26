@@ -3,7 +3,7 @@
 	import { authStore, isAuthenticated } from '$lib/stores/auth';
 	import ShortcutKeyModal from '$lib/components/auth/ShortcutKeyModal.svelte';
 	import './layout.css';
-	import favicon from '$lib/assets/favicon.svg';
+	import favicon from '$lib/assets/CHTM_LOGO.png';
 
 	let { children } = $props();
 	

@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, user } from '$lib/stores/auth';
 	import { onMount } from 'svelte';
+	import logo from '$lib/assets/CHTM_LOGO.png';
 
 	// Redirect if already logged in - reactive to auth state changes
 	$effect(() => {
@@ -25,130 +26,108 @@
 	<meta name="description" content="Welcome to CHTM Cooks - Gordon College Kitchen Management System" />
 </svelte:head>
 
-<div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50">
-	<!-- Hero Section -->
-	<div class="container mx-auto px-4 py-16">
-		<div class="text-center mb-16">
-			<!-- Logo/Brand -->
-			<div class="mb-8">
-				<h1 class="text-5xl md:text-6xl font-bold text-gray-900 mb-4">
-					🍳 CHTM <span class="text-blue-600">Cooks</span>
-				</h1>
-				<p class="text-xl text-gray-600">
-					Gordon College Kitchen Management System
-				</p>
-			</div>
+<div class="min-h-screen bg-gradient-to-br from-pink-50 via-white to-rose-50 flex items-center justify-center relative overflow-hidden px-4">
+	<!-- Decorative Background Elements -->
+	<div class="absolute inset-0 overflow-hidden pointer-events-none">
+		<div class="absolute -top-40 -right-40 w-80 h-80 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
+		<div class="absolute -bottom-40 -left-40 w-80 h-80 bg-rose-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
+		<div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-pink-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+	</div>
 
-			<!-- Hero Description -->
-			<div class="max-w-2xl mx-auto mb-12">
-				<p class="text-lg text-gray-700 mb-4">
-					Streamline your culinary education with our comprehensive kitchen management platform.
-				</p>
-				<p class="text-gray-600">
-					Track resources, manage schedules, and enhance your learning experience.
-				</p>
+	<!-- Main Content -->
+	<div class="relative z-10 max-w-4xl mx-auto text-center py-12">
+		<!-- Logo and Branding -->
+		<div class="mb-12 animate-fadeIn">
+			<div class="flex justify-center mb-8">
+				<div class="relative group">
+					<div class="absolute inset-0 bg-gradient-to-r from-pink-600 to-rose-600 rounded-3xl blur-2xl opacity-20 group-hover:opacity-30 transition-opacity duration-300"></div>
+					<img 
+						src={logo} 
+						alt="CHTM Logo" 
+						class="relative h-32 md:h-40 lg:h-48 w-auto object-contain drop-shadow-2xl transform group-hover:scale-105 transition-transform duration-300"
+					/>
+				</div>
 			</div>
+			
+			<h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-4 tracking-tight">
+				CHTM <span class="text-gradient">Cooks</span>
+			</h1>
+			
+			<div class="h-1 w-32 mx-auto bg-gradient-to-r from-pink-600 to-rose-600 rounded-full mb-6"></div>
+			
+			<p class="text-lg md:text-xl lg:text-2xl text-gray-600 font-medium mb-8">
+				Gordon College Kitchen Management System
+			</p>
+			
+			<p class="text-base md:text-lg text-gray-700 max-w-2xl mx-auto mb-12 leading-relaxed">
+				Streamline your culinary education with our comprehensive kitchen management platform.
+			</p>
+		</div>
 
-			<!-- CTA Buttons -->
-			<div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
-				<a
-					href="/auth/login"
-					class="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105"
-				>
+		<!-- CTA Buttons -->
+		<div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12 animate-fadeIn">
+			<a
+				href="/auth/login"
+				class="group relative w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-pink-600 to-rose-600 text-white font-semibold rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden"
+			>
+				<span class="relative z-10 flex items-center justify-center gap-2 text-lg">
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+					</svg>
 					Sign In
-				</a>
-				<a
-					href="/auth/register"
-					class="px-8 py-4 bg-white hover:bg-gray-50 text-blue-600 font-semibold rounded-lg shadow-lg hover:shadow-xl border-2 border-blue-600 transition-all duration-200 transform hover:scale-105"
-				>
+				</span>
+				<div class="absolute inset-0 bg-gradient-to-r from-pink-700 to-rose-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+			</a>
+			
+			<a
+				href="/auth/register"
+				class="group relative w-full sm:w-auto px-10 py-5 bg-white text-pink-600 font-semibold rounded-2xl shadow-xl hover:shadow-2xl border-2 border-pink-600 transition-all duration-300 transform hover:scale-105 overflow-hidden"
+			>
+				<span class="relative z-10 flex items-center justify-center gap-2 text-lg">
+					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+					</svg>
 					Create Account
-				</a>
-			</div>
-
-			<!-- Staff Access Link -->
-			<div class="mt-8">
-				<a
-					href="/auth/staff-access"
-					class="text-sm text-gray-600 hover:text-gray-900 underline"
-				>
-					Staff & Admin Access
-				</a>
-				<p class="text-xs text-gray-500 mt-2">
-					Use keyboard shortcuts: Ctrl+Shift+K (Staff) or Ctrl+Shift+Alt+K (Superadmin)
-				</p>
-			</div>
-		</div>
-
-		<!-- Features Section -->
-		<div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto mt-20">
-			<!-- Feature 1 -->
-			<div class="bg-white rounded-xl p-6 shadow-md hover:shadow-xl transition-shadow">
-				<div class="text-4xl mb-4">👨‍🍳</div>
-				<h3 class="text-xl font-semibold mb-2 text-gray-900">For Students</h3>
-				<p class="text-gray-600">
-					Access your class schedules, track progress, and manage your culinary journey.
-				</p>
-			</div>
-
-			<!-- Feature 2 -->
-			<div class="bg-white rounded-xl p-6 shadow-md hover:shadow-xl transition-shadow">
-				<div class="text-4xl mb-4">👔</div>
-				<h3 class="text-xl font-semibold mb-2 text-gray-900">For Instructors</h3>
-				<p class="text-gray-600">
-					Manage classes, monitor student progress, and streamline kitchen operations.
-				</p>
-			</div>
-
-			<!-- Feature 3 -->
-			<div class="bg-white rounded-xl p-6 shadow-md hover:shadow-xl transition-shadow">
-				<div class="text-4xl mb-4">🔧</div>
-				<h3 class="text-xl font-semibold mb-2 text-gray-900">For Custodians</h3>
-				<p class="text-gray-600">
-					Track inventory, manage equipment, and maintain kitchen facilities efficiently.
-				</p>
-			</div>
-		</div>
-
-		<!-- About Section -->
-		<div class="max-w-3xl mx-auto mt-20 text-center">
-			<h2 class="text-3xl font-bold text-gray-900 mb-6">About CHTM Cooks</h2>
-			<p class="text-gray-700 mb-4">
-				The College of Hospitality and Tourism Management (CHTM) at Gordon College 
-				is committed to providing world-class culinary education.
-			</p>
-			<p class="text-gray-600">
-				Our Kitchen Management System helps students, staff, and administrators 
-				coordinate activities, manage resources, and enhance the learning experience.
-			</p>
-		</div>
-
-		<!-- Security Features Notice -->
-		<div class="max-w-3xl mx-auto mt-16 bg-blue-50 rounded-xl p-6 border border-blue-200">
-			<h3 class="text-lg font-semibold text-blue-900 mb-3">🔒 Secure & Private</h3>
-			<ul class="text-sm text-blue-800 space-y-2">
-				<li>✓ Email verification required for all accounts</li>
-				<li>✓ Role-based access control (Student, Instructor, Custodian, Superadmin)</li>
-				<li>✓ "Remember Me" feature for convenient access (optional)</li>
-				<li>✓ Password reset via email</li>
-				<li>✓ Industry-standard security practices</li>
-			</ul>
+				</span>
+				<div class="absolute inset-0 bg-gradient-to-r from-pink-50 to-rose-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+			</a>
 		</div>
 
 		<!-- Footer -->
-		<div class="mt-20 text-center text-gray-500 text-sm">
-			<p>© 2026 Gordon College - College of Hospitality and Tourism Management</p>
-			<p class="mt-2">
-				<a href="javascript:void(0)" class="hover:text-gray-700">Privacy Policy</a> • 
-				<a href="javascript:void(0)" class="hover:text-gray-700">Terms of Service</a> • 
-				<a href="javascript:void(0)" class="hover:text-gray-700">Contact Support</a>
+		<div class="mt-16 pt-8 border-t border-pink-100 animate-fadeIn">
+			<p class="text-sm text-gray-600">
+				© 2026 Gordon College - College of Hospitality and Tourism Management
 			</p>
 		</div>
 	</div>
 </div>
 
 <style>
-	/* Add smooth animations */
-	:global(body) {
-		overflow-x: hidden;
+	@keyframes blob {
+		0%, 100% {
+			transform: translate(0, 0) scale(1);
+		}
+		33% {
+			transform: translate(30px, -50px) scale(1.1);
+		}
+		66% {
+			transform: translate(-20px, 20px) scale(0.9);
+		}
+	}
+
+	.animate-blob {
+		animation: blob 7s infinite;
+	}
+
+	.animation-delay-2000 {
+		animation-delay: 2s;
+	}
+
+	.animation-delay-4000 {
+		animation-delay: 4s;
+	}
+
+	kbd {
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 	}
 </style>
