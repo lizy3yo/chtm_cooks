@@ -18,6 +18,7 @@ interface AuthState {
 	isAuthenticated: boolean;
 	isLoading: boolean;
 	error: string | null;
+	justLoggedIn: boolean; // Flag to track fresh login
 }
 
 // Initial state
@@ -25,7 +26,8 @@ const initialState: AuthState = {
 	user: null,
 	isAuthenticated: false,
 	isLoading: true,
-	error: null
+	error: null,
+	justLoggedIn: false
 };
 
 // Create the auth store
@@ -93,7 +95,18 @@ function createAuthStore() {
 			user,
 			isAuthenticated: true,
 			isLoading: false,
-			error: null
+			error: null,
+			justLoggedIn: true // Set flag on login
+		}));
+	},
+	
+	/**
+	 * Clear the justLoggedIn flag
+	 */
+	clearJustLoggedIn: () => {
+		update((state) => ({
+			...state,
+			justLoggedIn: false
 		}));
 	},
 
@@ -293,5 +306,12 @@ export const isAuthenticated = {
 export const isLoading = {
 	subscribe: (handler: (value: boolean) => void) => {
 		return authStore.subscribe((state) => handler(state.isLoading));
+	}
+};
+
+// Export derived store for justLoggedIn status
+export const justLoggedIn = {
+	subscribe: (handler: (value: boolean) => void) => {
+		return authStore.subscribe((state) => handler(state.justLoggedIn));
 	}
 };

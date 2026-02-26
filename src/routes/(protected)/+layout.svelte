@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import { authStore, isAuthenticated, isLoading, user } from '$lib/stores/auth';
+	import { authStore, isAuthenticated, isLoading } from '$lib/stores/auth';
+	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import type { Snippet } from 'svelte';
 	
 	interface Props {
@@ -10,30 +11,10 @@
 	
 	let { children }: Props = $props();
 	
-	// Redirect to login if not authenticated
+	// Simple redirect to login if not authenticated
 	$effect(() => {
 		if (!$isLoading && !$isAuthenticated) {
 			goto(`/auth/login?redirect=${encodeURIComponent($page.url.pathname)}`);
-		}
-		
-		// If student tries to access non-student routes, redirect to student dashboard
-		if ($isAuthenticated && $user?.role === 'student' && !$page.url.pathname.startsWith('/student')) {
-			goto('/student/dashboard');
-		}
-		
-		// If instructor tries to access routes outside their role, redirect to instructor dashboard
-		if ($isAuthenticated && $user?.role === 'instructor' && !$page.url.pathname.startsWith('/instructor')) {
-			goto('/instructor/dashboard');
-		}
-		
-		// If custodian tries to access routes outside their role, redirect to custodian dashboard
-		if ($isAuthenticated && $user?.role === 'custodian' && !$page.url.pathname.startsWith('/custodian')) {
-			goto('/custodian/dashboard');
-		}
-		
-		// If superadmin tries to access routes outside admin, redirect to admin dashboard
-		if ($isAuthenticated && $user?.role === 'superadmin' && !$page.url.pathname.startsWith('/admin')) {
-			goto('/admin/dashboard');
 		}
 	});
 </script>
@@ -67,3 +48,6 @@
 {:else if $isAuthenticated}
 	{@render children()}
 {/if}
+
+<!-- Toast Container - Always rendered for protected routes -->
+<ToastContainer />

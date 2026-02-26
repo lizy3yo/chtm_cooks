@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { authStore, isAuthenticated } from '$lib/stores/auth';
 	import ShortcutKeyModal from '$lib/components/auth/ShortcutKeyModal.svelte';
+	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
 
@@ -99,6 +100,9 @@
 </svelte:head>
 
 {@render children()}
+
+<!-- Global Toast Notifications -->
+<ToastContainer />
 
 <!-- Shortcut Key Modals -->
 <ShortcutKeyModal 
