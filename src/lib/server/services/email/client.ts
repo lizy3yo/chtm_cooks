@@ -19,10 +19,19 @@ export function getEmailTransporter(): Transporter {
 		return transporter;
 	}
 
+	console.log('[Email Client] Initializing email transporter...');
+
 	// Validate email configuration
 	if (!EMAIL_HOST || !EMAIL_PORT || !EMAIL_USER || !EMAIL_PASSWORD) {
+		console.error('[Email Client] ❌ Email configuration is incomplete');
+		console.error('[Email Client] EMAIL_HOST:', EMAIL_HOST ? '✅ Set' : '❌ Missing');
+		console.error('[Email Client] EMAIL_PORT:', EMAIL_PORT ? '✅ Set' : '❌ Missing');
+		console.error('[Email Client] EMAIL_USER:', EMAIL_USER ? '✅ Set' : '❌ Missing');
+		console.error('[Email Client] EMAIL_PASSWORD:', EMAIL_PASSWORD ? '✅ Set' : '❌ Missing');
 		throw new Error('Email configuration is incomplete. Please check your environment variables.');
 	}
+
+	console.log(`[Email Client] ✅ Configuration valid - Host: ${EMAIL_HOST}, Port: ${EMAIL_PORT}, User: ${EMAIL_USER}`);
 
 	// Create transporter with Gmail SMTP
 	transporter = nodemailer.createTransport({
@@ -40,6 +49,8 @@ export function getEmailTransporter(): Transporter {
 		rateDelta: 1000, // Time between messages in ms
 		rateLimit: 5 // Max messages per rateDelta
 	});
+
+	console.log('[Email Client] ✅ Transporter created successfully');
 
 	return transporter;
 }
@@ -72,7 +83,12 @@ export async function sendEmail(options: {
 	text?: string;
 }) {
 	try {
+		console.log(`[Email Client] Preparing to send email to: ${options.to}`);
+		console.log(`[Email Client] Subject: ${options.subject}`);
+
 		const transporter = getEmailTransporter();
+
+		console.log(`[Email Client] Sending email...`);
 
 		const info = await transporter.sendMail({
 			from: EMAIL_FROM || `"CHTM Cooks" <${EMAIL_USER}>`,
@@ -82,13 +98,19 @@ export async function sendEmail(options: {
 			text: options.text || options.html.replace(/<[^>]*>/g, '') // Strip HTML for text version
 		});
 
-		console.log('✅ Email sent successfully:', info.messageId);
+		console.log(`[Email Client] ✅ Email sent successfully to ${options.to}`);
+		console.log(`[Email Client] Message ID: ${info.messageId}`);
+
 		return {
 			success: true,
 			messageId: info.messageId
 		};
 	} catch (error) {
-		console.error('❌ Failed to send email:', error);
+		console.error(`[Email Client] ❌ Failed to send email to ${options.to}:`, error);
+		if (error instanceof Error) {
+			console.error(`[Email Client] Error message: ${error.message}`);
+			console.error(`[Email Client] Error stack:`, error.stack);
+		}
 		throw error;
 	}
 }

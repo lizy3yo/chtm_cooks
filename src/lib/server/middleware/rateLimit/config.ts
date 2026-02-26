@@ -32,11 +32,11 @@ export const RateLimitPresets = {
 	/**
 	 * Login endpoint - Strict limits to prevent brute force attacks
 	 * - Only counts failed login attempts
-	 * - Blocks for 30 minutes after 5 failed attempts
+	 * - Blocks for 30 minutes after 1000 failed attempts
 	 */
 	LOGIN: {
 		windowMs: 15 * 60 * 1000, // 15 minutes
-		maxRequests: 5, // 5 attempts per 15 minutes
+		maxRequests: 1000, // 1000 attempts per 15 minutes
 		blockDurationMs: 30 * 60 * 1000, // Block for 30 minutes after exceeding
 		skipSuccessfulRequests: true, // Only count failed login attempts
 		keyPrefix: 'ratelimit:login'

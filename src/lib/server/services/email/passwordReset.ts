@@ -14,7 +14,10 @@ export async function sendPasswordResetEmail(
 	resetToken: string
 ): Promise<void> {
 	try {
+		console.log(`[Password Reset Email] Generating template for: ${email}`);
 		const html = passwordResetTemplate(firstName, resetToken);
+
+		console.log(`[Password Reset Email] Template generated, sending email...`);
 
 		await sendEmail({
 			to: email,
@@ -22,9 +25,12 @@ export async function sendPasswordResetEmail(
 			html
 		});
 
-		console.log(`✅ Password reset email sent to: ${email}`);
+		console.log(`[Password Reset Email] ✅ Password reset email sent to: ${email}`);
 	} catch (error) {
-		console.error(`❌ Failed to send password reset email to ${email}:`, error);
+		console.error(`[Password Reset Email] ❌ Failed to send password reset email to ${email}:`, error);
+		if (error instanceof Error) {
+			console.error(`[Password Reset Email] Error details: ${error.message}`);
+		}
 		throw new Error('Failed to send password reset email. Please try again later.');
 	}
 }

@@ -175,7 +175,7 @@ export interface IndexCreationResult {
 	collection: string;
 	indexName: string;
 	success: boolean;
-	action: 'created' | 'exists' | 'failed';
+	action: 'created' | 'exists' | 'failed' | 'pending';
 	message: string;
 	executionTimeMs?: number;
 	error?: string;
@@ -189,6 +189,7 @@ export interface BulkIndexCreationResult {
 	created: number;
 	existed: number;
 	failed: number;
+	pending: number;
 	results: IndexCreationResult[];
 	totalExecutionTimeMs: number;
 }
