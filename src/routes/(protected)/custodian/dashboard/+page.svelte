@@ -1,10 +1,18 @@
 <script lang="ts">
-	import { user } from '$lib/stores/auth';
+	import { user, authStore, justLoggedIn } from '$lib/stores/auth';
+	import { toastStore } from '$lib/stores/toast';
 	import { onMount } from 'svelte';
 	
 	let currentTime = $state(new Date());
 	
 	onMount(() => {
+		// Show welcome toast if just logged in
+		if ($justLoggedIn) {
+			toastStore.success('Welcome back! You have successfully logged in.', 'Login Successful', 5000);
+			// Clear the flag
+			authStore.clearJustLoggedIn();
+		}
+		
 		const interval = setInterval(() => {
 			currentTime = new Date();
 		}, 1000);

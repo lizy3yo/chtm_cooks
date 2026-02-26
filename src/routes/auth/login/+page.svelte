@@ -1,11 +1,11 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth';
+	import { toastStore } from '$lib/stores/toast';
 	import { authApi, ApiErrorHandler } from '$lib/api/auth';
 	import AuthLayout from '$lib/components/auth/AuthLayout.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
-	import Alert from '$lib/components/ui/Alert.svelte';
 	import type { LoginRequest } from '$lib/types/auth';
 	
 	// Form state - use separate $state variables for proper binding
@@ -15,13 +15,11 @@
 	
 	let errors = $state<Record<string, string>>({});
 	let isSubmitting = $state(false);
-	let apiError = $state<string | null>(null);
 	let showPassword = $state(false);
 	
 	// Handle form submission
 	async function handleSubmit(event: Event) {
 		event.preventDefault();
-		apiError = null;
 		
 		isSubmitting = true;
 		
@@ -50,9 +48,9 @@
 			}
 		} catch (error) {
 			if (error instanceof ApiErrorHandler) {
-				apiError = error.message;
+				toastStore.error(error.message, 'Login Failed');
 			} else {
-				apiError = 'An unexpected error occurred. Please try again.';
+				toastStore.error('An unexpected error occurred. Please try again.', 'Login Failed');
 			}
 		} finally {
 			isSubmitting = false;
@@ -70,13 +68,6 @@
 >
 	{#snippet children()}
 		<form onsubmit={handleSubmit} class="space-y-6" novalidate>
-			<!-- API Error Alert -->
-			{#if apiError}
-				<Alert type="error" dismissible onDismiss={() => apiError = null}>
-					<p>{apiError}</p>
-				</Alert>
-			{/if}
-
 			<!-- Email Input -->
 			<Input
 				id="email"
@@ -86,7 +77,6 @@
 				bind:value={email}
 				required
 				autocomplete="email"
-				oninput={() => apiError = null}
 				disabled={isSubmitting}
 			/>
 
@@ -100,7 +90,6 @@
 					bind:value={password}
 					required
 					autocomplete="current-password"
-					oninput={() => apiError = null}
 					disabled={isSubmitting}
 				/>
 				

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth';
+	import { toastStore } from '$lib/stores/toast';
 	import { authApi, ApiErrorHandler } from '$lib/api/auth';
 	import type { ValidationError } from '$lib/types/auth';
 	import {
@@ -14,7 +15,6 @@
 	import AuthLayout from '$lib/components/auth/AuthLayout.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
-	import Alert from '$lib/components/ui/Alert.svelte';
 	import PasswordStrength from '$lib/components/ui/PasswordStrength.svelte';
 	
 	// Form state - use separate $state variables for proper binding
@@ -29,7 +29,6 @@
 	
 	let errors = $state<Record<string, string>>({});
 	let isSubmitting = $state(false);
-	let apiError = $state<string | null>(null);
 	let showPassword = $state(false);
 	let registrationSuccess = $state(false);
 	let showTermsModal = $state(false);
@@ -298,7 +297,6 @@
 		if (currentStep < totalSteps) {
 			console.log('➡️ Incrementing currentStep from', currentStep, 'to', currentStep + 1);
 			currentStep++;
-			apiError = null;
 		}
 	}
 	
@@ -306,7 +304,6 @@
 		console.log('⬅️ Back button clicked from step', currentStep);
 		if (currentStep > 1) {
 			currentStep--;
-			apiError = null;
 		}
 	}
 	
@@ -317,7 +314,6 @@
 		// Allow navigation back, but validate forward navigation
 		if (step < currentStep) {
 			currentStep = step;
-			apiError = null;
 		} else if (step > currentStep) {
 			// Validate all intermediate steps
 			for (let i = currentStep; i < step; i++) {
@@ -326,7 +322,6 @@
 				}
 			}
 			currentStep = step;
-			apiError = null;
 		}
 	}
 	
@@ -357,7 +352,6 @@
 	// Handle form submission
 	async function handleSubmit(event: Event) {
 		event.preventDefault();
-		apiError = null;
 		
 		if (!validate()) {
 			// Scroll to first error
@@ -384,6 +378,9 @@
 			
 			registrationSuccess = true;
 			
+			// Show success toast
+			toastStore.success('Your account has been created successfully! Redirecting...', 'Registration Successful');
+			
 			// Show success message for a moment before redirecting
 			setTimeout(() => {
 				authStore.login(response.user);
@@ -391,7 +388,7 @@
 			}, 2000);
 		} catch (error) {
 			if (error instanceof ApiErrorHandler) {
-				apiError = error.message;
+				toastStore.error(error.message, 'Registration Failed');
 				
 				// Handle specific field errors from backend
 				if (error.message.includes('email')) {
@@ -408,7 +405,7 @@
 					goToStep(2); // Navigate to email step
 				}
 			} else {
-				apiError = 'An unexpected error occurred. Please try again.';
+				toastStore.error('An unexpected error occurred. Please try again.', 'Registration Failed');
 			}
 			
 			// Scroll to top to show error
@@ -447,9 +444,19 @@
 >
 	{#snippet children()}
 		{#if registrationSuccess}
-			<Alert type="success" title="Registration Successful!">
-				<p>Your account has been created. Redirecting to your dashboard...</p>
-			</Alert>
+			<div class="rounded-lg border border-green-200 bg-green-50 p-4">
+				<div class="flex items-start">
+					<div class="flex-shrink-0">
+						<svg class="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+						</svg>
+					</div>
+					<div class="ml-3">
+						<h3 class="text-sm font-medium text-green-800">Registration Successful!</h3>
+						<p class="mt-2 text-sm text-green-700">Your account has been created. Redirecting to your dashboard...</p>
+					</div>
+				</div>
+			</div>
 		{:else}
 			<!-- Progress Indicator -->
 			<div class="mb-8">
@@ -504,32 +511,6 @@
 			</div>
 
 			<form onsubmit={handleSubmit} class="space-y-6" novalidate>
-				<!-- API Error Alert -->
-				{#if apiError}
-					<Alert type="error" dismissible onDismiss={() => apiError = null}>
-						{apiError}
-					</Alert>
-				{/if}
-				
-				<!-- Step Validation Summary -->
-				{#if getStepErrorCount(currentStep) > 0 && Object.keys(touched).length > 0}
-					<Alert type="error">
-						<div class="flex items-start">
-							<svg class="w-5 h-5 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-								<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
-							</svg>
-							<div>
-								<p class="font-semibold">Please correct the following errors:</p>
-								<ul class="mt-2 space-y-1 text-sm">
-									{#each Object.entries(errors) as [field, message]}
-										<li>• {message}</li>
-									{/each}
-								</ul>
-							</div>
-						</div>
-					</Alert>
-				{/if}
-
 				<!-- Step Content -->
 				<div class="min-h-[320px]">
 					{#if currentStep === 1}

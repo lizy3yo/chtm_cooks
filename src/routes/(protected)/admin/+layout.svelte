@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { authStore, user } from '$lib/stores/auth';
+	import { toastStore } from '$lib/stores/toast';
 	import type { Snippet } from 'svelte';
 	
 	interface Props {
@@ -18,6 +19,7 @@
 	
 	async function handleLogout() {
 		await authStore.logout();
+		toastStore.success('You have been logged out successfully.', 'Logged Out');
 		goto('/auth/login');
 	}
 </script>
