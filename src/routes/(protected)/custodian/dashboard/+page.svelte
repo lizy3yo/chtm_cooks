@@ -1,17 +1,9 @@
 <script lang="ts">
-	import { user, authStore, justLoggedIn, isLoading } from '$lib/stores/auth';
+	import { user, authStore, justLoggedIn } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
 	import { onMount } from 'svelte';
 	
 	let currentTime = $state(new Date());
-	
-	// Debug: Log when user changes
-	$effect(() => {
-		console.log('[Dashboard Effect] User changed:', $user);
-		console.log('[Dashboard Effect] User keys:', $user ? Object.keys($user) : 'null');
-		console.log('[Dashboard Effect] User JSON:', JSON.stringify($user, null, 2));
-		console.log('[Dashboard Effect] firstName:', $user?.firstName);
-	});
 	
 	// Placeholder data - will be replaced with real API calls
 	const stats = [
@@ -73,7 +65,7 @@
 		return () => clearInterval(interval);
 	});
 	
-	const greeting = $derived.by(() => {
+	const greeting = $derived(() => {
 		const hour = currentTime.getHours();
 		if (hour < 12) return 'Good morning';
 		if (hour < 18) return 'Good afternoon';
@@ -85,39 +77,12 @@
 	<title>Custodian Dashboard - CHTM Cooks</title>
 </svelte:head>
 
-{#if $isLoading || !$user}
-	<div class="flex min-h-[400px] items-center justify-center">
-		<div class="text-center">
-			<svg 
-				class="mx-auto h-12 w-12 animate-spin text-emerald-600" 
-				xmlns="http://www.w3.org/2000/svg" 
-				fill="none" 
-				viewBox="0 0 24 24"
-			>
-				<circle 
-					class="opacity-25" 
-					cx="12" 
-					cy="12" 
-					r="10" 
-					stroke="currentColor" 
-					stroke-width="4"
-				></circle>
-				<path 
-					class="opacity-75" 
-					fill="currentColor" 
-					d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-				></path>
-			</svg>
-			<p class="mt-4 text-sm text-gray-600">Loading dashboard...</p>
-		</div>
-	</div>
-{:else}
 <div class="space-y-6">
 	<!-- Header -->
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div>
 			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">
-				{greeting}, {$user?.firstName}!
+				{greeting()}, {$user?.firstName}!
 			</h1>
 			<p class="mt-1 text-sm text-gray-500">Kitchen Laboratory Management Overview</p>
 		</div>
@@ -265,4 +230,3 @@
 		</div>
 	</div>
 </div>
-{/if}

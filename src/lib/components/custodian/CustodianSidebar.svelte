@@ -14,8 +14,23 @@
 		children?: { name: string; href: string }[];
 	}
 	
+	import { derived } from 'svelte/store';
+	import { onMount } from 'svelte';
+
 	let isMobileMenuOpen = $state(false);
 	let isProfileDropdownOpen = $state(false);
+
+	// Show the mobile top nav only on custodian routes (derived store)
+	const showTopNav = derived(page, $page => typeof window !== 'undefined' && $page.url.pathname.startsWith('/custodian'));
+
+	// Apply body padding only when the mobile top nav is visible (client-side)
+	onMount(() => {
+		const unsub = showTopNav.subscribe(val => {
+			if (val) document.body.style.paddingTop = '3.5rem';
+			else if (document.body.style.paddingTop === '3.5rem') document.body.style.paddingTop = '';
+		});
+		return unsub;
+	});
 	let expandedSections = $state<Record<string, boolean>>({
 		inventory: false,
 		requests: false,
@@ -88,25 +103,29 @@
 	}
 </script>
 
-<!-- Mobile Menu Button -->
-<button
-	onclick={() => (isMobileMenuOpen = !isMobileMenuOpen)}
-	class="fixed left-4 top-4 z-50 rounded-lg bg-white p-2 shadow-lg lg:hidden"
-	aria-label="Toggle menu"
->
-	<svg class="h-6 w-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-		{#if isMobileMenuOpen}
-			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-		{:else}
-			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-		{/if}
-	</svg>
-</button>
+<!-- Mobile Top Navigation (shows hamburger at top on mobile screens) -->
+{#if showTopNav}
+	<div class="fixed top-0 left-0 right-0 z-30 lg:hidden">
+		<div class="flex items-center h-14 px-4 bg-white border-b border-gray-200 shadow-sm">
+			{#if !isMobileMenuOpen}
+				<button
+					onclick={() => (isMobileMenuOpen = !isMobileMenuOpen)}
+					class="rounded-lg bg-white p-2 shadow-md"
+					aria-label="Toggle menu"
+				>
+					<svg class="h-6 w-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+					</svg>
+				</button>
+			{/if}
+		</div>
+	</div>
+{/if}
 
 <!-- Overlay for mobile -->
 {#if isMobileMenuOpen}
 	<div
-		class="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
+		class="fixed inset-0 z-40 bg-transparent lg:hidden"
 		onclick={closeMobileMenu}
 		role="button"
 		tabindex="0"
@@ -115,9 +134,9 @@
 
 <!-- Sidebar -->
 <aside
-    class="fixed inset-y-0 left-0 z-40 transform border-r border-gray-200 shadow-lg transition-all duration-300 ease-in-out {isMobileMenuOpen
+    class="fixed inset-y-0 left-0 z-50 transform border-r border-gray-200 shadow-lg transition-all duration-300 ease-in-out {isMobileMenuOpen
 		? 'translate-x-0'
-		: '-translate-x-full'} lg:translate-x-0 {$sidebarCollapsed ? 'lg:w-20' : 'w-72'}"
+		: '-translate-x-full'} lg:translate-x-0 {$sidebarCollapsed ? 'lg:w-20' : 'w-56 md:w-72'}"
 	style="background-color: #ffffff;"
 >
 	<div class="flex h-full flex-col overflow-hidden">
