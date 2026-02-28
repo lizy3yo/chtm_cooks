@@ -10,3 +10,5 @@ html {
 body {
 	background-color: #ffffff !important;
 }
+
+/* Top padding for mobile nav is applied dynamically by the component when needed. */
