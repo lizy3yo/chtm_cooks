@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { accessToken } from '$lib/stores/auth';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import StatusMessage from '$lib/components/ui/StatusMessage.svelte';
@@ -23,10 +22,18 @@
 	let { user, onClose, onSuccess }: Props = $props();
 	
 	let formData = $state({
-		firstName: user.firstName,
-		lastName: user.lastName,
-		role: user.role as 'instructor' | 'custodian' | 'superadmin',
-		isActive: user.isActive
+		firstName: '',
+		lastName: '',
+		role: 'instructor' as 'instructor' | 'custodian' | 'superadmin',
+		isActive: true
+	});
+	
+	// Initialize formData from user prop
+	$effect(() => {
+		formData.firstName = user.firstName;
+		formData.lastName = user.lastName;
+		formData.role = user.role as 'instructor' | 'custodian' | 'superadmin';
+		formData.isActive = user.isActive;
 	});
 	
 	let errors = $state<Record<string, string>>({});
@@ -59,9 +66,9 @@
 		try {
 			const response = await fetch(`/api/users?userId=${user.id}`, {
 				method: 'PATCH',
+				credentials: 'include',
 				headers: {
-					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${$accessToken}`
+					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify(formData)
 			});

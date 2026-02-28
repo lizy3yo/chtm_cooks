@@ -92,7 +92,7 @@
 				throw new Error(`This access method is for ${activeShortcutType === 'SUPERADMIN' ? 'superadmin' : 'staff'} only`);
 			}
 			
-			authStore.login(response);
+			authStore.login(response.user);
 			
 			// Redirect based on role
 			if (response.user.role === 'instructor') {

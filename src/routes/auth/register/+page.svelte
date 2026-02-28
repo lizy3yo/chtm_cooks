@@ -38,10 +38,9 @@
 	let currentStep = $state(1);
 	const totalSteps = 4;
 	
-	console.log('🎬 Component loaded, currentStep:', currentStep);
-	
 	// Track currentStep changes
 	$effect(() => {
+		console.log('🎬 Component loaded, currentStep:', currentStep);
 		console.log('📍 currentStep changed to:', currentStep);
 	});
 	

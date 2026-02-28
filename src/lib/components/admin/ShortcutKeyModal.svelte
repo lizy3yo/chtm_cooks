@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { accessToken } from '$lib/stores/auth';
 	import Button from '$lib/components/ui/Button.svelte';
 	import StatusMessage from '$lib/components/ui/StatusMessage.svelte';
 
@@ -16,9 +15,12 @@
 	let loading = $state(false);
 	let error = $state<string | null>(null);
 	let success = $state<string | null>(null);
-	let shortcutType = $state<'STAFF' | 'SUPERADMIN'>(
-		userRole === 'superadmin' ? 'SUPERADMIN' : 'STAFF'
-	);
+	let shortcutType = $state<'STAFF' | 'SUPERADMIN'>('STAFF');
+	
+	// Initialize shortcutType based on userRole
+	$effect(() => {
+		shortcutType = userRole === 'superadmin' ? 'SUPERADMIN' : 'STAFF';
+	});
 	let expiresInDays = $state<number | undefined>(undefined);
 	let generatedKey = $state<string | null>(null);
 
@@ -42,8 +44,8 @@
 		try {
 			const response = await fetch('/api/shortcut-keys', {
 				method: 'POST',
+				credentials: 'include',
 				headers: {
-					'Authorization': `Bearer ${$accessToken}`,
 					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({

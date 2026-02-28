@@ -56,7 +56,7 @@
 				throw new Error(`This access method is for ${shortcutType === 'SUPERADMIN' ? 'superadmin' : 'staff'} only`);
 			}
 			
-			authStore.login(response);
+			authStore.login(response.user);
 			onClose();
 			
 			// Redirect based on role

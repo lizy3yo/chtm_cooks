@@ -17,7 +17,7 @@
 	}
 </script>
 
-<div class="min-h-screen bg-gray-50">
+<div class="min-h-screen bg-white">
 	<!-- Navigation Bar -->
 	<nav class="border-b border-gray-200 bg-white shadow-sm">
 		<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

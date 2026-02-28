@@ -1,4 +1,4 @@
-import { MongoClient, Db } from 'mongodb';
+import { MongoClient, type Db } from 'mongodb';
 import { MONGODB_URI } from '$env/static/private';
 
 let client: MongoClient | null = null;
