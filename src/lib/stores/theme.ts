@@ -1,16 +1,47 @@
 import { writable } from 'svelte/store';
+import { browser } from '$app/environment';
 
 export type Theme = 'light' | 'dark';
 
-// Dark mode is removed — theme store remains but always uses 'light'.
-const { subscribe, set } = writable<Theme>('light');
+function getInitialTheme(): Theme {
+	if (!browser) return 'light';
+	const stored = localStorage.getItem('theme') as Theme | null;
+	if (stored) return stored;
+	return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 
-export const themeStore = {
-	subscribe,
-	// No-op toggle: keep light only
-	toggle: () => set('light'),
-	// Setting any theme always resolves to 'light'
-	set: (_theme: Theme) => set('light'),
-	// Init does nothing (no DOM or localStorage changes)
-	init: () => {}
-};
+function applyTheme(theme: Theme) {
+	if (!browser) return;
+	const html = document.documentElement;
+	if (theme === 'dark') html.classList.add('dark');
+	else html.classList.remove('dark');
+	try {
+		localStorage.setItem('theme', theme);
+	} catch {}
+}
+
+function createThemeStore() {
+	const initial = getInitialTheme();
+	const { subscribe, set } = writable<Theme>(initial);
+
+	return {
+		subscribe,
+		toggle: () => {
+			let current: Theme = 'light';
+			const unsub = subscribe(v => (current = v));
+			unsub();
+			const next = current === 'light' ? 'dark' : 'light';
+			applyTheme(next);
+			set(next);
+		},
+		set: (theme: Theme) => {
+			applyTheme(theme);
+			set(theme);
+		},
+		init: () => {
+			applyTheme(getInitialTheme());
+		}
+	};
+}
+
+export const themeStore = createThemeStore();

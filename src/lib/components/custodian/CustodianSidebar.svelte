@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { authStore, user } from '$lib/stores/auth';
+	import { themeStore } from '$lib/stores/theme';
 	import { toastStore } from '$lib/stores/toast';
 	import { sidebarCollapsed } from '$lib/stores/custodian';
 	import logo from '$lib/assets/CHTM_LOGO.png';
@@ -332,6 +333,29 @@
 							</svg>
 							Notifications
 						</a>
+					
+						<!-- Theme toggle -->
+						<button
+							onclick={() => { themeStore.toggle(); isProfileDropdownOpen = false; }}
+							aria-label={$themeStore === 'dark' ? 'Toggle light mode' : 'Toggle dark mode'}
+							title={$themeStore === 'dark' ? 'Toggle light mode' : 'Toggle dark mode'}
+							class="flex items-center w-full px-4 py-3 text-sm text-gray-700 hover:bg-pink-50 hover:text-pink-600 transition-colors border-t border-gray-100"
+						>
+							{#if $themeStore === 'dark'}
+								<!-- Sun icon (indicates switch to light) -->
+								<svg class="h-5 w-5 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.364-6.364l-1.414 1.414M7.05 17.95l-1.414 1.414M17.95 17.95l1.414-1.414M6.343 6.343l1.414-1.414" />
+									<circle cx="12" cy="12" r="3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
+								</svg>
+								Toggle Light Mode
+							{:else}
+								<!-- Moon icon (indicates switch to dark) -->
+								<svg class="h-5 w-5 mr-3 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+								</svg>
+								Toggle Dark Mode
+							{/if}
+						</button>
 						
 						<button
 							onclick={() => { handleLogout(); isProfileDropdownOpen = false; }}
