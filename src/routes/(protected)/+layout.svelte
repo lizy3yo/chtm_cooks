@@ -20,7 +20,7 @@
 </script>
 
 {#if $isLoading}
-	<div class="flex min-h-screen items-center justify-center bg-gray-50">
+	<div class="flex min-h-screen items-center justify-center bg-white">
 		<div class="text-center">
 			<svg 
 				class="mx-auto h-12 w-12 animate-spin text-blue-600" 

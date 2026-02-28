@@ -126,8 +126,4 @@
 	.animation-delay-4000 {
 		animation-delay: 4s;
 	}
-
-	kbd {
-		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-	}
 </style>

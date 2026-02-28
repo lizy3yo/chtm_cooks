@@ -54,6 +54,8 @@ function createAuthStore() {
 				if (response.ok) {
 					const data = await response.json();
 					console.log('[AuthStore] User already authenticated:', data.user.email);
+					console.log('[AuthStore] Full user data:', JSON.stringify(data.user, null, 2));
+					console.log('[AuthStore] User keys:', Object.keys(data.user));
 					update((state) => ({
 						...state,
 						user: data.user,
@@ -90,6 +92,11 @@ function createAuthStore() {
 	 * Tokens are automatically set in httpOnly cookies by backend
 	 */
 	login: (user: UserResponse) => {
+		console.log('[AuthStore.login] Received user:', user);
+		console.log('[AuthStore.login] User type:', typeof user);
+		console.log('[AuthStore.login] User keys:', user ? Object.keys(user) : 'null');
+		console.log('[AuthStore.login] User JSON:', JSON.stringify(user, null, 2));
+		
 		update((state) => ({
 			...state,
 			user,

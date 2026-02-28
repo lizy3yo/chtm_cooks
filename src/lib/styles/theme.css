@@ -69,7 +69,487 @@
 	--transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
 	--transition-base: 200ms cubic-bezier(0.4, 0, 0.2, 1);
 	--transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+	/* Surface / Text tokens used by dark overrides */
+	--color-surface: #ffffff;
+	--color-text: #111827;
+	--color-border: rgba(0,0,0,0.08);
+	--color-muted: #6b7280;
+	--color-bg: #ffffff;
+	--color-sidebar: #ffffff;
 }
+
+/* Light mode - pure white background */
+html,
+html body,
+body {
+	background-color: #ffffff !important;
+	background: #ffffff !important;
+}
+
+/* Dark mode variables and overrides (applies when `html` has class `dark`) */
+html.dark {
+	--color-gray-50: #0b1220;
+	--color-gray-100: #0f1724;
+	--color-gray-200: #111827;
+	--color-gray-300: #1b2433;
+	--color-gray-400: #374151;
+	--color-gray-500: #6b7280;
+	--color-gray-600: #9ca3af;
+	--color-gray-700: #d1d5db;
+	--color-gray-900: #f3f4f6;
+
+	/* Dark mode surface/text tokens */
+	--color-surface: #0b1220; /* main card/panel surface */
+	--color-text: #f3f4f6; /* primary readable text */
+	--color-border: rgba(255,255,255,0.06);
+	--color-muted: rgba(255,255,255,0.55);
+	--color-bg: linear-gradient(180deg, #081018 0%, #0f1724 100%);
+	--color-sidebar: rgba(10,14,20,0.7);
+}
+
+html.dark body {
+	background-color: var(--color-gray-100) !important;
+	color: var(--color-gray-900);
+}
+
+/* Sidebar / navigation dark styles */
+html.dark aside[style] {
+	background-color: var(--color-gray-200) !important;
+	color: var(--color-gray-900);
+}
+
+html.dark nav, html.dark .border-gray-200 {
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
+html.dark .bg-white {
+	background-color: var(--color-surface) !important;
+	color: var(--color-text) !important;
+	border-color: var(--color-border) !important;
+}
+
+html.dark .bg-gradient-to-b.from-gray-50.to-white {
+	background-image: linear-gradient(to bottom, rgba(255,255,255,0.02), rgba(255,255,255,0.03)) !important;
+}
+
+html.dark .bg-gray-100 { background-color: transparent !important; }
+html.dark .text-gray-900 { color: var(--color-gray-900) !important; }
+html.dark .text-gray-700 { color: var(--color-gray-700) !important; }
+html.dark .text-gray-500 { color: var(--color-gray-500) !important; }
+
+/* Make common white panels and utilities render as dark surfaces in dark mode */
+html.dark .rounded-lg.bg-white,
+html.dark .rounded-lg.bg-white.shadow,
+html.dark .rounded-lg.bg-white.shadow-sm,
+html.dark .rounded-lg.bg-white.shadow-xl,
+html.dark .rounded-lg.bg-white.p-6,
+html.dark .rounded-lg.bg-white.p-4 {
+	background-color: var(--color-gray-200) !important;
+	color: var(--color-gray-900) !important;
+	border: 1px solid rgba(255,255,255,0.04) !important;
+}
+
+/* Dividers and borders */
+html.dark .divide-gray-200 > * + * { border-color: rgba(255,255,255,0.03) !important; }
+html.dark .border-gray-200 { border-color: rgba(255,255,255,0.06) !important; }
+
+/* Hover states on list rows and quick-action items */
+html.dark .hover\:bg-gray-50:hover { background-color: rgba(255,255,255,0.02) !important; }
+
+/* Utility background overlays used for subtle accents */
+html.dark .bg-white\/10 { background-color: rgba(255,255,255,0.02) !important; }
+
+
+/* Dropdown panel in sidebar */
+html.dark .absolute.bottom-full.mx-4.rounded-lg.border.bg-white {
+	background-color: #0f1724 !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Profile dropdown: adjust logout hover for dark mode (scoped) */
+html.dark .absolute.bottom-full.mx-4.rounded-lg.border.bg-white button.text-red-600 {
+	color: rgba(255,138,160,0.95) !important;
+}
+
+html.dark .absolute.bottom-full.mx-4.rounded-lg.border.bg-white button.text-red-600:hover {
+	background-color: rgba(219,39,119,0.06) !important;
+	color: var(--color-primary-50) !important;
+}
+
+/* Ensure other dropdown items remain subtle on dark */
+html.dark .absolute.bottom-full.mx-4.rounded-lg.border.bg-white a,
+html.dark .absolute.bottom-full.mx-4.rounded-lg.border.bg-white button {
+	color: var(--color-text) !important;
+}
+
+html.dark .absolute.bottom-full.mx-4.rounded-lg.border.bg-white a:hover,
+html.dark .absolute.bottom-full.mx-4.rounded-lg.border.bg-white button:hover {
+	background-color: rgba(255,255,255,0.02) !important;
+}
+
+/* Buttons and hover adjustments */
+html.dark .hover\:bg-pink-50:hover { background-color: rgba(219, 39, 119, 0.06) !important; }
+html.dark .hover\:text-pink-600:hover { color: var(--color-rose-300) !important; }
+
+/* Ensure general text utility classes map to dark palette */
+html.dark .text-gray-600 { color: var(--color-muted) !important; }
+html.dark .text-gray-500 { color: rgba(255,255,255,0.55) !important; }
+
+/* Modal / dialog surfaces (common patterns) */
+html.dark [role="dialog"],
+html.dark .modal,
+html.dark .dialog,
+html.dark .relative.bg-white,
+html.dark .bg-white.rounded-2xl,
+html.dark .bg-white.rounded-3xl,
+html.dark .bg-white.rounded-lg {
+	background-color: var(--color-surface) !important;
+	color: var(--color-text) !important;
+	border-color: var(--color-border) !important;
+	box-shadow: 0 12px 30px rgba(2,6,23,0.6) !important;
+}
+
+/* Inputs, form fields and small components inside auth/landing cards */
+html.dark .relative.bg-white input,
+html.dark .relative.bg-white textarea,
+html.dark .relative.bg-white select,
+html.dark .rounded-lg.bg-white input,
+html.dark .rounded-lg.bg-white textarea,
+html.dark .rounded-lg.bg-white select,
+html.dark .card-surface input,
+html.dark .card-surface textarea,
+html.dark .card-surface select,
+html.dark input[type="text"],
+html.dark input[type="email"],
+html.dark input[type="password"] {
+	background-color: rgba(255,255,255,0.02) !important;
+	color: var(--color-text) !important;
+	border: 1px solid rgba(255,255,255,0.06) !important;
+	box-shadow: none !important;
+	transition: box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+html.dark .relative.bg-white input::placeholder,
+html.dark .rounded-lg.bg-white input::placeholder,
+html.dark input::placeholder {
+	color: rgba(255,255,255,0.35) !important;
+}
+
+html.dark .relative.bg-white input:focus,
+html.dark .rounded-lg.bg-white input:focus,
+html.dark .card-surface input:focus {
+	outline: none !important;
+	border-color: rgba(219,39,119,0.36) !important;
+	box-shadow: 0 6px 20px rgba(219,39,119,0.06) !important;
+}
+
+/* Alerts / notices used on auth pages (info / warning) */
+html.dark .alert,
+html.dark .status-message,
+html.dark .notice {
+	background-color: rgba(255,255,255,0.04) !important;
+	color: var(--color-text) !important;
+	border-left: 4px solid rgba(219,39,119,0.14) !important;
+}
+
+/* Specific warning (yellow) boxes often used on auth forms */
+html.dark .bg-yellow-50,
+html.dark .bg-yellow-100 {
+	background-color: rgba(255,243,205,0.12) !important;
+	color: #fff8e1 !important;
+	border: 1px solid rgba(255,243,205,0.06) !important;
+}
+
+/* Auth CTA spacing/contrast: ensure primary CTA is readable in dark */
+html.dark .btn-primary,
+html.dark .bg-gradient-to-r.from-pink-600 {
+	background-image: linear-gradient(90deg, #8a1f3a 0%, #6b1730 100%) !important;
+	color: #fff !important;
+	border: none !important;
+}
+
+/* Selects and dropdown menus (native and common custom widgets) */
+html.dark select,
+html.dark .card-surface select,
+html.dark .relative.bg-white select,
+html.dark select.form-select {
+	background-color: rgba(255,255,255,0.02) !important;
+	color: var(--color-text) !important;
+	border: 1px solid rgba(255,255,255,0.06) !important;
+	box-shadow: none !important;
+	appearance: none !important;
+}
+
+html.dark select:focus {
+	outline: none !important;
+	border-color: rgba(219,39,119,0.36) !important;
+	box-shadow: 0 6px 20px rgba(219,39,119,0.06) !important;
+}
+
+/* Native option styling (best-effort; browsers may vary) */
+html.dark select option {
+	background-color: var(--color-surface) !important;
+	color: var(--color-text) !important;
+}
+
+/* Common custom-select menus (svelte/react/select2/choices) */
+html.dark .svelte-select__menu,
+html.dark .react-select__menu,
+html.dark .select2-dropdown,
+html.dark .choices__list--dropdown,
+html.dark .svelte-select .list {
+	background-color: var(--color-surface) !important;
+	color: var(--color-text) !important;
+	border: 1px solid var(--color-border) !important;
+	box-shadow: 0 12px 30px rgba(2,6,23,0.55) !important;
+}
+
+/* Secondary CTA which was light in light-mode: keep shape but make dark surface */
+html.dark .btn-secondary,
+html.dark .bg-white.text-pink-600.border-2.border-pink-600 {
+	background-color: var(--color-surface) !important;
+	color: var(--color-rose-300) !important;
+	border-color: rgba(219,39,119,0.12) !important;
+}
+
+/* Landing hero and page-level backgrounds */
+html.dark .landing-hero,
+html.dark .auth-hero,
+html.dark .min-h-screen {
+	background: var(--color-bg) !important;
+	color: var(--color-text) !important;
+}
+
+/* Low-stock red accents - make them darker and readable in dark mode */
+html.dark .border-red-200 {
+	border-color: rgba(219,39,119,0.12) !important;
+}
+
+html.dark .bg-red-50 {
+	background-color: rgba(219,39,119,0.03) !important;
+}
+
+html.dark .bg-red-100 {
+	background-color: rgba(219,39,119,0.06) !important;
+}
+
+html.dark .text-red-600 {
+	color: #ff7b9a !important;
+}
+
+/* Specific low-stock card rules to ensure text contrast */
+html.dark .rounded-lg.border-red-200.bg-red-50 {
+	background-color: rgba(10,14,20,0.55) !important;
+	border-color: rgba(219,39,119,0.12) !important;
+	color: var(--color-text) !important;
+}
+
+html.dark .rounded-lg.border-red-200.bg-red-50 .text-gray-900 {
+	color: var(--color-text) !important;
+}
+
+html.dark .rounded-lg.border-red-200.bg-red-50 .text-gray-600,
+html.dark .rounded-lg.border-red-200.bg-red-50 .text-sm {
+	color: var(--color-muted) !important;
+}
+
+html.dark .rounded-lg.border-red-200.bg-red-50 .bg-red-100 {
+	background-color: rgba(219,39,119,0.08) !important;
+}
+
+/* Return Processing: purple surface adjustments */
+html.dark .border-purple-200 {
+	border-color: rgba(124,58,237,0.08) !important;
+}
+
+html.dark .bg-purple-50 {
+	background-color: rgba(124,58,237,0.03) !important;
+}
+
+html.dark .bg-purple-100 {
+	background-color: rgba(124,58,237,0.06) !important;
+}
+
+html.dark .text-purple-600 {
+	color: #c4a5ff !important;
+}
+
+/* Specific return-processing card rules to ensure dark surface and readable text */
+html.dark .rounded-lg.border-purple-200.bg-purple-50 {
+	background-color: rgba(6,10,14,0.6) !important;
+	border-color: rgba(124,58,237,0.06) !important;
+	color: var(--color-text) !important;
+}
+
+html.dark .rounded-lg.border-purple-200.bg-purple-50 .text-gray-900,
+html.dark .rounded-lg.border-purple-200.bg-purple-50 h4.font-semibold {
+	color: var(--color-text) !important;
+}
+
+html.dark .rounded-lg.border-purple-200.bg-purple-50 .text-gray-600,
+html.dark .rounded-lg.border-purple-200.bg-purple-50 p.text-sm {
+	color: var(--color-muted) !important;
+}
+
+/* Buttons inside return processing: make green/yellow/red buttons readable */
+html.dark .border-green-300, html.dark .bg-green-50 {
+	border-color: rgba(16,185,129,0.08) !important;
+	background-color: rgba(16,185,129,0.03) !important;
+}
+
+html.dark .text-green-700 {
+	color: #7ee3bb !important;
+}
+
+html.dark .border-yellow-300, html.dark .bg-yellow-50 {
+	border-color: rgba(245,158,11,0.06) !important;
+	background-color: rgba(245,158,11,0.03) !important;
+}
+
+html.dark .text-yellow-700 { color: #ffd59a !important; }
+
+html.dark .border-red-300, html.dark .bg-red-50 {
+	border-color: rgba(239,68,68,0.06) !important;
+	background-color: rgba(239,68,68,0.03) !important;
+}
+
+html.dark .text-red-700 { color: #ff9ca8 !important; }
+
+/* Export Data panel: blue info box and selectable cards */
+html.dark .bg-blue-50 {
+	background-color: rgba(59,130,246,0.04) !important;
+}
+
+html.dark .border-blue-200 {
+	border-color: rgba(59,130,246,0.06) !important;
+}
+
+html.dark .text-blue-900 { color: #cfe9ff !important; }
+html.dark .text-blue-700 { color: #9ed0ff !important; }
+
+/* Export configuration cards (emerald selection) */
+html.dark .border-emerald-500 {
+	border-color: rgba(16,185,129,0.12) !important;
+}
+
+html.dark .bg-emerald-50 {
+	background-color: rgba(16,185,129,0.03) !important;
+}
+
+html.dark .text-emerald-900 { color: #9be9c8 !important; }
+
+/* Export summary block and gray utilities */
+html.dark .bg-gray-50 {
+	background-color: rgba(255,255,255,0.02) !important;
+}
+
+html.dark .border-gray-200 { border-color: rgba(255,255,255,0.04) !important; }
+
+/* Ensure radio/checkbox inputs inside export panel remain visible */
+html.dark input[type="radio"].text-emerald-600,
+html.dark input[type="checkbox"].text-emerald-600 {
+	accent-color: rgba(16,185,129,0.9) !important;
+}
+
+/* Quick Export Presets: hovered/selected card contrast in dark mode */
+html.dark .hover\:bg-emerald-50:hover {
+	background-color: rgba(16,185,129,0.06) !important;
+}
+
+html.dark .hover\:border-emerald-500:hover {
+	border-color: rgba(16,185,129,0.18) !important;
+}
+
+/* When a preset card is active/selected (border-emerald-500 + bg-emerald-50) */
+html.dark .border-emerald-500.bg-emerald-50 {
+	background-color: rgba(16,185,129,0.04) !important;
+	border-color: rgba(16,185,129,0.18) !important;
+	box-shadow: 0 6px 18px rgba(2,6,23,0.55) !important;
+}
+
+html.dark .border-emerald-500.bg-emerald-50 .font-medium,
+html.dark .border-emerald-500.bg-emerald-50 .text-sm,
+html.dark .border-emerald-500.bg-emerald-50 p,
+html.dark .border-emerald-500.bg-emerald-50 span {
+	color: var(--color-text) !important;
+}
+
+/* Make the emerald icon/tint slightly brighter inside selected card */
+html.dark .border-emerald-500.bg-emerald-50 .text-emerald-600 {
+	color: #9be9c8 !important;
+}
+
+/* Footer auth links: make 'Back to Login' match register 'Sign in' pink in dark mode */
+html.dark .text-center.bg-white\/50 a.text-blue-600,
+html.dark .text-center.bg-white\/50 a.font-medium.text-blue-600 {
+	color: var(--color-primary-600) !important;
+	transition: color var(--transition-fast);
+}
+html.dark .text-center.bg-white\/50 a.text-blue-600:hover,
+html.dark .text-center.bg-white\/50 a.font-medium.text-blue-600:hover,
+html.dark .text-center.bg-white\/50 a.hover\:text-blue-500:hover {
+	color: var(--color-primary-500) !important;
+}
+
+/* Light mode: ensure footer 'Back to Login' uses brand pink instead of default blue */
+.text-center.bg-white\/50 a.text-blue-600,
+.text-center.bg-white\/50 a.font-medium.text-blue-600 {
+	color: var(--color-primary-600) !important;
+	transition: color var(--transition-fast);
+}
+.text-center.bg-white\/50 a.text-blue-600:hover,
+.text-center.bg-white\/50 a.font-medium.text-blue-600:hover,
+.text-center.bg-white\/50 a.hover\:text-blue-500:hover {
+	color: var(--color-primary-500) !important;
+}
+
+/* Transparent / translucent white utilities */
+html.dark .bg-white\/50 { background-color: rgba(255,255,255,0.03) !important; }
+html.dark .bg-white\/10 { background-color: rgba(255,255,255,0.02) !important; }
+
+/* Stronger dark shadow for large modals/cards */
+html.dark .shadow-2xl { box-shadow: 0 25px 50px rgba(2,6,23,0.65) !important; }
+
+/* Ensure interactive hover states are visible and subtle */
+html.dark .hover\:bg-gray-50:hover { background-color: rgba(255,255,255,0.02) !important; }
+html.dark .hover\:bg-white:hover { background-color: rgba(255,255,255,0.02) !important; }
+
+
+/* Landing / Auth pages: hero background and CTA adjustments */
+html.dark .min-h-screen.bg-gradient-to-br.from-pink-50,
+html.dark .min-h-screen.bg-gradient-to-br.from-pink-50.via-white {
+	background: radial-gradient(circle at 10% 20%, rgba(255,255,255,0.02), transparent 10%), linear-gradient(180deg, var(--color-bg) 0%, var(--color-sidebar) 100%) !important;
+	color: var(--color-text) !important;
+}
+
+/* Primary gradient CTA (Sign In) - use stronger contrast in dark */
+html.dark .bg-gradient-to-r.from-pink-600 {
+	background-image: linear-gradient(90deg, #8a1f3a 0%, #6b1730 100%) !important;
+}
+
+/* Secondary CTA (white with pink border) - become dark surface with pink outline */
+html.dark .bg-white.text-pink-600.border-2.border-pink-600 {
+	background-color: var(--color-surface) !important;
+	color: var(--color-rose-300) !important;
+	border-color: rgba(219,39,119,0.16) !important;
+}
+
+/* Auth card and footer */
+html.dark .relative.bg-white.rounded-3xl,
+html.dark .text-center.bg-white\/50 {
+	background-color: var(--color-surface) !important;
+	border-color: var(--color-border) !important;
+	color: var(--color-text) !important;
+}
+
+/* Decorative gradient accents inside layouts should be subtle in dark */
+html.dark .absolute.inset-0.bg-gradient-to-r.from-pink-600,
+html.dark .absolute.inset-0.bg-gradient-to-r.from-pink-600.to-rose-600,
+html.dark .absolute.top-0.left-0.w-20.h-20.bg-gradient-to-br.from-pink-100 {
+	opacity: 0.06 !important;
+}
+
 
 /* Global Styles */
 * {

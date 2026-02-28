@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { tick } from 'svelte';
 	import { authStore } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
 	import { authApi, ApiErrorHandler } from '$lib/api/auth';
@@ -33,8 +34,15 @@
 			// Login - tokens automatically set in httpOnly cookies
 			const response = await authApi.login(formData);
 			
-			// Update auth store with user data
+			console.log('[Login] Full response:', response);
+			console.log('[Login] response.user:', response.user);
+			console.log('[Login] Calling authStore.login with:', response.user);
+			
+			// Update auth store with ONLY the user object
 			authStore.login(response.user);
+			
+			// Wait for Svelte to process the store update
+			await tick();
 			
 			// Redirect based on role
 			if (response.user.role === 'student') {

@@ -88,7 +88,7 @@ export const authApi = {
 	 * Login with email and password
 	 * Tokens automatically set in httpOnly cookies
 	 */
-	login: async (credentials: LoginRequest): Promise<{ user: UserResponse }> => {
+	login: async (credentials: LoginRequest): Promise<{ success: boolean; user: UserResponse }> => {
 		// Accept either `email` or legacy `username` (used by staff shortcut login)
 		const payload: any = { ...credentials } as any;
 		if (!payload.email && payload.username) {
@@ -96,7 +96,7 @@ export const authApi = {
 			delete payload.username;
 		}
 
-		return apiRequest<{ user: UserResponse }>('/login', {
+		return apiRequest<{ success: boolean; user: UserResponse }>('/login', {
 			method: 'POST',
 			body: JSON.stringify(payload)
 		});

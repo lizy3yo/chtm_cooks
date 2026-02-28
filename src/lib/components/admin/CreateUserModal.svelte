@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { accessToken } from '$lib/stores/auth';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Input from '$lib/components/ui/Input.svelte';
 	import StatusMessage from '$lib/components/ui/StatusMessage.svelte';
@@ -80,9 +79,9 @@
 		try {
 			const response = await fetch('/api/users', {
 				method: 'POST',
+				credentials: 'include',
 				headers: {
-					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${$accessToken}`
+					'Content-Type': 'application/json'
 				},
 				body: JSON.stringify({
 					email: formData.email,

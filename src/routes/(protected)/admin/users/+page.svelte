@@ -1,12 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { user, isSuperadmin, accessToken } from '$lib/stores/auth';
+	import { user } from '$lib/stores/auth';
 	import Button from '$lib/components/ui/Button.svelte';
 	import StatusMessage from '$lib/components/ui/StatusMessage.svelte';
 	import CreateUserModal from '$lib/components/admin/CreateUserModal.svelte';
 	import EditUserModal from '$lib/components/admin/EditUserModal.svelte';
 	import ShortcutKeyModal from '$lib/components/admin/ShortcutKeyModal.svelte';
+	
+	// Derived: Check if user is superadmin
+	const isSuperadmin = $derived($user?.role === 'superadmin');
 	
 	interface User {
 		id: string;
@@ -61,9 +64,7 @@
 	async function loadStats() {
 		try {
 			const response = await fetch('/api/dashboard/stats', {
-				headers: {
-					'Authorization': `Bearer ${$accessToken}`
-				}
+				credentials: 'include'
 			});
 			
 			if (!response.ok) throw new Error('Failed to load stats');
@@ -95,9 +96,7 @@
 			}
 			
 			const response = await fetch(`/api/users?${params}`, {
-				headers: {
-					'Authorization': `Bearer ${$accessToken}`
-				}
+				credentials: 'include'
 			});
 			
 			if (!response.ok) throw new Error('Failed to load users');
@@ -118,9 +117,7 @@
 		try {
 			const response = await fetch(`/api/users?userId=${deletingUser.id}`, {
 				method: 'DELETE',
-				headers: {
-					'Authorization': `Bearer ${$accessToken}`
-				}
+				credentials: 'include'
 			});
 			
 			if (!response.ok) {
