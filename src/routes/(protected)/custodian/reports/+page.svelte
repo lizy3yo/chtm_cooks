@@ -156,14 +156,14 @@
 	}
 
 	function getUtilizationColor(rate: number) {
-		if (rate >= 90) return 'text-green-600';
+		if (rate >= 90) return 'text-pink-600';
 		if (rate >= 75) return 'text-blue-600';
 		if (rate >= 60) return 'text-yellow-600';
 		return 'text-red-600';
 	}
 
 	function getUtilizationBg(rate: number) {
-		if (rate >= 90) return 'bg-green-500';
+		if (rate >= 90) return 'bg-pink-500';
 		if (rate >= 75) return 'bg-blue-500';
 		if (rate >= 60) return 'bg-yellow-500';
 		return 'bg-red-500';
@@ -199,7 +199,7 @@
 				</button>
 				<button
 					onclick={generateReport}
-					class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm"
+					class="bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm"
 				>
 					<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
@@ -218,13 +218,13 @@
 				<input
 					type="date"
 					bind:value={dateRange.start}
-					class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+					class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm"
 				/>
 				<span class="text-gray-500">to</span>
 				<input
 					type="date"
 					bind:value={dateRange.end}
-					class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm"
+					class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm"
 				/>
 			</div>
 		</div>
@@ -236,11 +236,11 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-sm font-medium text-gray-600">Total Inventory Value</p>
-					<p class="text-2xl font-bold text-emerald-600">₱{totalInventoryValue.toLocaleString()}</p>
+					<p class="text-2xl font-bold text-pink-600">₱{totalInventoryValue.toLocaleString()}</p>
 					<p class="text-xs text-gray-500 mt-1">{totalItems} items</p>
 				</div>
-				<div class="bg-emerald-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<div class="bg-pink-100 p-3 rounded-full">
+					<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
 					</svg>
 				</div>
@@ -281,11 +281,11 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-sm font-medium text-gray-600">Total Donations (6mo)</p>
-					<p class="text-2xl font-bold text-green-600">₱{totalDonations.toLocaleString()}</p>
+					<p class="text-2xl font-bold text-pink-600">₱{totalDonations.toLocaleString()}</p>
 					<p class="text-xs text-gray-500 mt-1">Cash & items</p>
 				</div>
-				<div class="bg-green-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<div class="bg-pink-100 p-3 rounded-full">
+					<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 					</svg>
 				</div>
@@ -300,7 +300,7 @@
 				<button
 					onclick={() => (activeTab = 'inventory')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'inventory'
-						? 'border-emerald-500 text-emerald-600'
+						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Inventory Reports
@@ -308,7 +308,7 @@
 				<button
 					onclick={() => (activeTab = 'usage')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'usage'
-						? 'border-emerald-500 text-emerald-600'
+						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Usage Statistics
@@ -316,7 +316,7 @@
 				<button
 					onclick={() => (activeTab = 'financial')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'financial'
-						? 'border-emerald-500 text-emerald-600'
+						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Financial Summary
@@ -324,7 +324,7 @@
 				<button
 					onclick={() => (activeTab = 'export')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'export'
-						? 'border-emerald-500 text-emerald-600'
+						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Export Data
@@ -501,7 +501,7 @@
 											<h4 class="font-medium text-gray-900">{program.program}</h4>
 											<p class="text-sm text-gray-500">{program.activeUsers} active users</p>
 										</div>
-										<span class="bg-emerald-100 text-emerald-800 text-xs font-medium px-2.5 py-1 rounded">
+										<span class="bg-pink-100 text-pink-800 text-xs font-medium px-2.5 py-1 rounded">
 											{program.avgPerUser} avg/user
 										</span>
 									</div>
@@ -538,14 +538,14 @@
 											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{donation.month}</td>
 											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{donation.cash.toLocaleString()}</td>
 											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{donation.items} items</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-emerald-600">₱{donation.totalValue.toLocaleString()}</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-pink-600">₱{donation.totalValue.toLocaleString()}</td>
 										</tr>
 									{/each}
 									<tr class="bg-gray-50 font-bold">
 										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">TOTAL</td>
 										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{financialSummary.donations.reduce((sum, d) => sum + d.cash, 0).toLocaleString()}</td>
 										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{financialSummary.donations.reduce((sum, d) => sum + d.items, 0)} items</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-emerald-600">₱{totalDonations.toLocaleString()}</td>
+										<td class="px-6 py-4 whitespace-nowrap text-sm text-pink-600">₱{totalDonations.toLocaleString()}</td>
 									</tr>
 								</tbody>
 							</table>
@@ -641,14 +641,14 @@
 								</div>
 							</div>
 						</div>
-						<div class="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-							<div class="flex items-start">
-								<svg class="w-5 h-5 text-emerald-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<div class="bg-pink-50 border border-pink-200 rounded-lg p-4">
+								<div class="flex items-start">
+									<svg class="w-5 h-5 text-pink-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
 								</svg>
 								<div>
-									<p class="text-sm font-medium text-emerald-900">Positive Trend</p>
-									<p class="text-sm text-emerald-700 mt-1">Donations increased by 45% from August to December 2025</p>
+									<p class="text-sm font-medium text-pink-900">Positive Trend</p>
+									<p class="text-sm text-pink-700 mt-1">Donations increased by 45% from August to December 2025</p>
 								</div>
 							</div>
 						</div>

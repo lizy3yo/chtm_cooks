@@ -110,7 +110,7 @@
 			<button
 				onclick={() => switchTab('pending')}
 				class="whitespace-nowrap border-b-2 px-6 py-4 text-sm font-medium transition-colors {activeTab === 'pending'
-					? 'border-emerald-500 text-emerald-600'
+					? 'border-pink-500 text-pink-600'
 					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
 				<div class="flex items-center">
@@ -125,7 +125,7 @@
 			<button
 				onclick={() => switchTab('active')}
 				class="whitespace-nowrap border-b-2 px-6 py-4 text-sm font-medium transition-colors {activeTab === 'active'
-					? 'border-emerald-500 text-emerald-600'
+					? 'border-pink-500 text-pink-600'
 					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
 				<div class="flex items-center">
@@ -140,7 +140,7 @@
 			<button
 				onclick={() => switchTab('overdue')}
 				class="whitespace-nowrap border-b-2 px-6 py-4 text-sm font-medium transition-colors {activeTab === 'overdue'
-					? 'border-emerald-500 text-emerald-600'
+					? 'border-pink-500 text-pink-600'
 					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
 				<div class="flex items-center">
@@ -155,7 +155,7 @@
 			<button
 				onclick={() => switchTab('return')}
 				class="whitespace-nowrap border-b-2 px-6 py-4 text-sm font-medium transition-colors {activeTab === 'return'
-					? 'border-emerald-500 text-emerald-600'
+					? 'border-pink-500 text-pink-600'
 					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
 				<div class="flex items-center">
