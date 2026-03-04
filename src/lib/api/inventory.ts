@@ -1,0 +1,230 @@
+import { browser } from '$app/environment';
+
+export interface InventoryItem {
+	id: string;
+	name: string;
+	category: string;
+	categoryId?: string;
+	specification: string;
+	toolsOrEquipment: string;
+	picture?: string;
+	quantity: number;
+	eomCount: number;
+	variance: number;
+	minStock: number;
+	condition: string;
+	location?: string;
+	description?: string;
+	status: string;
+	archived: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface InventoryCategory {
+	id: string;
+	name: string;
+	description?: string;
+	picture?: string;
+	itemCount: number;
+	archived: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface CreateItemRequest {
+	name: string;
+	category: string;
+	categoryId?: string;
+	specification?: string;
+	toolsOrEquipment?: string;
+	picture?: string;
+	quantity: number;
+	eomCount?: number;
+	minStock: number;
+	condition: string;
+	location?: string;
+}
+
+export interface UpdateItemRequest extends Partial<CreateItemRequest> {
+	archived?: boolean;
+}
+
+export interface CreateCategoryRequest {
+	name: string;
+	description?: string;
+	picture?: string;
+}
+
+export interface UpdateCategoryRequest extends Partial<CreateCategoryRequest> {
+	archived?: boolean;
+}
+
+/**
+ * Fetch helper with automatic cookie credentials
+ */
+function getFetchOptions(method: string, body?: unknown): RequestInit {
+	const options: RequestInit = {
+		method,
+		credentials: 'include', // Automatically send httpOnly cookies
+		headers: {
+			'Content-Type': 'application/json'
+		}
+	};
+
+	if (body !== undefined) {
+		options.body = JSON.stringify(body);
+	}
+
+	return options;
+}
+
+/**
+ * Handle API response
+ */
+async function handleResponse<T>(response: Response): Promise<T> {
+	if (!response.ok) {
+		const error = await response.json().catch(() => ({ error: 'An error occurred' }));
+		throw new Error(error.error || `Request failed with status ${response.status}`);
+	}
+	return response.json();
+}
+
+/**
+ * Inventory Items API
+ */
+export const inventoryItemsAPI = {
+	/**
+	 * Get all inventory items
+	 */
+	async getAll(params?: {
+		includeArchived?: boolean;
+		category?: string;
+		status?: string;
+		search?: string;
+		page?: number;
+		limit?: number;
+	}): Promise<{ items: InventoryItem[]; total: number; page: number; limit: number; pages: number }> {
+		const queryParams = new URLSearchParams();
+		if (params?.includeArchived) queryParams.set('includeArchived', 'true');
+		if (params?.category) queryParams.set('category', params.category);
+		if (params?.status) queryParams.set('status', params.status);
+		if (params?.search) queryParams.set('search', params.search);
+		if (params?.page) queryParams.set('page', params.page.toString());
+		if (params?.limit) queryParams.set('limit', params.limit.toString());
+
+		const query = queryParams.toString();
+		const url = `/api/inventory/items${query ? `?${query}` : ''}`;
+
+		const response = await fetch(url, getFetchOptions('GET'));
+
+		return handleResponse(response);
+	},
+
+	/**
+	 * Get a single inventory item
+	 */
+	async getById(id: string): Promise<InventoryItem> {
+		const response = await fetch(`/api/inventory/items/${id}`, getFetchOptions('GET'));
+
+		return handleResponse(response);
+	},
+
+	/**
+	 * Create a new inventory item
+	 */
+	async create(data: CreateItemRequest): Promise<InventoryItem> {
+		const response = await fetch('/api/inventory/items', getFetchOptions('POST', data));
+
+		return handleResponse(response);
+	},
+
+	/**
+	 * Update an inventory item
+	 */
+	async update(id: string, data: UpdateItemRequest): Promise<InventoryItem> {
+		const response = await fetch(`/api/inventory/items/${id}`, getFetchOptions('PATCH', data));
+
+		return handleResponse(response);
+	},
+
+	/**
+	 * Delete an inventory item (soft delete)
+	 */
+	async delete(id: string): Promise<{ success: boolean; message: string }> {
+		const response = await fetch(`/api/inventory/items/${id}`, getFetchOptions('DELETE'));
+
+		return handleResponse(response);
+	}
+};
+
+/**
+ * Inventory Categories API
+ */
+export const inventoryCategoriesAPI = {
+	/**
+	 * Get all categories
+	 */
+	async getAll(params?: {
+		includeArchived?: boolean;
+		search?: string;
+	}): Promise<{ categories: InventoryCategory[]; total: number }> {
+		const queryParams = new URLSearchParams();
+		if (params?.includeArchived) queryParams.set('includeArchived', 'true');
+		if (params?.search) queryParams.set('search', params.search);
+
+		const query = queryParams.toString();
+		const url = `/api/inventory/categories${query ? `?${query}` : ''}`;
+
+		const response = await fetch(url, getFetchOptions('GET'));
+
+		return handleResponse(response);
+	},
+
+	/**
+	 * Create a new category
+	 */
+	async create(data: CreateCategoryRequest): Promise<InventoryCategory> {
+		const response = await fetch('/api/inventory/categories', getFetchOptions('POST', data));
+
+		return handleResponse(response);
+	},
+
+	/**
+	 * Update a category
+	 */
+	async update(id: string, data: UpdateCategoryRequest): Promise<InventoryCategory> {
+		const response = await fetch(`/api/inventory/categories/${id}`, getFetchOptions('PATCH', data));
+
+		return handleResponse(response);
+	},
+
+	/**
+	 * Delete a category (soft delete)
+	 */
+	async delete(id: string): Promise<{ success: boolean; message: string }> {
+		const response = await fetch(`/api/inventory/categories/${id}`, getFetchOptions('DELETE'));
+
+		return handleResponse(response);
+	}
+};
+
+/**
+ * Upload an image for inventory item
+ */
+export async function uploadInventoryImage(file: File): Promise<{ success: boolean; url: string; filename: string }> {
+	if (!browser) {
+		throw new Error('File upload only available in browser');
+	}
+
+	const formData = new FormData();
+	formData.append('file', file);
+
+	const response = await fetch('/api/inventory/upload', {
+		method: 'POST',
+		credentials: 'include', // Automatically send httpOnly cookies
+		body: formData
+	});
+
+	return handleResponse(response);
+}

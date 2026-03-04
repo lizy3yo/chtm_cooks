@@ -3,6 +3,7 @@
 	import { page } from '$app/stores';
 	import { authStore, isAuthenticated, isLoading } from '$lib/stores/auth';
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
+	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
 	import type { Snippet } from 'svelte';
 	
 	interface Props {
@@ -51,3 +52,6 @@
 
 <!-- Toast Container - Always rendered for protected routes -->
 <ToastContainer />
+
+<!-- Confirmation Dialog Container - Always rendered for protected routes -->
+<ConfirmDialogContainer />

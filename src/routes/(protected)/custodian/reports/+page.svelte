@@ -679,12 +679,12 @@
 							<div>
 								<label class="block text-sm font-medium text-gray-700 mb-3">Select Data Type to Export</label>
 								<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'inventory' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}">
+									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'inventory' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
 										<input
 											type="radio"
 											bind:group={exportOptions.dataType}
 											value="inventory"
-											class="text-emerald-600 focus:ring-emerald-500"
+											class="text-pink-600 focus:ring-pink-500"
 										/>
 										<div class="ml-3">
 											<p class="font-medium text-gray-900">Inventory Data</p>
@@ -692,12 +692,12 @@
 										</div>
 									</label>
 
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'requests' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}">
+									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'requests' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
 										<input
 											type="radio"
 											bind:group={exportOptions.dataType}
 											value="requests"
-											class="text-emerald-600 focus:ring-emerald-500"
+											class="text-pink-600 focus:ring-pink-500"
 										/>
 										<div class="ml-3">
 											<p class="font-medium text-gray-900">Requests & Loans</p>
@@ -705,12 +705,12 @@
 										</div>
 									</label>
 
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'financial' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}">
+									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'financial' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
 										<input
 											type="radio"
 											bind:group={exportOptions.dataType}
 											value="financial"
-											class="text-emerald-600 focus:ring-emerald-500"
+											class="text-pink-600 focus:ring-pink-500"
 										/>
 										<div class="ml-3">
 											<p class="font-medium text-gray-900">Financial Records</p>
@@ -718,12 +718,12 @@
 										</div>
 									</label>
 
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'maintenance' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}">
+									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'maintenance' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
 										<input
 											type="radio"
 											bind:group={exportOptions.dataType}
 											value="maintenance"
-											class="text-emerald-600 focus:ring-emerald-500"
+											class="text-pink-600 focus:ring-pink-500"
 										/>
 										<div class="ml-3">
 											<p class="font-medium text-gray-900">Maintenance Log</p>
@@ -731,12 +731,12 @@
 										</div>
 									</label>
 
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'audit' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}">
+									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'audit' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
 										<input
 											type="radio"
 											bind:group={exportOptions.dataType}
 											value="audit"
-											class="text-emerald-600 focus:ring-emerald-500"
+											class="text-pink-600 focus:ring-pink-500"
 										/>
 										<div class="ml-3">
 											<p class="font-medium text-gray-900">Audit Trail</p>
@@ -744,12 +744,12 @@
 										</div>
 									</label>
 
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'all' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}">
+									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'all' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
 										<input
 											type="radio"
 											bind:group={exportOptions.dataType}
 											value="all"
-											class="text-emerald-600 focus:ring-emerald-500"
+											class="text-pink-600 focus:ring-pink-500"
 										/>
 										<div class="ml-3">
 											<p class="font-medium text-gray-900">Complete Export</p>
