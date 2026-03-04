@@ -1,0 +1,393 @@
+import { json } from '@sveltejs/kit';
+import type { RequestHandler } from './$types';
+import { getDatabase } from '$lib/server/db/mongodb';
+import { ObjectId } from 'mongodb';
+import type { 
+	InventoryItem,
+	InventoryItemResponse,
+	UpdateInventoryItemRequest,
+	ItemCondition,
+	ItemStatus
+} from '$lib/server/models/InventoryItem';
+import type { DeletedInventoryItem } from '$lib/server/models/InventoryDeleted';
+import { sanitizeInput } from '$lib/server/utils/validation';
+import { getUserFromToken } from '$lib/server/middleware/auth/verify';
+import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
+import { logger } from '$lib/server/utils/logger';
+import { logInventoryActivity, getObjectChanges } from '$lib/server/utils/inventoryLogger';
+import { InventoryAction } from '$lib/server/models/InventoryHistory';
+
+/**
+ * Determine item status based on quantity and minStock
+ */
+function determineStatus(quantity: number, minStock: number, archived: boolean): ItemStatus {
+	if (archived) return 'Archived' as ItemStatus;
+	if (quantity === 0) return 'Out of Stock' as ItemStatus;
+	if (quantity <= minStock) return 'Low Stock' as ItemStatus;
+	return 'In Stock' as ItemStatus;
+}
+
+/**
+ * Convert InventoryItem to InventoryItemResponse
+ */
+function toItemResponse(item: InventoryItem): InventoryItemResponse {
+	return {
+		id: item._id!.toString(),
+		name: item.name,
+		category: item.category,
+		categoryId: item.categoryId?.toString(),
+		specification: item.specification,
+		toolsOrEquipment: item.toolsOrEquipment,
+		picture: item.picture,
+		quantity: item.quantity,
+		eomCount: item.eomCount,
+		variance: item.quantity - item.eomCount,
+		minStock: item.minStock,
+		condition: item.condition,
+		location: item.location,
+		description: item.description,
+		status: item.status,
+		archived: item.archived,
+		createdAt: item.createdAt,
+		updatedAt: item.updatedAt
+	};
+}
+
+/**
+ * GET /api/inventory/items/[id]
+ * Get a single inventory item
+ */
+export const GET: RequestHandler = async (event) => {
+	const { request, params, getClientAddress } = event;
+	
+	// Apply rate limiting
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
+	if (rateLimitResult instanceof Response) {
+		return rateLimitResult;
+	}
+
+	try {
+		// Verify authentication via cookie
+		const decoded = getUserFromToken(event);
+		if (!decoded) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
+		// Validate item ID
+		const itemId = params.id;
+		if (!ObjectId.isValid(itemId)) {
+			return json({ error: 'Invalid item ID' }, { status: 400 });
+		}
+
+		// Connect to database
+		const db = await getDatabase();
+		const itemsCollection = db.collection<InventoryItem>('inventory_items');
+
+		// Get item
+		const item = await itemsCollection.findOne({ _id: new ObjectId(itemId) });
+		if (!item) {
+			return json({ error: 'Item not found' }, { status: 404 });
+		}
+
+		return json(toItemResponse(item));
+
+	} catch (error) {
+		logger.error('Error retrieving inventory item', { error });
+		return json({ error: 'Failed to retrieve inventory item' }, { status: 500 });
+	}
+};
+
+/**
+ * PATCH /api/inventory/items/[id]
+ * Update an inventory item
+ */
+export const PATCH: RequestHandler = async (event) => {
+	const { request, params, getClientAddress } = event;
+	
+	// Apply rate limiting
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
+	if (rateLimitResult instanceof Response) {
+		return rateLimitResult;
+	}
+
+	try {
+		// Verify authentication via cookie
+		const decoded = getUserFromToken(event);
+		if (!decoded) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
+		// Only custodians and superadmins can update items
+		if (!['custodian', 'superadmin'].includes(decoded.role)) {
+			return json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
+		}
+
+		// Validate item ID
+		const itemId = params.id;
+		if (!ObjectId.isValid(itemId)) {
+			return json({ error: 'Invalid item ID' }, { status: 400 });
+		}
+
+		// Parse request body
+		const body: UpdateInventoryItemRequest = await request.json();
+
+		// Connect to database
+		const db = await getDatabase();
+		const itemsCollection = db.collection<InventoryItem>('inventory_items');
+		const categoriesCollection = db.collection('inventory_categories');
+
+		// Get current item
+		const currentItem = await itemsCollection.findOne({ _id: new ObjectId(itemId) });
+		if (!currentItem) {
+			return json({ error: 'Item not found' }, { status: 404 });
+		}
+
+		// Build update object
+		const updateFields: any = {
+			updatedAt: new Date(),
+			updatedBy: new ObjectId(decoded.userId)
+		};
+
+		if (body.name !== undefined) {
+			updateFields.name = sanitizeInput(body.name.trim());
+		}
+		if (body.category !== undefined) {
+			updateFields.category = sanitizeInput(body.category.trim());
+		}
+		if (body.categoryId !== undefined) {
+			if (body.categoryId && ObjectId.isValid(body.categoryId)) {
+				const categoryExists = await categoriesCollection.findOne({ 
+					_id: new ObjectId(body.categoryId) 
+				});
+				if (!categoryExists) {
+					return json({ error: 'Category not found' }, { status: 404 });
+				}
+				updateFields.categoryId = new ObjectId(body.categoryId);
+			} else {
+				updateFields.categoryId = undefined;
+			}
+		}
+		if (body.specification !== undefined) {
+			updateFields.specification = sanitizeInput(body.specification.trim());
+		}
+		if (body.toolsOrEquipment !== undefined) {
+			updateFields.toolsOrEquipment = sanitizeInput(body.toolsOrEquipment.trim());
+		}
+		if (body.picture !== undefined) {
+			updateFields.picture = body.picture;
+		}
+		if (body.quantity !== undefined) {
+			updateFields.quantity = Math.max(0, body.quantity);
+		}
+		if (body.eomCount !== undefined) {
+			updateFields.eomCount = Math.max(0, body.eomCount);
+		}
+		if (body.minStock !== undefined) {
+			updateFields.minStock = Math.max(0, body.minStock);
+		}
+		if (body.condition !== undefined) {
+			updateFields.condition = body.condition as ItemCondition;
+		}
+		if (body.location !== undefined) {
+			updateFields.location = sanitizeInput(body.location.trim());
+		}
+		if (body.archived !== undefined) {
+			updateFields.archived = body.archived;
+		}
+
+		// Recalculate status if quantity or minStock changed
+		const newQuantity = updateFields.quantity ?? currentItem.quantity;
+		const newMinStock = updateFields.minStock ?? currentItem.minStock;
+		const newArchived = updateFields.archived ?? currentItem.archived;
+		updateFields.status = determineStatus(newQuantity, newMinStock, newArchived);
+
+		// Update category counts if category changed
+		if (updateFields.categoryId !== undefined) {
+			const oldCategoryId = currentItem.categoryId;
+			const newCategoryId = updateFields.categoryId;
+
+			if (oldCategoryId && !oldCategoryId.equals(newCategoryId)) {
+				// Decrement old category
+				await categoriesCollection.updateOne(
+					{ _id: oldCategoryId },
+					{ $inc: { itemCount: -1 } }
+				);
+			}
+
+			if (newCategoryId && (!oldCategoryId || !oldCategoryId.equals(newCategoryId))) {
+				// Increment new category
+				await categoriesCollection.updateOne(
+					{ _id: newCategoryId },
+					{ $inc: { itemCount: 1 } }
+				);
+			}
+		}
+
+		// Update item
+		const result = await itemsCollection.findOneAndUpdate(
+			{ _id: new ObjectId(itemId) },
+			{ $set: updateFields },
+			{ returnDocument: 'after' }
+		);
+
+		if (!result) {
+			return json({ error: 'Failed to update item' }, { status: 500 });
+		}
+
+		// Log activity based on what changed
+		const fieldsToTrack = Object.keys(updateFields).filter(f => !['updatedAt', 'updatedBy'].includes(f));
+		const changes = getObjectChanges(currentItem, updateFields, fieldsToTrack);
+
+		// Determine action type
+		let action = InventoryAction.UPDATED;
+		if (body.archived === true && !currentItem.archived) {
+			action = InventoryAction.ARCHIVED;
+		} else if (body.archived === false && currentItem.archived) {
+			action = InventoryAction.RESTORED;
+		} else if (body.quantity !== undefined && body.quantity !== currentItem.quantity) {
+			action = InventoryAction.QUANTITY_CHANGED;
+		}
+
+		await logInventoryActivity({
+			action,
+			entityType: 'item',
+			entityId: result._id!,
+			entityName: result.name,
+			userId: new ObjectId(decoded.userId),
+			userName: decoded.email,
+			userRole: decoded.role,
+			changes: changes.length > 0 ? changes : undefined,
+			metadata: {
+				previousStatus: currentItem.status,
+				newStatus: result.status,
+				quantityChange: body.quantity !== undefined ? body.quantity - currentItem.quantity : undefined
+			},
+			ipAddress: getClientAddress(),
+			userAgent: request.headers.get('user-agent') || undefined
+		});
+
+		logger.info('Inventory item updated', {
+			userId: decoded.userId,
+			itemId,
+			updates: Object.keys(updateFields),
+			action
+		});
+
+		return json(toItemResponse(result));
+
+	} catch (error) {
+		logger.error('Error updating inventory item', { error });
+		return json({ error: 'Failed to update inventory item' }, { status: 500 });
+	}
+};
+
+/**
+ * DELETE /api/inventory/items/[id]
+ * Delete an inventory item (soft delete with 30-day retention)
+ */
+export const DELETE: RequestHandler = async (event) => {
+	const { request, params, getClientAddress } = event;
+	
+	// Apply rate limiting
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
+	if (rateLimitResult instanceof Response) {
+		return rateLimitResult;
+	}
+
+	try {
+		// Verify authentication via cookie
+		const decoded = getUserFromToken(event);
+		if (!decoded) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
+		// Only custodians and superadmins can delete items
+		if (!['custodian', 'superadmin'].includes(decoded.role)) {
+			return json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
+		}
+
+		// Validate item ID
+		const itemId = params.id;
+		if (!ObjectId.isValid(itemId)) {
+			return json({ error: 'Invalid item ID' }, { status: 400 });
+		}
+
+		// Connect to database
+		const db = await getDatabase();
+		const itemsCollection = db.collection<InventoryItem>('inventory_items');
+		const categoriesCollection = db.collection('inventory_categories');
+		const deletedCollection = db.collection<DeletedInventoryItem>('inventory_deleted');
+
+		// Get item
+		const item = await itemsCollection.findOne({ _id: new ObjectId(itemId) });
+		if (!item) {
+			return json({ error: 'Item not found' }, { status: 404 });
+		}
+
+		// Calculate scheduled deletion date (30 days from now)
+		const now = new Date();
+		const scheduledDeletion = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+		// Move item to deleted collection (soft delete)
+		const deletedItem: DeletedInventoryItem = {
+			originalId: item._id!,
+			itemData: item,
+			deletedBy: new ObjectId(decoded.userId),
+			deletedByName: decoded.email,
+			deletedByRole: decoded.role,
+			deletedAt: now,
+			scheduledDeletion,
+			reason: 'User initiated deletion',
+			ipAddress: getClientAddress()
+		};
+
+		await deletedCollection.insertOne(deletedItem);
+
+		// Remove from active collection
+		await itemsCollection.deleteOne({ _id: new ObjectId(itemId) });
+
+		// Decrement category count
+		if (item.categoryId) {
+			await categoriesCollection.updateOne(
+				{ _id: item.categoryId },
+				{ $inc: { itemCount: -1 } }
+			);
+		}
+
+		// Log activity
+		await logInventoryActivity({
+			action: InventoryAction.DELETED,
+			entityType: 'item',
+			entityId: item._id!,
+			entityName: item.name,
+			userId: new ObjectId(decoded.userId),
+			userName: decoded.email,
+			userRole: decoded.role,
+			metadata: {
+				scheduledDeletion: scheduledDeletion.toISOString(),
+				retentionDays: 30,
+				categoryId: item.categoryId?.toString(),
+				categoryName: item.category
+			},
+			ipAddress: getClientAddress(),
+			userAgent: request.headers.get('user-agent') || undefined
+		});
+
+		logger.info('Inventory item deleted (soft)', {
+			userId: decoded.userId,
+			itemId,
+			itemName: item.name,
+			scheduledDeletion
+		});
+
+		return json({ 
+			success: true, 
+			message: 'Item deleted successfully. Recoverable for 30 days.',
+			deletionDate: scheduledDeletion
+		});
+
+	} catch (error) {
+		logger.error('Error deleting inventory item', { error });
+		return json({ error: 'Failed to delete inventory item' }, { status: 500 });
+	}
+};

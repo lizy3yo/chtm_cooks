@@ -275,7 +275,7 @@
 		switch (status) {
 			case 'paid':
 			case 'completed':
-				return 'bg-green-100 text-green-800';
+				return 'bg-pink-100 text-pink-800';
 			case 'pending':
 				return 'bg-yellow-100 text-yellow-800';
 			case 'partial':
@@ -299,10 +299,10 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-sm font-medium text-gray-600">Total Donations</p>
-					<p class="text-2xl font-bold text-emerald-600">₱{totalDonations.toLocaleString()}</p>
+					<p class="text-2xl font-bold text-pink-600">₱{totalDonations.toLocaleString()}</p>
 				</div>
-				<div class="bg-emerald-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<div class="bg-pink-100 p-3 rounded-full">
+					<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 					</svg>
 				</div>
@@ -327,10 +327,10 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-sm font-medium text-gray-600">Total Collected</p>
-					<p class="text-2xl font-bold text-green-600">₱{totalCollected.toLocaleString()}</p>
+						<p class="text-2xl font-bold text-pink-600">₱{totalCollected.toLocaleString()}</p>
 				</div>
-				<div class="bg-green-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<div class="bg-pink-100 p-3 rounded-full">
+						<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 					</svg>
 				</div>
@@ -360,7 +360,7 @@
 				<button
 					onclick={() => (activeTab = 'donations')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'donations'
-						? 'border-emerald-500 text-emerald-600'
+						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Donations Tracking
@@ -368,7 +368,7 @@
 				<button
 					onclick={() => (activeTab = 'replacements')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'replacements'
-						? 'border-emerald-500 text-emerald-600'
+						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Replacement Payments
@@ -376,7 +376,7 @@
 				<button
 					onclick={() => (activeTab = 'history')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'history'
-						? 'border-emerald-500 text-emerald-600'
+						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Payment History

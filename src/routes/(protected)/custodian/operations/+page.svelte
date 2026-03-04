@@ -311,7 +311,7 @@
 	function getConditionColor(condition: string) {
 		switch (condition) {
 			case 'good':
-				return 'bg-green-100 text-green-800';
+				return 'bg-pink-100 text-pink-800';
 			case 'needs-repair':
 				return 'bg-yellow-100 text-yellow-800';
 			case 'damaged':
@@ -326,7 +326,7 @@
 	function getStatusColor(status: string) {
 		switch (status) {
 			case 'completed':
-				return 'bg-green-100 text-green-800';
+				return 'bg-pink-100 text-pink-800';
 			case 'in-progress':
 				return 'bg-blue-100 text-blue-800';
 			case 'pending':
@@ -340,7 +340,7 @@
 		switch (action) {
 			case 'Item Added':
 			case 'Loan Approved':
-				return 'bg-green-100 text-green-800';
+				return 'bg-pink-100 text-pink-800';
 			case 'Status Changed':
 			case 'User Updated':
 				return 'bg-blue-100 text-blue-800';
@@ -366,11 +366,11 @@
 			<div class="flex items-center justify-between">
 				<div>
 					<p class="text-sm font-medium text-gray-600">Good Condition</p>
-					<p class="text-2xl font-bold text-green-600">{goodItems}</p>
+					<p class="text-2xl font-bold text-pink-600">{goodItems}</p>
 					<p class="text-xs text-gray-500 mt-1">Items ready to use</p>
 				</div>
-				<div class="bg-green-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<div class="bg-pink-100 p-3 rounded-full">
+					<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 					</svg>
 				</div>
@@ -430,7 +430,7 @@
 				<button
 					onclick={() => (activeTab = 'conditions')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'conditions'
-						? 'border-emerald-500 text-emerald-600'
+						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Item Conditions
@@ -438,7 +438,7 @@
 				<button
 					onclick={() => (activeTab = 'maintenance')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'maintenance'
-						? 'border-emerald-500 text-emerald-600'
+						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Maintenance Log
@@ -446,7 +446,7 @@
 				<button
 					onclick={() => (activeTab = 'audit')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'audit'
-						? 'border-emerald-500 text-emerald-600'
+						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Audit Trail
@@ -461,7 +461,7 @@
 					<div class="flex justify-between items-center">
 						<h3 class="text-lg font-semibold text-gray-900">Item Condition Tracking</h3>
 						<div class="flex gap-2 text-sm">
-							<span class="px-3 py-1 bg-green-100 text-green-800 rounded-full font-medium">{goodItems} Good</span>
+							<span class="px-3 py-1 bg-pink-100 text-pink-800 rounded-full font-medium">{goodItems} Good</span>
 							<span class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-full font-medium">{needsRepairItems} Needs Repair</span>
 							<span class="px-3 py-1 bg-red-100 text-red-800 rounded-full font-medium">{damagedItems} Damaged</span>
 						</div>
@@ -499,7 +499,7 @@
 												<select
 													value={item.condition}
 													onchange={(e) => updateItemCondition(item.id, e.target.value)}
-													class="text-xs font-medium rounded-full px-3 py-1 border-0 {getConditionColor(item.condition)} cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
+													class="text-xs font-medium rounded-full px-3 py-1 border-0 {getConditionColor(item.condition)} cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500"
 												>
 													<option value="good">Good</option>
 													<option value="needs-repair">Needs Repair</option>
@@ -513,7 +513,7 @@
 											<td class="px-6 py-4 whitespace-nowrap text-sm">
 												<button
 													onclick={() => scheduleInspection(item.id)}
-													class="text-emerald-600 hover:text-emerald-900 font-medium"
+													class="text-pink-600 hover:text-pink-900 font-medium"
 												>
 													Schedule Inspection
 												</button>
@@ -539,7 +539,7 @@
 								<input
 									type="text"
 									bind:value={newMaintenance.item}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
 									placeholder="Enter item name"
 								/>
 							</div>
@@ -547,7 +547,7 @@
 								<label class="block text-sm font-medium text-gray-700 mb-1">Maintenance Type</label>
 								<select
 									bind:value={newMaintenance.type}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
 								>
 									<option value="preventive">Preventive</option>
 									<option value="corrective">Corrective</option>
@@ -558,7 +558,7 @@
 								<input
 									type="text"
 									bind:value={newMaintenance.performedBy}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
 									placeholder="Technician name"
 								/>
 							</div>
@@ -567,7 +567,7 @@
 								<input
 									type="date"
 									bind:value={newMaintenance.date}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
 								/>
 							</div>
 							<div>
@@ -575,7 +575,7 @@
 								<input
 									type="number"
 									bind:value={newMaintenance.cost}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
 									placeholder="0.00"
 									min="0"
 									step="0.01"
@@ -586,7 +586,7 @@
 								<input
 									type="text"
 									bind:value={newMaintenance.description}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500"
 									placeholder="Describe the work performed"
 								/>
 							</div>
@@ -594,7 +594,7 @@
 						<div class="mt-4">
 							<button
 								onclick={handleAddMaintenance}
-								class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-md transition-colors"
+								class="bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-6 rounded-md transition-colors"
 							>
 								Log Maintenance
 							</button>
@@ -606,7 +606,7 @@
 						<div class="flex justify-between items-center mb-4">
 							<h3 class="text-lg font-semibold text-gray-900">Maintenance History</h3>
 							<span class="text-sm text-gray-600">
-								Total Cost: <span class="font-bold text-emerald-600">₱{totalMaintenanceCost.toLocaleString()}</span>
+								Total Cost: <span class="font-bold text-pink-600">₱{totalMaintenanceCost.toLocaleString()}</span>
 							</span>
 						</div>
 
@@ -650,7 +650,7 @@
 													<select
 														value={record.status}
 														onchange={(e) => updateMaintenanceStatus(record.id, e.target.value)}
-														class="text-xs font-medium rounded-full px-3 py-1 border-0 {getStatusColor(record.status)} cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500"
+														class="text-xs font-medium rounded-full px-3 py-1 border-0 {getStatusColor(record.status)} cursor-pointer focus:outline-none focus:ring-2 focus:ring-pink-500"
 													>
 														<option value="pending">Pending</option>
 														<option value="in-progress">In Progress</option>
@@ -659,7 +659,7 @@
 												</td>
 												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{record.nextScheduled || '-'}</td>
 												<td class="px-6 py-4 whitespace-nowrap text-sm">
-													<button class="text-emerald-600 hover:text-emerald-900 font-medium">
+													<button class="text-pink-600 hover:text-pink-900 font-medium">
 														View Details
 													</button>
 												</td>
@@ -680,7 +680,7 @@
 						<h3 class="text-lg font-semibold text-gray-900">System Audit Trail</h3>
 						<button
 							onclick={exportAuditLog}
-							class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm"
+							class="bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm"
 						>
 							Export Audit Log
 						</button>
@@ -737,7 +737,7 @@
 											<td class="px-6 py-4 whitespace-nowrap text-sm">
 												<button
 													onclick={() => viewAuditDetails(audit.id)}
-													class="text-emerald-600 hover:text-emerald-900 font-medium"
+													class="text-pink-600 hover:text-pink-900 font-medium"
 												>
 													View Changes
 												</button>

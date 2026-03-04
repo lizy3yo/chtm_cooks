@@ -480,12 +480,415 @@ export const rememberTokenIndexes: IndexDefinition[] = [
 ];
 
 /**
+ * ============================================================================
+ * INVENTORY ITEMS COLLECTION INDEXES
+ * ============================================================================
+ * Collection: inventory_items
+ * Average Document Size: ~800 bytes
+ * Expected Growth: 1k-50k items
+ */
+
+export const inventoryItemIndexes: IndexDefinition[] = [
+	/**
+	 * 1. ITEM NAME INDEX
+	 * Used for: Searching and sorting items by name
+	 * Query Pattern: db.inventory_items.find({ name: /search/i }).sort({ name: 1 })
+	 */
+	{
+		collection: 'inventory_items',
+		type: 'single',
+		fields: { name: 1 },
+		options: {
+			name: 'idx_inventory_items_name'
+		},
+		description: 'Item name lookup and sorting',
+		priority: 'high',
+		usedFor: [
+			'Item search by name',
+			'Alphabetical sorting',
+			'Autocomplete suggestions'
+		],
+		impact: {
+			readImprovement: '50x faster for name-based queries',
+			writeImpact: '~2% on item creation',
+			storageSize: '~30KB for 10k items'
+		}
+	},
+
+	/**
+	 * 2. CATEGORY INDEX
+	 * Used for: Filtering items by category
+	 * Query Pattern: db.inventory_items.find({ category: "Cookware", archived: false })
+	 */
+	{
+		collection: 'inventory_items',
+		type: 'single',
+		fields: { category: 1 },
+		options: {
+			name: 'idx_inventory_items_category'
+		},
+		description: 'Filter items by category',
+		priority: 'high',
+		usedFor: [
+			'Category filtering',
+			'Category-specific reports',
+			'Category page views'
+		],
+		impact: {
+			readImprovement: '40x faster for category queries',
+			writeImpact: '~2% on item creation',
+			storageSize: '~25KB for 10k items'
+		}
+	},
+
+	/**
+	 * 3. CATEGORY ID INDEX
+	 * Used for: Foreign key lookups to categories collection
+	 * Query Pattern: db.inventory_items.find({ categoryId: ObjectId(...) })
+	 */
+	{
+		collection: 'inventory_items',
+		type: 'single',
+		fields: { categoryId: 1 },
+		options: {
+			name: 'idx_inventory_items_category_id'
+		},
+		description: 'Foreign key reference to categories',
+		priority: 'high',
+		usedFor: [
+			'Category relationship queries',
+			'Counting items per category',
+			'Category deletion validation'
+		],
+		impact: {
+			readImprovement: '60x faster for categoryId lookups',
+			writeImpact: '~2% on item creation',
+			storageSize: '~20KB for 10k items'
+		}
+	},
+
+	/**
+	 * 4. STATUS INDEX
+	 * Used for: Filtering by stock status (Low Stock, In Stock, etc.)
+	 * Query Pattern: db.inventory_items.find({ status: "Low Stock", archived: false })
+	 */
+	{
+		collection: 'inventory_items',
+		type: 'single',
+		fields: { status: 1 },
+		options: {
+			name: 'idx_inventory_items_status'
+		},
+		description: 'Filter items by stock status',
+		priority: 'medium',
+		usedFor: [
+			'Low stock alerts',
+			'Out of stock reports',
+			'Status-based dashboards'
+		],
+		impact: {
+			readImprovement: '35x faster for status queries',
+			writeImpact: '~2% on status updates',
+			storageSize: '~18KB for 10k items'
+		}
+	},
+
+	/**
+	 * 5. ARCHIVED INDEX
+	 * Used for: Filtering active vs archived items
+	 * Query Pattern: db.inventory_items.find({ archived: false })
+	 */
+	{
+		collection: 'inventory_items',
+		type: 'single',
+		fields: { archived: 1 },
+		options: {
+			name: 'idx_inventory_items_archived'
+		},
+		description: 'Filter active/archived items',
+		priority: 'high',
+		usedFor: [
+			'Active items list',
+			'Archived items list',
+			'Excluding archived from queries'
+		],
+		impact: {
+			readImprovement: '45x faster for archive filtering',
+			writeImpact: '~2% on archival operations',
+			storageSize: '~15KB for 10k items'
+		}
+	},
+
+	/**
+	 * 6. ARCHIVED + CATEGORY COMPOUND INDEX
+	 * Used for: Common query pattern of active items in a category
+	 * Query Pattern: db.inventory_items.find({ archived: false, category: "Tools" })
+	 */
+	{
+		collection: 'inventory_items',
+		type: 'compound',
+		fields: { archived: 1, category: 1 },
+		options: {
+			name: 'idx_inventory_items_archived_category'
+		},
+		description: 'Active items by category',
+		priority: 'high',
+		usedFor: [
+			'Category filtering (most common query)',
+			'Category statistics',
+			'Active category items'
+		],
+		impact: {
+			readImprovement: '70x faster for category + archive queries',
+			writeImpact: '~2% on item creation',
+			storageSize: '~35KB for 10k items'
+		}
+	},
+
+	/**
+	 * 7. ARCHIVED + STATUS COMPOUND INDEX
+	 * Used for: Finding active items by status
+	 * Query Pattern: db.inventory_items.find({ archived: false, status: "Low Stock" })
+	 */
+	{
+		collection: 'inventory_items',
+		type: 'compound',
+		fields: { archived: 1, status: 1 },
+		options: {
+			name: 'idx_inventory_items_archived_status'
+		},
+		description: 'Active items by status',
+		priority: 'medium',
+		usedFor: [
+			'Low stock alerts page',
+			'Status-based filtering',
+			'Dashboard widgets'
+		],
+		impact: {
+			readImprovement: '60x faster for status queries',
+			writeImpact: '~2% on status changes',
+			storageSize: '~30KB for 10k items'
+		}
+	},
+
+	/**
+	 * 8. TEXT SEARCH INDEX
+	 * Used for: Full-text search across item fields
+	 * Query Pattern: db.inventory_items.find({ $text: { $search: "knife" } })
+	 */
+	{
+		collection: 'inventory_items',
+		type: 'text',
+		fields: { name: 'text', specification: 'text', description: 'text' },
+		options: {
+			name: 'idx_inventory_items_text_search',
+			weights: {
+				name: 10,
+				specification: 5,
+				description: 1
+			},
+			default_language: 'english'
+		},
+		description: 'Full-text search for items',
+		priority: 'medium',
+		usedFor: [
+			'Search bar functionality',
+			'Smart search suggestions',
+			'Multi-field text queries'
+		],
+		impact: {
+			readImprovement: '100x faster for text searches',
+			writeImpact: '~5% on item creation/update',
+			storageSize: '~100KB for 10k items'
+		}
+	},
+
+	/**
+	 * 9. CREATED DATE INDEX
+	 * Used for: Sorting by creation date and recent items
+	 * Query Pattern: db.inventory_items.find().sort({ createdAt: -1 })
+	 */
+	{
+		collection: 'inventory_items',
+		type: 'single',
+		fields: { createdAt: -1 },
+		options: {
+			name: 'idx_inventory_items_created_at'
+		},
+		description: 'Sort by creation date',
+		priority: 'low',
+		usedFor: [
+			'Recently added items',
+			'Historical reports',
+			'Audit logs'
+		],
+		impact: {
+			readImprovement: '40x faster for date-based sorting',
+			writeImpact: '~1% on item creation',
+			storageSize: '~20KB for 10k items'
+		}
+	},
+
+	/**
+	 * 10. UPDATED DATE INDEX
+	 * Used for: Tracking recent updates
+	 * Query Pattern: db.inventory_items.find().sort({ updatedAt: -1 })
+	 */
+	{
+		collection: 'inventory_items',
+		type: 'single',
+		fields: { updatedAt: -1 },
+		options: {
+			name: 'idx_inventory_items_updated_at'
+		},
+		description: 'Sort by update date',
+		priority: 'low',
+		usedFor: [
+			'Recently updated items',
+			'Change tracking',
+			'Activity monitoring'
+		],
+		impact: {
+			readImprovement: '40x faster for update-based queries',
+			writeImpact: '~1% on item updates',
+			storageSize: '~20KB for 10k items'
+		}
+	}
+];
+
+/**
+ * ============================================================================
+ * INVENTORY CATEGORIES COLLECTION INDEXES
+ * ============================================================================
+ * Collection: inventory_categories
+ * Average Document Size: ~300 bytes
+ * Expected Growth: 50-500 categories
+ */
+
+export const inventoryCategoryIndexes: IndexDefinition[] = [
+	/**
+	 * 1. CATEGORY NAME UNIQUE INDEX (Only for Active Categories)
+	 * Used for: Ensuring unique category names and fast lookups
+	 * Query Pattern: db.inventory_categories.findOne({ name: "Cookware", archived: false })
+	 * Note: Uses partial index to allow duplicate names for archived categories
+	 */
+	{
+		collection: 'inventory_categories',
+		type: 'single',
+		fields: { name: 1 },
+		options: {
+			unique: true,
+			name: 'idx_inventory_categories_name_unique',
+			collation: {
+				locale: 'en',
+				strength: 2 // Case-insensitive
+			},
+			partialFilterExpression: {
+				archived: false // Only enforce uniqueness for active categories
+			}
+		},
+		description: 'Unique case-insensitive category name for active categories only',
+		priority: 'critical',
+		usedFor: [
+			'Category name uniqueness (active only)',
+			'Category lookup by name',
+			'Category selection in forms'
+		],
+		impact: {
+			readImprovement: '100x faster - O(log n) vs O(n)',
+			writeImpact: '~3% slower on category creation',
+			storageSize: '~2KB for 500 categories'
+		}
+	},
+
+	/**
+	 * 2. ARCHIVED INDEX
+	 * Used for: Filtering active vs archived categories
+	 * Query Pattern: db.inventory_categories.find({ archived: false })
+	 */
+	{
+		collection: 'inventory_categories',
+		type: 'single',
+		fields: { archived: 1 },
+		options: {
+			name: 'idx_inventory_categories_archived'
+		},
+		description: 'Filter active/archived categories',
+		priority: 'high',
+		usedFor: [
+			'Active categories list',
+			'Category selection dropdown',
+			'Excluding archived categories'
+		],
+		impact: {
+			readImprovement: '50x faster for archive filtering',
+			writeImpact: '~2% on archival operations',
+			storageSize: '~1KB for 500 categories'
+		}
+	},
+
+	/**
+	 * 3. ARCHIVED + NAME COMPOUND INDEX
+	 * Used for: Common query pattern of active categories sorted by name
+	 * Query Pattern: db.inventory_categories.find({ archived: false }).sort({ name: 1 })
+	 */
+	{
+		collection: 'inventory_categories',
+		type: 'compound',
+		fields: { archived: 1, name: 1 },
+		options: {
+			name: 'idx_inventory_categories_archived_name'
+		},
+		description: 'Active categories sorted by name',
+		priority: 'high',
+		usedFor: [
+			'Category dropdown (most common)',
+			'Category listing page',
+			'Alphabetical category display'
+		],
+		impact: {
+			readImprovement: '80x faster for sorted active categories',
+			writeImpact: '~2% on category creation',
+			storageSize: '~2KB for 500 categories'
+		}
+	},
+
+	/**
+	 * 4. CREATED DATE INDEX
+	 * Used for: Sorting by creation date
+	 * Query Pattern: db.inventory_categories.find().sort({ createdAt: -1 })
+	 */
+	{
+		collection: 'inventory_categories',
+		type: 'single',
+		fields: { createdAt: -1 },
+		options: {
+			name: 'idx_inventory_categories_created_at'
+		},
+		description: 'Sort by creation date',
+		priority: 'low',
+		usedFor: [
+			'Recently added categories',
+			'Category creation reports',
+			'Audit logs'
+		],
+		impact: {
+			readImprovement: '30x faster for date-based sorting',
+			writeImpact: '~1% on category creation',
+			storageSize: '~1KB for 500 categories'
+		}
+	}
+];
+
+/**
  * ALL INDEX DEFINITIONS
  * Export all indexes in one array for easy access
  */
 export const allIndexDefinitions: IndexDefinition[] = [
 	...userIndexes,
-	...rememberTokenIndexes
+	...rememberTokenIndexes,
+	...inventoryItemIndexes,
+	...inventoryCategoryIndexes
 	// ...sessionIndexes,
 	// ...otherCollectionIndexes,
 ];

@@ -8,7 +8,7 @@ import {
 	getRequestDuration,
 	addRequestIdHeader
 } from '$lib/server/middleware/requestContext';
-import { logRequest, logError, logInfo } from '$lib/server/utils/logger';
+import { logRequest, logError, logInfo, logWarn } from '$lib/server/utils/logger';
 import {
 	formatErrorResponse,
 	isOperationalError,
