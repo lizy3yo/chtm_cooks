@@ -138,8 +138,9 @@
 
 	// Restore deleted item
 	async function restoreDeletedItem(item: DeletedItem) {
+		const itemName = item.type === 'category' ? item.categoryData.name : item.itemData.name;
 		const confirmed = await confirmStore.info(
-			`Restore "${item.itemData.name}" from deleted items?`,
+			`Restore "${itemName}" from deleted items?`,
 			'Restore Item',
 			'Restore',
 			'Cancel'
@@ -149,8 +150,8 @@
 
 		try {
 			loading = true;
-			await deletedItemsAPI.restore(item.id);
-			toastStore.success(`"${item.itemData.name}" has been restored successfully`);
+			await deletedItemsAPI.restore(item.id, item.type);
+			toastStore.success(`"${itemName}" has been restored successfully`);
 			await loadDeletedItems();
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to restore item');
@@ -161,8 +162,9 @@
 
 	// Permanently delete item
 	async function permanentlyDelete(item: DeletedItem) {
+		const itemName = item.type === 'category' ? item.categoryData.name : item.itemData.name;
 		const confirmed = await confirmStore.danger(
-			`Permanently delete "${item.itemData.name}"? This action CANNOT be undone.`,
+			`Permanently delete "${itemName}"? This action CANNOT be undone.`,
 			'Permanent Deletion',
 			'Delete Forever',
 			'Cancel'
@@ -172,8 +174,8 @@
 
 		try {
 			loading = true;
-			await deletedItemsAPI.permanentlyDelete(item.id);
-			toastStore.success(`"${item.itemData.name}" has been permanently deleted`);
+			await deletedItemsAPI.permanentlyDelete(item.id, item.type);
+			toastStore.success(`"${itemName}" has been permanently deleted`);
 			await loadDeletedItems();
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to permanently delete item');
@@ -565,7 +567,8 @@
 						<table class="w-full">
 							<thead>
 								<tr class="border-b border-gray-200 bg-gray-50">
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Item Name</th>
+									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Type</th>
+									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Name</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Category</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Deleted By</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Deleted Date</th>
@@ -575,9 +578,17 @@
 							</thead>
 							<tbody class="divide-y divide-gray-200">
 								{#each deletedItems as item}
+									{@const data = item.type === 'category' ? item.categoryData : item.itemData}
 									<tr class="hover:bg-gray-50 transition-colors">
-										<td class="px-6 py-4 text-sm font-medium text-gray-900">{item.itemData.name}</td>
-										<td class="px-6 py-4 text-sm text-gray-600">{item.itemData.category || 'N/A'}</td>
+										<td class="px-6 py-4 text-sm">
+											<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {item.type === 'category' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">
+												{item.type === 'category' ? 'Category' : 'Item'}
+											</span>
+										</td>
+										<td class="px-6 py-4 text-sm font-medium text-gray-900">{data.name}</td>
+										<td class="px-6 py-4 text-sm text-gray-600">
+											{item.type === 'category' ? 'N/A' : (data.category || 'N/A')}
+										</td>
 										<td class="px-6 py-4 text-sm text-gray-600">{item.deletedByName}</td>
 										<td class="px-6 py-4 text-sm text-gray-600">{formatTimestamp(item.deletedAt)}</td>
 										<td class="px-6 py-4">

@@ -2,6 +2,7 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
 	import type { InventoryItem, InventoryCategory } from '$lib/api/inventory';
 	import { 
 		inventoryItemsAPI, 
@@ -10,12 +11,14 @@
 	} from '$lib/api/inventory';
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
+	import { inventoryStore } from '$lib/stores/inventory';
+	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
 	
 	type Tab = 'all-items' | 'categories' | 'low-stock' | 'add-item';
 	
 	let activeTab = $state<Tab>('all-items');
 	
-	// Real data from API
+	// Data from store with client-side caching
 	let items = $state<InventoryItem[]>([]);
 	let categories = $state<InventoryCategory[]>([]);
 	let loading = $state(false);
@@ -74,32 +77,58 @@
 	});
 
 	/**
-	 * Load all categories from API
+	 * Load all items from API (with client-side caching)
 	 */
-	async function loadCategories() {
+	async function loadItems() {
 		try {
+			// Check if cache is still valid
+			if (inventoryStore.isItemsCacheValid()) {
+				// Use cached data
+				const storeData = get(inventoryStore);
+				items = storeData.items;
+				return;
+			}
+
 			loading = true;
-			const response = await inventoryCategoriesAPI.getAll();
-			categories = response.categories;
+			inventoryStore.setLoading(true);
+
+			const response = await inventoryItemsAPI.getAll({ limit: 1000, includeArchived: true });
+			items = response.items;
+
+			// Update cache
+			inventoryStore.setItems(response.items);
 		} catch (err: any) {
-			toastStore.error(err.message || 'Failed to load categories');
-			console.error('Error loading categories:', err);
+			toastStore.error(err.message || 'Failed to load items');
+			console.error('Error loading items:', err);
 		} finally {
 			loading = false;
+			inventoryStore.setLoading(false);
 		}
 	}
 
 	/**
-	 * Load all items from API
+	 * Load all categories from API (with client-side caching)
 	 */
-	async function loadItems() {
+	async function loadCategories() {
 		try {
+			// Check if cache is still valid
+			if (inventoryStore.isCategoriesCacheValid()) {
+				// Use cached data
+				const storeData = get(inventoryStore);
+				categories = storeData.categories;
+				return;
+			}
+
 			loading = true;
-			const response = await inventoryItemsAPI.getAll({ limit: 1000, includeArchived: true });
-			items = response.items;
+
+			const response = await inventoryCategoriesAPI.getAll({ limit: 1000, includeArchived: true });
+			categories = response.categories;
+
+			// Update cache
+			inventoryStore.setCategories(response.categories);
 		} catch (err: any) {
-			toastStore.error(err.message || 'Failed to load items');
-			console.error('Error loading items:', err);
+			toastStore.error(err.message || 'Failed to load categories');
+			console.error('Error loading categories:', err);
 		} finally {
 			loading = false;
 		}
@@ -223,6 +252,10 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 		try {
 			loading = true;
 			await inventoryItemsAPI.update(item.id, { archived: true });
+
+			// Invalidate cache after mutation
+			inventoryStore.invalidateItems();
+
 			await loadItems();
 			closeModal();
 			toastStore.success('Item archived successfully');
@@ -274,14 +307,9 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 				await inventoryItemsAPI.create(itemData);
 			}
 
-			// Reload data
-			await loadItems();
-			await loadCategories();
+		// Invalidate cache after mutation
+		inventoryStore.invalidateItems();
 
-			// Save editing state before reset
-			const wasEditing = !!editingItemId;
-
-			// Reset form and switch tab
 			resetForm();
 			switchTab('all-items');
 			toastStore.success(wasEditing ? 'Item updated successfully' : 'Item created successfully');
@@ -362,6 +390,10 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 		try {
 			loading = true;
 			await inventoryItemsAPI.delete(item.id);
+
+			// Invalidate cache after mutation
+			inventoryStore.invalidateItems();
+
 			await loadItems();
 			await loadCategories();
 			selectedItem = null;
@@ -421,6 +453,10 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 				description: newCategoryDescription,
 				picture: imageUrl
 			});
+
+			// Invalidate cache after mutation
+			inventoryStore.invalidateCategories();
+
 			await loadCategories();
 			showCategoryModal = false;
 			newCategoryName = '';
@@ -475,6 +511,10 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 				description: newCategoryDescription,
 				picture: imageUrl
 			});
+
+			// Invalidate cache after mutation
+			inventoryStore.invalidateCategories();
+
 			await loadCategories();
 			showEditCategoryModal = false;
 			editingCategory = null;
@@ -513,8 +553,12 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 		try {
 			loading = true;
 			await inventoryCategoriesAPI.delete(category.id);
+
+			// Invalidate cache after mutation
+			inventoryStore.invalidateCategories();
+
 			await loadCategories();
-			toastStore.success('Category deleted successfully');
+			toastStore.success('Category deleted successfully. Recoverable for 30 days from History page.');
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to delete category');
 			console.error('Error deleting category:', err);
@@ -655,12 +699,10 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 		</button>
 	</div>
 
-	<!-- Loading Spinner -->
+	<!-- Global Skeleton Loading State -->
 	{#if loading}
-		<div class="flex items-center justify-center py-8">
-			<div class="h-12 w-12 animate-spin rounded-full border-4 border-pink-200 border-t-pink-600"></div>
-		</div>
-	{/if}
+		<InventorySkeletonLoader view={activeTab === 'categories' ? 'categories' : activeTab === 'low-stock' ? 'low-stock' : 'all-items'} />
+	{:else}
 	
 	<!-- Stats Overview -->
 	<div class="grid grid-cols-1 gap-5 sm:grid-cols-4">
@@ -1301,4 +1343,5 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 			</div>
 		{/if}
 	</div>
+{/if}
 </div>

@@ -23,12 +23,14 @@ export interface InventoryHistoryEntry {
 }
 
 /**
- * Deleted item
+ * Deleted item or category
  */
 export interface DeletedItem {
 	id: string;
 	originalId: string;
-	itemData: any;
+	type: 'item' | 'category';
+	itemData?: any;
+	categoryData?: any;
 	deletedBy: string;
 	deletedByName: string;
 	deletedByRole: string;
@@ -163,18 +165,18 @@ export const deletedItemsAPI = {
 	},
 
 	/**
-	 * Restore a deleted item
+	 * Restore a deleted item or category
 	 */
-	async restore(deletedId: string): Promise<{ success: boolean; message: string }> {
-		const response = await fetch('/api/inventory/deleted/restore', getFetchOptions('POST', { deletedId }));
+	async restore(deletedId: string, type: 'item' | 'category'): Promise<{ success: boolean; message: string }> {
+		const response = await fetch('/api/inventory/deleted', getFetchOptions('POST', { deletedId, type }));
 		return handleResponse(response);
 	},
 
 	/**
-	 * Permanently delete an item (superadmin only)
+	 * Permanently delete an item or category (superadmin only)
 	 */
-	async permanentlyDelete(deletedId: string): Promise<{ success: boolean; message: string }> {
-		const response = await fetch('/api/inventory/deleted', getFetchOptions('DELETE', { deletedId }));
+	async permanentlyDelete(deletedId: string, type: 'item' | 'category'): Promise<{ success: boolean; message: string }> {
+		const response = await fetch('/api/inventory/deleted', getFetchOptions('DELETE', { deletedId, type }));
 		return handleResponse(response);
 	}
 };
