@@ -13,6 +13,33 @@ import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
 import { logInventoryActivity } from '$lib/server/utils/inventoryLogger';
 import { InventoryAction } from '$lib/server/models/InventoryHistory';
+import { storageService } from '$lib/server/services/storage/storageService';
+import { cacheService } from '$lib/server/cache';
+
+/**
+ * Extract Cloudinary publicId from image URL
+ */
+function extractPublicIdFromUrl(url: string): string | null {
+	try {
+		// Example URL: https://res.cloudinary.com/cloud-name/image/upload/v1234567/folder/subfolder/filename.jpg
+		const urlParts = url.split('/upload/');
+		if (urlParts.length < 2) return null;
+		
+		// Get everything after /upload/ and remove version (v1234567)
+		let pathAfterUpload = urlParts[1];
+		
+		// Remove version identifier (e.g., v1234567890/)
+		pathAfterUpload = pathAfterUpload.replace(/^v\d+\//, '');
+		
+		// Remove file extension
+		const publicId = pathAfterUpload.replace(/\.[^/.]+$/, '');
+		
+		return publicId;
+	} catch (error) {
+		logger.error('Failed to extract publicId from URL', { url, error });
+		return null;
+	}
+}
 
 /**
  * Convert InventoryCategory to InventoryCategoryResponse
@@ -163,6 +190,26 @@ export const POST: RequestHandler = async (event) => {
 		});
 
 		if (archivedCategory) {
+			// Delete old picture from Cloudinary if updating with new picture
+			if (picture && archivedCategory.picture && picture !== archivedCategory.picture) {
+				const oldPublicId = extractPublicIdFromUrl(archivedCategory.picture);
+				if (oldPublicId) {
+					try {
+						await storageService.delete({ publicId: oldPublicId });
+						logger.info('Old archived category picture deleted from Cloudinary', { 
+							categoryId: archivedCategory._id?.toString(),
+							publicId: oldPublicId 
+						});
+					} catch (error) {
+						logger.warn('Failed to delete old archived category picture from Cloudinary', { 
+							categoryId: archivedCategory._id?.toString(),
+							publicId: oldPublicId,
+							error 
+						});
+					}
+				}
+			}
+
 			// Reactivate the archived category
 			const updateFields: any = {
 				archived: false,
@@ -204,6 +251,9 @@ export const POST: RequestHandler = async (event) => {
 				name
 			});
 
+			// Invalidate cache
+			await cacheService.deletePattern('inventory:categories:*');
+
 			return json(toCategoryResponse(result), { status: 201 });
 		}
 
@@ -243,6 +293,9 @@ export const POST: RequestHandler = async (event) => {
 			categoryId: newCategory._id.toString(),
 			name
 		});
+
+		// Invalidate cache
+		await cacheService.deletePattern('inventory:categories:*');
 
 		return json(toCategoryResponse(newCategory), { status: 201 });
 

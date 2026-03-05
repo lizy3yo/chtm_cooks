@@ -15,6 +15,7 @@ import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
 import { logInventoryActivity } from '$lib/server/utils/inventoryLogger';
 import { InventoryAction } from '$lib/server/models/InventoryHistory';
+import { cacheService } from '$lib/server/cache';
 
 /**
  * Determine item status based on quantity and minStock
@@ -82,10 +83,6 @@ export const GET: RequestHandler = async (event) => {
 			return json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
 		}
 
-		// Connect to database
-		const db = await getDatabase();
-		const itemsCollection = db.collection<InventoryItem>('inventory_items');
-
 		// Get query parameters
 		const url = new URL(request.url);
 		const includeArchived = url.searchParams.get('includeArchived') === 'true';
@@ -95,6 +92,20 @@ export const GET: RequestHandler = async (event) => {
 		const page = parseInt(url.searchParams.get('page') || '1');
 		const limit = parseInt(url.searchParams.get('limit') || '100');
 		const skip = (page - 1) * limit;
+
+		// Build cache key based on query parameters
+		const cacheKey = `inventory:items:${includeArchived}:${category || 'all'}:${status || 'all'}:${search || 'all'}:${page}:${limit}`;
+
+		// Check cache first
+		const cached = await cacheService.get<any>(cacheKey);
+		if (cached) {
+			logger.debug('Inventory items served from cache', { cacheKey });
+			return json(cached);
+		}
+
+		// Connect to database
+		const db = await getDatabase();
+		const itemsCollection = db.collection<InventoryItem>('inventory_items');
 
 		// Build filter
 		const filter: any = {};
@@ -131,13 +142,18 @@ export const GET: RequestHandler = async (event) => {
 			total
 		});
 
-		return json({
+		const response = {
 			items: items.map(toItemResponse),
 			total,
 			page,
 			limit,
 			pages: Math.ceil(total / limit)
-		});
+		};
+
+		// Cache for 3 minutes (balance between freshness and performance)
+		await cacheService.set(cacheKey, response, { ttl: 180 });
+
+		return json(response);
 
 	} catch (error) {
 		logger.error('Error retrieving inventory items', { error });
@@ -279,6 +295,10 @@ export const POST: RequestHandler = async (event) => {
 			name,
 			category
 		});
+
+		// Invalidate inventory cache
+		await cacheService.deletePattern('inventory:items:*');
+		await cacheService.deletePattern('inventory:archived:*');
 
 		return json(toItemResponse(newItem), { status: 201 });
 

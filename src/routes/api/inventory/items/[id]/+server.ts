@@ -16,6 +16,7 @@ import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
 import { logInventoryActivity, getObjectChanges } from '$lib/server/utils/inventoryLogger';
 import { InventoryAction } from '$lib/server/models/InventoryHistory';
+import { cacheService } from '$lib/server/cache';
 
 /**
  * Determine item status based on quantity and minStock
@@ -273,6 +274,11 @@ export const PATCH: RequestHandler = async (event) => {
 			action
 		});
 
+		// Invalidate inventory cache
+		await cacheService.deletePattern('inventory:items:*');
+		await cacheService.deletePattern('inventory:archived:*');
+		await cacheService.deletePattern('inventory:history:*');
+
 		return json(toItemResponse(result));
 
 	} catch (error) {
@@ -379,6 +385,11 @@ export const DELETE: RequestHandler = async (event) => {
 			itemName: item.name,
 			scheduledDeletion
 		});
+
+		// Invalidate inventory cache
+		await cacheService.deletePattern('inventory:items:*');
+		await cacheService.deletePattern('inventory:deleted:*');
+		await cacheService.deletePattern('inventory:history:*');
 
 		return json({ 
 			success: true, 
