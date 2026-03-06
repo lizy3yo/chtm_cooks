@@ -125,14 +125,23 @@ export class CacheService {
 	}
 
 	/**
-	 * Deserialize value from string
+	 * Deserialize cache payload.
+	 *
+	 * Redis clients can return either:
+	 * - JSON strings (expected for this cache service)
+	 * - already-parsed objects/primitives (client dependent)
+	 * - legacy plain strings (older cache entries)
 	 */
-	private deserialize<T>(value: string): T {
+	private deserialize<T>(value: unknown): T {
+		if (typeof value !== 'string') {
+			return value as T;
+		}
+
 		try {
 			return JSON.parse(value) as T;
-		} catch (error) {
-			logger.error('Failed to deserialize cache value', { error });
-			throw new Error('Cache deserialization failed');
+		} catch {
+			// Backward compatibility for non-JSON string cache values.
+			return value as T;
 		}
 	}
 
@@ -163,9 +172,7 @@ export class CacheService {
 				logger.debug('Cache hit', { key: fullKey });
 			}
 
-			// Handle different return types from Upstash vs IORedis
-			const stringValue = typeof value === 'string' ? value : String(value);
-			return this.deserialize<T>(stringValue);
+			return this.deserialize<T>(value);
 		} catch (error) {
 			logger.error('Cache get error', { key: fullKey, error });
 			return null;

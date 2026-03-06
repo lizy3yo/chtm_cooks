@@ -14,23 +14,8 @@
 		children?: { name: string; href: string }[];
 	}
 	
-	import { derived } from 'svelte/store';
-	import { onMount } from 'svelte';
-
 	let isMobileMenuOpen = $state(false);
 	let isProfileDropdownOpen = $state(false);
-
-	// Show the mobile top nav only on custodian routes (derived store)
-	const showTopNav = derived(page, $page => typeof window !== 'undefined' && $page.url.pathname.startsWith('/custodian'));
-
-	// Apply body padding only when the mobile top nav is visible (client-side)
-	onMount(() => {
-		const unsub = showTopNav.subscribe(val => {
-			if (val) document.body.style.paddingTop = '3.5rem';
-			else if (document.body.style.paddingTop === '3.5rem') document.body.style.paddingTop = '';
-		});
-		return unsub;
-	});
 	let expandedSections = $state<Record<string, boolean>>({
 		inventory: false,
 		requests: false,
@@ -73,17 +58,12 @@
 			name: 'Reports & Analytics',
 			href: '/custodian/reports',
 			icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
-	},
-	{
-		name: 'History',
-		href: '/custodian/history',
-		icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+		}
+	];
+	
+	function toggleSection(section: string) {
+		expandedSections[section] = !expandedSections[section];
 	}
-];
-
-function toggleSection(section: string) {
-	expandedSections[section] = !expandedSections[section];
-}
 	
 	function isActive(href: string): boolean {
 		return $page.url.pathname === href || $page.url.pathname.startsWith(href + '/');
@@ -108,29 +88,25 @@ function toggleSection(section: string) {
 	}
 </script>
 
-<!-- Mobile Top Navigation (shows hamburger at top on mobile screens) -->
-{#if showTopNav}
-	<div class="fixed top-0 left-0 right-0 z-30 lg:hidden">
-		<div class="flex items-center h-14 px-4 bg-white border-b border-gray-200 shadow-sm">
-			{#if !isMobileMenuOpen}
-				<button
-					onclick={() => (isMobileMenuOpen = !isMobileMenuOpen)}
-					class="rounded-lg bg-white p-2 shadow-md"
-					aria-label="Toggle menu"
-				>
-					<svg class="h-6 w-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
-					</svg>
-				</button>
-			{/if}
-		</div>
-	</div>
-{/if}
+<!-- Mobile Menu Button (circular style) -->
+<button
+	onclick={() => (isMobileMenuOpen = !isMobileMenuOpen)}
+ 	class="fixed left-4 top-6 z-50 lg:hidden flex items-center justify-center h-12 w-12 rounded-full bg-white/95 shadow-md ring-1 ring-gray-200"
+ 	aria-label="Toggle menu"
+>
+ 	<svg class="h-5 w-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+ 		{#if isMobileMenuOpen}
+ 			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+ 		{:else}
+ 			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+ 		{/if}
+ 	</svg>
+</button>
 
 <!-- Overlay for mobile -->
 {#if isMobileMenuOpen}
 	<div
-		class="fixed inset-0 z-40 bg-transparent lg:hidden"
+		class="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
 		onclick={closeMobileMenu}
 		role="button"
 		tabindex="0"
@@ -139,9 +115,9 @@ function toggleSection(section: string) {
 
 <!-- Sidebar -->
 <aside
-    class="fixed inset-y-0 left-0 z-50 transform border-r border-gray-200 shadow-lg transition-all duration-300 ease-in-out {isMobileMenuOpen
+	class="fixed inset-y-0 left-0 z-40 transform border-r border-gray-200 shadow-lg transition-all duration-300 ease-in-out {isMobileMenuOpen
 		? 'translate-x-0'
-		: '-translate-x-full'} lg:translate-x-0 {$sidebarCollapsed ? 'lg:w-20' : 'w-56 md:w-72'}"
+		: '-translate-x-full'} lg:translate-x-0 {isMobileMenuOpen ? 'w-full' : $sidebarCollapsed ? 'lg:w-20' : 'w-72'}"
 	style="background-color: #ffffff;"
 >
 	<div class="flex h-full flex-col overflow-hidden">
@@ -174,16 +150,16 @@ function toggleSection(section: string) {
 			{/if}
 		</div>
 		
-		<!-- Desktop Collapse Toggle - Floating on Side when collapsed -->
+		<!-- Desktop Collapse Toggle - Half-circle tab when collapsed -->
 		{#if $sidebarCollapsed}
 			<button
 				onclick={toggleCollapse}
-				class="hidden lg:flex items-center justify-center h-8 w-8 rounded-full bg-white border-2 border-gray-200 hover:border-pink-500 hover:bg-pink-50 hover:text-pink-600 text-gray-600 shadow-md hover:shadow-lg transition-all duration-200 absolute top-4 -right-4 z-50"
+				class="hidden lg:flex items-center justify-center h-12 w-6 rounded-r-full bg-white border-2 border-gray-200 hover:bg-pink-50 text-gray-600 shadow-md transition-all duration-200 absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-50"
 				aria-label="Expand sidebar"
 				title="Expand sidebar"
 			>
-				<svg class="h-4 w-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
+				<svg class="h-5 w-5 transform rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 5l7 7-7 7"/>
 				</svg>
 			</button>
 		{/if}

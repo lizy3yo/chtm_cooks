@@ -278,6 +278,7 @@ export const PATCH: RequestHandler = async (event) => {
 		await cacheService.deletePattern('inventory:items:*');
 		await cacheService.deletePattern('inventory:archived:*');
 		await cacheService.deletePattern('inventory:history:*');
+		await cacheService.invalidateByTags(['inventory-catalog']);
 
 		return json(toItemResponse(result));
 
@@ -390,6 +391,7 @@ export const DELETE: RequestHandler = async (event) => {
 		await cacheService.deletePattern('inventory:items:*');
 		await cacheService.deletePattern('inventory:deleted:*');
 		await cacheService.deletePattern('inventory:history:*');
+		await cacheService.invalidateByTags(['inventory-catalog']);
 
 		return json({ 
 			success: true, 

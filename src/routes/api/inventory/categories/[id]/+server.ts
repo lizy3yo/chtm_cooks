@@ -195,6 +195,10 @@ export const PATCH: RequestHandler = async (event) => {
 			action
 		});
 
+		// Invalidate catalog and category caches
+		await cacheService.deletePattern('inventory:categories:*');
+		await cacheService.invalidateByTags(['inventory-catalog']);
+
 		return json(toCategoryResponse(result));
 
 	} catch (error) {
@@ -310,6 +314,7 @@ export const DELETE: RequestHandler = async (event) => {
 		await cacheService.deletePattern('inventory:categories:*');
 		await cacheService.deletePattern('inventory:deleted:*');
 		await cacheService.deletePattern('inventory:history:*');
+		await cacheService.invalidateByTags(['inventory-catalog']);
 
 		return json({ 
 			success: true, 

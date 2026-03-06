@@ -6,8 +6,8 @@ import { logger } from '$lib/server/utils/logger';
 import { createInventoryIndexes } from '$lib/server/db/indexes/inventoryIndexes';
 
 /**
- * POST /api/inventory/indexes/create
- * Create database indexes for inventory history collections
+ * POST /api/inventory/indexes
+ * Create database indexes for inventory collections
  * (Superadmin only)
  */
 export const POST: RequestHandler = async (event) => {
