@@ -79,12 +79,92 @@ export async function createInventoryDeletedIndexes() {
 }
 
 /**
+ * Create indexes for inventory_items collection
+ * For optimized querying of inventory items
+ */
+export async function createInventoryItemsIndexes() {
+	const db = await getDatabase();
+	const collection = db.collection('inventory_items');
+
+	try {
+		await collection.createIndexes([
+			// Index for filtering by archived status
+			{ key: { archived: 1, name: 1 }, name: 'idx_archived_name' },
+			
+			// Index for filtering by category
+			{ key: { categoryId: 1, archived: 1 }, name: 'idx_categoryid_archived' },
+			
+			// Index for filtering by status (availability)
+			{ key: { status: 1, archived: 1 }, name: 'idx_status_archived' },
+			
+			// Index for filtering by condition
+			{ key: { condition: 1, archived: 1 }, name: 'idx_condition_archived' },
+			
+			// Compound index for common catalog queries
+			{ 
+				key: { archived: 1, status: 1, categoryId: 1, name: 1 }, 
+				name: 'idx_catalog_query'
+			},
+			
+			// Index for text search on name and specification
+			{ key: { name: 'text', specification: 'text', description: 'text' }, name: 'idx_fulltext_search' },
+			
+			// Index for sorting by creation date (recent items first)
+			{ key: { createdAt: -1 }, name: 'idx_createdat_desc' },
+			
+			// Index for sorting by update date
+			{ key: { updatedAt: -1 }, name: 'idx_updatedat_desc' },
+			
+			// Tracking index (for audit purposes)
+			{ key: { createdBy: 1, createdAt: -1 }, name: 'idx_createdby_createdat' }
+		]);
+
+		logger.info('Inventory items indexes created successfully');
+	} catch (error) {
+		logger.error('Error creating inventory items indexes', { error });
+		throw error;
+	}
+}
+
+/**
+ * Create indexes for inventory_categories collection
+ * For optimized querying of categories
+ */
+export async function createInventoryCategoriesIndexes() {
+	const db = await getDatabase();
+	const collection = db.collection('inventory_categories');
+
+	try {
+		await collection.createIndexes([
+			// Index for filtering by archived status
+			{ key: { archived: 1, name: 1 }, name: 'idx_archived_name' },
+			
+			// Index for text search on name and description
+			{ key: { name: 'text', description: 'text' }, name: 'idx_fulltext_search' },
+			
+			// Index for sorting by creation date
+			{ key: { createdAt: -1 }, name: 'idx_createdat_desc' },
+			
+			// Tracking index (for audit purposes)
+			{ key: { createdBy: 1, createdAt: -1 }, name: 'idx_createdby_createdat' }
+		]);
+
+		logger.info('Inventory categories indexes created successfully');
+	} catch (error) {
+		logger.error('Error creating inventory categories indexes', { error });
+		throw error;
+	}
+}
+
+/**
  * Create all indexes for inventory collections
  */
 export async function createInventoryIndexes() {
 	try {
 		await createInventoryHistoryIndexes();
 		await createInventoryDeletedIndexes();
+		await createInventoryItemsIndexes();
+		await createInventoryCategoriesIndexes();
 		logger.info('All inventory indexes created successfully');
 	} catch (error) {
 		logger.error('Error creating inventory indexes', { error });

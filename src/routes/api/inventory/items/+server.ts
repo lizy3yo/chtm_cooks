@@ -299,6 +299,7 @@ export const POST: RequestHandler = async (event) => {
 		// Invalidate inventory cache
 		await cacheService.deletePattern('inventory:items:*');
 		await cacheService.deletePattern('inventory:archived:*');
+		await cacheService.invalidateByTags(['inventory-catalog']);
 
 		return json(toItemResponse(newItem), { status: 201 });
 

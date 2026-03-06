@@ -253,6 +253,7 @@ export const POST: RequestHandler = async (event) => {
 
 			// Invalidate cache
 			await cacheService.deletePattern('inventory:categories:*');
+			await cacheService.invalidateByTags(['inventory-catalog']);
 
 			return json(toCategoryResponse(result), { status: 201 });
 		}
@@ -296,6 +297,7 @@ export const POST: RequestHandler = async (event) => {
 
 		// Invalidate cache
 		await cacheService.deletePattern('inventory:categories:*');
+		await cacheService.invalidateByTags(['inventory-catalog']);
 
 		return json(toCategoryResponse(newCategory), { status: 201 });
 
