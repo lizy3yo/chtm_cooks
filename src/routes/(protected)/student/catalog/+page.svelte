@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { catalogAPI, type CatalogResponse, type CatalogFilters, type CatalogItem } from '$lib/api/catalog';
+	import { requestCartCount, requestCartStore } from '$lib/stores/requestCart';
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	
@@ -224,6 +226,36 @@
 	function closeFullImage(): void {
 		showFullImage = false;
 	}
+
+	/**
+	 * Add item to request cart (shop-style behavior without redirect).
+	 */
+	function requestItem(item: CatalogItem): void {
+		if (item.status === 'Out of Stock') {
+			toastMessage = { type: 'error', message: 'This item is currently out of stock' };
+			return;
+		}
+
+		const result = requestCartStore.addItem({
+			itemId: item.id,
+			name: item.name,
+			maxQuantity: item.quantity,
+			categoryId: item.categoryId,
+			picture: item.picture
+		});
+
+		if (result === 'added') {
+			toastMessage = { type: 'success', message: `${item.name} was added to your request list.` };
+			return;
+		}
+
+		if (result === 'incremented') {
+			toastMessage = { type: 'success', message: `${item.name} quantity updated in your request list.` };
+			return;
+		}
+
+		toastMessage = { type: 'info', message: `${item.name} is already at max available quantity in your request list.` };
+	}
 	
 	/**
 	 * Load catalog on component mount
@@ -379,9 +411,7 @@
 
 			<div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
 				<button
-					onclick={() => {
-						toastMessage = { type: 'info', message: 'Request feature coming soon' };
-					}}
+					onclick={() => selectedItem && requestItem(selectedItem)}
 					class="rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500"
 				>
 					Request Item
@@ -419,6 +449,13 @@
 			<p class="mt-1 text-sm text-gray-500">Browse and request available cooking equipment from our inventory</p>
 		</div>
 		<div class="flex gap-2">
+			<button
+				onclick={() => goto('/student/request')}
+				class="inline-flex items-center rounded-lg border border-pink-300 bg-pink-50 px-3 py-2 text-sm font-medium text-pink-700 hover:bg-pink-100"
+			>
+				Request List
+				<span class="ml-2 rounded-full bg-pink-600 px-2 py-0.5 text-xs font-semibold text-white">{$requestCartCount}</span>
+			</button>
 			<button
 				onclick={() => (viewMode = 'grid')}
 				aria-label="Switch to grid view"
@@ -664,7 +701,7 @@
 						<!-- Actions -->
 						<div class="mt-4 flex gap-2">
 							<button
-								onclick={() => toastMessage = { type: 'info', message: 'Request feature coming soon' }}
+								onclick={() => requestItem(item)}
 								class="flex-1 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 								disabled={item.status === 'Out of Stock'}
 								title={item.status === 'Out of Stock' ? 'Item is out of stock' : 'Request this item'}
@@ -736,7 +773,7 @@
 								<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{item.quantity}</td>
 								<td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
 									<button
-										onclick={() => toastMessage = { type: 'info', message: 'Request feature coming soon' }}
+										onclick={() => requestItem(item)}
 										class="text-pink-600 hover:text-pink-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mr-3"
 										disabled={item.status === 'Out of Stock'}
 										title={item.status === 'Out of Stock' ? 'Item is out of stock' : 'Request this item'}

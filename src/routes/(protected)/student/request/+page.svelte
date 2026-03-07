@@ -1,50 +1,57 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import { get } from 'svelte/store';
+	import { catalogAPI, type CatalogItem } from '$lib/api/catalog';
+	import { borrowRequestsAPI } from '$lib/api/borrowRequests';
+	import { requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
-	
-	// Request cart for batch requests
-	let requestCart = $state<any[]>([]);
+
+	interface RequestItemOption {
+		id: string;
+		name: string;
+		code: string;
+		image: string;
+		picture?: string;
+		category: string;
+		available: number;
+		specification: string;
+		status: string;
+		location?: string;
+	}
+
+	interface SelectedRequestItem extends RequestItemOption {
+		requestedQuantity: number;
+	}
+
+	let isLoadingEquipment = $state(false);
+	let isSubmitting = $state(false);
+	let availableEquipment = $state<RequestItemOption[]>([]);
 	let showItemSelector = $state(false);
-	
+
 	// Form fields
-	let selectedItems = $state<any[]>([]);
+	let selectedItems = $state<SelectedRequestItem[]>([]);
 	let purpose = $state('lab-exercise');
 	let purposeDetails = $state('');
 	let borrowDate = $state('');
 	let returnDate = $state('');
-	let selectedInstructor = $state('');
 	let notes = $state('');
 	let acknowledgeTerms = $state(false);
-	
+
 	// Validation
 	let errors = $state<Record<string, string>>({});
-	
-	// Available equipment for selection
-	const availableEquipment = [
-		{ id: 1, name: 'Chef Knife Set', code: 'CK-001', image: '🔪', category: 'Utensils', available: 5 },
-		{ id: 2, name: 'Mixing Bowl Large', code: 'MB-002', image: '🥣', category: 'Cookware', available: 12 },
-		{ id: 3, name: 'Digital Scale', code: 'DS-003', image: '⚖️', category: 'Measuring Tools', available: 8 },
-		{ id: 4, name: 'Stand Mixer', code: 'SM-004', image: '🎛️', category: 'Appliances', available: 3 },
-		{ id: 5, name: 'Baking Sheet Set', code: 'BS-005', image: '🍪', category: 'Bakeware', available: 8 }
-	];
-	
-	const instructors = [
-		{ id: 1, name: 'Prof. John Smith' },
-		{ id: 2, name: 'Prof. Jane Johnson' },
-		{ id: 3, name: 'Prof. Mike Davis' },
-		{ id: 4, name: 'Prof. Sarah Wilson' }
-	];
-	
+
 	const purposeOptions = [
 		{ value: 'lab-exercise', label: 'Lab Exercise' },
 		{ value: 'project', label: 'Project' },
 		{ value: 'demonstration', label: 'Demonstration' },
 		{ value: 'other', label: 'Other' }
 	];
-	
+
 	// Get today's date in YYYY-MM-DD format
 	const today = new Date().toISOString().split('T')[0];
-	
+
 	// Calculate max return date (7 days from borrow date)
 	const maxReturnDate = $derived(() => {
 		if (!borrowDate) return '';
@@ -60,31 +67,168 @@
 		borrow.setDate(borrow.getDate() + 1);
 		return borrow.toISOString().split('T')[0];
 	});
-	
-	function addItemToCart(item: any) {
-		if (!selectedItems.find(i => i.id === item.id)) {
-			selectedItems = [...selectedItems, item];
+
+	function inferItemIcon(itemName: string): string {
+		const normalized = itemName.toLowerCase();
+		if (normalized.includes('knife')) return '🔪';
+		if (normalized.includes('bowl')) return '🥣';
+		if (normalized.includes('scale')) return '⚖️';
+		if (normalized.includes('mixer')) return '🎛️';
+		if (normalized.includes('processor')) return '🔧';
+		return '📦';
+	}
+
+	function buildItemCode(item: CatalogItem): string {
+		return item.id.slice(-6).toUpperCase();
+	}
+
+	async function loadAvailableEquipment(): Promise<void> {
+		isLoadingEquipment = true;
+		try {
+			const response = await catalogAPI.getCatalog({
+				availability: 'all',
+				sortBy: 'name',
+				page: 1,
+				limit: 300
+			});
+
+			availableEquipment = response.items
+				.filter((item) => item.quantity > 0)
+				.map((item) => ({
+					id: item.id,
+					name: item.name,
+					code: buildItemCode(item),
+					image: inferItemIcon(item.name),
+					picture: item.picture,
+					category: item.categoryName || 'Uncategorized',
+					available: item.quantity,
+					specification: item.specification || 'No specification provided',
+					status: item.status,
+					location: item.location
+				}));
+		} catch (error) {
+			console.error('Failed to load requestable equipment', error);
+			toastStore.error('Unable to load available equipment right now', 'Load Error');
+		} finally {
+			isLoadingEquipment = false;
 		}
+	}
+
+	function addItemToCart(item: RequestItemOption) {
+		requestCartStore.addItem({
+			itemId: item.id,
+			name: item.name,
+			maxQuantity: item.available
+		});
+
+		syncSelectedItemsFromCart();
+		errors.items = '';
 		showItemSelector = false;
 	}
-	
-	function removeItemFromCart(itemId: number) {
-		selectedItems = selectedItems.filter(i => i.id !== itemId);
+
+	function removeItemFromCart(itemId: string) {
+		requestCartStore.removeItem(itemId);
+		selectedItems = selectedItems.filter((i) => i.id !== itemId);
 	}
-	
+
+	function updateItemQuantity(itemId: string, value: string): void {
+		const parsed = Number.parseInt(value, 10);
+		selectedItems = selectedItems.map((item) => {
+			if (item.id !== itemId) {
+				return item;
+			}
+
+			if (!Number.isFinite(parsed)) {
+				return { ...item, requestedQuantity: 1 };
+			}
+
+			return {
+				...item,
+				requestedQuantity: Math.max(1, Math.min(item.available, parsed))
+			};
+		});
+
+		const updatedItem = selectedItems.find((item) => item.id === itemId);
+		if (updatedItem) {
+			requestCartStore.setQuantity(itemId, updatedItem.requestedQuantity);
+		}
+	}
+
+	function syncSelectedItemsFromCart(): void {
+		const cartEntries = get(requestCartItems);
+		if (cartEntries.length === 0) {
+			selectedItems = [];
+			return;
+		}
+
+		const equipmentById = new Map(availableEquipment.map((item) => [item.id, item]));
+		selectedItems = cartEntries
+			.map((entry) => {
+				const equipment = equipmentById.get(entry.itemId);
+				if (!equipment) {
+					return null;
+				}
+
+				return {
+					...equipment,
+					requestedQuantity: Math.max(1, Math.min(equipment.available, entry.quantity))
+				};
+			})
+			.filter((item): item is SelectedRequestItem => item !== null);
+
+		const missingItemIds = cartEntries
+			.filter((entry) => !equipmentById.has(entry.itemId))
+			.map((entry) => entry.itemId);
+
+		for (const missingId of missingItemIds) {
+			requestCartStore.removeItem(missingId);
+		}
+
+		if (missingItemIds.length > 0) {
+			toastStore.warning(
+				'Some items in your request list are no longer available and were removed.',
+				'Inventory Updated'
+			);
+		}
+	}
+
+	function buildPurposeText(): string {
+		const purposeLabel = purposeOptions.find((option) => option.value === purpose)?.label || 'Request';
+		const detail = purposeDetails.trim();
+		const noteText = notes.trim();
+		let composed = `${purposeLabel}: ${detail}`;
+
+		if (noteText) {
+			composed = `${composed} | Notes: ${noteText}`;
+		}
+
+		return composed;
+	}
+
 	function validateForm() {
 		errors = {};
-		
+
 		if (selectedItems.length === 0) {
 			errors.items = 'Please select at least one item';
 		}
-		
+
+		if (
+			selectedItems.some(
+				(item) =>
+					!Number.isInteger(item.requestedQuantity) ||
+					item.requestedQuantity <= 0 ||
+					item.requestedQuantity > item.available
+			)
+		) {
+			errors.items = 'Each selected item must have a valid quantity within available stock';
+		}
+
 		if (!borrowDate) {
 			errors.borrowDate = 'Borrow date is required';
 		} else if (borrowDate < today) {
 			errors.borrowDate = 'Borrow date cannot be in the past';
 		}
-		
+
 		if (!returnDate) {
 			errors.returnDate = 'Return date is required';
 		} else if (returnDate <= borrowDate) {
@@ -92,44 +236,82 @@
 		} else if (returnDate > maxReturnDate()) {
 			errors.returnDate = 'Maximum borrow period is 7 days';
 		}
-		
-		if (!selectedInstructor) {
-			errors.instructor = 'Please select an instructor';
-		}
-		
+
 		if (!purposeDetails.trim()) {
 			errors.purposeDetails = 'Please provide purpose details';
 		}
-		
+
+		const composedPurpose = buildPurposeText();
+		if (composedPurpose.length > 300) {
+			errors.purposeDetails = 'Purpose and notes combined must be 300 characters or less';
+		}
+
 		if (!acknowledgeTerms) {
 			errors.terms = 'You must acknowledge the terms and conditions';
 		}
-		
+
 		return Object.keys(errors).length === 0;
 	}
-	
-	function handleSubmit() {
+
+	async function handleSubmit() {
 		if (!validateForm()) {
 			toastStore.error('Please fix the errors in the form', 'Validation Error');
 			return;
 		}
-		
-		// Here you would make an API call to submit the request
-		toastStore.success('Your request has been submitted successfully', 'Request Submitted');
-		goto('/student/requests');
+
+		isSubmitting = true;
+		try {
+			await borrowRequestsAPI.create({
+				items: selectedItems.map((item) => ({
+					itemId: item.id,
+					quantity: item.requestedQuantity
+				})),
+				purpose: buildPurposeText(),
+				borrowDate,
+				returnDate
+			});
+
+			requestCartStore.clear();
+
+			toastStore.success('Your request has been submitted successfully', 'Request Submitted');
+			await goto('/student/requests');
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Failed to submit request';
+			toastStore.error(message, 'Submission Error');
+		} finally {
+			isSubmitting = false;
+		}
 	}
-	
+
 	function resetForm() {
 		selectedItems = [];
 		purpose = 'lab-exercise';
 		purposeDetails = '';
 		borrowDate = '';
 		returnDate = '';
-		selectedInstructor = '';
 		notes = '';
 		acknowledgeTerms = false;
 		errors = {};
+		requestCartStore.clear();
 	}
+
+	onMount(async () => {
+		await loadAvailableEquipment();
+		syncSelectedItemsFromCart();
+
+		const itemId = get(page).url.searchParams.get('itemId');
+		if (itemId) {
+			const preselectedItem = availableEquipment.find((item) => item.id === itemId);
+			if (preselectedItem) {
+				requestCartStore.addItem({
+					itemId: preselectedItem.id,
+					name: preselectedItem.name,
+					maxQuantity: preselectedItem.available
+				});
+				syncSelectedItemsFromCart();
+			}
+		}
+	});
 </script>
 
 <svelte:head>
@@ -179,21 +361,33 @@
 				{#if showItemSelector}
 					<div class="mb-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4">
 						<h3 class="text-sm font-medium text-gray-900 mb-3">Select Equipment</h3>
-						<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-							{#each availableEquipment as item}
-								<button
-									onclick={() => addItemToCart(item)}
-									disabled={selectedItems.find(i => i.id === item.id)}
-									class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-								>
-									<span class="text-2xl">{item.image}</span>
-									<div class="flex-1">
-										<p class="text-sm font-medium text-gray-900">{item.name}</p>
-										<p class="text-xs text-gray-500">{item.code} • {item.available} available</p>
-									</div>
-								</button>
-							{/each}
-						</div>
+						{#if isLoadingEquipment}
+							<p class="text-sm text-gray-500">Loading equipment...</p>
+						{:else if availableEquipment.length === 0}
+							<p class="text-sm text-gray-500">No available equipment found.</p>
+						{:else}
+							<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+								{#each availableEquipment as item}
+									<button
+										onclick={() => addItemToCart(item)}
+										disabled={selectedItems.find((i) => i.id === item.id) !== undefined}
+										class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+									>
+										{#if item.picture}
+											<img src={item.picture} alt={item.name} class="h-10 w-10 rounded object-cover" loading="lazy" />
+										{:else}
+											<span class="text-2xl">{item.image}</span>
+										{/if}
+										<div class="flex-1">
+											<p class="text-sm font-medium text-gray-900">{item.name}</p>
+											<p class="text-xs text-gray-500">{item.code} • {item.category}</p>
+											<p class="text-xs text-gray-500">{item.specification}</p>
+											<p class="text-xs text-gray-500">{item.status} • {item.available} available</p>
+										</div>
+									</button>
+								{/each}
+							</div>
+						{/if}
 					</div>
 				{/if}
 				
@@ -202,20 +396,36 @@
 						{#each selectedItems as item}
 							<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3">
 								<div class="flex items-center gap-3">
-									<span class="text-2xl">{item.image}</span>
+									{#if item.picture}
+										<img src={item.picture} alt={item.name} class="h-10 w-10 rounded object-cover" loading="lazy" />
+									{:else}
+										<span class="text-2xl">{item.image}</span>
+									{/if}
 									<div>
 										<p class="text-sm font-medium text-gray-900">{item.name}</p>
-										<p class="text-xs text-gray-500">{item.code}</p>
+										<p class="text-xs text-gray-500">{item.code} • {item.category}</p>
+										<p class="text-xs text-gray-500">{item.specification}</p>
+										<p class="text-xs text-gray-500">{item.status} • {item.available} available{item.location ? ` • ${item.location}` : ''}</p>
 									</div>
 								</div>
-								<button
-									onclick={() => removeItemFromCart(item.id)}
-									class="text-red-600 hover:text-red-800"
-								>
-									<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-									</svg>
-								</button>
+								<div class="flex items-center gap-3">
+									<input
+										type="number"
+										min="1"
+										max={item.available}
+										value={item.requestedQuantity}
+										onchange={(e) => updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
+										class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+									/>
+									<button
+										onclick={() => removeItemFromCart(item.id)}
+										class="text-red-600 hover:text-red-800"
+									>
+										<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+										</svg>
+									</button>
+								</div>
 							</div>
 						{/each}
 					</div>
@@ -304,30 +514,6 @@
 							<p class="mt-1 text-xs text-red-600">{errors.purposeDetails}</p>
 						{/if}
 					</div>
-				</div>
-			</div>
-			
-			<!-- Instructor -->
-			<div class="rounded-lg bg-white p-6 shadow">
-				<h2 class="text-lg font-semibold text-gray-900 mb-4">Instructor Approval</h2>
-				<div>
-					<label for="instructor" class="block text-sm font-medium text-gray-700 mb-1">
-						Select Instructor <span class="text-red-500">*</span>
-					</label>
-					<select
-						id="instructor"
-						bind:value={selectedInstructor}
-						class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.instructor ? 'border-red-500' : ''}"
-					>
-						<option value="">Choose an instructor...</option>
-						{#each instructors as instructor}
-							<option value={instructor.id}>{instructor.name}</option>
-						{/each}
-					</select>
-					{#if errors.instructor}
-						<p class="mt-1 text-xs text-red-600">{errors.instructor}</p>
-					{/if}
-					<p class="mt-1 text-xs text-gray-500">Your request will be sent to this instructor for approval</p>
 				</div>
 			</div>
 			
@@ -433,12 +619,13 @@
 				<div class="space-y-3">
 					<button
 						onclick={handleSubmit}
-						class="w-full inline-flex items-center justify-center rounded-lg bg-pink-600 px-4 py-3 text-sm font-medium text-white hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500"
+						disabled={isSubmitting}
+						class="w-full inline-flex items-center justify-center rounded-lg bg-pink-600 px-4 py-3 text-sm font-medium text-white hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:cursor-not-allowed disabled:opacity-60"
 					>
 						<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
 						</svg>
-						Submit Request
+						{isSubmitting ? 'Submitting...' : 'Submit Request'}
 					</button>
 					<button
 						onclick={resetForm}

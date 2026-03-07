@@ -1,64 +1,159 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	
-	type Tab = 'pending' | 'active' | 'overdue' | 'return' | 'history';
-	
-	let activeTab = $state<Tab>('pending');
-	
-	// Sample data - will be replaced with real API calls
-	let pendingRequests = $state([
-		{ id: 1, student: 'John Doe', studentId: 'S2024001', item: 'Chef Knife Set', quantity: 1, requestDate: '2024-02-26', purpose: 'Cooking Lab' },
-		{ id: 2, student: 'Jane Smith', studentId: 'S2024002', item: 'Mixing Bowl', quantity: 2, requestDate: '2024-02-26', purpose: 'Baking Practice' },
-		{ id: 3, student: 'Mike Johnson', studentId: 'S2024003', item: 'Digital Scale', quantity: 1, requestDate: '2024-02-25', purpose: 'Recipe Testing' }
-	]);
-	
-	let activeLoans = $state([
-		{ id: 1, student: 'Sarah Wilson', studentId: 'S2024004', item: 'Chef Knife Set', quantity: 1, borrowDate: '2024-02-20', dueDate: '2024-02-28', status: 'On Time' },
-		{ id: 2, student: 'Tom Brown', studentId: 'S2024005', item: 'Mixing Bowl Large', quantity: 1, borrowDate: '2024-02-22', dueDate: '2024-02-29', status: 'On Time' },
-		{ id: 3, student: 'Emma Davis', studentId: 'S2024006', item: 'Whisk Set', quantity: 1, borrowDate: '2024-02-24', dueDate: '2024-03-02', status: 'On Time' }
-	]);
-	
-	let overdueItems = $state([
-		{ id: 1, student: 'Sarah Wilson', studentId: 'S2024007', item: 'Chef Knife Set', quantity: 1, dueDate: '2024-02-25', daysOverdue: 2 },
-		{ id: 2, student: 'Tom Brown', studentId: 'S2024008', item: 'Mixing Bowl Large', quantity: 1, dueDate: '2024-02-26', daysOverdue: 1 },
-		{ id: 3, student: 'Emma Davis', studentId: 'S2024009', item: 'Digital Scale', quantity: 1, dueDate: '2024-02-24', daysOverdue: 3 }
-	]);
-	
-	let returnQueue = $state([
-		{ id: 1, student: 'Alice Cooper', studentId: 'S2024010', item: 'Chef Knife Set', quantity: 1, returnDate: '2024-02-27', condition: 'pending' },
-		{ id: 2, student: 'Bob Martin', studentId: 'S2024011', item: 'Cutting Board', quantity: 1, returnDate: '2024-02-27', condition: 'pending' }
-	]);
-	
-	let requestHistory = $state([
-		{ id: 1, student: 'John Doe', item: 'Chef Knife Set', action: 'Returned', date: '2024-02-26', status: 'Completed' },
-		{ id: 2, student: 'Jane Smith', item: 'Mixing Bowl', action: 'Approved', date: '2024-02-25', status: 'Completed' },
-		{ id: 3, student: 'Mike Johnson', item: 'Digital Scale', action: 'Borrowed', date: '2024-02-24', status: 'Completed' },
-		{ id: 4, student: 'Sarah Wilson', item: 'Whisk Set', action: 'Rejected', date: '2024-02-23', status: 'Rejected' }
-	]);
-	
-	function switchTab(tab: Tab) {
-		activeTab = tab;
-	}
-	
-	function approveRequest(requestId: number) {
-		console.log('Approving request:', requestId);
-		// API call would go here
-	}
-	
-	function rejectRequest(requestId: number) {
-		console.log('Rejecting request:', requestId);
-		// API call would go here
-	}
-	
-	function processReturn(returnId: number, condition: string) {
-		console.log('Processing return:', returnId, 'Condition:', condition);
-		// API call would go here
-	}
-	
-	function sendReminder(loanId: number) {
-		console.log('Sending reminder for loan:', loanId);
-		// API call would go here
-	}
+import { onMount } from 'svelte';
+import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestStatus } from '$lib/api/borrowRequests';
+
+type Tab = 'pending' | 'active' | 'overdue' | 'return' | 'history';
+
+let activeTab = $state<Tab>('pending');
+let pendingRequests = $state<any[]>([]);
+let activeLoans = $state<any[]>([]);
+let overdueItems = $state<any[]>([]);
+let returnQueue = $state<any[]>([]);
+let requestHistory = $state<any[]>([]);
+
+function toUiStatus(status: BorrowRequestStatus): 'pending' | 'active' | 'overdue' | 'return' | 'history' {
+switch (status) {
+case 'approved_instructor': return 'pending';
+case 'borrowed': return 'active';
+case 'returned': return 'history';
+case 'rejected': return 'history';
+default: return 'history';
+}
+}
+
+function formatDate(value: string): string {
+const date = new Date(value);
+if (Number.isNaN(date.getTime())) return value;
+return date.toLocaleDateString();
+}
+
+function mapRequests(records: BorrowRequestRecord[]): void {
+const now = new Date();
+
+pendingRequests = records
+.filter((request) => request.status === 'approved_instructor')
+.map((request) => ({
+id: request.id,
+student: request.student?.fullName || `Student ${request.studentId.slice(-6).toUpperCase()}`,
+studentId: request.studentId.slice(-8).toUpperCase(),
+item: request.items.map((item) => item.name).join(', '),
+quantity: request.items.reduce((sum, item) => sum + item.quantity, 0),
+requestDate: formatDate(request.createdAt),
+purpose: request.purpose
+}));
+
+activeLoans = records
+.filter((request) => request.status === 'borrowed')
+.map((request) => ({
+id: request.id,
+student: request.student?.fullName || `Student ${request.studentId.slice(-6).toUpperCase()}`,
+studentId: request.studentId.slice(-8).toUpperCase(),
+item: request.items.map((item) => item.name).join(', '),
+quantity: request.items.reduce((sum, item) => sum + item.quantity, 0),
+borrowDate: formatDate(request.pickedUpAt || request.borrowDate),
+dueDate: formatDate(request.returnDate),
+status: new Date(request.returnDate) < now ? 'Overdue' : 'On Time'
+}));
+
+overdueItems = records
+.filter((request) => request.status === 'borrowed' && new Date(request.returnDate) < now)
+.map((request) => {
+const dueDate = new Date(request.returnDate);
+const diff = Math.max(1, Math.ceil((now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
+return {
+id: request.id,
+student: request.student?.fullName || `Student ${request.studentId.slice(-6).toUpperCase()}`,
+studentId: request.studentId.slice(-8).toUpperCase(),
+item: request.items.map((item) => item.name).join(', '),
+quantity: request.items.reduce((sum, item) => sum + item.quantity, 0),
+dueDate: formatDate(request.returnDate),
+daysOverdue: diff
+};
+});
+
+returnQueue = records
+.filter((request) => request.status === 'borrowed')
+.map((request) => ({
+id: request.id,
+student: request.student?.fullName || `Student ${request.studentId.slice(-6).toUpperCase()}`,
+studentId: request.studentId.slice(-8).toUpperCase(),
+item: request.items.map((item) => item.name).join(', '),
+quantity: request.items.reduce((sum, item) => sum + item.quantity, 0),
+returnDate: formatDate(request.returnDate),
+condition: 'pending'
+}));
+
+requestHistory = records
+.filter((request) => ['returned', 'rejected', 'ready_for_pickup', 'approved_instructor'].includes(request.status))
+.map((request) => ({
+id: request.id,
+student: request.student?.fullName || `Student ${request.studentId.slice(-6).toUpperCase()}`,
+item: request.items.map((item) => item.name).join(', '),
+action:
+request.status === 'returned'
+? 'Returned'
+: request.status === 'rejected'
+? 'Rejected'
+: request.status === 'ready_for_pickup'
+? 'Released'
+: 'Approved',
+date: formatDate(request.updatedAt),
+status: request.status === 'rejected' ? 'Rejected' : 'Completed'
+}));
+}
+
+async function loadRequests(forceRefresh = false): Promise<void> {
+try {
+const response = await borrowRequestsAPI.list({}, { forceRefresh });
+mapRequests(response.requests);
+} catch (error) {
+console.error('Failed to load custodian requests', error);
+pendingRequests = [];
+activeLoans = [];
+overdueItems = [];
+returnQueue = [];
+requestHistory = [];
+}
+}
+
+onMount(async () => {
+await loadRequests();
+});
+
+function switchTab(tab: Tab) {
+activeTab = tab;
+}
+
+async function approveRequest(requestId: string): Promise<void> {
+try {
+await borrowRequestsAPI.release(requestId);
+await loadRequests(true);
+} catch (error) {
+console.error('Failed to release request', error);
+}
+}
+
+async function rejectRequest(requestId: string): Promise<void> {
+try {
+await borrowRequestsAPI.reject(requestId, 'Rejected by custodian', 'Rejected during item preparation.');
+await loadRequests(true);
+} catch (error) {
+console.error('Failed to reject request', error);
+}
+}
+
+async function processReturn(returnId: string, _condition: string) {
+try {
+await borrowRequestsAPI.markReturned(returnId);
+await loadRequests(true);
+} catch (error) {
+console.error('Failed to process return', error);
+}
+}
+
+function sendReminder(loanId: string) {
+console.log('Reminder action placeholder for loan', loanId);
+}
 </script>
 
 <svelte:head>
@@ -507,3 +602,4 @@
 		{/if}
 	</div>
 </div>
+
