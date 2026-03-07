@@ -1,292 +1,259 @@
 <script lang="ts">
-	let activeTab = $state<'pending' | 'approved' | 'ready' | 'picked-up' | 'returned' | 'rejected' | 'all'>('pending');
-	let showDetailModal = $state(false);
-	let selectedRequest = $state<any>(null);
-	let selectedRequests = $state<string[]>([]);
-	let showBulkRejectModal = $state(false);
-	let rejectReason = $state('');
-	let rejectDetails = $state('');
-	let searchQuery = $state('');
-	let sortBy = $state<'date' | 'student' | 'status'>('date');
-	
-	const requests = [
-		{
-			id: 'REQ-045',
-			student: { 
-				name: 'John Doe', 
-				yearLevel: '3rd Year', 
-				block: 'A', 
-				avatar: 'JD',
-				studentId: '2021-00123',
-				email: 'john.doe@example.com'
-			},
-			items: [
-				{ name: 'Chef Knife Set', image: '🔪', code: 'CK-001', quantity: 1 }
-			],
-			status: 'pending',
-			requestDate: '2026-03-04',
-			borrowDate: '2026-03-08',
-			returnDate: '2026-03-15',
-			purpose: 'Lab Exercise',
-			urgent: true,
-			daysUntil: 1,
-			borrowingRecord: {
-				totalBorrowed: 45,
-				returnRate: 98,
-				overdue: 0,
-				trustScore: 'Good'
-			}
-		},
-		{
-			id: 'REQ-046',
-			student: { 
-				name: 'Jane Smith', 
-				yearLevel: '2nd Year', 
-				block: 'B', 
-				avatar: 'JS',
-				studentId: '2022-00456',
-				email: 'jane.smith@example.com'
-			},
-			items: [
-				{ name: 'Digital Scale', image: '⚖️', code: 'DS-003', quantity: 1 }
-			],
-			status: 'pending',
-			requestDate: '2026-03-05',
-			borrowDate: '2026-03-09',
-			returnDate: '2026-03-16',
-			purpose: 'Project',
-			urgent: true,
-			daysUntil: 2,
-			borrowingRecord: {
-				totalBorrowed: 24,
-				returnRate: 100,
-				overdue: 0
-			}
-		},
-		{
-			id: 'REQ-044',
-			student: { 
-				name: 'Mike Johnson', 
-				yearLevel: '3rd Year', 
-				block: 'A', 
-				avatar: 'MJ',
-				studentId: '2021-00789',
-				email: 'mike.johnson@example.com'
-			},
-			items: [
-				{ name: 'Mixing Bowls Set', image: '🥣', code: 'MB-012', quantity: 3 }
-			],
-			status: 'approved',
-			requestDate: '2026-03-03',
-			borrowDate: '2026-03-07',
-			returnDate: '2026-03-14',
-			purpose: 'Practical Exam',
-			urgent: false,
-			daysUntil: 0,
-			approvedBy: 'You',
-			approvedDate: '2026-03-04 10:30 AM',
-			custodianStatus: 'Preparing',
-			borrowingRecord: {
-				totalBorrowed: 32,
-				returnRate: 96,
-				overdue: 1,
-				trustScore: 'Good'
-			}
-		},
-		{
-			id: 'REQ-043',
-			student: { 
-				name: 'Sarah Williams', 
-				yearLevel: '2nd Year', 
-				block: 'B', 
-				avatar: 'SW',
-				studentId: '2022-00234',
-				email: 'sarah.williams@example.com'
-			},
-			items: [
-				{ name: 'Food Processor', image: '🍴', code: 'FP-008', quantity: 1 }
-			],
-			status: 'ready',
-			requestDate: '2026-03-02',
-			borrowDate: '2026-03-06',
-			returnDate: '2026-03-13',
-			purpose: 'Recipe Development',
-			urgent: false,
-			daysUntil: 0,
-			approvedBy: 'You',
-			approvedDate: '2026-03-03 02:15 PM',
-			custodianStatus: 'Ready for Pickup',
-			releasedDate: '2026-03-05 04:30 PM',
-			borrowingRecord: {
-				totalBorrowed: 18,
-				returnRate: 100,
-				overdue: 0,
-				trustScore: 'Excellent'
-			}
-		},
-		{
-			id: 'REQ-042',
-			student: { 
-				name: 'Alex Chen', 
-				yearLevel: '3rd Year', 
-				block: 'C', 
-				avatar: 'AC',
-				studentId: '2021-00567',
-				email: 'alex.chen@example.com'
-			},
-			items: [
-				{ name: 'Blender', image: '🔌', code: 'BL-005', quantity: 1 }
-			],
-			status: 'picked-up',
-			requestDate: '2026-03-01',
-			borrowDate: '2026-03-05',
-			returnDate: '2026-03-12',
-			purpose: 'Lab Exercise',
-			urgent: false,
-			daysUntil: 0,
-			approvedBy: 'You',
-			approvedDate: '2026-03-02 09:15 AM',
-			custodianStatus: 'Picked Up',
-			releasedDate: '2026-03-04 11:00 AM',
-			pickedUpDate: '2026-03-05 08:30 AM',
-			borrowingRecord: {
-				totalBorrowed: 28,
-				returnRate: 100,
-				overdue: 0,
-				trustScore: 'Excellent'
-			}
-		},
-		{
-			id: 'REQ-041',
-			student: { 
-				name: 'Emma Davis', 
-				yearLevel: '2nd Year', 
-				block: 'A', 
-				avatar: 'ED',
-				studentId: '2022-00890',
-				email: 'emma.davis@example.com'
-			},
-			items: [
-				{ name: 'Measuring Cups Set', image: '📏', code: 'MC-015', quantity: 1 }
-			],
-			status: 'returned',
-			requestDate: '2026-02-25',
-			borrowDate: '2026-02-28',
-			returnDate: '2026-03-06',
-			actualReturnDate: '2026-03-06 02:00 PM',
-			purpose: 'Practice Session',
-			urgent: false,
-			daysUntil: 0,
-			approvedBy: 'You',
-			approvedDate: '2026-02-26 10:00 AM',
-			custodianStatus: 'Returned',
-			releasedDate: '2026-02-27 03:00 PM',
-			pickedUpDate: '2026-02-28 09:00 AM',
-			returnCondition: 'Good',
-			returnNotes: 'All items returned in excellent condition',
-			borrowingRecord: {
-				totalBorrowed: 15,
-				returnRate: 100,
-				overdue: 0,
-				trustScore: 'Excellent'
-			}
-		}
-	];
-	
-	const rejectReasons = [
-		'Item not suitable for purpose',
-		'Student inexperienced with equipment',
-		'Duration too long',
-		'Item reserved for lab session',
-		'Better alternative available',
-		'Other (specify)'
-	];
-	
-	const filteredRequests = $derived(
-		requests
-			.filter(req => activeTab === 'all' || req.status === activeTab)
-			.filter(req => {
-				if (!searchQuery) return true;
-				const query = searchQuery.toLowerCase();
-				return (
-					req.student.name.toLowerCase().includes(query) ||
-					req.id.toLowerCase().includes(query) ||
-					req.items.some(item => item.name.toLowerCase().includes(query))
-				);
-			})
-			.sort((a, b) => {
-				if (sortBy === 'date') {
-					return new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime();
-				} else if (sortBy === 'student') {
-					return a.student.name.localeCompare(b.student.name);
-				}
-				return 0;
-			})
-	);
-	
-	const stats = $derived({
-		totalRequests: requests.length,
-		pendingCount: requests.filter(r => r.status === 'pending').length,
-		activeCount: requests.filter(r => ['approved', 'ready', 'picked-up'].includes(r.status)).length,
-		completedToday: requests.filter(r => r.status === 'returned' && r.actualReturnDate?.includes('2026-03-06')).length,
-		avgProcessingTime: '2.5 hours'
-	});
-	
-	const tabCounts = $derived({
-		all: requests.length,
-		pending: requests.filter(r => r.status === 'pending').length,
-		approved: requests.filter(r => r.status === 'approved').length,
-		ready: requests.filter(r => r.status === 'ready').length,
-		'picked-up': requests.filter(r => r.status === 'picked-up').length,
-		returned: requests.filter(r => r.status === 'returned').length,
-		rejected: 0
-	});
-	
-	function openDetailModal(request: any) {
-		selectedRequest = request;
-		showDetailModal = true;
-	}
-	
-	function closeDetailModal() {
-		showDetailModal = false;
-		selectedRequest = null;
-	}
-	
-	function toggleSelectRequest(requestId: string) {
-		if (selectedRequests.includes(requestId)) {
-			selectedRequests = selectedRequests.filter(id => id !== requestId);
-		} else {
-			selectedRequests = [...selectedRequests, requestId];
-		}
-	}
-	
-	function getTrustScoreColor(score: string) {
-		switch (score) {
-			case 'Excellent': return 'bg-green-100 text-green-800';
-			case 'Good': return 'bg-blue-100 text-blue-800';
-			case 'Fair': return 'bg-yellow-100 text-yellow-800';
-			default: return 'bg-gray-100 text-gray-800';
-		}
-	}
-	
-	function getStatusBadge(status: string, custodianStatus?: string) {
-		switch (status) {
-			case 'pending':
-				return { text: 'Pending Approval', color: 'bg-yellow-100 text-yellow-800', icon: '⏳' };
-			case 'approved':
-				return { text: 'Approved - ' + (custodianStatus || 'Preparing'), color: 'bg-blue-100 text-blue-800', icon: '📦' };
-			case 'ready':
-				return { text: 'Ready for Pickup', color: 'bg-green-100 text-green-800', icon: '✅' };
-			case 'picked-up':
-				return { text: 'Picked Up', color: 'bg-purple-100 text-purple-800', icon: '🎒' };
-			case 'returned':
-				return { text: 'Returned', color: 'bg-teal-100 text-teal-800', icon: '✔️' };
-			case 'rejected':
-				return { text: 'Rejected', color: 'bg-red-100 text-red-800', icon: '❌' };
-			default:
-				return { text: status, color: 'bg-gray-100 text-gray-800', icon: '•' };
-		}
-	}
+import { onMount } from 'svelte';
+import { authStore } from '$lib/stores/auth';
+import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestStatus } from '$lib/api/borrowRequests';
+
+let activeTab = $state<'pending' | 'approved' | 'ready' | 'picked-up' | 'returned' | 'rejected' | 'all'>('pending');
+let showDetailModal = $state(false);
+let selectedRequest = $state<any>(null);
+let selectedRequests = $state<string[]>([]);
+let showBulkRejectModal = $state(false);
+let rejectReason = $state('');
+let rejectDetails = $state('');
+let searchQuery = $state('');
+let sortBy = $state<'date' | 'student' | 'status'>('date');
+let requests = $state<any[]>([]);
+
+const rejectReasons = [
+'Item not suitable for purpose',
+'Student inexperienced with equipment',
+'Duration too long',
+'Item reserved for lab session',
+'Better alternative available',
+'Other (specify)'
+];
+
+function toUiStatus(status: BorrowRequestStatus): 'pending' | 'approved' | 'ready' | 'picked-up' | 'returned' | 'rejected' {
+switch (status) {
+case 'pending_instructor':
+return 'pending';
+case 'approved_instructor':
+return 'approved';
+case 'ready_for_pickup':
+return 'ready';
+case 'borrowed':
+return 'picked-up';
+case 'returned':
+return 'returned';
+case 'rejected':
+default:
+return 'rejected';
+}
+}
+
+function getDisplayId(id: string): string {
+return `REQ-${id.slice(-6).toUpperCase()}`;
+}
+
+function initials(name: string): string {
+return name
+.split(' ')
+.filter(Boolean)
+.slice(0, 2)
+.map((part) => part[0]?.toUpperCase() || '')
+.join('');
+}
+
+function inferItemImage(name: string): string {
+const normalized = name.toLowerCase();
+if (normalized.includes('knife')) return 'Knife';
+if (normalized.includes('bowl')) return 'Bowl';
+if (normalized.includes('scale')) return 'Scale';
+if (normalized.includes('mixer')) return 'Mixer';
+if (normalized.includes('processor')) return 'Processor';
+return 'Item';
+}
+
+function formatDateTime(value?: string): string | undefined {
+if (!value) return undefined;
+const date = new Date(value);
+if (Number.isNaN(date.getTime())) return undefined;
+return date.toLocaleString();
+}
+
+function mapRequest(record: BorrowRequestRecord): any {
+const status = toUiStatus(record.status);
+const studentName = record.student?.fullName || `Student ${record.studentId.slice(-6).toUpperCase()}`;
+const user = $authStore.user;
+return {
+rawId: record.id,
+id: getDisplayId(record.id),
+student: {
+name: studentName,
+yearLevel: record.student?.yearLevel || 'N/A',
+block: record.student?.block || 'N/A',
+avatar: initials(studentName),
+studentId: record.studentId.slice(-8).toUpperCase(),
+email: record.student?.email || 'N/A'
+},
+items: record.items.map((item) => ({
+name: item.name,
+image: inferItemImage(item.name),
+code: item.itemId.slice(-6).toUpperCase(),
+quantity: item.quantity
+})),
+status,
+requestDate: record.createdAt,
+borrowDate: record.borrowDate,
+returnDate: record.returnDate,
+purpose: record.purpose,
+urgent: false,
+daysUntil: 0,
+approvedBy: record.instructor?.fullName || user?.firstName || 'Instructor',
+approvedDate: formatDateTime(record.approvedAt),
+custodianStatus: status === 'approved' ? 'Preparing' : status === 'ready' ? 'Ready for Pickup' : status === 'picked-up' ? 'Picked Up' : status === 'returned' ? 'Returned' : undefined,
+releasedDate: formatDateTime(record.releasedAt),
+pickedUpDate: formatDateTime(record.pickedUpAt),
+actualReturnDate: formatDateTime(record.returnedAt),
+returnCondition: record.status === 'returned' ? 'Good' : undefined,
+returnNotes: record.rejectionNotes,
+rejectionReason: record.rejectReason,
+borrowingRecord: {
+totalBorrowed: 0,
+returnRate: 100,
+overdue: 0,
+trustScore: 'Good'
+}
+};
+}
+
+async function loadRequests(forceRefresh = false): Promise<void> {
+try {
+const response = await borrowRequestsAPI.list({}, { forceRefresh });
+requests = response.requests.map(mapRequest);
+} catch (error) {
+console.error('Failed to load instructor requests', error);
+requests = [];
+}
+}
+
+onMount(async () => {
+await loadRequests();
+});
+
+const filteredRequests = $derived(
+requests
+.filter(req => activeTab === 'all' || req.status === activeTab)
+.filter(req => {
+if (!searchQuery) return true;
+const query = searchQuery.toLowerCase();
+return (
+req.student.name.toLowerCase().includes(query) ||
+req.id.toLowerCase().includes(query) ||
+req.items.some((item: any) => item.name.toLowerCase().includes(query))
+);
+})
+.sort((a, b) => {
+if (sortBy === 'date') {
+return new Date(b.requestDate).getTime() - new Date(a.requestDate).getTime();
+} else if (sortBy === 'student') {
+return a.student.name.localeCompare(b.student.name);
+}
+return a.status.localeCompare(b.status);
+})
+);
+
+const stats = $derived({
+totalRequests: requests.length,
+pendingCount: requests.filter(r => r.status === 'pending').length,
+activeCount: requests.filter(r => ['approved', 'ready', 'picked-up'].includes(r.status)).length,
+completedToday: requests.filter(r => r.status === 'returned').length,
+avgProcessingTime: 'Live'
+});
+
+const tabCounts = $derived({
+all: requests.length,
+pending: requests.filter(r => r.status === 'pending').length,
+approved: requests.filter(r => r.status === 'approved').length,
+ready: requests.filter(r => r.status === 'ready').length,
+'picked-up': requests.filter(r => r.status === 'picked-up').length,
+returned: requests.filter(r => r.status === 'returned').length,
+rejected: requests.filter(r => r.status === 'rejected').length
+});
+
+function openDetailModal(request: any) {
+selectedRequest = request;
+showDetailModal = true;
+}
+
+function closeDetailModal() {
+showDetailModal = false;
+selectedRequest = null;
+}
+
+function toggleSelectRequest(requestId: string) {
+if (selectedRequests.includes(requestId)) {
+selectedRequests = selectedRequests.filter(id => id !== requestId);
+} else {
+selectedRequests = [...selectedRequests, requestId];
+}
+}
+
+async function approveRequest(rawId: string): Promise<void> {
+try {
+await borrowRequestsAPI.approve(rawId);
+selectedRequests = selectedRequests.filter((id) => id !== rawId);
+await loadRequests(true);
+} catch (error) {
+console.error('Failed to approve request', error);
+}
+}
+
+async function rejectRequest(rawId: string, reason: string, notes?: string): Promise<void> {
+try {
+await borrowRequestsAPI.reject(rawId, reason, notes);
+selectedRequests = selectedRequests.filter((id) => id !== rawId);
+await loadRequests(true);
+} catch (error) {
+console.error('Failed to reject request', error);
+}
+}
+
+async function bulkApprove(): Promise<void> {
+for (const rawId of selectedRequests) {
+await approveRequest(rawId);
+}
+selectedRequests = [];
+}
+
+async function bulkReject(): Promise<void> {
+if (!rejectReason) return;
+for (const rawId of selectedRequests) {
+await rejectRequest(rawId, rejectReason, rejectDetails || undefined);
+}
+selectedRequests = [];
+showBulkRejectModal = false;
+rejectReason = '';
+rejectDetails = '';
+}
+
+function getTrustScoreColor(score: string) {
+switch (score) {
+case 'Excellent': return 'bg-green-100 text-green-800';
+case 'Good': return 'bg-blue-100 text-blue-800';
+case 'Fair': return 'bg-yellow-100 text-yellow-800';
+default: return 'bg-gray-100 text-gray-800';
+}
+}
+
+function getStatusBadge(status: string, custodianStatus?: string) {
+switch (status) {
+case 'pending':
+return { text: 'Pending Approval', color: 'bg-yellow-100 text-yellow-800', icon: 'Pending' };
+case 'approved':
+return { text: 'Approved - ' + (custodianStatus || 'Preparing'), color: 'bg-blue-100 text-blue-800', icon: 'Approved' };
+case 'ready':
+return { text: 'Ready for Pickup', color: 'bg-green-100 text-green-800', icon: 'Ready' };
+case 'picked-up':
+return { text: 'Picked Up', color: 'bg-purple-100 text-purple-800', icon: 'Borrowed' };
+case 'returned':
+return { text: 'Returned', color: 'bg-teal-100 text-teal-800', icon: 'Returned' };
+case 'rejected':
+return { text: 'Rejected', color: 'bg-red-100 text-red-800', icon: 'Rejected' };
+default:
+return { text: status, color: 'bg-gray-100 text-gray-800', icon: 'Status' };
+}
+}
 </script>
 
 <svelte:head>
@@ -366,7 +333,7 @@
 					{selectedRequests.length} selected
 				</span>
 				<div class="flex gap-2">
-					<button class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+					<button onclick={bulkApprove} class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
 						Bulk Approve
 					</button>
 					<button onclick={() => showBulkRejectModal = true} class="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
@@ -513,8 +480,8 @@
 					{#if request.status === 'pending'}
 						<input
 							type="checkbox"
-							checked={selectedRequests.includes(request.id)}
-							onchange={() => toggleSelectRequest(request.id)}
+							checked={selectedRequests.includes(request.rawId)}
+							onchange={() => toggleSelectRequest(request.rawId)}
 							class="h-5 w-5 rounded border-gray-300 text-pink-600"
 						/>
 					{/if}
@@ -546,10 +513,10 @@
 									Review Details
 								</button>
 								{#if request.status === 'pending'}
-									<button class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+									<button onclick={() => approveRequest(request.rawId)} class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
 										✓ Approve
 									</button>
-									<button class="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+									<button onclick={() => { selectedRequests = [request.rawId]; showBulkRejectModal = true; }} class="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
 										✗ Reject
 									</button>
 								{/if}
@@ -777,10 +744,10 @@
 							<div>
 								<h4 class="text-sm font-medium text-gray-700 mb-3">Quick Actions</h4>
 								<div class="space-y-2">
-									<button class="w-full rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700">
+									<button onclick={() => approveRequest(selectedRequest.rawId)} class="w-full rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700">
 										Approve Request
 									</button>
-									<button class="w-full rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-medium text-red-700 hover:bg-red-50">
+									<button onclick={() => { selectedRequests = [selectedRequest.rawId]; showBulkRejectModal = true; }} class="w-full rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-medium text-red-700 hover:bg-red-50">
 										Reject Request
 									</button>
 								</div>
@@ -827,7 +794,7 @@
 					<button onclick={() => showBulkRejectModal = false} class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
 						Cancel
 					</button>
-					<button disabled={!rejectReason} class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
+					<button onclick={bulkReject} disabled={!rejectReason} class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
 						Confirm Rejection
 					</button>
 				</div>
@@ -835,3 +802,4 @@
 		</div>
 	</div>
 {/if}
+

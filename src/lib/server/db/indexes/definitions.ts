@@ -7,6 +7,7 @@
  */
 
 import type { IndexDefinition } from './types';
+import { borrowRequestIndexes } from './borrowRequestsIndexes';
 
 /**
  * ============================================================================
@@ -880,6 +881,9 @@ export const inventoryCategoryIndexes: IndexDefinition[] = [
 	}
 ];
 
+// Import borrow request indexes from dedicated file
+// See: ./borrowRequestsIndexes.ts for detailed documentation
+
 /**
  * ALL INDEX DEFINITIONS
  * Export all indexes in one array for easy access
@@ -888,7 +892,8 @@ export const allIndexDefinitions: IndexDefinition[] = [
 	...userIndexes,
 	...rememberTokenIndexes,
 	...inventoryItemIndexes,
-	...inventoryCategoryIndexes
+	...inventoryCategoryIndexes,
+	...borrowRequestIndexes
 	// ...sessionIndexes,
 	// ...otherCollectionIndexes,
 ];
