@@ -30,6 +30,7 @@ export interface InventoryItem {
 	location?: string;
 	description?: string;
 	status: ItemStatus;
+	unitPrice?: number; // Price per unit for financial tracking
 	archived: boolean;
 	createdAt: Date;
 	updatedAt: Date;
@@ -53,6 +54,7 @@ export interface InventoryItemResponse {
 	location?: string;
 	description?: string;
 	status: ItemStatus;
+	unitPrice?: number;
 	archived: boolean;
 	createdAt: Date;
 	updatedAt: Date;
@@ -70,6 +72,7 @@ export interface CreateInventoryItemRequest {
 	minStock: number;
 	condition: ItemCondition;
 	location?: string;
+	unitPrice?: number;
 	description?: string;
 }
 

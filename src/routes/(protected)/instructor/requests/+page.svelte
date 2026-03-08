@@ -3,7 +3,7 @@ import { onMount } from 'svelte';
 import { authStore } from '$lib/stores/auth';
 import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestStatus } from '$lib/api/borrowRequests';
 
-let activeTab = $state<'pending' | 'approved' | 'ready' | 'picked-up' | 'returned' | 'rejected' | 'all'>('pending');
+let activeTab = $state<'pending' | 'fulfillment' | 'borrowed' | 'history'>('pending');
 let showDetailModal = $state(false);
 let selectedRequest = $state<any>(null);
 let selectedRequests = $state<string[]>([]);
@@ -23,21 +23,22 @@ const rejectReasons = [
 'Other (specify)'
 ];
 
-function toUiStatus(status: BorrowRequestStatus): 'pending' | 'approved' | 'ready' | 'picked-up' | 'returned' | 'rejected' {
+function toUiStatus(status: BorrowRequestStatus): 'pending' | 'fulfillment' | 'borrowed' | 'history' {
 switch (status) {
 case 'pending_instructor':
 return 'pending';
 case 'approved_instructor':
-return 'approved';
 case 'ready_for_pickup':
-return 'ready';
+return 'fulfillment';
 case 'borrowed':
-return 'picked-up';
+case 'pending_return':
+case 'missing':
+return 'borrowed';
 case 'returned':
-return 'returned';
 case 'rejected':
+return 'history';
 default:
-return 'rejected';
+return 'history';
 }
 }
 
@@ -77,6 +78,7 @@ const studentName = record.student?.fullName || `Student ${record.studentId.slic
 const user = $authStore.user;
 return {
 rawId: record.id,
+rawStatus: record.status,
 id: getDisplayId(record.id),
 student: {
 name: studentName,
@@ -101,7 +103,20 @@ urgent: false,
 daysUntil: 0,
 approvedBy: record.instructor?.fullName || user?.firstName || 'Instructor',
 approvedDate: formatDateTime(record.approvedAt),
-custodianStatus: status === 'approved' ? 'Preparing' : status === 'ready' ? 'Ready for Pickup' : status === 'picked-up' ? 'Picked Up' : status === 'returned' ? 'Returned' : undefined,
+custodianStatus:
+record.status === 'approved_instructor'
+? 'Preparing'
+: record.status === 'ready_for_pickup'
+? 'Ready for Pickup'
+: record.status === 'borrowed'
+? 'Picked Up'
+: record.status === 'pending_return'
+? 'Return Requested'
+: record.status === 'missing'
+? 'Missing - Investigation'
+: record.status === 'returned'
+? 'Returned'
+: undefined,
 releasedDate: formatDateTime(record.releasedAt),
 pickedUpDate: formatDateTime(record.pickedUpAt),
 actualReturnDate: formatDateTime(record.returnedAt),
@@ -128,12 +143,33 @@ requests = [];
 }
 
 onMount(async () => {
-await loadRequests();
+await loadRequests(true);
+
+const refresh = () => {
+void loadRequests(true);
+};
+
+const intervalId = window.setInterval(refresh, 15000);
+window.addEventListener('focus', refresh);
+
+const onVisibilityChange = () => {
+if (!document.hidden) {
+refresh();
+}
+};
+
+document.addEventListener('visibilitychange', onVisibilityChange);
+
+return () => {
+window.clearInterval(intervalId);
+window.removeEventListener('focus', refresh);
+document.removeEventListener('visibilitychange', onVisibilityChange);
+};
 });
 
 const filteredRequests = $derived(
 requests
-.filter(req => activeTab === 'all' || req.status === activeTab)
+.filter(req => req.status === activeTab)
 .filter(req => {
 if (!searchQuery) return true;
 const query = searchQuery.toLowerCase();
@@ -156,19 +192,16 @@ return a.status.localeCompare(b.status);
 const stats = $derived({
 totalRequests: requests.length,
 pendingCount: requests.filter(r => r.status === 'pending').length,
-activeCount: requests.filter(r => ['approved', 'ready', 'picked-up'].includes(r.status)).length,
-completedToday: requests.filter(r => r.status === 'returned').length,
-avgProcessingTime: 'Live'
+fulfillmentCount: requests.filter(r => r.status === 'fulfillment').length,
+borrowedCount: requests.filter(r => r.status === 'borrowed').length,
+completedCount: requests.filter(r => r.status === 'history').length
 });
 
 const tabCounts = $derived({
-all: requests.length,
 pending: requests.filter(r => r.status === 'pending').length,
-approved: requests.filter(r => r.status === 'approved').length,
-ready: requests.filter(r => r.status === 'ready').length,
-'picked-up': requests.filter(r => r.status === 'picked-up').length,
-returned: requests.filter(r => r.status === 'returned').length,
-rejected: requests.filter(r => r.status === 'rejected').length
+fulfillment: requests.filter(r => r.status === 'fulfillment').length,
+borrowed: requests.filter(r => r.status === 'borrowed').length,
+history: requests.filter(r => r.status === 'history').length
 });
 
 function openDetailModal(request: any) {
@@ -236,20 +269,28 @@ default: return 'bg-gray-100 text-gray-800';
 }
 }
 
-function getStatusBadge(status: string, custodianStatus?: string) {
+function getStatusBadge(status: string, rawStatus?: BorrowRequestStatus, custodianStatus?: string) {
 switch (status) {
 case 'pending':
 return { text: 'Pending Approval', color: 'bg-yellow-100 text-yellow-800', icon: 'Pending' };
-case 'approved':
-return { text: 'Approved - ' + (custodianStatus || 'Preparing'), color: 'bg-blue-100 text-blue-800', icon: 'Approved' };
-case 'ready':
-return { text: 'Ready for Pickup', color: 'bg-green-100 text-green-800', icon: 'Ready' };
-case 'picked-up':
-return { text: 'Picked Up', color: 'bg-purple-100 text-purple-800', icon: 'Borrowed' };
-case 'returned':
-return { text: 'Returned', color: 'bg-teal-100 text-teal-800', icon: 'Returned' };
-case 'rejected':
-return { text: 'Rejected', color: 'bg-red-100 text-red-800', icon: 'Rejected' };
+case 'fulfillment':
+return {
+text: custodianStatus || 'With Custodian',
+color: rawStatus === 'ready_for_pickup' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800',
+icon: rawStatus === 'ready_for_pickup' ? 'Ready' : 'Prep'
+};
+case 'borrowed':
+return {
+text: rawStatus === 'pending_return' ? 'Return Requested' : rawStatus === 'missing' ? 'Missing' : 'Picked Up',
+color: rawStatus === 'pending_return' ? 'bg-orange-100 text-orange-800' : rawStatus === 'missing' ? 'bg-rose-100 text-rose-800' : 'bg-purple-100 text-purple-800',
+icon: rawStatus === 'pending_return' ? 'Return' : rawStatus === 'missing' ? 'Alert' : 'Borrowed'
+};
+case 'history':
+return {
+text: rawStatus === 'rejected' ? 'Rejected' : 'Returned',
+color: rawStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-teal-100 text-teal-800',
+icon: rawStatus === 'rejected' ? 'Rejected' : 'Returned'
+};
 default:
 return { text: status, color: 'bg-gray-100 text-gray-800', icon: 'Status' };
 }
@@ -299,12 +340,12 @@ return { text: status, color: 'bg-gray-100 text-gray-800', icon: 'Status' };
 		<div class="rounded-lg bg-white p-5 shadow">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-sm font-medium text-gray-600">Active Loans</p>
-					<p class="mt-2 text-3xl font-semibold text-green-600">{stats.activeCount}</p>
+					<p class="text-sm font-medium text-gray-600">With Custodian</p>
+					<p class="mt-2 text-3xl font-semibold text-blue-600">{stats.fulfillmentCount}</p>
 				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-					<svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
+					<svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/>
 					</svg>
 				</div>
 			</div>
@@ -313,12 +354,12 @@ return { text: status, color: 'bg-gray-100 text-gray-800', icon: 'Status' };
 		<div class="rounded-lg bg-white p-5 shadow">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-sm font-medium text-gray-600">Avg. Processing Time</p>
-					<p class="mt-2 text-3xl font-semibold text-purple-600">{stats.avgProcessingTime}</p>
+					<p class="text-sm font-medium text-gray-600">Completed</p>
+					<p class="mt-2 text-3xl font-semibold text-teal-600">{stats.completedCount}</p>
 				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
-					<svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-teal-100">
+					<svg class="h-6 w-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
 					</svg>
 				</div>
 			</div>
@@ -360,52 +401,31 @@ return { text: status, color: 'bg-gray-100 text-gray-800', icon: 'Status' };
 				</span>
 			</button>
 			<button
-				onclick={() => activeTab = 'approved'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'approved' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
+				onclick={() => activeTab = 'fulfillment'}
+				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'fulfillment' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
 			>
-				Approved - Preparing
-				<span class="ml-2 rounded-full {activeTab === 'approved' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.approved}
+				Preparation
+				<span class="ml-2 rounded-full {activeTab === 'fulfillment' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
+					{tabCounts.fulfillment}
 				</span>
 			</button>
 			<button
-				onclick={() => activeTab = 'ready'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'ready' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
+				onclick={() => activeTab = 'borrowed'}
+				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'borrowed' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
 			>
-				Ready for Pickup
-				<span class="ml-2 rounded-full {activeTab === 'ready' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.ready}
+				Picked Up & Return
+				<span class="ml-2 rounded-full {activeTab === 'borrowed' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
+					{tabCounts.borrowed}
 				</span>
 			</button>
 			<button
-				onclick={() => activeTab = 'picked-up'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'picked-up' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
+				onclick={() => activeTab = 'history'}
+				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'history' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
 			>
-				Picked Up
-				<span class="ml-2 rounded-full {activeTab === 'picked-up' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts['picked-up']}
+				History
+				<span class="ml-2 rounded-full {activeTab === 'history' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
+					{tabCounts.history}
 				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'returned'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'returned' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Returned
-				<span class="ml-2 rounded-full {activeTab === 'returned' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.returned}
-				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'rejected'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'rejected' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Rejected ({tabCounts.rejected})
-			</button>
-			<button
-				onclick={() => activeTab = 'all'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'all' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				All Requests ({tabCounts.all})
 			</button>
 		</nav>
 	</div>
@@ -498,7 +518,7 @@ return { text: status, color: 'bg-gray-100 text-gray-800', icon: 'Status' };
 									<p class="text-xs text-gray-400">{request.id} • {new Date(request.requestDate).toLocaleDateString()}</p>
 								</div>
 								{#if request.status !== 'pending'}
-									{@const badge = getStatusBadge(request.status, request.custodianStatus)}
+									{@const badge = getStatusBadge(request.status, request.rawStatus, request.custodianStatus)}
 									<span class="ml-3 inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold {badge.color}">
 										<span>{badge.icon}</span>
 										<span>{badge.text}</span>
@@ -566,8 +586,8 @@ return { text: status, color: 'bg-gray-100 text-gray-800', icon: 'Status' };
 									{/if}
 									{#if request.custodianStatus}
 										<div class="flex items-center gap-2 text-xs">
-											<span class="{request.status === 'ready' || request.status === 'picked-up' || request.status === 'returned' ? 'text-green-600' : 'text-blue-600'}">
-												{request.status === 'ready' || request.status === 'picked-up' || request.status === 'returned' ? '✓' : '⏳'}
+											<span class="{request.custodianStatus === 'Ready for Pickup' || request.custodianStatus === 'Picked Up' || request.custodianStatus === 'Return Requested' || request.custodianStatus === 'Returned' ? 'text-green-600' : request.custodianStatus === 'Missing - Investigation' ? 'text-rose-600' : 'text-blue-600'}">
+												{request.custodianStatus === 'Ready for Pickup' || request.custodianStatus === 'Picked Up' || request.custodianStatus === 'Return Requested' || request.custodianStatus === 'Returned' ? '✓' : request.custodianStatus === 'Missing - Investigation' ? '⚠' : '⏳'}
 											</span>
 											<span class="text-gray-600">Custodian Status: {request.custodianStatus}</span>
 										</div>

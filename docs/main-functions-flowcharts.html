@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Main Functions Flowcharts - Borrow Request Lifecycle</title>
+  <style>
+    :root {
+      --ink: #0f172a;
+      --muted: #475569;
+      --bg: #eef2f7;
+      --card: #ffffff;
+      --line: #d3dce8;
+      --brand: #0f3d78;
+      --accent: #0b6bcb;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(180deg, #edf2f8 0%, #f7f9fc 100%);
+      color: var(--ink);
+      padding: 28px;
+    }
+
+    .page {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      box-shadow: 0 16px 34px rgba(15, 23, 42, 0.08);
+      padding: 26px;
+    }
+
+    h1 {
+      margin: 0;
+      color: var(--brand);
+      font-size: 28px;
+      letter-spacing: 0.3px;
+    }
+
+    .subtitle {
+      margin: 8px 0 14px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.45;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+      font-size: 12px;
+    }
+
+    .meta > div {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      color: #334155;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #f8fbff;
+      padding: 12px;
+      margin-bottom: 14px;
+      overflow: auto;
+    }
+
+    .panel-title {
+      margin: 0 0 8px;
+      color: #1e3a8a;
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #475569;
+    }
+
+    .legend-item {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 8px 10px;
+    }
+
+    .footer {
+      border-top: 1px dashed var(--line);
+      margin-top: 12px;
+      padding-top: 10px;
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    @media print {
+      @page {
+        size: A4 landscape;
+        margin: 10mm;
+      }
+
+      body {
+        background: #fff;
+        padding: 0;
+      }
+
+      .page {
+        border: none;
+        box-shadow: none;
+        border-radius: 0;
+        padding: 0;
+      }
+
+      .panel {
+        break-inside: avoid;
+        background: #fff;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>Main Functions Flowcharts</h1>
+    <p class="subtitle">
+      Company-standard process flow for the borrow request lifecycle, aligned to role handoff,
+      status control, and operational accountability.
+    </p>
+
+    <section class="meta">
+      <div><strong>Process:</strong> Borrow Request Lifecycle</div>
+      <div><strong>Actors:</strong> Student, Instructor, Custodian</div>
+      <div><strong>Pattern:</strong> Controlled state transition workflow</div>
+      <div><strong>Scope:</strong> Happy path with operational checkpoint</div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">A. End-to-End Lifecycle Flowchart</h2>
+      <pre class="mermaid">
+flowchart TD
+  classDef term fill:#DBEAFE,stroke:#1E3A8A,color:#1E3A8A,stroke-width:1.4px;
+  classDef process fill:#F8FAFC,stroke:#475569,color:#0F172A,stroke-width:1.2px;
+  classDef decision fill:#F3E8FF,stroke:#7E22CE,color:#581C87,stroke-width:1.3px;
+  classDef io fill:#ECFEFF,stroke:#0E7490,color:#164E63,stroke-width:1.2px;
+  classDef state fill:#FFF7ED,stroke:#C2410C,color:#7C2D12,stroke-width:1.3px;
+  classDef done fill:#F0FDF4,stroke:#16A34A,color:#14532D,stroke-width:1.3px;
+  classDef risk fill:#FEF2F2,stroke:#DC2626,color:#7F1D1D,stroke-width:1.2px;
+
+  START([Start]):::term --> SUBMIT[/Student submits borrow request/]:::io
+  SUBMIT --> ST1[[pending_instructor]]:::state
+  ST1 --> REVIEW[Instructor reviews request]:::process
+  REVIEW --> DECIDE{Instructor approves?}:::decision
+  DECIDE -->|Yes| ST2[[approved_instructor]]:::state
+  DECIDE -->|No| REJECT[[rejected]]:::risk
+  REJECT --> END_REJ([End - Request Closed]):::term
+
+  ST2 --> PREPARE[Custodian prepares items]:::process
+  PREPARE --> RELEASE[Custodian releases request]:::process
+  RELEASE --> ST3[[ready_for_pickup]]:::state
+  ST3 --> PICKUP[/Student picks up items/]:::io
+  PICKUP --> ST4[[borrowed]]:::state
+  ST4 --> ACTIVE[Active borrow period]:::process
+  ACTIVE --> RETURN[/Student returns items/]:::io
+  RETURN --> ST5[[returned]]:::done
+  ST5 --> END_OK([End - Completed]):::term
+      </pre>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel-title">B. Role-Based Handoff Flow (Swimlane Style)</h2>
+      <pre class="mermaid">
+flowchart TB
+  classDef lane fill:#F8FAFC,stroke:#CBD5E1,color:#0F172A,stroke-width:1.1px;
+  classDef step fill:#FFFFFF,stroke:#94A3B8,color:#1E293B,stroke-width:1.1px;
+  classDef io fill:#ECFEFF,stroke:#0E7490,color:#164E63,stroke-width:1.2px;
+  classDef decision fill:#F3E8FF,stroke:#7E22CE,color:#581C87,stroke-width:1.2px;
+  classDef status fill:#FEF3C7,stroke:#D97706,color:#78350F,stroke-width:1.2px;
+  classDef finish fill:#DCFCE7,stroke:#16A34A,color:#14532D,stroke-width:1.2px;
+
+  subgraph L1[Student Lane]
+    ST1[/Create borrow request/]:::io
+    ST2[/Pick up approved request/]:::io
+    ST3[Use borrowed items]:::step
+    ST4[/Return items/]:::io
+  end
+  class L1 lane
+
+  subgraph L2[Instructor Lane]
+    IN1[Review request details]:::step
+    IN2{Approve request?}:::decision
+  end
+  class L2 lane
+
+  subgraph L3[Custodian Lane]
+    CU1[Prepare requested items]:::step
+    CU2[Release request for pickup]:::step
+  end
+  class L3 lane
+
+  ST1 --> S01[pending_instructor]:::status
+  S01 --> IN1
+  IN1 --> IN2
+  IN2 -->|Yes| S02[approved_instructor]:::status
+  IN2 -->|No| S99[rejected]:::status
+  S02 --> CU1
+  CU1 --> CU2
+  CU2 --> S03[ready_for_pickup]:::status
+  S03 --> ST2
+  ST2 --> S04[borrowed]:::status
+  S04 --> ST3
+  ST3 --> ST4
+  ST4 --> S05[returned]:::status
+  S05 --> DONE([Completed]):::finish
+      </pre>
+    </section>
+
+    <section class="legend">
+      <div class="legend-item"><strong>pending_instructor</strong>: Request submitted by Student and awaiting Instructor decision.</div>
+      <div class="legend-item"><strong>approved_instructor</strong>: Instructor validated request; Custodian fulfillment starts.</div>
+      <div class="legend-item"><strong>ready_for_pickup</strong>: Custodian has released request; Student may claim items.</div>
+      <div class="legend-item"><strong>borrowed</strong>: Items are in active use during borrow period.</div>
+      <div class="legend-item"><strong>returned</strong>: Process completed and transaction closed.</div>
+      <div class="legend-item"><strong>Shape Standard:</strong> Terminator = rounded node, Process = rectangle, Decision = diamond, Input/Output = parallelogram, Status = highlighted state block.</div>
+    </section>
+
+    <p class="footer">
+      Export to PDF: open this file in a browser, press Ctrl+P, choose Landscape,
+      enable "Background graphics", then save as PDF.
+    </p>
+  </main>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      securityLevel: 'loose',
+      flowchart: {
+        curve: 'linear',
+        htmlLabels: true
+      },
+      themeVariables: {
+        primaryTextColor: '#0f172a',
+        fontSize: '13px',
+        lineColor: '#64748b',
+        fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+        clusterBkg: '#f8fafc',
+        clusterBorder: '#cbd5e1'
+      }
+    });
+  </script>
+</body>
+</html>

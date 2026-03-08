@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>4.2 Proposed System Architecture - Industry Standard View</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --muted: #4b5563;
+      --paper: #f3f5f8;
+      --card: #ffffff;
+      --line: #d1d8e3;
+      --brand: #0f3d78;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(180deg, #eef2f7 0%, #f6f8fb 100%);
+      color: var(--ink);
+      padding: 28px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 28px;
+      box-shadow: 0 16px 34px rgba(17, 24, 39, 0.08);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: 0.3px;
+      color: var(--brand);
+    }
+
+    .subtitle {
+      margin: 8px 0 18px;
+      font-size: 15px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 8px;
+      margin-bottom: 14px;
+      font-size: 12px;
+      color: #374151;
+    }
+
+    .meta span {
+      display: block;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f9fafb;
+    }
+
+    .diagram-wrap {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      overflow: auto;
+    }
+
+    .legend {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    .swatch-client { background: #e8f1ff; }
+    .swatch-cloud { background: #e9f8ef; }
+    .swatch-dr { background: #eaf2ff; }
+    .swatch-data { background: #fff4dc; }
+    .swatch-ext { background: #f7ecff; }
+
+    .footer {
+      margin-top: 16px;
+      font-size: 12px;
+      color: #64748b;
+      border-top: 1px dashed var(--line);
+      padding-top: 10px;
+    }
+
+    @media print {
+      @page {
+        size: A4 landscape;
+        margin: 10mm;
+      }
+
+      body {
+        background: #fff;
+        padding: 0;
+      }
+
+      .container {
+        box-shadow: none;
+        border: none;
+        border-radius: 0;
+        padding: 0;
+      }
+
+      .diagram-wrap {
+        border: 1px solid #cbd5e1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <h1>4.2 Proposed System Architecture</h1>
+    <p class="subtitle">
+      Industry-standard high-level architecture showing end-to-end connectivity across
+      Web and Mobile channels, Cloud Server services, data stores, resilience layer,
+      and AI chatbot integration.
+    </p>
+
+    <div class="meta">
+      <span><strong>Architecture Style:</strong> Cloud-native modular monolith</span>
+      <span><strong>Topology:</strong> Primary Region + Secondary Region (DR)</span>
+      <span><strong>Interfaces:</strong> HTTPS REST APIs + event-driven processing</span>
+      <span><strong>AI Layer:</strong> Chat orchestrator + external LLM provider</span>
+    </div>
+
+    <section class="diagram-wrap">
+      <pre class="mermaid">
+flowchart LR
+  classDef client fill:#E8F1FF,stroke:#1D4ED8,color:#0F2A5A,stroke-width:1.3px;
+  classDef edge fill:#EEF2FF,stroke:#4338CA,color:#2E1065,stroke-width:1.3px;
+  classDef cloud fill:#E9F8EF,stroke:#15803D,color:#14532D,stroke-width:1.3px;
+  classDef data fill:#FFF4DC,stroke:#B45309,color:#78350F,stroke-width:1.3px;
+  classDef ext fill:#F7ECFF,stroke:#7E22CE,color:#581C87,stroke-width:1.3px;
+  classDef dr fill:#EAF2FF,stroke:#2563EB,color:#1E3A8A,stroke-width:1.3px;
+  classDef ops fill:#F1F5F9,stroke:#475569,color:#1F2937,stroke-width:1.2px;
+
+  USER[End Users]:::client
+  WEB[Web Application\nSvelteKit Frontend]:::client
+  MOB[Mobile Application\nAndroid / iOS]:::client
+
+  USER --> WEB
+  USER --> MOB
+
+  subgraph EDGE[Access and Edge Layer]
+    DNS[Global DNS Routing]:::edge
+    CDN[CDN and Static Acceleration]:::edge
+    WAF[WAF / API Gateway]:::edge
+    DNS --> CDN --> WAF
+  end
+
+  WEB -->|HTTPS| DNS
+  MOB -->|HTTPS| DNS
+
+  subgraph CLOUD[Cloud Server]
+    subgraph PRIMARY[Primary Region]
+      APP[Application API Layer\nAuth, Inventory, Borrow Requests, Dashboard]:::cloud
+      CHAT[AI Chatbot Orchestrator\nPrompt control, RBAC checks, context handling]:::cloud
+      EVENTS[Event Bus / Queue\nAsynchronous domain events]:::cloud
+      WORKERS[Background Workers\nNotifications, scheduled jobs, async processors]:::cloud
+      REDIS[(Redis\nCache, rate limit, session context)]:::data
+
+      subgraph DATA[Data Services]
+        MONGO[(MongoDB Cluster\nTransactional System of Record)]:::data
+        OBJECT[(Object Storage\nMedia and Document Assets)]:::data
+        REPORT[(Reporting Store\nAnalytics and BI views)]:::data
+      end
+
+      APP --> REDIS
+      APP --> MONGO
+      APP --> OBJECT
+      APP --> EVENTS
+      EVENTS --> WORKERS
+      WORKERS --> MONGO
+      WORKERS --> REPORT
+
+      APP --> CHAT
+      CHAT --> REDIS
+      CHAT --> APP
+    end
+
+    subgraph SECONDARY[Secondary Region - Disaster Recovery]
+      APP_DR[Standby API Layer]:::dr
+      MONGO_DR[(Replica Database)]:::dr
+      OBJECT_DR[(Object Storage Replica)]:::dr
+      APP_DR --> MONGO_DR
+    end
+  end
+
+  WAF --> APP
+  WAF -. failover routing .-> APP_DR
+
+  MONGO -. cross-region replication .-> MONGO_DR
+  OBJECT -. object replication .-> OBJECT_DR
+
+  LLM[External LLM Provider\nOpenAI / Azure OpenAI]:::ext
+  KB[(Knowledge Base / FAQ Index)]:::ext
+  CHAT --> LLM
+  CHAT --> KB
+
+  OBS[Observability Stack\nHealth checks, logs, metrics, alerts]:::ops
+  OBS --> APP
+  OBS --> CHAT
+  OBS --> WORKERS
+      </pre>
+    </section>
+
+    <section class="legend">
+      <div class="legend-item"><span class="swatch swatch-client"></span> Client applications</div>
+      <div class="legend-item"><span class="swatch swatch-cloud"></span> Primary region components</div>
+      <div class="legend-item"><span class="swatch swatch-dr"></span> Secondary / DR components</div>
+      <div class="legend-item"><span class="swatch swatch-data"></span> Data and storage services</div>
+      <div class="legend-item"><span class="swatch swatch-ext"></span> External AI services</div>
+    </section>
+
+    <p class="footer">
+      Export to PDF: open this file in a browser, press Ctrl+P, set layout to Landscape,
+      enable "Background graphics", then choose "Save as PDF".
+    </p>
+  </main>
+
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'base',
+      securityLevel: 'loose',
+      flowchart: {
+        curve: 'linear',
+        htmlLabels: true
+      },
+      themeVariables: {
+        primaryTextColor: '#111827',
+        fontSize: '13px',
+        fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
+        lineColor: '#64748b',
+        clusterBkg: '#f8fafc',
+        clusterBorder: '#9ca3af'
+      }
+    });
+  </script>
+</body>
+</html>

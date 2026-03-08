@@ -5,6 +5,8 @@ export type BorrowRequestStatus =
 	| 'approved_instructor'
 	| 'ready_for_pickup'
 	| 'borrowed'
+	| 'pending_return'
+	| 'missing'
 	| 'returned'
 	| 'rejected';
 
@@ -25,6 +27,13 @@ export interface BorrowRequestItem {
 	name: string;
 	quantity: number;
 	category?: string;
+	inspection?: {
+		status: 'good' | 'damaged' | 'missing';
+		inspectedAt: Date;
+		inspectedBy: string;
+		notes?: string;
+		unitPrice?: number;
+	};
 }
 
 export interface BorrowRequestUserSummary {
@@ -57,6 +66,9 @@ export interface BorrowRequestRecord {
 	releasedAt?: string;
 	pickedUpAt?: string;
 	returnedAt?: string;
+	missingAt?: string;
+	lastReminderAt?: string;
+	reminderCount?: number;
 	createdAt: string;
 	updatedAt: string;
 }
@@ -288,6 +300,54 @@ export const borrowRequestsAPI = {
 		const data = await handleResponse<BorrowRequestRecord>(response);
 		invalidateAllCaches();
 		setCache(detailCache, id, data);
+		return data;
+	},
+
+	async markMissing(id: string): Promise<BorrowRequestRecord> {
+		const response = await fetch(`/api/borrow-requests/${id}/missing`, getFetchOptions('POST'));
+		const data = await handleResponse<BorrowRequestRecord>(response);
+		invalidateAllCaches();
+		setCache(detailCache, id, data);
+		return data;
+	},
+
+	async sendOverdueReminder(id: string): Promise<{ success: boolean; message: string; reminderCount: number }> {
+		const response = await fetch(`/api/borrow-requests/${id}/send-reminder`, getFetchOptions('POST'));
+		const data = await handleResponse<{ success: boolean; message: string; reminderCount: number }>(response);
+		invalidateAllCaches();
+		return data;
+	},
+
+	async initiateReturn(id: string): Promise<BorrowRequestRecord> {
+		const response = await fetch(`/api/borrow-requests/${id}/initiate-return`, getFetchOptions('POST'));
+		const data = await handleResponse<BorrowRequestRecord>(response);
+		invalidateAllCaches();
+		setCache(detailCache, id, data);
+		return data;
+	},
+
+	/**
+	 * Inspect items during return process
+	 * Creates financial obligations for damaged/missing items
+	 */
+	async inspectItems(
+		id: string,
+		items: Array<{
+			itemId: string;
+			status: 'good' | 'damaged' | 'missing';
+			notes?: string;
+			unitPrice?: number;
+		}>
+	): Promise<{ success: boolean; message: string; status: BorrowRequestStatus; obligationsCreated: number }> {
+		const response = await fetch(`/api/borrow-requests/${id}/inspect-items`, getFetchOptions('POST', { items }));
+		const data = await handleResponse<{
+			success: boolean;
+			message: string;
+			status: BorrowRequestStatus;
+			obligationsCreated: number;
+		}>(response);
+		
+		invalidateAllCaches();
 		return data;
 	},
 

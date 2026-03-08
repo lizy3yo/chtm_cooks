@@ -4,12 +4,10 @@ import { getDatabase } from '$lib/server/db/mongodb';
 import { ObjectId } from 'mongodb';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
-import type { InventoryItem } from '$lib/server/models/InventoryItem';
 import { BorrowRequestStatus, toBorrowRequestResponse, type BorrowRequest } from '$lib/server/models/BorrowRequest';
 import {
 	BORROW_REQUESTS_COLLECTION,
 	getAuthenticatedUser,
-	incrementInventoryOnReturn,
 	invalidateBorrowRequestCaches,
 	parseObjectId
 } from '../../shared';
@@ -25,8 +23,8 @@ export const POST: RequestHandler = async (event) => {
 		if (!user) {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
-		if (!['custodian', 'superadmin'].includes(user.role)) {
-			return json({ error: 'Forbidden: Custodian access required' }, { status: 403 });
+		if (!['student', 'superadmin'].includes(user.role)) {
+			return json({ error: 'Forbidden: Student access required' }, { status: 403 });
 		}
 
 		const requestId = parseObjectId(event.params.id);
@@ -36,27 +34,27 @@ export const POST: RequestHandler = async (event) => {
 
 		const db = await getDatabase();
 		const requestCollection = db.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION);
-		const inventoryCollection = db.collection<InventoryItem>('inventory_items');
 
 		const borrowRequest = await requestCollection.findOne({ _id: requestId });
 		if (!borrowRequest) {
 			return json({ error: 'Borrow request not found' }, { status: 404 });
 		}
 
-		if (borrowRequest.status !== BorrowRequestStatus.BORROWED && borrowRequest.status !== BorrowRequestStatus.PENDING_RETURN) {
-			return json({ error: 'Borrow request is not in borrowed or pending return state' }, { status: 409 });
+		// Verify the student owns this request
+		if (user.role === 'student' && borrowRequest.studentId.toString() !== user.userId) {
+			return json({ error: 'Forbidden: Not your request' }, { status: 403 });
 		}
 
-		await incrementInventoryOnReturn(inventoryCollection, borrowRequest.items);
+		if (borrowRequest.status !== BorrowRequestStatus.BORROWED) {
+			return json({ error: 'Borrow request is not in borrowed state' }, { status: 409 });
+		}
 
 		const now = new Date();
 		const updated = await requestCollection.findOneAndUpdate(
-			{ _id: requestId, status: { $in: [BorrowRequestStatus.BORROWED, BorrowRequestStatus.PENDING_RETURN] } },
+			{ _id: requestId, status: BorrowRequestStatus.BORROWED },
 			{
 				$set: {
-					status: BorrowRequestStatus.RETURNED,
-					custodianId: new ObjectId(user.userId),
-					returnedAt: now,
+					status: BorrowRequestStatus.PENDING_RETURN,
 					updatedAt: now,
 					updatedBy: new ObjectId(user.userId)
 				}
@@ -65,20 +63,14 @@ export const POST: RequestHandler = async (event) => {
 		);
 
 		if (!updated) {
-			// Best effort rollback of inventory increments on state race.
-			for (const item of borrowRequest.items) {
-				await inventoryCollection.updateOne(
-					{ _id: item.itemId, quantity: { $gte: item.quantity } },
-					{ $inc: { quantity: -item.quantity }, $set: { updatedAt: new Date() } }
-				);
-			}
 			return json({ error: 'Borrow request state changed, please retry' }, { status: 409 });
 		}
 
 		await invalidateBorrowRequestCaches();
+		logger.info('Student initiated return', { requestId: requestId.toString(), studentId: user.userId });
 		return json(toBorrowRequestResponse(updated));
 	} catch (error) {
-		logger.error('Error returning borrow request', { error });
-		return json({ error: 'Failed to complete return' }, { status: 500 });
+		logger.error('Error initiating return', { error });
+		return json({ error: 'Failed to initiate return' }, { status: 500 });
 	}
 };

@@ -6,8 +6,24 @@ export enum BorrowRequestStatus {
 	APPROVED_INSTRUCTOR = 'approved_instructor',
 	READY_FOR_PICKUP = 'ready_for_pickup',
 	BORROWED = 'borrowed',
+	PENDING_RETURN = 'pending_return',
+	MISSING = 'missing',
 	RETURNED = 'returned',
 	REJECTED = 'rejected'
+}
+
+export enum ItemInspectionStatus {
+	GOOD = 'good',
+	DAMAGED = 'damaged',
+	MISSING = 'missing'
+}
+
+export interface ItemInspection {
+	status: ItemInspectionStatus;
+	inspectedAt: Date;
+	inspectedBy: ObjectId;
+	notes?: string;
+	unitPrice?: number; // Price at time of inspection
 }
 
 export interface BorrowRequestItem {
@@ -15,6 +31,7 @@ export interface BorrowRequestItem {
 	name: string;
 	quantity: number;
 	category?: string;
+	inspection?: ItemInspection; // Added for return inspection tracking
 }
 
 export interface BorrowRequest {
@@ -33,6 +50,9 @@ export interface BorrowRequest {
 	rejectedAt?: Date;
 	releasedAt?: Date;
 	pickedUpAt?: Date;
+	missingAt?: Date;
+	lastReminderAt?: Date;
+	reminderCount?: number;
 	returnedAt?: Date;
 	createdAt: Date;
 	updatedAt: Date;
@@ -45,6 +65,13 @@ export interface BorrowRequestResponseItem {
 	name: string;
 	quantity: number;
 	category?: string;
+	inspection?: {
+		status: ItemInspectionStatus;
+		inspectedAt: Date;
+		inspectedBy: string;
+		notes?: string;
+		unitPrice?: number;
+	};
 }
 
 export interface BorrowRequestResponse {
@@ -63,6 +90,9 @@ export interface BorrowRequestResponse {
 	rejectedAt?: Date;
 	releasedAt?: Date;
 	pickedUpAt?: Date;
+	missingAt?: Date;
+	lastReminderAt?: Date;
+	reminderCount?: number;
 	returnedAt?: Date;
 	createdAt: Date;
 	updatedAt: Date;
@@ -95,7 +125,14 @@ export function toBorrowRequestResponse(request: BorrowRequest): BorrowRequestRe
 			itemId: item.itemId.toString(),
 			name: item.name,
 			quantity: item.quantity,
-			category: item.category
+			category: item.category,
+			inspection: item.inspection ? {
+				status: item.inspection.status,
+				inspectedAt: item.inspection.inspectedAt,
+				inspectedBy: item.inspection.inspectedBy.toString(),
+				notes: item.inspection.notes,
+				unitPrice: item.inspection.unitPrice
+			} : undefined
 		})),
 		purpose: request.purpose,
 		borrowDate: request.borrowDate,
@@ -107,6 +144,9 @@ export function toBorrowRequestResponse(request: BorrowRequest): BorrowRequestRe
 		rejectedAt: request.rejectedAt,
 		releasedAt: request.releasedAt,
 		pickedUpAt: request.pickedUpAt,
+		missingAt: request.missingAt,
+		lastReminderAt: request.lastReminderAt,
+		reminderCount: request.reminderCount,
 		returnedAt: request.returnedAt,
 		createdAt: request.createdAt,
 		updatedAt: request.updatedAt
@@ -131,9 +171,14 @@ export function canTransitionStatus(
 		case BorrowRequestStatus.APPROVED_INSTRUCTOR:
 			return actorRole === 'custodian' && next === BorrowRequestStatus.READY_FOR_PICKUP;
 		case BorrowRequestStatus.READY_FOR_PICKUP:
-			return actorRole === 'student' && next === BorrowRequestStatus.BORROWED;
+			return (actorRole === 'student' || actorRole === 'custodian') && next === BorrowRequestStatus.BORROWED;
 		case BorrowRequestStatus.BORROWED:
-			return actorRole === 'custodian' && next === BorrowRequestStatus.RETURNED;
+			return (
+				actorRole === 'custodian' &&
+				(next === BorrowRequestStatus.PENDING_RETURN || next === BorrowRequestStatus.RETURNED || next === BorrowRequestStatus.MISSING)
+			);
+		case BorrowRequestStatus.PENDING_RETURN:
+			return actorRole === 'custodian' && (next === BorrowRequestStatus.RETURNED || next === BorrowRequestStatus.MISSING);
 		default:
 			return false;
 	}

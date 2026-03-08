@@ -25,8 +25,8 @@ export const POST: RequestHandler = async (event) => {
 		if (!user) {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
-		if (!['student', 'superadmin'].includes(user.role)) {
-			return json({ error: 'Forbidden: Student access required' }, { status: 403 });
+		if (!['student', 'custodian', 'superadmin'].includes(user.role)) {
+			return json({ error: 'Forbidden: Student or custodian access required' }, { status: 403 });
 		}
 
 		const requestId = parseObjectId(event.params.id);
