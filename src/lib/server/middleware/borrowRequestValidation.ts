@@ -51,7 +51,8 @@ const DATE_CONSTRAINTS = {
 const PURPOSE_CONSTRAINTS = {
 	MIN_LENGTH: 3,
 	MAX_LENGTH: 500,
-	REQUIRED_PATTERN: /^[a-zA-Z0-9\s.,!?'-]+$/ // Alphanumeric with basic punctuation
+	// Allow common request punctuation used by the UI, e.g. "Lab Exercise: ... | Notes: ..."
+	REQUIRED_PATTERN: /^[a-zA-Z0-9\s.,!?':;()\-/&|]+$/
 };
 
 /**

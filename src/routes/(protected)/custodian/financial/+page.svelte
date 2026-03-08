@@ -1,8 +1,13 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { user } from '$lib/stores/auth';
+	import { financialObligationsAPI, type FinancialObligation } from '$lib/api/financialObligations';
 
-	let activeTab = $state<'donations' | 'replacements' | 'history'>('donations');
+	let activeTab = $state<'donations' | 'replacements' | 'history'>('replacements');
+	let obligations = $state<FinancialObligation[]>([]);
+	let isLoading = $state(true);
+	let error = $state<string | null>(null);
 
 	// Sample data for donations
 	let donations = $state([
@@ -152,6 +157,43 @@
 			return paymentDate >= sevenDaysAgo;
 		}).length
 	);
+
+	onMount(async () => {
+		await loadObligations();
+	});
+
+	async function loadObligations(): Promise<void> {
+		isLoading = true;
+		error = null;
+		try {
+			const response = await financialObligationsAPI.getObligations({ status: 'pending' });
+			obligations = response.obligations;
+		} catch (err) {
+			console.error('Failed to load obligations', err);
+			error = err instanceof Error ? err.message : 'Failed to load obligations';
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	async function handleResolveObligation(
+		id: string,
+		resolutionType: 'payment' | 'replacement' | 'waiver',
+		amount?: number
+	): Promise<void> {
+		try {
+			await financialObligationsAPI.resolveObligation(id, {
+				resolutionType,
+				amountPaid: amount,
+				resolutionNotes: `Resolved via ${resolutionType}`
+			});
+			await loadObligations();
+			alert('Obligation resolved successfully');
+		} catch (err) {
+			console.error('Failed to resolve obligation', err);
+			alert(err instanceof Error ? err.message : 'Failed to resolve obligation');
+		}
+	}
 
 	function handleAddDonation() {
 		if (!newDonation.donorName) {
@@ -527,18 +569,33 @@
 			{#if activeTab === 'replacements'}
 				<div class="space-y-6">
 					<div class="flex justify-between items-center">
-						<h3 class="text-lg font-semibold text-gray-900">Replacement Payment Tracking</h3>
+						<h3 class="text-lg font-semibold text-gray-900">Replacement & Damage Payment Tracking</h3>
 						<span class="text-sm text-gray-600">
-							Outstanding: <span class="font-bold text-orange-600">₱{outstandingPayments.toLocaleString()}</span>
+							Outstanding: <span class="font-bold text-orange-600">₱{obligations.reduce((sum, o) => sum + o.balance, 0).toLocaleString()}</span>
 						</span>
 					</div>
 
-					{#if replacementPayments.length === 0}
+					{#if isLoading}
 						<div class="text-center py-12 bg-gray-50 rounded-lg">
-							<svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<svg class="w-8 h-8 text-gray-400 mx-auto mb-4 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							<p class="text-gray-500">Loading obligations...</p>
+						</div>
+					{:else if error}
+						<div class="text-center py-12 bg-red-50 rounded-lg border border-red-200">
+							<svg class="w-12 h-12 text-red-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+							</svg>
+							<p class="text-red-600">{error}</p>
+						</div>
+					{:else if obligations.length === 0}
+						<div class="text-center py-12 bg-gray-50 rounded-lg">
+							<svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="current Color" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 							</svg>
-							<p class="text-gray-500">No replacement payments pending</p>
+							<p class="text-gray-500">No pending financial obligations</p>
 						</div>
 					{:else}
 						<div class="overflow-x-auto">
@@ -547,54 +604,66 @@
 									<tr>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Due</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount Paid</th>
+										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
 									</tr>
 								</thead>
 								<tbody class="bg-white divide-y divide-gray-200">
-									{#each replacementPayments as payment}
+									{#each obligations as obligation}
 										<tr class="hover:bg-gray-50">
 											<td class="px-6 py-4 whitespace-nowrap">
-												<div class="text-sm font-medium text-gray-900">{payment.studentName}</div>
-												<div class="text-sm text-gray-500">{payment.studentId}</div>
+												<div class="text-sm font-medium text-gray-900">{obligation.studentName || 'Unknown Student'}</div>
+												<div class="text-sm text-gray-500">{obligation.studentEmail || 'N/A'}</div>
 											</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{payment.item}</td>
 											<td class="px-6 py-4 whitespace-nowrap">
-												<span class="px-2 py-1 text-xs font-medium rounded-full {payment.reason === 'Lost' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
-													{payment.reason}
+												<div class="text-sm text-gray-900">{obligation.itemName}</div>
+												<div class="text-xs text-gray-500">Qty: {obligation.quantity}</div>
+											</td>
+											<td class="px-6 py-4 whitespace-nowrap">
+												<span class="px-2 py-1 text-xs font-medium rounded-full {obligation.type === 'missing' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
+													{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
 												</span>
 											</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{payment.amountDue.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{payment.amountPaid.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-orange-600">₱{(payment.amountDue - payment.amountPaid).toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap">
-												<span class="px-2 py-1 text-xs font-medium rounded-full {getStatusColor(payment.status)}">
-													{payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-												</span>
-											</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{payment.dueDate}</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{obligation.amount.toLocaleString()}</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{obligation.amountPaid.toLocaleString()}</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-orange-600">₱{obligation.balance.toLocaleString()}</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(obligation.dueDate).toLocaleDateString()}</td>
 											<td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-												{#if payment.status !== 'paid'}
-													<button
-														onclick={() => processPayment(payment.id)}
-														class="text-emerald-600 hover:text-emerald-900 font-medium"
-													>
-														Process Payment
-													</button>
-													<button
-														onclick={() => sendPaymentReminder(payment.id)}
-														class="text-blue-600 hover:text-blue-900 font-medium"
-													>
-														Send Reminder
-													</button>
-												{:else}
-													<span class="text-green-600 font-medium">Paid</span>
-												{/if}
+												<button
+													onclick={() => {
+														const amount = parseFloat(prompt(`Enter payment amount (Balance: ₱${obligation.balance}):`) || '0');
+														if (amount > 0 && amount <= obligation.balance) {
+															handleResolveObligation(obligation.id, 'payment', amount);
+														}
+													}}
+													class="text-emerald-600 hover:text-emerald-900 font-medium"
+												>
+													Record Payment
+												</button>
+												<button
+													onclick={() => {
+														if (confirm(`Mark item as replaced by student?`)) {
+															handleResolveObligation(obligation.id, 'replacement');
+														}
+													}}
+													class="text-blue-600 hover:text-blue-900 font-medium"
+												>
+													Mark Replaced
+												</button>
+												<button
+													onclick={() => {
+														if (confirm(`Waive this obligation? This action cannot be undone.`)) {
+															handleResolveObligation(obligation.id, 'waiver');
+														}
+													}}
+													class="text-gray-600 hover:text-gray-900 font-medium"
+												>
+													Waive
+												</button>
 											</td>
 										</tr>
 									{/each}

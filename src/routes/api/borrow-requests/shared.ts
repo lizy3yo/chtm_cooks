@@ -31,6 +31,8 @@ export function isBorrowRequestStatus(value: string): boolean {
 		'approved_instructor',
 		'ready_for_pickup',
 		'borrowed',
+		'pending_return',
+		'missing',
 		'returned',
 		'rejected'
 	].includes(value);

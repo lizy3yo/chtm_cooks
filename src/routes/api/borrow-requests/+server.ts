@@ -65,7 +65,7 @@ export const GET: RequestHandler = async (event) => {
 			pages: number;
 		}>(cacheKey);
 
-		if (cached) {
+		if (cached && user.role !== 'custodian') {
 			return json(cached);
 		}
 
@@ -78,6 +78,21 @@ export const GET: RequestHandler = async (event) => {
 		}
 		if (user.role === 'student') {
 			filter.studentId = new ObjectId(user.userId);
+		}
+		if (user.role === 'custodian') {
+			if (status === BorrowRequestStatus.PENDING_INSTRUCTOR) {
+				return json({
+					requests: [],
+					total: 0,
+					page,
+					limit,
+					pages: 0
+				});
+			}
+
+			if (!status) {
+				filter.status = { $ne: BorrowRequestStatus.PENDING_INSTRUCTOR };
+			}
 		}
 		if (search) {
 			filter.$or = [
