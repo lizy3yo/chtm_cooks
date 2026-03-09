@@ -817,65 +817,94 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 					</select>
 				</div>
 				
-				<div class="overflow-x-auto max-h-[48rem]">
+				{#if displayItems.length === 0}
+					<div class="py-12 text-center">
+						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+						</svg>
+						<h3 class="mt-4 text-lg font-medium text-gray-900">No items found</h3>
+						<p class="mt-2 text-sm text-gray-500">
+							{#if selectedCategory}
+								No items in this category. Try selecting a different category or clear the filter.
+							{:else if query}
+								No items match your search. Try different keywords.
+							{:else}
+								Get started by adding your first inventory item.
+							{/if}
+						</p>
+						{#if !selectedCategory && !query}
+							<button 
+								onclick={() => switchTab('add-item')}
+								class="mt-4 inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700"
+							>
+								<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+								</svg>
+								Add Your First Item
+							</button>
+						{/if}
+					</div>
+				{:else}
+					<div class="overflow-x-auto max-h-[48rem]">
 						<table class="min-w-full divide-y divide-gray-200">
-						<thead class="bg-gray-50">
-							<tr>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Specification</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tools / Equipment</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Count</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">EOM Count</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variance</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-								<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condition</th>
-
-							</tr>
-						</thead>
-						<tbody class="divide-y divide-gray-200 bg-white">
-							{#each displayItems as item, i}
-								<tr class="hover:bg-gray-50 cursor-pointer" onclick={() => openModal(item)}>
-									<td class="whitespace-nowrap px-6 py-4">
-										<div class="flex items-center gap-3">
-											<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700">{i + 1}</span>
-											<div class="text-sm font-medium text-gray-900">{item.name}</div>
-										</div>
-									</td>
-									<td class="whitespace-nowrap px-6 py-4">
-										<span class="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
-									</td>
-									<td class="px-6 py-4 text-sm text-gray-700">{item.specification}</td>
-									<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment}</td>
-									<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.quantity}</td>
-									<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.eomCount}</td>
-									<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{item.variance}</td>
-									<td class="whitespace-nowrap px-6 py-4">
-										{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-											<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
-												<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-													<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-												</svg>
-												{item.status}
-											</span>
-										{:else}
-											<span class="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-semibold text-pink-800">
-												<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-													<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-												</svg>
-												{item.status}
-											</span>
-										{/if}
-									</td>
-									<td class="whitespace-nowrap px-6 py-4">
-										<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {item.condition === 'Good' ? 'bg-pink-100 text-pink-800' : 'bg-yellow-100 text-yellow-800'}">{item.condition}</span>
-									</td>
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
+									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Specification</th>
+									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tools / Equipment</th>
+									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Count</th>
+									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">EOM Count</th>
+									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variance</th>
+									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condition</th>
 
 								</tr>
-							{/each}
-						</tbody>
-					</table>
-				</div>
+							</thead>
+							<tbody class="divide-y divide-gray-200 bg-white">
+								{#each displayItems as item, i}
+									<tr class="hover:bg-gray-50 cursor-pointer" onclick={() => openModal(item)}>
+										<td class="whitespace-nowrap px-6 py-4">
+											<div class="flex items-center gap-3">
+												<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700">{i + 1}</span>
+												<div class="text-sm font-medium text-gray-900">{item.name}</div>
+											</div>
+										</td>
+										<td class="whitespace-nowrap px-6 py-4">
+											<span class="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
+										</td>
+										<td class="px-6 py-4 text-sm text-gray-700">{item.specification}</td>
+										<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment}</td>
+										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.quantity}</td>
+										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.eomCount}</td>
+										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{item.variance}</td>
+										<td class="whitespace-nowrap px-6 py-4">
+											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+												<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
+													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+														<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+													</svg>
+													{item.status}
+												</span>
+											{:else}
+												<span class="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-semibold text-pink-800">
+													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+														<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+													</svg>
+													{item.status}
+												</span>
+											{/if}
+										</td>
+										<td class="whitespace-nowrap px-6 py-4">
+											<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {item.condition === 'Good' ? 'bg-pink-100 text-pink-800' : 'bg-yellow-100 text-yellow-800'}">{item.condition}</span>
+										</td>
+
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
 			</div>
 			
 		{:else if activeTab === 'categories'}
@@ -895,8 +924,26 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 					</button>
 				</div>
 				
-				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-					{#each categories as category}
+				{#if categories.length === 0}
+					<div class="py-12 text-center">
+						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+						</svg>
+						<h3 class="mt-4 text-lg font-medium text-gray-900">No categories yet</h3>
+						<p class="mt-2 text-sm text-gray-500">Get started by creating your first category to organize your inventory items.</p>
+						<button 
+							onclick={() => showCategoryModal = true}
+							class="mt-4 inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+						>
+							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+							</svg>
+							Add Your First Category
+						</button>
+					</div>
+				{:else}
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+						{#each categories as category}
 						<div onclick={() => openCategory(category)} class="relative rounded-lg border-2 border-gray-200 p-6 transition-all hover:border-emerald-500 hover:shadow-md cursor-pointer">
 							<div class="flex items-center justify-between">
 								<div class="flex-1">
@@ -961,6 +1008,7 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 						</div>
 					{/each}
 				</div>
+				{/if}
 			</div>
 
 		<!-- Category Creation Modal -->

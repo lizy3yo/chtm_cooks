@@ -508,11 +508,12 @@
 					<div>
 						<h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Donations</h3>
 						{#if donations.length === 0}
-							<div class="text-center py-12 bg-gray-50 rounded-lg">
-								<svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<div class="py-12 text-center">
+								<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 								</svg>
-								<p class="text-gray-500">No donations recorded yet</p>
+								<h3 class="mt-4 text-lg font-medium text-gray-900">No donations yet</h3>
+								<p class="mt-2 text-sm text-gray-500">Donations from individuals or organizations will be recorded and tracked here.</p>
 							</div>
 						{:else}
 							<div class="overflow-x-auto">
@@ -591,11 +592,12 @@
 							<p class="text-red-600">{error}</p>
 						</div>
 					{:else if obligations.length === 0}
-						<div class="text-center py-12 bg-gray-50 rounded-lg">
-							<svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="current Color" viewBox="0 0 24 24">
+						<div class="py-12 text-center">
+							<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 							</svg>
-							<p class="text-gray-500">No pending financial obligations</p>
+							<h3 class="mt-4 text-lg font-medium text-gray-900">All clear!</h3>
+							<p class="mt-2 text-sm text-gray-500">No pending financial obligations. All students are in good standing.</p>
 						</div>
 					{:else}
 						<div class="overflow-x-auto">
@@ -688,11 +690,12 @@
 					</div>
 
 					{#if paymentHistory.length === 0}
-						<div class="text-center py-12 bg-gray-50 rounded-lg">
-							<svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<div class="py-12 text-center">
+							<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
 							</svg>
-							<p class="text-gray-500">No payment history available</p>
+							<h3 class="mt-4 text-lg font-medium text-gray-900">No payment history</h3>
+							<p class="mt-2 text-sm text-gray-500">Completed payments and transactions will appear here for your records.</p>
 						</div>
 					{:else}
 						<div class="overflow-x-auto">
