@@ -171,9 +171,11 @@ flowchart TD
   ST3 --> PICKUP[/Student picks up items/]:::io
   PICKUP --> ST4[[borrowed]]:::state
   ST4 --> ACTIVE[Active borrow period]:::process
-  ACTIVE --> RETURN[/Student returns items/]:::io
-  RETURN --> ST5[[returned]]:::done
-  ST5 --> END_OK([End - Completed]):::term
+  ACTIVE --> INITRET[/Student initiates return/]:::io
+  INITRET --> ST5[[pending_return]]:::state
+  ST5 --> CUSTRET[Custodian confirms return]:::process
+  CUSTRET --> ST6[[returned]]:::done
+  ST6 --> END_OK([End - Completed]):::term
       </pre>
     </section>
 
@@ -192,7 +194,7 @@ flowchart TB
     ST1[/Create borrow request/]:::io
     ST2[/Pick up approved request/]:::io
     ST3[Use borrowed items]:::step
-    ST4[/Return items/]:::io
+    ST4[/Initiate return/]:::io
   end
   class L1 lane
 
@@ -205,6 +207,7 @@ flowchart TB
   subgraph L3[Custodian Lane]
     CU1[Prepare requested items]:::step
     CU2[Release request for pickup]:::step
+    CU3[Confirm return of items]:::step
   end
   class L3 lane
 
@@ -220,8 +223,10 @@ flowchart TB
   ST2 --> S04[borrowed]:::status
   S04 --> ST3
   ST3 --> ST4
-  ST4 --> S05[returned]:::status
-  S05 --> DONE([Completed]):::finish
+  ST4 --> S05[pending_return]:::status
+  S05 --> CU3
+  CU3 --> S06[returned]:::finish
+  S06 --> DONE([Completed]):::finish
       </pre>
     </section>
 
@@ -230,7 +235,8 @@ flowchart TB
       <div class="legend-item"><strong>approved_instructor</strong>: Instructor validated request; Custodian fulfillment starts.</div>
       <div class="legend-item"><strong>ready_for_pickup</strong>: Custodian has released request; Student may claim items.</div>
       <div class="legend-item"><strong>borrowed</strong>: Items are in active use during borrow period.</div>
-      <div class="legend-item"><strong>returned</strong>: Process completed and transaction closed.</div>
+      <div class="legend-item"><strong>pending_return</strong>: Student has initiated return; awaiting Custodian confirmation.</div>
+      <div class="legend-item"><strong>returned</strong>: Custodian confirmed return; process completed and transaction closed.</div>
       <div class="legend-item"><strong>Shape Standard:</strong> Terminator = rounded node, Process = rectangle, Decision = diamond, Input/Output = parallelogram, Status = highlighted state block.</div>
     </section>
 

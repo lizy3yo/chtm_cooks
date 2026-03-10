@@ -31,6 +31,7 @@ export interface BorrowRequestItem {
 	name: string;
 	quantity: number;
 	category?: string;
+	picture?: string;
 	inspection?: ItemInspection; // Added for return inspection tracking
 }
 
@@ -65,6 +66,7 @@ export interface BorrowRequestResponseItem {
 	name: string;
 	quantity: number;
 	category?: string;
+	picture?: string;
 	inspection?: {
 		status: ItemInspectionStatus;
 		inspectedAt: Date;
@@ -126,6 +128,7 @@ export function toBorrowRequestResponse(request: BorrowRequest): BorrowRequestRe
 			name: item.name,
 			quantity: item.quantity,
 			category: item.category,
+			picture: item.picture,
 			inspection: item.inspection ? {
 				status: item.inspection.status,
 				inspectedAt: item.inspection.inspectedAt,

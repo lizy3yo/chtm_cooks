@@ -277,7 +277,8 @@ export const POST: RequestHandler = async (event) => {
 					itemId: item.itemId,
 					name: inventoryItem.name,
 					quantity: item.quantity,
-					category: inventoryItem.category
+					category: inventoryItem.category,
+					picture: inventoryItem.picture
 				};
 			}),
 			purpose,

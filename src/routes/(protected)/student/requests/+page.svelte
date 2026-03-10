@@ -1,6 +1,14 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
+import { catalogAPI } from '$lib/api/catalog';
+import {
+	ClipboardList, Clock, Activity, PackageOpen,
+	CheckCircle2, AlertCircle, X, Search, RotateCcw,
+	Plus, ClipboardX, Package, CalendarDays, FileText,
+	UserCircle, TriangleAlert, Info, CornerDownLeft,
+	Check, CircleX, PackageCheck, CircleAlert
+} from 'lucide-svelte';
 
 type StudentTab = 'my-request' | 'instructor-approved' | 'active' | 'history';
 
@@ -16,15 +24,17 @@ let showReturnConfirm = $state(false);
 let confirmReturnRequest = $state<any>(null);
 let returnError = $state<string | null>(null);
 let returnSuccess = $state<string | null>(null);
+// itemId → picture URL, back-filled from catalog for legacy requests
+let itemPictureCache = $state<Map<string, string>>(new Map());
 
 function inferItemIcon(itemName: string): string {
 const normalized = itemName.toLowerCase();
-if (normalized.includes('knife')) return 'Knife';
-if (normalized.includes('bowl')) return 'Bowl';
-if (normalized.includes('scale')) return 'Scale';
-if (normalized.includes('mixer')) return 'Mixer';
-if (normalized.includes('processor')) return 'Processor';
-return 'Item';
+if (normalized.includes('knife')) return '🔪';
+if (normalized.includes('bowl')) return '🥣';
+if (normalized.includes('scale')) return '⚖️';
+if (normalized.includes('mixer')) return '🎛️';
+if (normalized.includes('processor')) return '🔧';
+return '📦';
 }
 
 function toUiStatus(status: BorrowRequestRecord['status']): 'pending' | 'approved' | 'ready' | 'picked-up' | 'pending-return' | 'missing' | 'returned' | 'rejected' {
@@ -61,7 +71,8 @@ rawId: request.id,
 id: formatRequestCode(request.id),
 items: request.items.map((item) => ({
 name: item.name,
-image: inferItemIcon(item.name)
+itemId: item.itemId,
+picture: item.picture || null
 })),
 status: uiStatus,
 requestDate: request.createdAt,
@@ -81,10 +92,36 @@ async function loadRequests(forceRefresh = false): Promise<void> {
 try {
 const response = await borrowRequestsAPI.list({}, { forceRefresh });
 requests = response.requests.map(mapRequest);
+await backfillItemPictures();
 } catch (error) {
 console.error('Failed to load student requests', error);
 requests = [];
 }
+}
+
+async function backfillItemPictures(): Promise<void> {
+	// Collect itemIds that have no stored picture
+	const missingIds = new Set<string>();
+	for (const req of requests) {
+		for (const item of req.items) {
+			if (item.itemId && !item.picture && !itemPictureCache.has(item.itemId)) {
+				missingIds.add(item.itemId);
+			}
+		}
+	}
+	if (missingIds.size === 0) return;
+	try {
+		const response = await catalogAPI.getCatalog({ availability: 'all', limit: 300 });
+		const next = new Map(itemPictureCache);
+		for (const catalogItem of response.items) {
+			if (missingIds.has(catalogItem.id) && catalogItem.picture) {
+				next.set(catalogItem.id, catalogItem.picture);
+			}
+		}
+		itemPictureCache = next;
+	} catch {
+		// Non-critical — fallback icon will be shown
+	}
 }
 
 onMount(async () => {
@@ -126,18 +163,46 @@ default: return 'bg-gray-100 text-gray-800';
 }
 }
 
-function getStatusIcon(status: string) {
-switch (status) {
-case 'pending': return 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z';
-case 'approved': return 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z';
-case 'ready': return 'M5 13l4 4L19 7';
-case 'picked-up': return 'M3 3h2.586a1 1 0 01.707.293L12 10.586l5.707-5.707a1 1 0 01.707-.293H21a1 1 0 011 1v14a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1z';
-case 'pending-return': return 'M16 17l-4 4m0 0l-4-4m4 4V3';
-case 'missing': return 'M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z';
-case 'returned': return 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z';
-case 'rejected': return 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z';
-default: return 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z';
+function getStatusIconComponent(status: string) {
+	switch (status) {
+		case 'pending': return Clock;
+		case 'approved': return CheckCircle2;
+		case 'ready': return PackageCheck;
+		case 'picked-up': return PackageCheck;
+		case 'pending-return': return CornerDownLeft;
+		case 'missing': return CircleAlert;
+		case 'returned': return CheckCircle2;
+		case 'rejected': return CircleX;
+		default: return Clock;
+	}
 }
+
+function getStatusBorderColor(status: string): string {
+switch (status) {
+case 'pending': return 'border-amber-400';
+case 'approved': return 'border-blue-500';
+case 'ready': return 'border-emerald-500';
+case 'picked-up': return 'border-violet-500';
+case 'pending-return': return 'border-orange-500';
+case 'missing': return 'border-rose-600';
+case 'returned': return 'border-teal-500';
+case 'rejected': return 'border-red-500';
+default: return 'border-gray-200';
+}
+}
+
+function getStatusLabel(status: string): string {
+const labels: Record<string, string> = {
+'pending': 'Pending Review',
+'approved': 'Instructor Approved',
+'ready': 'Ready for Pickup',
+'picked-up': 'Active Loan',
+'pending-return': 'Return Initiated',
+'missing': 'Item Missing',
+'returned': 'Returned',
+'rejected': 'Rejected'
+};
+return labels[status] ?? status;
 }
 
 const filteredRequests = $derived.by(() => {
@@ -291,9 +356,7 @@ return timeline;
 	{#if returnSuccess}
 		<div class="rounded-lg bg-green-50 border border-green-200 p-4 shadow-sm">
 			<div class="flex items-start gap-3">
-				<svg class="h-5 w-5 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-				</svg>
+				<CheckCircle2 size={20} class="text-green-500 flex-shrink-0 mt-0.5" />
 				<div class="flex-1">
 					<p class="text-sm font-medium text-green-800">{returnSuccess}</p>
 				</div>
@@ -301,9 +364,7 @@ return timeline;
 					onclick={() => returnSuccess = null}
 					class="text-green-500 hover:text-green-700"
 				>
-					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-					</svg>
+					<X size={20} />
 				</button>
 			</div>
 		</div>
@@ -313,9 +374,7 @@ return timeline;
 	{#if returnError}
 		<div class="rounded-lg bg-red-50 border border-red-200 p-4 shadow-sm">
 			<div class="flex items-start gap-3">
-				<svg class="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-				</svg>
+				<AlertCircle size={20} class="text-red-500 flex-shrink-0 mt-0.5" />
 				<div class="flex-1">
 					<p class="text-sm font-medium text-red-800">{returnError}</p>
 				</div>
@@ -323,9 +382,7 @@ return timeline;
 					onclick={() => returnError = null}
 					class="text-red-500 hover:text-red-700"
 				>
-					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-					</svg>
+					<X size={20} />
 				</button>
 			</div>
 		</div>
@@ -346,9 +403,7 @@ return timeline;
 					<p class="mt-2 text-3xl font-semibold text-gray-900">{stats.totalRequests}</p>
 				</div>
 				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-					<svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-					</svg>
+					<ClipboardList size={24} class="text-blue-600" />
 				</div>
 			</div>
 		</div>
@@ -360,9 +415,7 @@ return timeline;
 					<p class="mt-2 text-3xl font-semibold text-yellow-600">{stats.pendingCount}</p>
 				</div>
 				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100">
-					<svg class="h-6 w-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-					</svg>
+					<Clock size={24} class="text-yellow-600" />
 				</div>
 			</div>
 		</div>
@@ -374,9 +427,7 @@ return timeline;
 					<p class="mt-2 text-3xl font-semibold text-green-600">{stats.activeCount}</p>
 				</div>
 				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-					<svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-					</svg>
+					<Activity size={24} class="text-green-600" />
 				</div>
 			</div>
 		</div>
@@ -388,9 +439,7 @@ return timeline;
 					<p class="mt-2 text-3xl font-semibold text-pink-600">{stats.readyForPickup}</p>
 				</div>
 				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-pink-100">
-					<svg class="h-6 w-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2 1m2-1l-2-1m2 1v2.5"/>
-					</svg>
+					<PackageOpen size={24} class="text-pink-600" />
 				</div>
 			</div>
 		</div>
@@ -443,9 +492,7 @@ return timeline;
 		<div class="flex-1 max-w-md">
 			<div class="relative">
 				<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-					<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-					</svg>
+				<Search size={20} class="text-gray-400" />
 				</div>
 				<input
 					type="text"
@@ -475,9 +522,7 @@ return timeline;
 				}}
 				class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
 			>
-				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-				</svg>
+			<RotateCcw size={16} />
 				Clear
 			</button>
 		</div>
@@ -490,172 +535,158 @@ return timeline;
 				{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
 			</span>
 			<a href="/student/request" class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-3 py-2 text-xs font-medium text-white hover:bg-pink-700">
-				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-				</svg>
+				<Plus size={16} />
 				New Request
 			</a>
 		</div>
 		
 		{#each filteredRequests as request}
-			<div class="rounded-lg bg-white p-6 shadow transition-all hover:shadow-md">
-				<div class="flex gap-4">
-					<div class="flex-1">
-						<div class="flex items-start justify-between">
-							<div>
-								<div class="flex items-center gap-3">
-									<h3 class="text-lg font-semibold text-gray-900">{request.id}</h3>
-									<span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {getStatusColor(request.status)}">
-										<svg class="mr-1 h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getStatusIcon(request.status)}/>
-										</svg>
-										{request.status.charAt(0).toUpperCase() + request.status.slice(1)}
-									</span>
-								</div>
-								<p class="mt-1 text-sm text-gray-500">Requested on {new Date(request.requestDate).toLocaleDateString()}</p>
-							</div>
-						</div>
-						
-						<!-- Items -->
-						<div class="mt-4">
-							<p class="text-xs font-medium text-gray-500">ITEMS REQUESTED</p>
-							<div class="mt-2 flex flex-wrap gap-2">
-								{#each request.items as item}
-									<div class="inline-flex items-center rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5">
-										<span class="mr-2 text-lg">{item.image}</span>
-										<span class="text-sm font-medium text-gray-900">{item.name}</span>
-									</div>
-								{/each}
-							</div>
-						</div>
-						
-						<!-- Details Grid -->
-						<div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-							<div>
-								<p class="text-xs font-medium text-gray-500">Borrow Period</p>
-								<p class="mt-1 text-sm font-medium text-gray-900">
-									{new Date(request.borrowDate).toLocaleDateString()} - {new Date(request.returnDate).toLocaleDateString()}
-								</p>
-							</div>
-							<div>
-								<p class="text-xs font-medium text-gray-500">Purpose</p>
-								<p class="mt-1 text-sm font-medium text-gray-900">{request.purpose}</p>
-							</div>
-							<div>
-								<p class="text-xs font-medium text-gray-500">Assigned To</p>
-								<p class="mt-1 text-sm font-medium text-gray-900">{request.instructor}</p>
-							</div>
-						</div>
+			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md border-l-4 {getStatusBorderColor(request.status)}">
 
-						{#if activeTab === 'instructor-approved'}
-							<div class="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
-								<p class="text-xs font-semibold uppercase tracking-wide text-blue-800">Approval Workflow</p>
-								<div class="mt-3 grid gap-3 sm:grid-cols-3">
-									<div>
-										<p class="text-xs font-medium text-blue-700">Instructor Approved</p>
-										<p class="text-sm text-gray-900">{request.instructor || 'Primary Admin'}</p>
-										<p class="text-xs text-gray-600">{new Date(request.approvedDate || request.requestDate).toLocaleDateString()}</p>
-									</div>
-									<div>
-										<p class="text-xs font-medium text-blue-700">Custodian Approved</p>
-										<p class="text-sm text-gray-900">Custodian</p>
-										<p class="text-xs text-gray-600">
-											{request.releasedDate ? new Date(request.releasedDate).toLocaleDateString() : 'Pending'}
-										</p>
-									</div>
-									<div>
-										<p class="text-xs font-medium text-blue-700">Pickup Confirmed</p>
-										<p class="text-sm text-gray-900">Custodian</p>
-										<p class="text-xs text-gray-600">
-											{request.pickedUpDate ? new Date(request.pickedUpDate).toLocaleDateString() : 'Pending'}
-										</p>
-									</div>
-								</div>
+				<!-- Card Body -->
+				<div class="p-5">
+
+					<!-- Header: ID · Status · Date -->
+					<div class="flex items-start justify-between gap-3">
+						<div class="flex flex-wrap items-center gap-2 min-w-0">
+							<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
+							<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold {getStatusColor(request.status)}">
+							<svelte:component this={getStatusIconComponent(request.status)} size={12} />
+								{getStatusLabel(request.status)}
+							</span>
+						</div>
+						<time class="shrink-0 whitespace-nowrap text-xs text-gray-400">
+							{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+						</time>
+					</div>
+
+					<!-- Equipment Chips -->
+					<div class="mt-4">
+						<p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Equipment Requested</p>
+						<div class="flex flex-wrap gap-1.5">
+							{#each request.items as item}
+								{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+								<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+									{#if pic}
+										<img src={pic} alt={item.name} class="h-4 w-4 rounded object-cover shrink-0" />
+									{:else}
+										<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
+										</svg>
+									{/if}
+									{item.name}
+								</span>
+							{/each}
+						</div>
+					</div>
+
+					<!-- Metadata Row -->
+					<div class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+						<div class="flex items-center gap-1.5 text-xs text-gray-500">
+						<CalendarDays size={14} class="shrink-0 text-gray-400" />
+							<span>
+								{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+								–
+								{new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+							</span>
+						</div>
+						<div class="flex items-center gap-1.5 text-xs text-gray-500 min-w-0">
+						<FileText size={14} class="shrink-0 text-gray-400" />
+							<span class="truncate max-w-[220px]">{request.purpose}</span>
+						</div>
+						<div class="flex items-center gap-1.5 text-xs text-gray-500">
+						<UserCircle size={14} class="shrink-0 text-gray-400" />
+							<span>{request.instructor}</span>
+						</div>
+					</div>
+
+					<!-- Rejection Reason -->
+					{#if request.status === 'rejected' && request.rejectionReason}
+						<div class="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
+							<svg class="h-4 w-4 shrink-0 mt-0.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+							</svg>
+							<div class="min-w-0">
+								<p class="text-xs font-semibold text-red-800">Rejection Reason</p>
+								<p class="mt-0.5 text-xs text-red-700">{request.rejectionReason}</p>
 							</div>
-						{/if}
-						
-						<!-- Rejection Reason -->
-						{#if request.status === 'rejected' && request.rejectionReason}
-							<div class="mt-4 rounded-lg bg-red-50 border border-red-200 p-3">
-								<div class="flex gap-3">
-									<svg class="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-									</svg>
-									<div class="flex-1 min-w-0">
-										<p class="text-sm font-medium text-red-800">Rejection Reason</p>
-										<p class="mt-0.5 text-sm text-red-700">{request.rejectionReason}</p>
-									</div>
-								</div>
-							</div>
+						</div>
+					{/if}
+
+				</div>
+
+				<!-- Card Footer: contextual hint + actions -->
+				<div class="flex items-center justify-between border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+
+					<!-- Left: status hint -->
+					<div class="text-xs">
+						{#if request.status === 'ready'}
+							<span class="flex items-center gap-1.5 font-medium text-emerald-700">
+							<Info size={14} />
+								Proceed to the custodian desk to collect your items
+							</span>
+						{:else if request.status === 'pending-return'}
+							<span class="flex items-center gap-1.5 font-medium text-orange-600">
+							<Clock size={14} />
+								Awaiting custodian confirmation
+							</span>
+						{:else}
+							<span class="text-gray-300">—</span>
 						{/if}
 					</div>
-					
-					<!-- Actions -->
-					<div class="flex flex-col gap-2 lg:ml-6">
+
+					<!-- Right: action buttons -->
+					<div class="flex items-center gap-2">
 						<button
 							onclick={() => openDetailModal(request)}
-							class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+							class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
 						>
 							View Details
 						</button>
 						{#if request.status === 'pending'}
-							<button class="inline-flex items-center justify-center rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50">
+							<button class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 transition-colors">
 								Cancel
 							</button>
 						{/if}
-						{#if request.status === 'ready'}
-							<p class="max-w-56 text-xs text-gray-500">
-								{getReadyPickupMessage()}
-							</p>
-						{/if}
 						{#if request.status === 'picked-up'}
-							<button 
+							<button
 								onclick={() => requestReturnConfirmation(request)}
 								disabled={loadingReturn === request.rawId}
-								class="inline-flex items-center justify-center gap-2 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+								class="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 							>
 								{#if loadingReturn === request.rawId}
-									<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+									<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
 										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 									</svg>
-									<span>Processing...</span>
+									Processing…
 								{:else}
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 17l-4 4m0 0l-4-4m4 4V3"/>
 									</svg>
-									<span>Return Item</span>
+									Return Items
 								{/if}
 							</button>
 						{/if}
-						{#if request.status === 'pending-return'}
-							<div class="max-w-56 rounded-lg bg-orange-50 border border-orange-200 p-2">
-								<p class="text-xs font-medium text-orange-800">Return Initiated</p>
-								<p class="text-xs text-orange-600 mt-1">Awaiting custodian confirmation</p>
-							</div>
-						{/if}
 						{#if request.status === 'rejected'}
-							<button class="inline-flex items-center justify-center rounded-lg border border-pink-300 bg-white px-4 py-2 text-sm font-medium text-pink-700 hover:bg-pink-50">
+							<button class="rounded-lg border border-pink-200 bg-white px-3 py-1.5 text-xs font-medium text-pink-700 shadow-sm hover:bg-pink-50 transition-colors">
 								Appeal
 							</button>
 						{/if}
 					</div>
+
 				</div>
 			</div>
 		{/each}
 		
 		{#if filteredRequests.length === 0}
 			<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
-				<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-				</svg>
+			<ClipboardX size={48} class="mx-auto text-gray-400" />
 				<h3 class="mt-2 text-sm font-medium text-gray-900">No requests found</h3>
 				<p class="mt-1 text-sm text-gray-500">Get started by creating a new request.</p>
 				<div class="mt-6">
-					<a href="/student/request" class="inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
-						<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-						</svg>
+				<a href="/student/request" class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
+					<Plus size={16} />
 						New Request
 					</a>
 				</div>
@@ -678,9 +709,7 @@ return timeline;
 							<p class="mt-1 text-sm text-gray-500">{selectedRequest.id}</p>
 						</div>
 						<button onclick={closeDetailModal} class="text-gray-400 hover:text-gray-500">
-							<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-							</svg>
+						<X size={24} />
 						</button>
 					</div>
 				</div>
@@ -691,11 +720,9 @@ return timeline;
 						<!-- Status Badge -->
 						<div>
 							<h4 class="text-sm font-medium text-gray-700 mb-3">Current Status</h4>
-							<span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold {getStatusColor(selectedRequest.status)}">
-								<svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={getStatusIcon(selectedRequest.status)}/>
-								</svg>
-								{selectedRequest.status.charAt(0).toUpperCase() + selectedRequest.status.slice(1)}
+						<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold {getStatusColor(selectedRequest.status)}">
+							<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={16} />
+							{getStatusLabel(selectedRequest.status)}
 							</span>
 						</div>
 						
@@ -704,14 +731,23 @@ return timeline;
 							<h4 class="text-sm font-medium text-gray-700 mb-3">Requested Items</h4>
 							<div class="space-y-2">
 								{#each selectedRequest.items as item}
-									<div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-										<span class="text-2xl">{item.image}</span>
+								{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+								<div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+									{#if pic}
+										<img src={pic} alt={item.name} class="h-10 w-10 rounded-md object-cover shrink-0" />
+										{:else}
+											<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-200">
+												<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
+												</svg>
+											</div>
+										{/if}
 										<span class="text-sm font-medium text-gray-900">{item.name}</span>
 									</div>
 								{/each}
 							</div>
 						</div>
-						
+
 						<!-- Request Information -->
 						<div>
 							<h4 class="text-sm font-medium text-gray-700 mb-3">Request Information</h4>
@@ -850,9 +886,7 @@ return timeline;
 			<div class="mb-4">
 				<div class="flex items-center gap-3">
 					<div class="flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
-						<svg class="h-6 w-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 17l-4 4m0 0l-4-4m4 4V3"/>
-						</svg>
+					<CornerDownLeft size={24} class="text-orange-600" />
 					</div>
 					<div>
 						<h3 class="text-lg font-semibold text-gray-900">Confirm Return</h3>
@@ -872,8 +906,15 @@ return timeline;
 					<p class="text-xs font-medium text-gray-500 mb-2">ITEMS TO RETURN</p>
 					<div class="space-y-2">
 						{#each confirmReturnRequest.items as item}
-							<div class="flex items-center gap-2 text-sm text-gray-700">
-								<span class="text-base">{item.image}</span>
+								{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+								<div class="flex items-center gap-2 text-sm text-gray-700">
+									{#if pic}
+										<img src={pic} alt={item.name} class="h-7 w-7 rounded object-cover shrink-0" />
+									{:else}
+										<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-gray-200">
+										<Package size={20} class="text-gray-400" />
+										</div>
+									{/if}
 								<span class="font-medium">{item.name}</span>
 							</div>
 						{/each}
@@ -883,9 +924,7 @@ return timeline;
 				<!-- Important Note -->
 				<div class="mt-4 rounded-lg bg-blue-50 border border-blue-200 p-3">
 					<div class="flex gap-2">
-						<svg class="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-						</svg>
+					<Info size={16} class="text-blue-600 flex-shrink-0 mt-0.5" />
 						<p class="text-xs text-blue-800">
 							Please bring all items to the custodian desk. The return will be completed once the custodian verifies and confirms all items.
 						</p>

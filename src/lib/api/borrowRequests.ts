@@ -27,6 +27,7 @@ export interface BorrowRequestItem {
 	name: string;
 	quantity: number;
 	category?: string;
+	picture?: string;
 	inspection?: {
 		status: 'good' | 'damaged' | 'missing';
 		inspectedAt: Date;

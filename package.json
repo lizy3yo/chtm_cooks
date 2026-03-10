@@ -21,6 +21,7 @@
 		"ioredis": "^5.9.3",
 		"jsonwebtoken": "^9.0.3",
 		"jszip": "^3.10.1",
+		"lucide-svelte": "^0.577.0",
 		"mongodb": "^6.21.0",
 		"mongoose": "^9.2.1",
 		"nodemailer": "^8.0.1",

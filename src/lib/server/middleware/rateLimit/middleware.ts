@@ -36,14 +36,27 @@ function getClientIP(event: RequestEvent): string {
 }
 
 /**
- * Generate Redis key for rate limiting
- * 
- * @param config - Rate limit configuration
+ * Generate Redis key for rate limiting.
+ *
+ * For generic API presets (keyPrefix === 'ratelimit:api') the key is scoped
+ * per-pathname so that browsing the catalog, loading the dashboard, etc. each
+ * have their own independent counter and don't consume the submission budget.
+ *
+ * @param config     - Rate limit configuration
  * @param identifier - Unique identifier (usually IP address)
+ * @param pathname   - Optional URL pathname for per-endpoint isolation
  * @returns Redis key
  */
-function getRateLimitKey(config: RateLimitConfig, identifier: string): string {
+function getRateLimitKey(config: RateLimitConfig, identifier: string, pathname?: string): string {
 	const prefix = config.keyPrefix || 'ratelimit';
+	// Isolate per-endpoint only for the generic API preset; auth presets already
+	// have dedicated prefixes and don't need further partitioning.
+	if (pathname && prefix === 'ratelimit:api') {
+		// Normalise pathname to a safe redis key segment (strip leading slash,
+		// replace remaining slashes and special chars with dashes).
+		const pathSegment = pathname.replace(/^\//, '').replace(/[^a-zA-Z0-9_-]/g, '-');
+		return `${prefix}:${pathSegment}:${identifier}`;
+	}
 	return `${prefix}:${identifier}`;
 }
 
@@ -72,7 +85,8 @@ export async function rateLimit(
 ): Promise<RateLimitInfo | Response> {
 	try {
 		const clientIP = getClientIP(event);
-		const key = getRateLimitKey(config, clientIP);
+		const pathname = new URL(event.request.url).pathname;
+		const key = getRateLimitKey(config, clientIP, pathname);
 
 		// Check rate limit using sliding window
 		const result = await SlidingWindow.check(key, config);
@@ -181,7 +195,8 @@ export async function markRequestSuccess(
 
 	try {
 		const clientIP = getClientIP(event);
-		const key = getRateLimitKey(config, clientIP);
+		const pathname = new URL(event.request.url).pathname;
+		const key = getRateLimitKey(config, clientIP, pathname);
 		
 		await SlidingWindow.removeLastRequest(key);
 	} catch (error) {

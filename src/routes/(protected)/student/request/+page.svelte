@@ -100,7 +100,7 @@
 					code: buildItemCode(item),
 					image: inferItemIcon(item.name),
 					picture: item.picture,
-					category: item.categoryName || 'Uncategorized',
+					category: item.category || 'Uncategorized',
 					available: item.quantity,
 					specification: item.specification || 'No specification provided',
 					status: item.status,
