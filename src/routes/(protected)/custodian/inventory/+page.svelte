@@ -43,6 +43,20 @@
 	// Editing mode
 	let editingItemId = $state<string | null>(null);
 
+	// Import modal state
+	let showImportModal = $state(false);
+	let importFile = $state<File | null>(null);
+	let importPreviewData = $state<any[]>([]);
+	let importErrors = $state<string[]>([]);
+	let importing = $state(false);
+	let importStep = $state<'upload' | 'preview' | 'complete'>('upload');
+	let importImageFiles = $state<Map<string, File>>(new Map());
+	let importProgress = $state({ current: 0, total: 0, message: '' });
+	let isDraggingOver = $state(false);
+	let importPreviewImageUrl = $state<string | null>(null); // lightbox for import preview
+	let importPreviewImageName = $state<string>('');
+	let showFormatGuide = $state(false); // collapsible format guide
+
 	// Load data on component mount
 	onMount(async () => {
 		await loadCategories();
@@ -192,6 +206,7 @@
 		if (tab !== 'add-item') {
 			resetForm();
 		}
+		// Note: Don't auto-clear category filter - use clearCategoryFilter() explicitly
 	}
 	
 	// Modal state for item details
@@ -210,7 +225,11 @@ let query = $state('');
 // reactive filtered + sorted items for display (use rune-style $derived)
 const filteredItems = $derived(items.filter(item => {
 	const isActive = !item.archived;
-	const matchesCategory = !selectedCategory || item.category === selectedCategory.name;
+	
+	// Case-insensitive category matching with trim for robustness
+	const matchesCategory = !selectedCategory || 
+		(item.category?.toLowerCase().trim() === selectedCategory.name?.toLowerCase().trim());
+	
 	const q = (query || '').toLowerCase();
 	const matchesQuery = !q || (item.name || '').toLowerCase().includes(q);
 	return isActive && matchesCategory && matchesQuery;
@@ -251,12 +270,29 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 
 		try {
 			loading = true;
-			await inventoryItemsAPI.update(item.id, { archived: true });
+			const updatedItem = await inventoryItemsAPI.update(item.id, { archived: true });
 
-			// Invalidate cache after mutation
-			inventoryStore.invalidateItems();
+			// Optimistic update: Remove archived item from local array immediately
+			const itemIndex = items.findIndex(i => i.id === item.id);
+			if (itemIndex !== -1) {
+				items.splice(itemIndex, 1);
+			}
 
-			await loadItems();
+			// Update category count
+			if (item.categoryId) {
+				const categoryIndex = categories.findIndex(c => c.id === item.categoryId);
+				if (categoryIndex !== -1) {
+					categories[categoryIndex] = {
+						...categories[categoryIndex],
+						itemCount: Math.max(0, categories[categoryIndex].itemCount - 1)
+					};
+				}
+			}
+
+			// Update store with current arrays
+			inventoryStore.setItems(items);
+			inventoryStore.setCategories(categories);
+
 			closeModal();
 			toastStore.success('Item archived successfully');
 		} catch (err: any) {
@@ -272,6 +308,7 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 		
 		try {
 			loading = true;
+			const wasEditing = !!editingItemId; // Store edit state before async operations
 
 			// Upload image if provided
 			let imageUrl = newItem.picture;
@@ -299,16 +336,38 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 				location: newItem.location
 			};
 
-			if (editingItemId) {
+			let savedItem;
+			if (wasEditing) {
 				// Update existing item
-				await inventoryItemsAPI.update(editingItemId, itemData);
+				savedItem = await inventoryItemsAPI.update(editingItemId!, itemData);
+				
+				// Optimistic update: Update item in local array
+				const itemIndex = items.findIndex(i => i.id === editingItemId);
+				if (itemIndex !== -1) {
+					items[itemIndex] = savedItem;
+				}
 			} else {
 				// Create new item
-				await inventoryItemsAPI.create(itemData);
+				savedItem = await inventoryItemsAPI.create(itemData);
+				
+				// Optimistic update: Add new item to local array immediately
+				items = [...items, savedItem];
+				
+				// Update category count
+				if (savedItem.categoryId) {
+					const categoryIndex = categories.findIndex(c => c.id === savedItem.categoryId);
+					if (categoryIndex !== -1) {
+						categories[categoryIndex] = {
+							...categories[categoryIndex],
+							itemCount: categories[categoryIndex].itemCount + 1
+						};
+					}
+				}
 			}
 
-		// Invalidate cache after mutation
-		inventoryStore.invalidateItems();
+		// Update store with current arrays
+		inventoryStore.setItems(items);
+		inventoryStore.setCategories(categories);
 
 			resetForm();
 			switchTab('all-items');
@@ -367,10 +426,13 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 	}
 
 	function openCategory(category: InventoryCategory) {
-		selectedCategory = category;
 		switchTab('all-items');
-		// small UX improvement: close any open item modal
+		selectedCategory = category;
 		selectedItem = null;
+		console.log('Category filter set to:', category.name);
+		console.log('Items in this category:', items.filter(item => 
+			!item.archived && item.category?.toLowerCase().trim() === category.name?.toLowerCase().trim()
+		).map(i => i.name));
 	}
 
 	function clearCategoryFilter() {
@@ -389,15 +451,35 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 
 		try {
 			loading = true;
+			
+			// Delete from API
 			await inventoryItemsAPI.delete(item.id);
 
-			// Invalidate cache after mutation
-			inventoryStore.invalidateItems();
+			// Optimistic update: Immediately remove from arrays
+			const itemIndex = items.findIndex(i => i.id === item.id);
+			if (itemIndex !== -1) {
+				items.splice(itemIndex, 1); // Modify array in place for reactivity
+			}
+			
+			// Update category counts
+			if (item.categoryId) {
+				const categoryIndex = categories.findIndex(c => c.id === item.categoryId);
+				if (categoryIndex !== -1) {
+					categories[categoryIndex] = { 
+						...categories[categoryIndex], 
+						itemCount: Math.max(0, categories[categoryIndex].itemCount - 1) 
+					};
+				}
+			}
 
-			await loadItems();
-			await loadCategories();
+			// Close modal and show success
 			selectedItem = null;
 			toastStore.success('Item deleted successfully');
+
+			// Update store with current items array (without deleted item)
+			inventoryStore.setItems(items);
+			inventoryStore.setCategories(categories);
+			
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to delete item');
 			console.error('Error deleting item:', err);
@@ -448,16 +530,18 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 				uploadingCategoryImage = false;
 			}
 
-			await inventoryCategoriesAPI.create({
+			const newCategory = await inventoryCategoriesAPI.create({
 				name: newCategoryName,
 				description: newCategoryDescription,
 				picture: imageUrl
 			});
 
-			// Invalidate cache after mutation
-			inventoryStore.invalidateCategories();
+			// Optimistic update: Add new category to local array immediately
+			categories = [...categories, newCategory];
 
-			await loadCategories();
+			// Update store with current categories
+			inventoryStore.setCategories(categories);
+
 			showCategoryModal = false;
 			newCategoryName = '';
 			newCategoryDescription = '';
@@ -506,16 +590,21 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 				uploadingCategoryImage = false;
 			}
 
-			await inventoryCategoriesAPI.update(editingCategory.id, {
+			const updatedCategory = await inventoryCategoriesAPI.update(editingCategory.id, {
 				name: newCategoryName,
 				description: newCategoryDescription,
 				picture: imageUrl
 			});
 
-			// Invalidate cache after mutation
-			inventoryStore.invalidateCategories();
+			// Optimistic update: Update category in local array immediately
+			const categoryIndex = categories.findIndex(c => c.id === editingCategory.id);
+			if (categoryIndex !== -1) {
+				categories[categoryIndex] = updatedCategory;
+			}
 
-			await loadCategories();
+			// Update store with current categories
+			inventoryStore.setCategories(categories);
+
 			showEditCategoryModal = false;
 			editingCategory = null;
 			newCategoryName = '';
@@ -554,17 +643,883 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 			loading = true;
 			await inventoryCategoriesAPI.delete(category.id);
 
-			// Invalidate cache after mutation
-			inventoryStore.invalidateCategories();
+			// Optimistic update: Immediately remove from array
+			const categoryIndex = categories.findIndex(c => c.id === category.id);
+			if (categoryIndex !== -1) {
+				categories.splice(categoryIndex, 1); // Modify array in place for reactivity
+			}
 
-			await loadCategories();
 			toastStore.success('Category deleted successfully. Recoverable for 30 days from History page.');
+
+			// Update store with current categories
+			inventoryStore.setCategories(categories);
+			
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to delete category');
 			console.error('Error deleting category:', err);
 		} finally {
 			loading = false;
 		}
+	}
+
+	// Import functions
+	function openImagePreview(item: any) {
+		if (!item._hasImage) return;
+		if (item._imageSource === 'url') {
+			importPreviewImageUrl = item._pictureRef;
+			importPreviewImageName = item.name;
+		} else {
+			const file = importImageFiles.get(item._pictureRef.toLowerCase());
+			if (file) {
+				// Revoke any previous object URL to avoid memory leaks
+				if (importPreviewImageUrl && importPreviewImageUrl.startsWith('blob:')) {
+					URL.revokeObjectURL(importPreviewImageUrl);
+				}
+				importPreviewImageUrl = URL.createObjectURL(file);
+				importPreviewImageName = item.name;
+			}
+		}
+	}
+
+	function closeImagePreview() {
+		if (importPreviewImageUrl?.startsWith('blob:')) {
+			URL.revokeObjectURL(importPreviewImageUrl);
+		}
+		importPreviewImageUrl = null;
+		importPreviewImageName = '';
+	}
+
+	function openImportModal() {
+		showImportModal = true;
+		importStep = 'upload';
+		importFile = null;
+		importPreviewData = [];
+		importErrors = [];
+	}
+
+	function closeImportModal() {
+		showImportModal = false;
+		importPreviewImageUrl = null;
+		importPreviewImageName = '';
+		importFile = null;
+		importPreviewData = [];
+		importErrors = [];
+		importStep = 'upload';
+		importImageFiles = new Map();
+		importProgress = { current: 0, total: 0, message: '' };
+	}
+
+	function formatFileSize(bytes: number): string {
+		if (bytes === 0) return '0 Bytes';
+		const k = 1024;
+		const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+		const i = Math.floor(Math.log(bytes) / Math.log(k));
+		return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
+	}
+
+	function getFileIcon(fileName: string): string {
+		const extension = fileName.toLowerCase().split('.').pop();
+		if (extension === 'csv') return 'csv';
+		if (extension === 'xlsx' || extension === 'xls') return 'excel';
+		if (extension === 'zip') return 'zip';
+		return 'file';
+	}
+
+	function removeImportFile() {
+		importFile = null;
+		importPreviewData = [];
+		importErrors = [];
+		importImageFiles = new Map();
+	}
+
+	async function handleImportFileSelect(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const file = target.files?.[0];
+		
+		if (!file) return;
+
+		// Validate file type
+		const validExtensions = ['.csv', '.xlsx', '.xls', '.zip'];
+		const fileName = file.name.toLowerCase();
+		const isValid = validExtensions.some(ext => fileName.endsWith(ext));
+
+		if (!isValid) {
+			toastStore.error('Please upload a CSV, Excel, or ZIP file (.csv, .xlsx, .xls, .zip)');
+			return;
+		}
+
+		importFile = file;
+
+		// Handle ZIP files differently
+		if (fileName.endsWith('.zip')) {
+			await parseZipFile(file);
+		} else {
+			await parseImportFile(file);
+		}
+	}
+
+	async function parseZipFile(file: File) {
+		try {
+			importing = true;
+			importErrors = [];
+			importPreviewData = [];
+			importImageFiles.clear();
+			importImageFiles = new Map();
+
+			// Import JSZip dynamically
+			const JSZip = (await import('jszip')).default;
+			const zip = new JSZip();
+			const contents = await zip.loadAsync(file);
+
+			// Find CSV or Excel file
+			let dataFile: any = null;
+			let dataFileName = '';
+
+			for (const [fileName, zipEntry] of Object.entries(contents.files)) {
+				if (!zipEntry.dir && (fileName.toLowerCase().endsWith('.csv') || fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'))) {
+					dataFile = zipEntry;
+					dataFileName = fileName;
+					break;
+				}
+			}
+
+			if (!dataFile) {
+				importErrors = ['No CSV or Excel file found in ZIP archive'];
+				return;
+			}
+
+			// Extract images
+			for (const [fileName, zipEntry] of Object.entries(contents.files)) {
+				if (!zipEntry.dir && /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName)) {
+					const blob = await zipEntry.async('blob');
+					const imageFile = new File([blob], fileName.split('/').pop() || fileName, { type: blob.type || 'image/jpeg' });
+					importImageFiles.set(fileName.split('/').pop()?.toLowerCase() || fileName.toLowerCase(), imageFile);
+				}
+			}
+
+			// Parse data file
+			if (dataFileName.toLowerCase().endsWith('.csv')) {
+				// Parse CSV
+				const csvText = await dataFile.async('text');
+				await parseCSVText(csvText);
+			} else {
+				// Parse Excel
+				const XLSX = await import('xlsx');
+				const arrayBuffer = await dataFile.async('arraybuffer');
+				const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+				const firstSheetName = workbook.SheetNames[0];
+				const worksheet = workbook.Sheets[firstSheetName];
+				const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
+				await parseCSVText(csvText, firstSheetName);
+			}
+
+			toastStore.success(`Found ${importImageFiles.size} image(s) in ZIP file`);
+
+		} catch (err: any) {
+			importErrors = [`Failed to parse ZIP file: ${err.message}`];
+			toastStore.error(`Failed to parse ZIP file: ${err.message}`);
+			console.error('ZIP parse error:', err);
+		} finally {
+			importing = false;
+		}
+	}
+
+	async function extractEmbeddedImagesFromExcel(data: ArrayBuffer, sheetName: string): Promise<Map<number, File>> {
+		// Returns Map<1-based Excel row number, File>
+		// Keyed by the actual row number, NOT a CSV line index.
+		// The caller is responsible for correlating to CSV line indices.
+		const imagesByRow = new Map<number, File>();
+
+		try {
+			const ExcelJS = await import('exceljs');
+			const workbook = new ExcelJS.Workbook();
+			await workbook.xlsx.load(data);
+
+			const worksheet = workbook.getWorksheet(sheetName) || workbook.worksheets[0];
+			if (!worksheet || typeof (worksheet as any).getImages !== 'function') {
+				return imagesByRow;
+			}
+
+			const images = (worksheet as any).getImages() as any[];
+			if (!images || images.length === 0) {
+				return imagesByRow;
+			}
+
+			console.log('Total images found:', images.length);
+
+			for (const img of images) {
+				const tl = img?.range?.tl;
+				const nativeRow = typeof tl?.nativeRow === 'number' ? tl.nativeRow : tl?.row;
+				if (typeof nativeRow !== 'number') continue;
+
+				// ExcelJS nativeRow is 0-based → convert to 1-based
+				const excelRowNumber = nativeRow + 1;
+
+				const imageData = workbook.getImage(img.imageId) as any;
+				if (!imageData?.buffer) continue;
+
+				const ext = String(imageData.extension || 'png').toLowerCase();
+				const mime = ext === 'jpg' || ext === 'jpeg'
+					? 'image/jpeg'
+					: ext === 'gif'
+						? 'image/gif'
+						: ext === 'webp'
+							? 'image/webp'
+							: 'image/png';
+
+				let bytes: Uint8Array | null = null;
+				if (imageData.buffer instanceof Uint8Array) {
+					bytes = imageData.buffer;
+				} else if (imageData.buffer instanceof ArrayBuffer) {
+					bytes = new Uint8Array(imageData.buffer);
+				} else if (Array.isArray(imageData.buffer)) {
+					bytes = new Uint8Array(imageData.buffer);
+				}
+
+				if (!bytes) continue;
+
+				const embeddedFile = new File([bytes], `excel-row-${excelRowNumber}.${ext}`, { type: mime });
+				imagesByRow.set(excelRowNumber, embeddedFile);
+				console.log(`Image stored for Excel row ${excelRowNumber}`);
+			}
+		} catch (err) {
+			console.warn('Could not extract embedded images from Excel:', err);
+		}
+
+		console.log('Images by row:', Array.from(imagesByRow.keys()));
+		return imagesByRow;
+	}
+
+	async function parseImportFile(file: File) {
+		try {
+			importing = true;
+			importErrors = [];
+			importPreviewData = [];
+			importImageFiles.clear();
+
+			const fileName = file.name.toLowerCase();
+
+			// Handle Excel files
+			if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+				const XLSX = await import('xlsx');
+
+				const data = await file.arrayBuffer();
+				const workbook = XLSX.read(data, { type: 'array' });
+
+				const firstSheetName = workbook.SheetNames[0];
+				const worksheet = workbook.Sheets[firstSheetName];
+
+				// Build the ordered list of non-empty row numbers using XLSX's own cell data.
+				// This MUST use XLSX (not ExcelJS) so it matches the row order of sheet_to_csv output exactly.
+				const xlsxRowSet = new Set<number>();
+				for (const addr of Object.keys(worksheet)) {
+					if (addr.startsWith('!')) continue;
+					const cell = worksheet[addr];
+					if (cell && cell.v !== null && cell.v !== undefined && String(cell.v).trim() !== '') {
+						const { r } = XLSX.utils.decode_cell(addr);
+						xlsxRowSet.add(r + 1); // store as 1-based row number
+					}
+				}
+				const xlsxNonEmptyRows = [...xlsxRowSet].sort((a, b) => a - b);
+				console.log('XLSX non-empty rows:', xlsxNonEmptyRows);
+
+				// Extract images from ExcelJS keyed by their actual 1-based Excel row number
+				const imagesByExcelRow = await extractEmbeddedImagesFromExcel(data, firstSheetName);
+
+				// Correlate: map each image's Excel row → its index in XLSX's own row list.
+				// Using the same library (XLSX) for row ordering as for CSV output guarantees alignment.
+				const embeddedImagesByLine = new Map<number, File>();
+				for (const [excelRow, imgFile] of imagesByExcelRow) {
+					let lineIdx = xlsxNonEmptyRows.indexOf(excelRow);
+					if (lineIdx < 0) {
+						// Fallback: image anchor may be positioned one row above the data row
+						lineIdx = xlsxNonEmptyRows.indexOf(excelRow + 1);
+						if (lineIdx >= 0) {
+							console.log(`Image at Excel row ${excelRow}: anchor offset, using row ${excelRow + 1} → line ${lineIdx}`);
+						}
+					}
+					if (lineIdx >= 0 && !embeddedImagesByLine.has(lineIdx)) {
+						embeddedImagesByLine.set(lineIdx, imgFile);
+						console.log(`Image for Excel row ${excelRow} → CSV line index ${lineIdx}`);
+					} else if (lineIdx < 0) {
+						console.warn(`Image at Excel row ${excelRow}: no matching XLSX row found, skipping`);
+					}
+				}
+
+				// Convert to CSV and parse
+				const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
+				await parseCSVText(csvText, firstSheetName, embeddedImagesByLine);
+			} else {
+				// Handle CSV files
+				const text = await file.text();
+				await parseCSVText(text);
+			}
+		} catch (err: any) {
+			importErrors = [`Failed to parse file: ${err.message}`];
+			toastStore.error(`Failed to parse file: ${err.message}`);
+			console.error('File parse error:', err);
+		} finally {
+			importing = false;
+		}
+	}
+
+	// Drag and drop handlers
+	function handleDragEnter(e: DragEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		isDraggingOver = true;
+	}
+
+	function handleDragOver(e: DragEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		isDraggingOver = true;
+	}
+
+	function handleDragLeave(e: DragEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		const target = e.currentTarget as HTMLElement;
+		const related = e.relatedTarget as Node;
+		if (!target.contains(related)) {
+			isDraggingOver = false;
+		}
+	}
+
+	async function handleDrop(e: DragEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		isDraggingOver = false;
+
+		const files = e.dataTransfer?.files;
+		if (!files || files.length === 0) return;
+
+		const file = files[0];
+
+		// Validate file type
+		const validExtensions = ['.csv', '.xlsx', '.xls', '.zip'];
+		const fileName = file.name.toLowerCase();
+		const isValid = validExtensions.some(ext => fileName.endsWith(ext));
+
+		if (!isValid) {
+			toastStore.error('Please upload a CSV, Excel, or ZIP file (.csv, .xlsx, .xls, .zip)');
+			return;
+		}
+
+		importFile = file;
+
+		// Handle ZIP files differently
+		if (fileName.endsWith('.zip')) {
+			await parseZipFile(file);
+		} else {
+			await parseImportFile(file);
+		}
+	}
+
+	async function parseCSVText(text: string, categoryFromSheet?: string, embeddedImagesByLine?: Map<number, File>) {
+		try {
+			importing = true;
+			importErrors = [];
+			importPreviewData = [];
+
+			const lines = text
+				.split(/\r?\n/)
+				.map(line => line.replace(/^\uFEFF/, ''))
+				.filter(line => line.trim());
+
+			if (lines.length < 2) {
+				importErrors = ['File is empty or contains no data rows'];
+				toastStore.error('File is empty or contains no data rows');
+				return;
+			}
+
+			// Parse CSV (handle both comma and semicolon separators)
+			const separator = text.includes(';') && !text.includes(',') ? ';' : ',';
+
+			const normalizeHeader = (value: string) =>
+				value.trim().toLowerCase().replace(/\s+/g, ' ');
+
+			const isNameHeader = (value: string) => {
+				const v = normalizeHeader(value);
+				return v === 'name' || v === 'item name' || v === 'item' || v === 'itemname';
+			};
+
+			const isKnownHeader = (value: string) => {
+				const v = normalizeHeader(value);
+				return (
+					isNameHeader(v) ||
+					v === 'category' ||
+					v === 'specification' ||
+					v === 'spec' ||
+					v === 'tools or equipment' ||
+					v === 'tools/equipment' ||
+					v === 'tools' ||
+					v === 'equipment' ||
+					v === 'picture' ||
+					v === 'image' ||
+					v === 'photo' ||
+					v === 'quantity' ||
+					v === 'qty' ||
+					v === 'count' ||
+					v === 'current count' ||
+					v === 'eom count' ||
+					v === 'remarks' ||
+					v === 'remark' ||
+					v === 'notes' ||
+					v === 'note' ||
+					v === 'variance/overage' ||
+					v === 'variance overage'
+				);
+			};
+
+			let headerLineIndex = -1;
+			let rawHeaders: string[] = [];
+			let headers: string[] = [];
+
+			// Find the row that looks like a real table header (name + at least one other known header)
+			for (let i = 0; i < Math.min(30, lines.length); i++) {
+				const candidateRaw = parseCSVLine(lines[i], separator);
+				const candidate = candidateRaw.map(normalizeHeader);
+				const hasName = candidate.some(isNameHeader);
+				const knownCount = candidate.filter(isKnownHeader).length;
+
+				if (hasName && knownCount >= 2) {
+					headerLineIndex = i;
+					rawHeaders = candidateRaw;
+					headers = candidate;
+					break;
+				}
+			}
+
+			if (headerLineIndex === -1) {
+				importErrors = ['Could not detect the header row. Ensure one row contains columns like Name, Specification, Current Count.'];
+				toastStore.error('Could not detect header row in file');
+				return;
+			}
+
+			const headerMap: Record<string, number> = {};
+			headers.forEach((header, index) => {
+				if (isNameHeader(header) && headerMap.name === undefined) {
+					headerMap.name = index;
+				} else if ((header === 'category' || header.includes('category')) && headerMap.category === undefined) {
+					headerMap.category = index;
+				} else if ((header === 'eom count' || header.replace(/\s+/g, '') === 'eomcount') && headerMap.eomcount === undefined) {
+					headerMap.eomcount = index;
+				} else if (
+					(header === 'current count' || header.replace(/\s+/g, '') === 'currentcount' || header === 'quantity' || header === 'qty' || header === 'count') &&
+					headerMap.quantity === undefined
+				) {
+					headerMap.quantity = index;
+				} else if ((header === 'specification' || header === 'spec') && headerMap.specification === undefined) {
+					headerMap.specification = index;
+				} else if (
+					(header === 'tools or equipment' || header === 'tools/equipment' || header === 'tools' || header === 'equipment') &&
+					headerMap.toolsorequipment === undefined
+				) {
+					headerMap.toolsorequipment = index;
+				} else if ((header === 'picture' || header === 'image' || header === 'photo') && headerMap.picture === undefined) {
+					headerMap.picture = index;
+				} else if ((header === 'remarks' || header === 'remark' || header === 'notes' || header === 'note') && headerMap.remarks === undefined) {
+					headerMap.remarks = index;
+				}
+			});
+
+			if (headerMap.name === undefined) {
+				importErrors = [`Missing required column: Name (found: ${rawHeaders.join(', ')})`];
+				toastStore.error('Missing required column: Name');
+				return;
+			}
+		
+		const parsedData: any[] = [];
+		const errors: string[] = [];
+		const seenKeys = new Set<string>(); // track name+specification composites within this file for duplicate detection
+
+		// Start from the line after the header row
+		for (let i = headerLineIndex + 1; i < lines.length; i++) {
+			const values = parseCSVLine(lines[i], separator);
+			
+			// Skip completely empty lines
+			if (values.length === 0 || values.every(v => !v.trim())) {
+				continue;
+			}
+
+			// Extract values using header map
+			const name = headerMap['name'] !== undefined ? values[headerMap['name']]?.trim() : '';
+			const category = categoryFromSheet || (headerMap['category'] !== undefined ? values[headerMap['category']]?.trim() : '');
+			const quantityValue = headerMap['quantity'] !== undefined ? values[headerMap['quantity']]?.trim() : '';
+			const specification = headerMap['specification'] !== undefined ? values[headerMap['specification']]?.trim() : '';
+			const toolsorequipment = headerMap['toolsorequipment'] !== undefined ? values[headerMap['toolsorequipment']]?.trim() : '';
+			const eomcount = headerMap['eomcount'] !== undefined ? values[headerMap['eomcount']]?.trim() : '';
+			let pictureRef = headerMap['picture'] !== undefined ? values[headerMap['picture']]?.trim() : '';
+			const remarks = headerMap['remarks'] !== undefined ? values[headerMap['remarks']]?.trim() : '';
+
+			// Skip rows without a name - they're not valid items
+			if (!name || name.trim() === '') {
+				console.log(`Skipping CSV line ${i}: No name found`);
+				continue;
+			}
+
+			// Validate row
+			const rowErrors: string[] = [];
+			if (!category) rowErrors.push('Category is required (use sheet name or Category column)');
+
+			// Check for duplicate using name+specification composite (same name with different spec = different item)
+			const nameLower = name.toLowerCase().trim();
+			const specLower = specification.toLowerCase().trim();
+			const compositeKey = `${nameLower}|${specLower}`;
+			const isDuplicateInFile = seenKeys.has(compositeKey);
+			if (isDuplicateInFile) {
+				rowErrors.push('Duplicate: same name and specification appears earlier in this file');
+			}
+			seenKeys.add(compositeKey);
+
+			// Check if item already exists in inventory (same name + same spec, case-insensitive, ignore archived)
+			const alreadyExistsInInventory = items.some(
+				i => i.name.toLowerCase().trim() === nameLower &&
+				     (i.specification ?? '').toLowerCase().trim() === specLower &&
+				     !i.archived
+			);
+			if (alreadyExistsInInventory) {
+				rowErrors.push('Already exists in inventory');
+			}
+
+			// Parse quantity - default to 1 if not provided
+			const quantity = quantityValue ? parseInt(quantityValue) : 1;
+			if (quantityValue && (isNaN(quantity) || quantity < 0)) {
+				rowErrors.push('Quantity/Current Count must be a valid number');
+			}
+
+			// Handle Picture column - support URL or filename
+			let hasImage = false;
+			let imageSource = '';
+
+			// Check for embedded Excel images using CSV line index
+			console.log(`Checking for embedded image at CSV line ${i} for item "${name}"`);
+			if (!pictureRef && embeddedImagesByLine?.has(i)) {
+				const embeddedFile = embeddedImagesByLine.get(i);
+				if (embeddedFile) {
+					const embeddedKey = `excel_row_${i}_${embeddedFile.name}`;
+					importImageFiles.set(embeddedKey.toLowerCase(), embeddedFile);
+					pictureRef = embeddedKey;
+					hasImage = true;
+					imageSource = 'excel';
+					console.log(`✓ Found embedded image for "${name}" at CSV line ${i}`);
+				}
+			} else if (!pictureRef && embeddedImagesByLine) {
+				console.log(`✗ No embedded image found at CSV line ${i} (available keys: ${Array.from(embeddedImagesByLine.keys()).join(', ')})`);
+			}
+
+				if (pictureRef) {
+					// Check if it's a URL
+					if (pictureRef.startsWith('http://') || pictureRef.startsWith('https://')) {
+						hasImage = true;
+						imageSource = 'url';
+					} 
+					// Check if it matches an uploaded image file
+					else if (importImageFiles.has(pictureRef.toLowerCase())) {
+						hasImage = true;
+						imageSource = pictureRef.toLowerCase().startsWith('excel_row_') ? 'excel' : 'zip';
+					}
+					// Check with common extensions
+					else {
+						const withExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
+							.map(ext => pictureRef + ext)
+						.find(fileName => importImageFiles.has(fileName.toLowerCase()));
+					
+					if (withExt) {
+						pictureRef = withExt;
+						hasImage = true;
+						imageSource = 'zip';
+					}
+				}
+			}
+
+			const rowData: any = {
+				name: name,
+				category: category,
+				quantity: quantity,
+				specification: specification || '',
+				toolsOrEquipment: toolsorequipment || '',
+				eomCount: eomcount && !isNaN(parseInt(eomcount)) ? parseInt(eomcount) : undefined,
+				minStock: 0, // Default to 0 for imports
+				remarks: remarks || '',
+				condition: 'Good', // Default
+				location: '', // Default
+				_rowNumber: i + 1,
+				_errors: rowErrors,
+				_valid: rowErrors.length === 0,
+				_pictureRef: pictureRef,
+				_hasImage: hasImage,
+				_imageSource: imageSource,
+				_categoryExists: !!categories.find(c => c.name.toLowerCase().trim() === (category || '').toLowerCase().trim()),
+				_isDuplicateInFile: isDuplicateInFile,
+				_alreadyExists: alreadyExistsInInventory
+			};
+
+			parsedData.push(rowData);
+
+			if (rowErrors.length > 0) {
+				errors.push(`Row ${i + 1}: ${rowErrors.join(', ')}`);
+			}
+		}
+
+		importPreviewData = parsedData;
+		importErrors = errors;
+
+		// Show success toast
+		if (parsedData.length > 0) {
+			toastStore.success(`Parsed ${parsedData.length} items. ${errors.length > 0 ? `${errors.length} rows have errors.` : 'Click Continue to preview.'}`);
+		}
+
+		} catch (err: any) {
+			importErrors = [`Failed to parse file: ${err.message}`];
+			toastStore.error(`Failed to parse file: ${err.message}`);
+			console.error('Import parse error:', err);
+		} finally {
+			importing = false;
+		}
+	}
+
+	function parseCSVLine(line: string, separator: string): string[] {
+		const result: string[] = [];
+		let current = '';
+		let inQuotes = false;
+
+		for (let i = 0; i < line.length; i++) {
+			const char = line[i];
+			const nextChar = line[i + 1];
+
+			if (char === '"') {
+				if (inQuotes && nextChar === '"') {
+					current += '"';
+					i++; // Skip next quote
+				} else {
+					inQuotes = !inQuotes;
+				}
+			} else if (char === separator && !inQuotes) {
+				result.push(current);
+				current = '';
+			} else {
+				current += char;
+			}
+		}
+
+		result.push(current);
+		return result;
+	}
+
+	async function handleImportConfirm() {
+		const validItems = importPreviewData.filter(item => item._valid);
+
+		if (validItems.length === 0) {
+			toastStore.error('No valid items to import');
+			return;
+		}
+
+		const confirmed = await confirmStore.warning(
+			`Import ${validItems.length} item${validItems.length > 1 ? 's' : ''}? ${importErrors.length > 0 ? `${importErrors.length} row(s) will be skipped due to errors.` : ''}`,
+			'Confirm Import',
+			'Import',
+			'Cancel'
+		);
+
+		if (!confirmed) return;
+
+		try {
+			importing = true;
+			importProgress.total = validItems.length;
+			importProgress.current = 0;
+			let successCount = 0;
+			let failCount = 0;
+
+			console.log('=== IMPORT START ===');
+			console.log('Items to import:', validItems.length);
+			console.log('Items before import:', items.length);
+			console.log('Available categories:', categories.map(c => c.name));
+
+			// Collect unique categories from import data
+			const uniqueCategories = [...new Set(validItems.map(item => item.category))];
+			console.log('Unique categories in import:', uniqueCategories);
+
+			// Create missing categories first
+			const categoryMap = new Map<string, InventoryCategory>();
+			
+			for (const categoryName of uniqueCategories) {
+				const existing = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
+				if (existing) {
+					categoryMap.set(categoryName.toLowerCase(), existing);
+					console.log(`Category "${categoryName}" exists:`, existing.id);
+				} else {
+					// Create new category
+					try {
+						importProgress.message = `Creating category: ${categoryName}...`;
+						const newCategory = await inventoryCategoriesAPI.create({ 
+							name: categoryName,
+							description: `Auto-created from import`
+						});
+						categories.push(newCategory);
+						categoryMap.set(categoryName.toLowerCase(), newCategory);
+						console.log(`Created category "${categoryName}":`, newCategory.id);
+						toastStore.success(`Created category: ${categoryName}`);
+					} catch (err: any) {
+						console.error(`Failed to create category "${categoryName}":`, err);
+						toastStore.error(`Failed to create category: ${categoryName}`);
+					}
+				}
+			}
+
+			for (const item of validItems) {
+				try {
+					importProgress.current++;
+					importProgress.message = `Processing ${item.name} (${importProgress.current}/${importProgress.total})`;
+
+					// Get category from map (already exists or just created)
+					const category = categoryMap.get(item.category.toLowerCase());
+
+					console.log(`Importing: "${item.name}" → Category: "${item.category}" (ID: ${category?.id || 'NONE'})`);
+					console.log(`  Full item data:`, item);
+
+					// Handle image upload
+					let pictureUrl = '';
+					
+					if (item._hasImage) {
+						if (item._imageSource === 'url') {
+							// Validate URL format
+							try {
+								new URL(item._pictureRef);
+								pictureUrl = item._pictureRef;
+							} catch {
+								console.warn(`Invalid image URL for ${item.name}: ${item._pictureRef}`);
+							}
+						} else if (item._imageSource === 'zip' || item._imageSource === 'excel') {
+							// Upload image from local file (ZIP or embedded Excel image)
+							const imageFile = importImageFiles.get(item._pictureRef.toLowerCase());
+							if (imageFile) {
+								try {
+									importProgress.message = `Uploading image for ${item.name}...`;
+									const uploadResult = await uploadInventoryImage(imageFile);
+									pictureUrl = uploadResult.url;
+								} catch (err: any) {
+									console.error(`Failed to upload image for ${item.name}:`, err);
+								}
+							}
+						}
+					}
+
+					const itemData = {
+						name: item.name,
+						category: category?.name || item.category,
+						categoryId: category?.id,
+						specification: item.specification || '',
+						toolsOrEquipment: item.toolsOrEquipment || '',
+						picture: pictureUrl,
+						quantity: item.quantity,
+						eomCount: item.eomCount,
+						minStock: item.minStock,
+						condition: item.condition,
+						location: item.location || ''
+					};
+
+					console.log('Creating item:', itemData.name, itemData);
+					const result = await inventoryItemsAPI.create(itemData);
+					console.log('Created successfully:', result);
+					successCount++;
+				} catch (err: any) {
+					console.error(`Failed to import row ${item._rowNumber}:`, err);
+					failCount++;
+				}
+			}
+
+			console.log('=== IMPORT COMPLETE ===');
+			console.log(`Success: ${successCount}, Failed: ${failCount}`);
+
+			if (successCount > 0) {
+				console.log('Reloading inventory data...');
+
+				// Complete cache reset
+				inventoryStore.reset();
+				
+				// Clear all filters
+				selectedCategory = null;
+				query = '';
+				
+				// Delay to ensure database writes are fully committed
+				await new Promise(resolve => setTimeout(resolve, 800));
+				
+				// Force complete reload with direct API calls
+				try {
+					console.log('Items before reload:', items.length);
+					loading = true;
+					
+					// Direct API calls bypassing cache
+					console.log('Fetching from API...');
+					const [itemsResponse, categoriesResponse] = await Promise.all([
+						inventoryItemsAPI.getAll({ limit: 1000, includeArchived: true }),
+						inventoryCategoriesAPI.getAll({ limit: 1000, includeArchived: true })
+					]);
+					
+					console.log('API Response - Items:', itemsResponse);
+					console.log('API Response - Categories:', categoriesResponse);
+					
+					items = itemsResponse.items;
+					categories = categoriesResponse.categories;
+					
+					// Update store cache
+					inventoryStore.setItems(itemsResponse.items);
+					inventoryStore.setCategories(categoriesResponse.categories);
+					
+					console.log('Items after reload:', items.length);
+					console.log('Categories after reload:', categories.length);
+					console.log('All items:', items.map(i => ({ name: i.name, archived: i.archived, category: i.category })));
+					console.log('Active items:', items.filter(item => !item.archived).map(item => item.name));
+				} catch (reloadErr: any) {
+					console.error('Failed to reload after import:', reloadErr);
+					toastStore.error('Import succeeded but failed to refresh. Please reload the page.');
+				} finally {
+					loading = false;
+				}
+			}
+
+			importStep = 'complete';
+			importProgress.message = 'Import complete!';
+			
+			if (failCount === 0) {
+				toastStore.success(`Successfully imported ${successCount} item${successCount > 1 ? 's' : ''}`);
+			} else {
+				toastStore.warning(`Imported ${successCount} items, ${failCount} failed`);
+			}
+
+			// Switch to all items tab to show results
+			switchTab('all-items');
+
+			// Close modal after delay
+			setTimeout(() => {
+				closeImportModal();
+			}, 2000);
+
+		} catch (err: any) {
+			toastStore.error('Import failed: ' + err.message);
+			console.error('Import error:', err);
+		} finally {
+			importing = false;
+			importProgress = { current: 0, total: 0, message: '' };
+		}
+	}
+
+	function downloadTemplate() {
+		const template = `Name,Specification,Tools or Equipment,Picture,Current Count,EOM Count,Remarks
+Chef Knife,8-inch stainless steel,Knife sheath,https://example.com/knife.jpg,10,10,Sharp and ready
+Mixing Bowl,Stainless steel 5L,,,5,5,Good condition
+Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
+
+		const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
+		const link = document.createElement('a');
+		link.href = URL.createObjectURL(blob);
+		link.download = 'inventory_import_template.csv';
+		link.click();
+		URL.revokeObjectURL(link.href);
+		
+		toastStore.success('Template downloaded! Name your Excel sheet tab as the category (e.g., "Hot Kitchen")');
 	}
 </script>
 
@@ -687,16 +1642,28 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 			</div>
 		{/if}
 
-		<button 
-			onclick={() => switchTab('add-item')}
-			class="inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500"
-			disabled={loading}
-		>
-			<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-			</svg>
-			Add New Item
-		</button>
+		<div class="flex gap-3">
+			<button 
+				onclick={openImportModal}
+				class="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+				disabled={loading}
+			>
+				<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+				</svg>
+				Import Items
+			</button>
+			<button 
+				onclick={() => switchTab('add-item')}
+				class="inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500"
+				disabled={loading}
+			>
+				<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+				</svg>
+				Add New Item
+			</button>
+		</div>
 	</div>
 
 	<!-- Global Skeleton Loading State -->
@@ -1393,3 +2360,572 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 	</div>
 {/if}
 </div>
+
+<!-- Import Modal -->
+{#if showImportModal}
+	<div class="fixed inset-0 z-50 overflow-y-auto">
+		<div class="fixed inset-0 bg-black/40" onclick={closeImportModal}></div>
+		<div class="flex min-h-full items-center justify-center p-4">
+			<div class="relative z-50 w-full max-w-4xl rounded-lg bg-white shadow-xl">
+				<!-- Header -->
+				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+					<div>
+						<h2 class="text-xl font-semibold text-gray-900">Import Inventory Items</h2>
+						<p class="mt-1 text-sm text-gray-500">
+							{#if importStep === 'upload'}
+								Upload a CSV or Excel file to bulk import items. Use sheet tab name for category (e.g., "Hot Kitchen")
+							{:else if importStep === 'preview'}
+								Review and confirm import
+							{:else}
+								Import complete
+							{/if}
+						</p>
+					</div>
+					<button
+						onclick={closeImportModal}
+						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+						disabled={importing}
+					>
+						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+
+				<!-- Content -->
+				<div class="px-6 py-6">
+					{#if importStep === 'upload'}
+						<!-- Upload Step -->
+						<div class="space-y-6">
+							<!-- Collapsible Format Guide -->
+							<div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+								<!-- Accordion Header -->
+								<button
+									type="button"
+									onclick={() => { showFormatGuide = !showFormatGuide; }}
+									class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+								>
+									<div class="flex items-center gap-2.5">
+										<span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-600 flex-shrink-0">
+											<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+												<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+											</svg>
+										</span>
+										<span class="text-sm font-semibold text-gray-800">File Format Guide</span>
+										<span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 border border-blue-200">Required reading</span>
+									</div>
+									<svg
+										class="h-4 w-4 text-gray-400 transition-transform duration-200 {showFormatGuide ? 'rotate-180' : ''}"
+										fill="none" stroke="currentColor" viewBox="0 0 24 24"
+									>
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+									</svg>
+								</button>
+
+								<!-- Accordion Body -->
+								{#if showFormatGuide}
+									<div class="border-t border-gray-100 px-4 py-4 bg-gray-50 space-y-4 text-sm text-gray-700">
+
+										<!-- Column reference -->
+										<div>
+											<p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Column Reference — Excel / CSV</p>
+											<div class="rounded-md border border-gray-200 overflow-hidden">
+												<table class="min-w-full divide-y divide-gray-200 text-xs">
+													<thead class="bg-gray-100">
+														<tr>
+															<th class="px-3 py-2 text-left font-semibold text-gray-600">Column</th>
+															<th class="px-3 py-2 text-left font-semibold text-gray-600">Required</th>
+															<th class="px-3 py-2 text-left font-semibold text-gray-600">Notes</th>
+														</tr>
+													</thead>
+													<tbody class="bg-white divide-y divide-gray-100">
+														<tr>
+															<td class="px-3 py-2 font-medium text-gray-800">Name</td>
+															<td class="px-3 py-2"><span class="inline-block rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs font-medium">Required</span></td>
+															<td class="px-3 py-2 text-gray-600">Item name — must be unique</td>
+														</tr>
+														<tr class="bg-gray-50">
+															<td class="px-3 py-2 font-medium text-gray-800">Category</td>
+															<td class="px-3 py-2"><span class="inline-block rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-medium">Auto / Column</span></td>
+															<td class="px-3 py-2 text-gray-600">Uses sheet tab name automatically, or add a Category column</td>
+														</tr>
+														<tr>
+															<td class="px-3 py-2 font-medium text-gray-800">Specification</td>
+															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
+															<td class="px-3 py-2 text-gray-600">Item specifications / description</td>
+														</tr>
+														<tr class="bg-gray-50">
+															<td class="px-3 py-2 font-medium text-gray-800">Tools or Equipment</td>
+															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
+															<td class="px-3 py-2 text-gray-600">Associated tools or companion equipment</td>
+														</tr>
+														<tr>
+															<td class="px-3 py-2 font-medium text-gray-800">Current Count</td>
+															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
+															<td class="px-3 py-2 text-gray-600">Current stock quantity — defaults to 1</td>
+														</tr>
+														<tr class="bg-gray-50">
+															<td class="px-3 py-2 font-medium text-gray-800">EOM Count</td>
+															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
+															<td class="px-3 py-2 text-gray-600">End-of-month count — defaults to 0</td>
+														</tr>
+														<tr>
+															<td class="px-3 py-2 font-medium text-gray-800">Remarks</td>
+															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
+															<td class="px-3 py-2 text-gray-600">Additional notes</td>
+														</tr>
+														<tr class="bg-gray-50">
+															<td class="px-3 py-2 font-medium text-gray-800">Picture</td>
+															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
+															<td class="px-3 py-2 text-gray-600">Image URL (https://…) or filename from ZIP</td>
+														</tr>
+													</tbody>
+												</table>
+											</div>
+										</div>
+
+										<!-- Tips row -->
+										<div class="grid grid-cols-2 gap-3">
+											<div class="rounded-md border border-purple-200 bg-purple-50 p-3">
+												<p class="text-xs font-semibold text-purple-800 mb-1">💡 Pro Tip — Categories</p>
+												<p class="text-xs text-purple-700">Name your Excel sheet tab as the category (e.g., "Hot Kitchen", "Baking Lab"). The sheet name is used automatically — no Category column needed.</p>
+											</div>
+											<div class="rounded-md border border-blue-200 bg-blue-50 p-3">
+												<p class="text-xs font-semibold text-blue-800 mb-1">🖼 Image Support</p>
+												<ul class="text-xs text-blue-700 space-y-1 mt-1">
+													<li><strong>Embedded:</strong> Insert images directly into Excel cells</li>
+													<li><strong>URL:</strong> Paste a direct image link (https://…)</li>
+													<li><strong>ZIP:</strong> Bundle your Excel + image files in a .zip</li>
+													<li class="text-blue-500">Supported: JPG, PNG, GIF, WebP</li>
+												</ul>
+											</div>
+										</div>
+
+									</div>
+								{/if}
+							</div>
+
+							<!-- Template Download -->
+							<div class="flex items-center justify-between rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4">
+								<div class="flex items-center gap-3">
+									<svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+									</svg>
+									<div>
+										<p class="font-medium text-gray-900">Need a template?</p>
+										<p class="text-sm text-gray-500">Download our sample CSV file to get started</p>
+									</div>
+								</div>
+								<button
+									onclick={downloadTemplate}
+									class="inline-flex items-center gap-2 rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+									</svg>
+									Download Template
+								</button>
+							</div>
+
+							<!-- File Upload -->
+							<div>
+								<label class="block text-sm font-medium text-gray-700 mb-2">
+									Upload File
+								</label>
+								
+								{#if !importFile}
+									<!-- Upload Drop Zone -->
+									<label 
+										class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 cursor-pointer transition-all duration-200"
+										class:border-emerald-500={isDraggingOver}
+										class:bg-emerald-50={isDraggingOver}
+										class:border-gray-300={!isDraggingOver}
+										class:bg-gray-50={!isDraggingOver}
+										class:hover:border-emerald-500={!isDraggingOver}
+										class:hover:bg-emerald-50={!isDraggingOver}
+										ondragenter={handleDragEnter}
+										ondragover={handleDragOver}
+										ondragleave={handleDragLeave}
+										ondrop={handleDrop}
+									>
+										<svg 
+											class="h-12 w-12 mb-3 transition-colors"
+											class:text-emerald-500={isDraggingOver}
+											class:text-gray-400={!isDraggingOver}
+											fill="none" 
+											stroke="currentColor" 
+											viewBox="0 0 24 24"
+										>
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+										</svg>
+										<span 
+											class="text-sm font-medium transition-colors"
+											class:text-emerald-700={isDraggingOver}
+											class:text-gray-700={!isDraggingOver}
+										>
+											{#if isDraggingOver}
+												Drop file here
+											{:else}
+												Click to upload or drag and drop
+											{/if}
+										</span>
+										<span class="text-xs text-gray-500 mt-1">CSV, XLSX, XLS, or ZIP files (with images)</span>
+										<input
+											type="file"
+											accept=".csv,.xlsx,.xls,.zip"
+											onchange={handleImportFileSelect}
+											class="hidden"
+										/>
+									</label>
+								{:else}
+									<!-- File Preview Card -->
+									<div class="bg-white border-2 border-emerald-500 rounded-lg p-4 transition-all">
+										<div class="flex items-start gap-4">
+											<!-- File Icon -->
+											<div class="flex-shrink-0">
+												{#if getFileIcon(importFile.name) === 'csv'}
+													<div class="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center">
+														<svg class="h-7 w-7 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+															<path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/>
+														</svg>
+													</div>
+												{:else if getFileIcon(importFile.name) === 'excel'}
+													<div class="h-12 w-12 rounded-lg bg-emerald-100 flex items-center justify-center">
+														<svg class="h-7 w-7 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+															<path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/>
+														</svg>
+													</div>
+												{:else if getFileIcon(importFile.name) === 'zip'}
+													<div class="h-12 w-12 rounded-lg bg-purple-100 flex items-center justify-center">
+														<svg class="h-7 w-7 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+															<path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-5L9 4H4z"/>
+														</svg>
+													</div>
+												{/if}
+											</div>
+
+											<!-- File Info -->
+											<div class="flex-1 min-w-0">
+												<div class="flex items-start justify-between gap-4">
+													<div class="flex-1 min-w-0">
+														<p class="text-sm font-medium text-gray-900 truncate" title={importFile.name}>
+															{importFile.name}
+														</p>
+														<p class="text-xs text-gray-500 mt-1">
+															{formatFileSize(importFile.size)}
+														</p>
+													</div>
+													<button
+														onclick={removeImportFile}
+														class="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+														title="Remove file"
+													>
+														<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+															<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+														</svg>
+													</button>
+												</div>
+												
+												<!-- Success Indicator -->
+												<div class="flex items-center gap-2 mt-3">
+													<div class="flex-1 bg-emerald-100 rounded-full h-1.5">
+														<div class="bg-emerald-600 h-1.5 rounded-full" style="width: 100%"></div>
+													</div>
+													<svg class="h-5 w-5 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+														<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+													</svg>
+												</div>
+
+												{#if importImageFiles.size > 0}
+													<div class="flex items-center gap-2 mt-2 text-xs text-emerald-600">
+														<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+															<path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
+														</svg>
+														<span>{importImageFiles.size} image(s) found in ZIP</span>
+													</div>
+												{/if}
+
+												{#if importPreviewData.length > 0}
+													<div class="flex items-center gap-2 mt-2 text-xs text-blue-600">
+														<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+															<path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
+															<path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+														</svg>
+														<span>{importPreviewData.length} item(s) ready to import</span>
+													</div>
+												{/if}
+											</div>
+										</div>
+									</div>
+								{/if}
+							</div>
+
+							{#if importing}
+								<div class="flex items-center justify-center gap-3 py-8">
+									<div class="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent"></div>
+									<span class="text-sm text-gray-600">Processing file...</span>
+								</div>
+							{/if}
+						</div>
+
+					{:else if importStep === 'preview'}
+						<!-- Preview Step -->
+						<div class="space-y-4">
+							<!-- Import Progress (shown during import) -->
+							{#if importing && importProgress.total > 0}
+								<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+									<div class="flex items-center gap-3 mb-3">
+										<div class="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+										<div class="flex-1">
+											<p class="text-sm font-medium text-blue-900">{importProgress.message}</p>
+											<p class="text-xs text-blue-600 mt-1">
+												Progress: {importProgress.current} of {importProgress.total} items
+											</p>
+										</div>
+									</div>
+									<div class="w-full bg-blue-200 rounded-full h-2">
+										<div 
+											class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+											style="width: {(importProgress.current / importProgress.total) * 100}%"
+										></div>
+									</div>
+								</div>
+							{/if}
+
+							<!-- Summary -->
+							<div class="grid grid-cols-4 gap-4">
+								<div class="rounded-lg bg-blue-50 p-4">
+									<p class="text-sm text-blue-600 font-medium">Total Rows</p>
+									<p class="text-2xl font-bold text-blue-900 mt-1">{importPreviewData.length}</p>
+								</div>
+								<div class="rounded-lg bg-green-50 p-4">
+									<p class="text-sm text-green-600 font-medium">To Import</p>
+									<p class="text-2xl font-bold text-green-900 mt-1">{importPreviewData.filter(i => i._valid).length}</p>
+								</div>
+								<div class="rounded-lg bg-amber-50 p-4">
+									<p class="text-sm text-amber-600 font-medium">Skipped</p>
+									<p class="text-2xl font-bold text-amber-900 mt-1">{importPreviewData.filter(i => !i._valid && (i._alreadyExists || i._isDuplicateInFile)).length}</p>
+								</div>
+								<div class="rounded-lg bg-red-50 p-4">
+									<p class="text-sm text-red-600 font-medium">Errors</p>
+									<p class="text-2xl font-bold text-red-900 mt-1">{importPreviewData.filter(i => !i._valid && !i._alreadyExists && !i._isDuplicateInFile).length}</p>
+								</div>
+							</div>
+
+							{#if importErrors.length > 0}
+								<div class="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
+									<div class="flex">
+										<svg class="h-5 w-5 text-yellow-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+										</svg>
+										<div class="ml-3">
+											<h3 class="text-sm font-medium text-yellow-900">Validation Errors</h3>
+											<div class="mt-2 text-sm text-yellow-800 max-h-32 overflow-y-auto">
+												<ul class="list-disc list-inside space-y-1">
+													{#each importErrors.slice(0, 10) as error}
+														<li>{error}</li>
+													{/each}
+													{#if importErrors.length > 10}
+														<li class="text-yellow-700">...and {importErrors.length - 10} more errors</li>
+													{/if}
+												</ul>
+											</div>
+										</div>
+									</div>
+								</div>
+							{/if}
+
+							<!-- Preview Table -->
+							<div class="border rounded-lg overflow-hidden">
+								<div class="max-h-96 overflow-y-auto">
+									<table class="min-w-full divide-y divide-gray-200">
+										<thead class="bg-gray-50 sticky top-0">
+											<tr>
+												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condition</th>
+												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image</th>
+											</tr>
+										</thead>
+										<tbody class="bg-white divide-y divide-gray-200">
+											{#each importPreviewData as item}
+												<tr class={item._valid ? 'hover:bg-gray-50' : (item._alreadyExists || item._isDuplicateInFile) ? 'bg-amber-50' : 'bg-red-50'}>
+													<td class="px-4 py-3 whitespace-nowrap">
+														{#if item._valid}
+															<span class="inline-flex items-center gap-1 text-green-600 text-xs">
+																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+																	<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+																</svg>
+																New
+															</span>
+														{:else if item._alreadyExists}
+															<span class="inline-flex items-center gap-1 text-amber-600 text-xs" title="Already exists in inventory — will be skipped">
+																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+																	<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+																</svg>
+																Exists
+															</span>
+														{:else if item._isDuplicateInFile}
+															<span class="inline-flex items-center gap-1 text-orange-600 text-xs" title="Duplicate name in this file — will be skipped">
+																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+																	<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+																</svg>
+																Duplicate
+															</span>
+														{:else}
+															<span class="inline-flex items-center gap-1 text-red-600 text-xs" title={item._errors.join(', ')}>
+																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+																	<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+																</svg>
+																Error
+															</span>
+														{/if}
+													</td>
+													<td class="px-4 py-3 text-sm text-gray-900">{item.name}</td>
+													<td class="px-4 py-3 text-sm text-gray-600">
+												{item.category}
+												{#if item._categoryExists}
+													<span class="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">exists</span>
+												{:else if item.category}
+													<span class="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">new</span>
+												{/if}
+											</td>
+													<td class="px-4 py-3 text-sm text-gray-900">{item.quantity}</td>
+													<td class="px-4 py-3 text-sm text-gray-600">{item.condition}</td>
+													<td class="px-4 py-3 whitespace-nowrap">
+														{#if item._hasImage}
+															{#if item._imageSource === 'url'}
+																<button onclick={() => openImagePreview(item)} class="inline-flex items-center gap-1 text-blue-600 text-xs hover:text-blue-800 hover:underline cursor-pointer" title="Click to preview">
+																	<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+																		<path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
+																	</svg>
+																	URL
+																</button>
+															{:else if item._imageSource === 'zip'}
+																<button onclick={() => openImagePreview(item)} class="inline-flex items-center gap-1 text-purple-600 text-xs hover:text-purple-800 hover:underline cursor-pointer" title="Click to preview">
+																	<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+																		<path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
+																	</svg>
+																	File
+																</button>
+															{:else if item._imageSource === 'excel'}
+																<button onclick={() => openImagePreview(item)} class="inline-flex items-center gap-1 text-emerald-600 text-xs hover:text-emerald-800 hover:underline cursor-pointer" title="Click to preview">
+																	<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+																		<path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
+																	</svg>
+																	Excel
+																</button>
+															{/if}
+														{:else}
+															<span class="text-xs text-gray-400">—</span>
+														{/if}
+													</td>
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+
+					{:else if importStep === 'complete'}
+						<!-- Complete Step -->
+						<div class="text-center py-12">
+							<svg class="mx-auto h-16 w-16 text-green-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+							</svg>
+							<h3 class="text-lg font-medium text-gray-900 mb-2">Import Successful!</h3>
+							<p class="text-sm text-gray-500">Items have been added to your inventory</p>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Footer -->
+				<div class="flex items-center justify-between border-t border-gray-200 px-6 py-4 bg-gray-50">
+					<button
+						onclick={closeImportModal}
+						class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+						disabled={importing}
+					>
+						{importStep === 'complete' ? 'Close' : 'Cancel'}
+					</button>
+
+					{#if importStep === 'upload' && importPreviewData.length > 0}
+						<!-- Next button for upload step -->
+						<button
+							onclick={() => { importStep = 'preview'; }}
+							class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+							disabled={importing}
+						>
+							Continue to Preview
+							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+							</svg>
+						</button>
+					{:else if importStep === 'preview'}
+						<div class="flex gap-3">
+							<button
+								onclick={() => { importStep = 'upload'; importPreviewData = []; importErrors = []; }}
+								class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+								disabled={importing}
+							>
+								Back
+							</button>
+							<button
+								onclick={handleImportConfirm}
+								class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+								disabled={importing || importPreviewData.filter(i => i._valid).length === 0}
+							>
+								{#if importing}
+									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+									Importing...
+								{:else}
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+									</svg>
+									Import {importPreviewData.filter(i => i._valid).length} Items
+								{/if}
+							</button>
+						</div>
+					{/if}
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Image preview lightbox for import review -->
+{#if importPreviewImageUrl}
+	<!-- svelte-ignore a11y-click-events-have-key-events -->
+	<!-- svelte-ignore a11y-no-static-element-interactions -->
+	<div
+		class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80"
+		onclick={closeImagePreview}
+	>
+		<div class="relative max-w-2xl w-full mx-4" onclick={(e) => e.stopPropagation()}>
+			<!-- Header -->
+			<div class="flex items-center justify-between bg-white rounded-t-xl px-4 py-3">
+				<p class="text-sm font-medium text-gray-800 truncate">{importPreviewImageName}</p>
+				<button
+					onclick={closeImagePreview}
+					class="ml-4 rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+					aria-label="Close preview"
+				>
+					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+					</svg>
+				</button>
+			</div>
+			<!-- Image -->
+			<div class="bg-gray-50 rounded-b-xl flex items-center justify-center p-4 max-h-[70vh] overflow-hidden">
+				<img
+					src={importPreviewImageUrl}
+					alt={importPreviewImageName}
+					class="max-h-[65vh] max-w-full object-contain rounded"
+				/>
+			</div>
+		</div>
+	</div>
+{/if}

@@ -25,12 +25,12 @@
     }
 
     .container {
-      max-width: 1400px;
+      max-width: 1920px;
       margin: 0 auto;
       background: var(--card);
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 28px;
+      padding: 36px;
       box-shadow: 0 16px 34px rgba(17, 24, 39, 0.08);
     }
 
@@ -69,8 +69,15 @@
       background: var(--paper);
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 10px;
+      padding: 24px;
       overflow: auto;
+      min-height: 700px;
+    }
+
+    .diagram-wrap svg {
+      width: 100% !important;
+      height: auto !important;
+      min-height: 650px;
     }
 
     .legend {
@@ -256,11 +263,14 @@ flowchart LR
       securityLevel: 'loose',
       flowchart: {
         curve: 'linear',
-        htmlLabels: true
+        htmlLabels: true,
+        nodeSpacing: 70,
+        rankSpacing: 90,
+        padding: 20
       },
       themeVariables: {
         primaryTextColor: '#111827',
-        fontSize: '13px',
+        fontSize: '16px',
         fontFamily: 'Segoe UI, Tahoma, Geneva, Verdana, sans-serif',
         lineColor: '#64748b',
         clusterBkg: '#f8fafc',

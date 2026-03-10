@@ -17,14 +17,17 @@
 		"@upstash/redis": "^1.36.2",
 		"bcryptjs": "^2.4.3",
 		"cloudinary": "^2.9.0",
+		"exceljs": "^4.4.0",
 		"ioredis": "^5.9.3",
 		"jsonwebtoken": "^9.0.3",
+		"jszip": "^3.10.1",
 		"mongodb": "^6.21.0",
 		"mongoose": "^9.2.1",
 		"nodemailer": "^8.0.1",
 		"uuid": "^13.0.0",
 		"winston": "^3.19.0",
-		"winston-daily-rotate-file": "^5.0.0"
+		"winston-daily-rotate-file": "^5.0.0",
+		"xlsx": "^0.18.5"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^2.0.2",
