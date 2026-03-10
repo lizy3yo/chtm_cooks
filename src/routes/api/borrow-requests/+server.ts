@@ -20,7 +20,8 @@ import {
 	buildBorrowRequestListCacheKey,
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
-	isBorrowRequestStatus
+	isBorrowRequestStatus,
+	publishBorrowRequestRealtimeEvent
 } from './shared';
 import { validateCreateBorrowRequest, validateItems, validatePurpose, validateDates } from '$lib/server/middleware/borrowRequestValidation';
 
@@ -73,13 +74,16 @@ export const GET: RequestHandler = async (event) => {
 			limit
 		});
 
-		const cached = await cacheService.get<{
+		// Check for cache-busting parameter
+		const skipCache = url.searchParams.has('_t');
+
+		const cached = !skipCache ? await cacheService.get<{
 			requests: ReturnType<typeof toBorrowRequestResponse>[];
 			total: number;
 			page: number;
 			limit: number;
 			pages: number;
-		}>(cacheKey);
+		}>(cacheKey) : null;
 
 		if (cached && user.role !== 'custodian') {
 			return json(cached);
@@ -318,6 +322,7 @@ export const POST: RequestHandler = async (event) => {
 
 		// Invalidate all relevant caches
 		await invalidateBorrowRequestCaches();
+		publishBorrowRequestRealtimeEvent(newRequest as BorrowRequest & { _id: ObjectId }, 'created', now);
 
 		logger.info('Borrow request created successfully', {
 			userId: user.userId,

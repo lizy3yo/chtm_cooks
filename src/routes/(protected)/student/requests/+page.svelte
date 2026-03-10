@@ -1,6 +1,6 @@
 <script lang="ts">
 import { onMount } from 'svelte';
-import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
+import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestRealtimeEvent } from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
 import Skeleton from '$lib/components/ui/Skeleton.svelte';
 import {
@@ -26,8 +26,19 @@ let showReturnConfirm = $state(false);
 let confirmReturnRequest = $state<any>(null);
 let returnError = $state<string | null>(null);
 let returnSuccess = $state<string | null>(null);
+let showCancelConfirm = $state(false);
+let confirmCancelRequest = $state<any>(null);
+let cancelError = $state<string | null>(null);
+let cancelSuccess = $state<string | null>(null);
+let loadingCancel = $state<string | null>(null);
 // itemId → picture URL, back-filled from catalog for legacy requests
 let itemPictureCache = $state<Map<string, string>>(new Map());
+
+// Live-sync state
+let liveSyncActive = $state(false);
+let refreshInFlight = $state(false);
+let pendingRefresh = $state(false);
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 function inferItemIcon(itemName: string): string {
 const normalized = itemName.toLowerCase();
@@ -39,7 +50,7 @@ if (normalized.includes('processor')) return '🔧';
 return '📦';
 }
 
-function toUiStatus(status: BorrowRequestRecord['status']): 'pending' | 'approved' | 'ready' | 'picked-up' | 'pending-return' | 'missing' | 'returned' | 'rejected' {
+function toUiStatus(status: BorrowRequestRecord['status'], rejectionReason?: string): 'pending' | 'approved' | 'ready' | 'picked-up' | 'pending-return' | 'missing' | 'returned' | 'rejected' | 'cancelled' {
 switch (status) {
 case 'pending_instructor':
 return 'pending';
@@ -56,6 +67,10 @@ return 'missing';
 case 'returned':
 return 'returned';
 case 'rejected':
+// Distinguish between student cancellation and instructor/custodian rejection
+if (rejectionReason === 'Request cancelled by student') {
+  return 'cancelled';
+}
 return 'rejected';
 default:
 return 'approved';
@@ -67,7 +82,7 @@ return `REQ-${id.slice(-6).toUpperCase()}`;
 }
 
 function mapRequest(request: BorrowRequestRecord): any {
-const uiStatus = toUiStatus(request.status);
+const uiStatus = toUiStatus(request.status, request.rejectReason);
 return {
 rawId: request.id,
 id: formatRequestCode(request.id),
@@ -94,13 +109,15 @@ async function loadRequests(forceRefresh = false): Promise<void> {
 	try {
 		const response = await borrowRequestsAPI.list({}, { forceRefresh });
 		requests = response.requests.map(mapRequest);
-		await backfillItemPictures();
 	} catch (error) {
 		console.error('Failed to load student requests', error);
 		requests = [];
 	} finally {
 		loading = false;
 	}
+	
+	// Backfill pictures in background after loading state is cleared (non-blocking)
+	await backfillItemPictures();
 }
 
 async function backfillItemPictures(): Promise<void> {
@@ -128,8 +145,85 @@ async function backfillItemPictures(): Promise<void> {
 	}
 }
 
-onMount(async () => {
-	await loadRequests();
+/**
+ * Refresh the list, guarding against overlapping fetches.
+ * If a fetch is already running, set a flag so we re-run once it finishes.
+ */
+async function refreshRequests(): Promise<void> {
+	if (refreshInFlight) {
+		pendingRefresh = true;
+		return;
+	}
+	refreshInFlight = true;
+	try {
+		borrowRequestsAPI.invalidateCache();
+		await loadRequests(true);
+		// Sync the open detail modal if it is stale
+		syncSelectedRequestWithLatestData();
+	} finally {
+		refreshInFlight = false;
+		if (pendingRefresh) {
+			pendingRefresh = false;
+			await refreshRequests();
+		}
+	}
+}
+
+/** Keep the detail modal in sync after a background refresh. */
+function syncSelectedRequestWithLatestData(): void {
+	if (!selectedRequest) return;
+	const fresh = requests.find((r) => r.rawId === selectedRequest.rawId);
+	if (fresh) {
+		selectedRequest = fresh;
+	} else {
+		// Request no longer in list (e.g. returned) — close the modal.
+		closeDetailModal();
+	}
+}
+
+/**
+ * Coalesce rapid SSE events into a single refresh after a short debounce.
+ * This prevents N simultaneous fetches when multiple mutations happen quickly.
+ */
+function scheduleRefresh(): void {
+	if (refreshTimer !== null) clearTimeout(refreshTimer);
+	refreshTimer = setTimeout(() => {
+		refreshTimer = null;
+		refreshRequests();
+	}, 250);
+}
+
+let _unsubscribeSSE: (() => void) | null = null;
+let _pollInterval: ReturnType<typeof setInterval> | null = null;
+
+onMount(() => {
+	// Kick off initial load (non-blocking — don't await here so we can return cleanup synchronously)
+	loadRequests(true);
+
+	// --- SSE real-time subscription ---
+	_unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((_event: BorrowRequestRealtimeEvent) => {
+		scheduleRefresh();
+	});
+	liveSyncActive = true;
+
+	// --- 30-second polling fallback (handles SSE gaps / reconnects) ---
+	_pollInterval = setInterval(() => {
+		refreshRequests();
+	}, 30_000);
+
+	// --- Refresh on tab/window focus so stale data is never shown ---
+	const onFocus = () => refreshRequests();
+	const onVisible = () => { if (document.visibilityState === 'visible') refreshRequests(); };
+	window.addEventListener('focus', onFocus);
+	document.addEventListener('visibilitychange', onVisible);
+
+	return () => {
+		_unsubscribeSSE?.();
+		if (_pollInterval !== null) clearInterval(_pollInterval);
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		window.removeEventListener('focus', onFocus);
+		document.removeEventListener('visibilitychange', onVisible);
+	};
 });
 
 function getStatusColor(status: string) {
@@ -141,6 +235,7 @@ case 'picked-up': return 'bg-purple-100 text-purple-800';
 case 'pending-return': return 'bg-orange-100 text-orange-800';
 case 'missing': return 'bg-rose-100 text-rose-800';
 case 'returned': return 'bg-teal-100 text-teal-800';
+case 'cancelled': return 'bg-slate-100 text-slate-800';
 case 'rejected': return 'bg-red-100 text-red-800';
 default: return 'bg-gray-100 text-gray-800';
 }
@@ -169,6 +264,7 @@ case 'picked-up': return 'border-violet-500';
 case 'pending-return': return 'border-orange-500';
 case 'missing': return 'border-rose-600';
 case 'returned': return 'border-teal-500';
+case 'cancelled': return 'border-slate-400';
 case 'rejected': return 'border-red-500';
 default: return 'border-gray-200';
 }
@@ -183,6 +279,7 @@ const labels: Record<string, string> = {
 'pending-return': 'Return Initiated',
 'missing': 'Item Missing',
 'returned': 'Returned',
+'cancelled': 'Cancelled',
 'rejected': 'Rejected'
 };
 return labels[status] ?? status;
@@ -193,7 +290,7 @@ const filteredRequests = $derived.by(() => {
 		const isMyRequest = req.status === 'pending';
 		const isInstructorApproved = ['approved', 'ready'].includes(req.status);
 		const isActive = ['picked-up', 'pending-return', 'missing'].includes(req.status);
-		const isHistory = ['returned', 'rejected'].includes(req.status);
+		const isHistory = ['returned', 'rejected', 'cancelled'].includes(req.status);
 
 		if (activeTab === 'my-request' && !isMyRequest) return false;
 		if (activeTab === 'instructor-approved' && !isInstructorApproved) return false;
@@ -228,7 +325,7 @@ const tabCounts = $derived({
  'my-request': requests.filter((r) => r.status === 'pending').length,
  'instructor-approved': requests.filter((r) => ['approved', 'ready'].includes(r.status)).length,
 active: requests.filter((r) => ['picked-up', 'pending-return', 'missing'].includes(r.status)).length,
-history: requests.filter((r) => ['returned', 'rejected'].includes(r.status)).length
+history: requests.filter((r) => ['returned', 'rejected', 'cancelled'].includes(r.status)).length
 });
 
 const stats = $derived({
@@ -275,7 +372,15 @@ async function confirmReturn() {
 	
 	try {
 		await borrowRequestsAPI.initiateReturn(requestId);
-		await loadRequests(true);
+		
+		// Immediately clear cache and update local state
+		borrowRequestsAPI.invalidateCache();
+		requests = requests.map(req => 
+			req.rawId === requestId 
+				? { ...req, status: 'pending-return' }
+				: req
+		);
+		
 		returnSuccess = `Return initiated for ${requestCode}. The custodian will confirm the return.`;
 		
 		// Clear success message after 5 seconds
@@ -294,6 +399,60 @@ async function confirmReturn() {
 	} finally {
 		loadingReturn = null;
 		confirmReturnRequest = null;
+	}
+}
+
+function requestCancelConfirmation(request: any) {
+	confirmCancelRequest = request;
+	showCancelConfirm = true;
+}
+
+function cancelCancelConfirm() {
+	showCancelConfirm = false;
+	confirmCancelRequest = null;
+}
+
+async function confirmCancel() {
+	if (!confirmCancelRequest) return;
+	
+	const requestId = confirmCancelRequest.rawId;
+	const requestCode = confirmCancelRequest.id;
+	
+	loadingCancel = requestId;
+	cancelError = null;
+	cancelSuccess = null;
+	showCancelConfirm = false;
+	
+	// Optimistically update UI immediately
+	requests = requests.filter(req => req.rawId !== requestId);
+	closeDetailModal();
+	cancelSuccess = `Request ${requestCode} has been cancelled successfully.`;
+	
+	try {
+		// Cancel the pending request on server
+		await borrowRequestsAPI.cancel(requestId);
+		borrowRequestsAPI.invalidateCache();
+		
+		// Clear success message after 5 seconds
+		setTimeout(() => {
+			cancelSuccess = null;
+		}, 5000);
+	} catch (error: any) {
+		console.error('Failed to cancel request', error);
+		
+		// Revert optimistic update on error by reloading
+		await loadRequests(true);
+		
+		const errorMessage = error?.message || 'An unexpected error occurred. Please try again.';
+		cancelError = `Failed to cancel request: ${errorMessage}`;
+		
+		// Clear error message after 8 seconds
+		setTimeout(() => {
+			cancelError = null;
+		}, 8000);
+	} finally {
+		loadingCancel = null;
+		confirmCancelRequest = null;
 	}
 }
 
@@ -371,86 +530,48 @@ return timeline;
 		</div>
 	{/if}
 	
+	<!-- Cancel Success Notification -->
+	{#if cancelSuccess}
+		<div class="rounded-lg bg-green-50 border border-green-200 p-4 shadow-sm">
+			<div class="flex items-start gap-3">
+				<CheckCircle2 size={20} class="text-green-500 flex-shrink-0 mt-0.5" />
+				<div class="flex-1">
+					<p class="text-sm font-medium text-green-800">{cancelSuccess}</p>
+				</div>
+				<button 
+					onclick={() => cancelSuccess = null}
+					class="text-green-500 hover:text-green-700"
+				>
+					<X size={20} />
+				</button>
+			</div>
+		</div>
+	{/if}
+	
+	<!-- Cancel Error Notification -->
+	{#if cancelError}
+		<div class="rounded-lg bg-red-50 border border-red-200 p-4 shadow-sm">
+			<div class="flex items-start gap-3">
+				<AlertCircle size={20} class="text-red-500 flex-shrink-0 mt-0.5" />
+				<div class="flex-1">
+					<p class="text-sm font-medium text-red-800">{cancelError}</p>
+				</div>
+				<button 
+					onclick={() => cancelError = null}
+					class="text-red-500 hover:text-red-700"
+				>
+					<X size={20} />
+				</button>
+			</div>
+		</div>
+	{/if}
+	
 	<!-- Page Header -->
 	<div>
 		<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">My Requests</h1>
 		<p class="mt-1 text-sm text-gray-500">Track your equipment borrow requests</p>
 	</div>
 	
-	{#if loading}
-		<!-- ── Skeleton loading state ── -->
-		<div class="space-y-6" aria-busy="true" aria-label="Loading requests">
-			<!-- Stats skeleton -->
-			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-				{#each Array(4) as _}
-					<div class="rounded-lg bg-white p-5 shadow space-y-3">
-						<Skeleton class="h-3.5 w-28" />
-						<Skeleton class="h-9 w-16" />
-					</div>
-				{/each}
-			</div>
-
-			<!-- Tabs skeleton -->
-			<div class="border-b border-gray-200 pb-px">
-				<div class="flex gap-6">
-					{#each [72, 80, 60, 64] as w}
-						<Skeleton class="h-4 mb-3" style="width:{w}px" />
-					{/each}
-				</div>
-			</div>
-
-			<!-- Search + filter bar skeleton -->
-			<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-				<Skeleton class="h-10 w-full max-w-md" />
-				<div class="flex items-center gap-3">
-					<Skeleton class="h-10 w-44" />
-					<Skeleton class="h-10 w-20" />
-				</div>
-			</div>
-
-			<!-- Result count + new request bar skeleton -->
-			<Skeleton class="h-10 w-full rounded-lg" />
-
-			<!-- Request card skeletons -->
-			{#each Array(3) as _, i}
-				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 border-l-4 border-gray-200">
-					<div class="p-5 space-y-4">
-						<!-- Header row -->
-						<div class="flex items-center justify-between">
-							<div class="flex items-center gap-3">
-								<Skeleton class="h-4 w-24" />
-								<Skeleton class="h-5 w-28 rounded-full" />
-							</div>
-							<Skeleton class="h-3.5 w-20" />
-						</div>
-						<!-- Equipment chips -->
-						<div class="space-y-2">
-							<Skeleton class="h-3 w-36" />
-							<div class="flex gap-2">
-								{#each Array(i === 0 ? 3 : i === 1 ? 2 : 4) as _}
-									<Skeleton class="h-7 w-24 rounded-md" />
-								{/each}
-							</div>
-						</div>
-						<!-- Metadata row -->
-						<div class="flex flex-wrap gap-x-5 gap-y-2">
-							<Skeleton class="h-3.5 w-40" />
-							<Skeleton class="h-3.5 w-52" />
-							<Skeleton class="h-3.5 w-32" />
-						</div>
-					</div>
-					<!-- Card footer skeleton -->
-					<div class="flex items-center justify-between border-t border-gray-100 bg-gray-50/60 px-5 py-3">
-						<Skeleton class="h-3.5 w-48" />
-						<div class="flex gap-2">
-							<Skeleton class="h-7 w-24 rounded-lg" />
-						</div>
-					</div>
-				</div>
-			{/each}
-		</div>
-	{:else}
-
 	<!-- Statistics Cards -->
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 		<div class="rounded-lg bg-white p-5 shadow">
@@ -597,6 +718,46 @@ return timeline;
 			</a>
 		</div>
 		
+		<!-- Loading skeletons only show on first load when no requests exist -->
+		{#if loading && requests.length === 0}
+			{#each Array(3) as _, i}
+				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 border-l-4 border-gray-200">
+					<div class="p-5 space-y-4">
+						<!-- Header row -->
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-3">
+								<Skeleton class="h-4 w-24" />
+								<Skeleton class="h-5 w-28 rounded-full" />
+							</div>
+							<Skeleton class="h-3.5 w-20" />
+						</div>
+						<!-- Equipment chips -->
+						<div class="space-y-2">
+							<Skeleton class="h-3 w-36" />
+							<div class="flex gap-2">
+								{#each Array(i === 0 ? 3 : i === 1 ? 2 : 4) as _}
+									<Skeleton class="h-7 w-24 rounded-md" />
+								{/each}
+							</div>
+						</div>
+						<!-- Metadata row -->
+						<div class="flex flex-wrap gap-x-5 gap-y-2">
+							<Skeleton class="h-3.5 w-40" />
+							<Skeleton class="h-3.5 w-52" />
+							<Skeleton class="h-3.5 w-32" />
+						</div>
+					</div>
+					<!-- Card footer skeleton -->
+					<div class="flex items-center justify-between border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+						<Skeleton class="h-3.5 w-48" />
+						<div class="flex gap-2">
+							<Skeleton class="h-7 w-24 rounded-lg" />
+						</div>
+					</div>
+				</div>
+			{/each}
+		{:else}
+		
 		{#each filteredRequests as request}
 			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md border-l-4 {getStatusBorderColor(request.status)}">
 
@@ -701,8 +862,20 @@ return timeline;
 							View Details
 						</button>
 						{#if request.status === 'pending'}
-							<button class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 transition-colors">
-								Cancel
+							<button
+								onclick={() => requestCancelConfirmation(request)}
+								disabled={loadingCancel === request.rawId}
+								class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+							>
+								{#if loadingCancel === request.rawId}
+									<svg class="h-3.5 w-3.5 inline-block animate-spin mr-1" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+									Cancelling…
+								{:else}
+									Cancel
+								{/if}
 							</button>
 						{/if}
 						{#if request.status === 'picked-up'}
@@ -735,6 +908,7 @@ return timeline;
 				</div>
 			</div>
 		{/each}
+		{/if}
 		
 		{#if filteredRequests.length === 0}
 			<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
@@ -750,15 +924,14 @@ return timeline;
 			</div>
 		{/if}
 	</div>
-	{/if}
 </div>
 
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-gray-500 bg-opacity-75" onclick={closeDetailModal}></div>
+		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick={closeDetailModal}></div>
 		<div class="flex min-h-full items-center justify-center p-4">
-			<div class="relative w-full max-w-3xl rounded-lg bg-white shadow-xl">
+			<div class="relative w-full max-w-3xl rounded-lg bg-white/95 shadow-xl ring-1 ring-black/5 backdrop-blur-sm">
 				<!-- Header -->
 				<div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
 					<div class="flex items-center justify-between">
@@ -915,8 +1088,20 @@ return timeline;
 							Close
 						</button>
 						{#if selectedRequest.status === 'pending'}
-							<button class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
-								Cancel Request
+							<button
+								onclick={() => requestCancelConfirmation(selectedRequest)}
+								disabled={loadingCancel === selectedRequest.rawId}
+								class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+							>
+								{#if loadingCancel === selectedRequest.rawId}
+									<svg class="h-4 w-4 inline-block animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+									Cancelling…
+								{:else}
+									Cancel Request
+								{/if}
 							</button>
 						{/if}
 						{#if selectedRequest.status === 'ready'}
@@ -938,8 +1123,8 @@ return timeline;
 
 <!-- Return Confirmation Modal -->
 {#if showReturnConfirm && confirmReturnRequest}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-		<div class="relative w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+		<div class="relative w-full max-w-md rounded-lg bg-white/95 p-6 shadow-xl ring-1 ring-black/5 backdrop-blur-sm">
 			<!-- Header -->
 			<div class="mb-4">
 				<div class="flex items-center gap-3">
@@ -1003,6 +1188,88 @@ return timeline;
 					class="flex-1 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
 				>
 					Confirm Return
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Cancel Confirmation Modal -->
+{#if showCancelConfirm && confirmCancelRequest}
+	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+		<div class="relative w-full max-w-md rounded-lg bg-white/95 p-6 shadow-xl ring-1 ring-black/5 backdrop-blur-sm">
+			<!-- Header -->
+			<div class="mb-4">
+				<div class="flex items-center gap-3">
+					<div class="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+						<CircleX size={24} class="text-red-600" />
+					</div>
+					<div>
+						<h3 class="text-lg font-semibold text-gray-900">Cancel Request</h3>
+						<p class="text-sm text-gray-500">{confirmCancelRequest.id}</p>
+					</div>
+				</div>
+			</div>
+			
+			<!-- Content -->
+			<div class="mb-6">
+				<p class="text-sm text-gray-700 mb-4">
+					Are you sure you want to cancel this request? This action cannot be undone.
+				</p>
+				
+				<!-- Items List -->
+				<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+					<p class="text-xs font-medium text-gray-500 mb-2">REQUESTED ITEMS</p>
+					<div class="space-y-2">
+						{#each confirmCancelRequest.items as item}
+							{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+							<div class="flex items-center gap-2 text-sm text-gray-700">
+								{#if pic}
+									<img src={pic} alt={item.name} class="h-7 w-7 rounded object-cover shrink-0" />
+								{:else}
+									<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-gray-200">
+										<Package size={20} class="text-gray-400" />
+									</div>
+								{/if}
+								<span class="font-medium">{item.name}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+				
+				<!-- Warning Note -->
+				<div class="mt-4 rounded-lg bg-red-50 border border-red-200 p-3">
+					<div class="flex gap-2">
+						<TriangleAlert size={16} class="text-red-600 flex-shrink-0 mt-0.5" />
+						<p class="text-xs text-red-800">
+							If you need these items later, you will need to submit a new request.
+						</p>
+					</div>
+				</div>
+			</div>
+			
+			<!-- Actions -->
+			<div class="flex gap-3">
+				<button
+					onclick={cancelCancelConfirm}
+					class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+				>
+					Keep Request
+				</button>
+				<button
+					onclick={confirmCancel}
+					disabled={loadingCancel === confirmCancelRequest.rawId}
+					class="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+				>
+					{#if loadingCancel === confirmCancelRequest.rawId}
+						<svg class="h-4 w-4 inline-block animate-spin mr-1" fill="none" viewBox="0 0 24 24">
+							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+						</svg>
+						Cancelling…
+					{:else}
+						Yes, Cancel Request
+					{/if}
 				</button>
 			</div>
 		</div>

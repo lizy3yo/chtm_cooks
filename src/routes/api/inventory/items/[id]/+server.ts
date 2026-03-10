@@ -17,6 +17,7 @@ import { logger } from '$lib/server/utils/logger';
 import { logInventoryActivity, getObjectChanges } from '$lib/server/utils/inventoryLogger';
 import { InventoryAction } from '$lib/server/models/InventoryHistory';
 import { cacheService } from '$lib/server/cache';
+import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
 
 /**
  * Determine item status based on quantity and minStock
@@ -279,6 +280,14 @@ export const PATCH: RequestHandler = async (event) => {
 		await cacheService.deletePattern('inventory:archived:*');
 		await cacheService.deletePattern('inventory:history:*');
 
+		publishInventoryChange([INVENTORY_CHANNEL], {
+			action: action === InventoryAction.ARCHIVED ? 'item_archived' : action === InventoryAction.RESTORED ? 'item_restored' : 'item_updated',
+			entityType: 'item',
+			entityId: result._id!.toString(),
+			entityName: result.name,
+			occurredAt: new Date().toISOString()
+		});
+
 		return json(toItemResponse(result));
 
 	} catch (error) {
@@ -415,6 +424,14 @@ export const DELETE: RequestHandler = async (event) => {
 		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog']);
 		await cacheService.deletePattern('inventory:deleted:*');
 		await cacheService.deletePattern('inventory:history:*');
+
+		publishInventoryChange([INVENTORY_CHANNEL], {
+			action: 'item_deleted',
+			entityType: 'item',
+			entityId: item._id!.toString(),
+			entityName: item.name,
+			occurredAt: new Date().toISOString()
+		});
 
 		return json({ 
 			success: true, 

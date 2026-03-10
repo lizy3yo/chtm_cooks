@@ -7,7 +7,8 @@
 	import { 
 		inventoryItemsAPI, 
 		inventoryCategoriesAPI, 
-		uploadInventoryImage 
+		uploadInventoryImage,
+		subscribeToInventoryChanges
 	} from '$lib/api/inventory';
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
@@ -88,6 +89,16 @@
 			window.removeEventListener('keydown', handleKeydown);
 			document.removeEventListener('click', handleClickOutside);
 		};
+	});
+
+	// Real-time inventory updates via SSE
+	onMount(() => {
+		const unsub = subscribeToInventoryChanges(() => {
+			inventoryStore.invalidateAll();
+			loadItems();
+			loadCategories();
+		});
+		return () => unsub();
 	});
 
 	/**

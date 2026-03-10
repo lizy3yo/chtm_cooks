@@ -16,6 +16,7 @@ import { logger } from '$lib/server/utils/logger';
 import { logInventoryActivity } from '$lib/server/utils/inventoryLogger';
 import { InventoryAction } from '$lib/server/models/InventoryHistory';
 import { cacheService } from '$lib/server/cache';
+import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
 
 /**
  * Determine item status based on quantity and minStock
@@ -300,6 +301,14 @@ export const POST: RequestHandler = async (event) => {
 		// Invalidate inventory cache (use tag-based invalidation — deletePattern is a no-op on Upstash)
 		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog']);
 		await cacheService.deletePattern('inventory:archived:*');
+
+		publishInventoryChange([INVENTORY_CHANNEL], {
+			action: 'item_created',
+			entityType: 'item',
+			entityId: newItem._id!.toString(),
+			entityName: newItem.name,
+			occurredAt: new Date().toISOString()
+		});
 
 		return json(toItemResponse(newItem), { status: 201 });
 

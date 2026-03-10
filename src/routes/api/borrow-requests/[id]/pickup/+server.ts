@@ -11,7 +11,8 @@ import {
 	decrementInventoryForBorrow,
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
-	parseObjectId
+	parseObjectId,
+	publishBorrowRequestRealtimeEvent
 } from '../../shared';
 
 export const POST: RequestHandler = async (event) => {
@@ -82,6 +83,7 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		await invalidateBorrowRequestCaches();
+		publishBorrowRequestRealtimeEvent(updated, 'picked_up', now);
 		return json(toBorrowRequestResponse(updated));
 	} catch (error) {
 		logger.error('Error picking up borrow request', { error });

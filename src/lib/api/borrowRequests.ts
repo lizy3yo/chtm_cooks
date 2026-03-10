@@ -10,6 +10,27 @@ export type BorrowRequestStatus =
 	| 'returned'
 	| 'rejected';
 
+export type BorrowRequestRealtimeAction =
+	| 'created'
+	| 'approved'
+	| 'rejected'
+	| 'released'
+	| 'picked_up'
+	| 'return_initiated'
+	| 'returned'
+	| 'missing'
+	| 'cancelled'
+	| 'items_inspected'
+	| 'reminder_sent';
+
+export interface BorrowRequestRealtimeEvent {
+	action: BorrowRequestRealtimeAction;
+	requestId: string;
+	studentId: string;
+	status: string;
+	occurredAt: string;
+}
+
 export interface BorrowRequestItemInput {
 	itemId: string;
 	quantity: number;
@@ -206,6 +227,11 @@ export const borrowRequestsAPI = {
 		if (params.sortBy) query.set('sortBy', params.sortBy);
 		if (params.page) query.set('page', String(params.page));
 		if (params.limit) query.set('limit', String(params.limit));
+		
+		// Add cache-busting parameter when forcing refresh
+		if (options.forceRefresh) {
+			query.set('_t', Date.now().toString());
+		}
 
 		const url = `/api/borrow-requests${query.toString() ? `?${query.toString()}` : ''}`;
 		const cacheKey = buildListCacheKey(params);
@@ -288,6 +314,14 @@ export const borrowRequestsAPI = {
 			`/api/borrow-requests/${id}/reject`,
 			getFetchOptions('POST', { reason, notes })
 		);
+		const data = await handleResponse<BorrowRequestRecord>(response);
+		invalidateAllCaches();
+		setCache(detailCache, id, data);
+		return data;
+	},
+
+	async cancel(id: string): Promise<BorrowRequestRecord> {
+		const response = await fetch(`/api/borrow-requests/${id}`, getFetchOptions('DELETE'));
 		const data = await handleResponse<BorrowRequestRecord>(response);
 		invalidateAllCaches();
 		setCache(detailCache, id, data);
@@ -383,5 +417,35 @@ export const borrowRequestsAPI = {
 
 	invalidateCache(): void {
 		invalidateAllCaches();
+	},
+
+	/**
+	 * Open an SSE connection to `/api/borrow-requests/stream` and invoke
+	 * `callback` whenever the server emits a `borrow_request_change` event.
+	 *
+	 * Returns an unsubscribe function — call it in `onDestroy` / cleanup.
+	 * Safe to call from SSR context (no-ops when not in browser).
+	 */
+	subscribeToChanges(callback: (event: BorrowRequestRealtimeEvent) => void): () => void {
+		if (!browser) return () => {};
+
+		const source = new EventSource('/api/borrow-requests/stream');
+
+		source.addEventListener('borrow_request_change', (e: MessageEvent) => {
+			try {
+				const data = JSON.parse(e.data) as BorrowRequestRealtimeEvent;
+				callback(data);
+			} catch {
+				// Malformed payload — ignore.
+			}
+		});
+
+		source.addEventListener('error', () => {
+			// EventSource auto-reconnects after error; nothing to do here.
+		});
+
+		return () => {
+			source.close();
+		};
 	}
 };

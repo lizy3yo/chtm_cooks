@@ -8,7 +8,7 @@ import { BorrowRequestStatus } from '$lib/server/models/BorrowRequest';
 import { ObligationStatus } from '$lib/server/models/FinancialObligation';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
-import { getAuthenticatedUser, BORROW_REQUESTS_COLLECTION } from '../../shared';
+import { getAuthenticatedUser, BORROW_REQUESTS_COLLECTION, invalidateBorrowRequestCaches, publishBorrowRequestRealtimeEvent } from '../../shared';
 
 interface ItemInspectionInput {
 	itemId: string;
@@ -218,6 +218,13 @@ export const POST: RequestHandler = async (event) => {
 			obligationsCreated: obligations.length,
 			newStatus
 		});
+
+		await invalidateBorrowRequestCaches();
+		publishBorrowRequestRealtimeEvent(
+			{ ...borrowRequest, _id: new ObjectId(requestId), status: newStatus },
+			'items_inspected',
+			now
+		);
 
 		return json({
 			success: true,

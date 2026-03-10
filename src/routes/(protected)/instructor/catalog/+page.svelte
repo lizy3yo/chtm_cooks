@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { catalogAPI, type CatalogResponse, type CatalogFilters, type CatalogItem } from '$lib/api/catalog';
+	import { subscribeToInventoryChanges } from '$lib/api/inventory';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 
 	// UI State
@@ -197,6 +198,14 @@
 			clearInterval(refreshInterval);
 			clearTimeout(searchTimeout);
 		};
+	});
+
+	// Real-time inventory updates via SSE
+	onMount(() => {
+		const unsub = subscribeToInventoryChanges(() => {
+			fetchCatalog({ background: true, forceRefresh: true });
+		});
+		return () => unsub();
 	});
 </script>
 

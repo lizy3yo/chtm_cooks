@@ -15,7 +15,8 @@ import {
 	BORROW_REQUESTS_COLLECTION,
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
-	parseObjectId
+	parseObjectId,
+	publishBorrowRequestRealtimeEvent
 } from '../../shared';
 
 export const POST: RequestHandler = async (event) => {
@@ -82,6 +83,7 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		await invalidateBorrowRequestCaches();
+		publishBorrowRequestRealtimeEvent(updated, 'rejected', now);
 		return json(toBorrowRequestResponse(updated));
 	} catch (error) {
 		logger.error('Error rejecting borrow request', { error });

@@ -16,6 +16,7 @@ import { logInventoryActivity, getObjectChanges } from '$lib/server/utils/invent
 import { InventoryAction } from '$lib/server/models/InventoryHistory';
 import { cacheService } from '$lib/server/cache';
 import { storageService } from '$lib/server/services/storage/storageService';
+import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
 
 /**
  * Extract Cloudinary publicId from image URL
@@ -199,6 +200,14 @@ export const PATCH: RequestHandler = async (event) => {
 		await cacheService.deletePattern('inventory:categories:*');
 		await cacheService.invalidateByTags(['inventory-catalog']);
 
+		publishInventoryChange([INVENTORY_CHANNEL], {
+			action: 'category_updated',
+			entityType: 'category',
+			entityId: result._id!.toString(),
+			entityName: result.name,
+			occurredAt: new Date().toISOString()
+		});
+
 		return json(toCategoryResponse(result));
 
 	} catch (error) {
@@ -315,6 +324,14 @@ export const DELETE: RequestHandler = async (event) => {
 		await cacheService.deletePattern('inventory:deleted:*');
 		await cacheService.deletePattern('inventory:history:*');
 		await cacheService.invalidateByTags(['inventory-catalog']);
+
+		publishInventoryChange([INVENTORY_CHANNEL], {
+			action: 'category_deleted',
+			entityType: 'category',
+			entityId: category._id!.toString(),
+			entityName: category.name,
+			occurredAt: new Date().toISOString()
+		});
 
 		return json({ 
 			success: true, 

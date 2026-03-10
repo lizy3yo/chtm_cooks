@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { catalogAPI, type CatalogResponse, type CatalogFilters, type CatalogItem } from '$lib/api/catalog';
+	import { subscribeToInventoryChanges } from '$lib/api/inventory';
 	import { requestCartCount, requestCartStore } from '$lib/stores/requestCart';
 	import Toast from '$lib/components/ui/Toast.svelte';
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
@@ -296,6 +297,14 @@
 			clearInterval(refreshInterval);
 			clearTimeout(searchTimeout);
 		};
+	});
+
+	// Real-time inventory updates via SSE
+	onMount(() => {
+		const unsub = subscribeToInventoryChanges(() => {
+			fetchCatalog({ background: true, forceRefresh: true });
+		});
+		return () => unsub();
 	});
 	
 	$effect(() => {

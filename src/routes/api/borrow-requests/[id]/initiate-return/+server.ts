@@ -9,7 +9,8 @@ import {
 	BORROW_REQUESTS_COLLECTION,
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
-	parseObjectId
+	parseObjectId,
+	publishBorrowRequestRealtimeEvent
 } from '../../shared';
 
 export const POST: RequestHandler = async (event) => {
@@ -67,6 +68,7 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		await invalidateBorrowRequestCaches();
+		publishBorrowRequestRealtimeEvent(updated, 'return_initiated', now);
 		logger.info('Student initiated return', { requestId: requestId.toString(), studentId: user.userId });
 		return json(toBorrowRequestResponse(updated));
 	} catch (error) {
