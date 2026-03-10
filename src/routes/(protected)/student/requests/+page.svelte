@@ -129,28 +129,20 @@ async function backfillItemPictures(): Promise<void> {
 }
 
 onMount(async () => {
-await loadRequests(true);
+	await loadRequests(true);
 
-const refresh = () => {
-void loadRequests(true);
-};
+	// Only poll while there are requests actively in-flight (non-terminal states).
+	// Once all are resolved (returned / rejected) the interval self-disables.
+	const ACTIVE_STATUSES = new Set(['pending', 'approved', 'ready', 'picked-up', 'pending-return', 'missing']);
 
-const intervalId = window.setInterval(refresh, 15000);
-window.addEventListener('focus', refresh);
+	const intervalId = window.setInterval(() => {
+		const hasInFlight = requests.some((r) => ACTIVE_STATUSES.has(r.status));
+		if (hasInFlight) {
+			void loadRequests();
+		}
+	}, 30_000);
 
-const onVisibilityChange = () => {
-if (!document.hidden) {
-refresh();
-}
-};
-
-document.addEventListener('visibilitychange', onVisibilityChange);
-
-return () => {
-window.clearInterval(intervalId);
-window.removeEventListener('focus', refresh);
-document.removeEventListener('visibilitychange', onVisibilityChange);
-};
+	return () => window.clearInterval(intervalId);
 });
 
 function getStatusColor(status: string) {
