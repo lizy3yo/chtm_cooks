@@ -10,6 +10,27 @@ export type BorrowRequestStatus =
 	| 'returned'
 	| 'rejected';
 
+export type BorrowRequestRealtimeAction =
+	| 'created'
+	| 'approved'
+	| 'rejected'
+	| 'released'
+	| 'picked_up'
+	| 'return_initiated'
+	| 'returned'
+	| 'missing'
+	| 'cancelled'
+	| 'items_inspected'
+	| 'reminder_sent';
+
+export interface BorrowRequestRealtimeEvent {
+	action: BorrowRequestRealtimeAction;
+	requestId: string;
+	studentId: string;
+	status: string;
+	occurredAt: string;
+}
+
 export interface BorrowRequestItemInput {
 	itemId: string;
 	quantity: number;
@@ -27,6 +48,7 @@ export interface BorrowRequestItem {
 	name: string;
 	quantity: number;
 	category?: string;
+	picture?: string;
 	inspection?: {
 		status: 'good' | 'damaged' | 'missing';
 		inspectedAt: Date;
@@ -158,13 +180,21 @@ function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T): v
 
 function buildListCacheKey(params: {
 	status?: BorrowRequestStatus;
+	statuses?: BorrowRequestStatus[];
 	search?: string;
+	sortBy?: 'createdAt' | 'returnDate';
 	page?: number;
 	limit?: number;
 } = {}): string {
+	const statuses = params.statuses && params.statuses.length > 0
+		? [...params.statuses].sort().join(',')
+		: 'none';
+
 	return [
 		params.status || 'all',
+		statuses,
 		params.search?.trim().toLowerCase() || 'none',
+		params.sortBy || 'createdAt',
 		String(params.page || 1),
 		String(params.limit || 20)
 	].join(':');
@@ -180,7 +210,9 @@ export const borrowRequestsAPI = {
 	async list(
 		params: {
 			status?: BorrowRequestStatus;
+			statuses?: BorrowRequestStatus[];
 			search?: string;
+			sortBy?: 'createdAt' | 'returnDate';
 			page?: number;
 			limit?: number;
 		} = {},
@@ -188,9 +220,18 @@ export const borrowRequestsAPI = {
 	): Promise<BorrowRequestListResponse> {
 		const query = new URLSearchParams();
 		if (params.status) query.set('status', params.status);
+		if (params.statuses && params.statuses.length > 0) {
+			query.set('statuses', params.statuses.join(','));
+		}
 		if (params.search) query.set('search', params.search);
+		if (params.sortBy) query.set('sortBy', params.sortBy);
 		if (params.page) query.set('page', String(params.page));
 		if (params.limit) query.set('limit', String(params.limit));
+		
+		// Add cache-busting parameter when forcing refresh
+		if (options.forceRefresh) {
+			query.set('_t', Date.now().toString());
+		}
 
 		const url = `/api/borrow-requests${query.toString() ? `?${query.toString()}` : ''}`;
 		const cacheKey = buildListCacheKey(params);
@@ -279,6 +320,14 @@ export const borrowRequestsAPI = {
 		return data;
 	},
 
+	async cancel(id: string): Promise<BorrowRequestRecord> {
+		const response = await fetch(`/api/borrow-requests/${id}`, getFetchOptions('DELETE'));
+		const data = await handleResponse<BorrowRequestRecord>(response);
+		invalidateAllCaches();
+		setCache(detailCache, id, data);
+		return data;
+	},
+
 	async release(id: string): Promise<BorrowRequestRecord> {
 		const response = await fetch(`/api/borrow-requests/${id}/release`, getFetchOptions('POST'));
 		const data = await handleResponse<BorrowRequestRecord>(response);
@@ -353,7 +402,9 @@ export const borrowRequestsAPI = {
 
 	peekCachedList(params: {
 		status?: BorrowRequestStatus;
+		statuses?: BorrowRequestStatus[];
 		search?: string;
+		sortBy?: 'createdAt' | 'returnDate';
 		page?: number;
 		limit?: number;
 	} = {}): BorrowRequestListResponse | null {
@@ -366,5 +417,35 @@ export const borrowRequestsAPI = {
 
 	invalidateCache(): void {
 		invalidateAllCaches();
+	},
+
+	/**
+	 * Open an SSE connection to `/api/borrow-requests/stream` and invoke
+	 * `callback` whenever the server emits a `borrow_request_change` event.
+	 *
+	 * Returns an unsubscribe function — call it in `onDestroy` / cleanup.
+	 * Safe to call from SSR context (no-ops when not in browser).
+	 */
+	subscribeToChanges(callback: (event: BorrowRequestRealtimeEvent) => void): () => void {
+		if (!browser) return () => {};
+
+		const source = new EventSource('/api/borrow-requests/stream');
+
+		source.addEventListener('borrow_request_change', (e: MessageEvent) => {
+			try {
+				const data = JSON.parse(e.data) as BorrowRequestRealtimeEvent;
+				callback(data);
+			} catch {
+				// Malformed payload — ignore.
+			}
+		});
+
+		source.addEventListener('error', () => {
+			// EventSource auto-reconnects after error; nothing to do here.
+		});
+
+		return () => {
+			source.close();
+		};
 	}
 };

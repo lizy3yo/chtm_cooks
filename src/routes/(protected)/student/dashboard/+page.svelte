@@ -1,251 +1,636 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { user, authStore, justLoggedIn } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
-	import { onMount } from 'svelte';
-	
+	import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
+	import Skeleton from '$lib/components/ui/Skeleton.svelte';
+	import {
+		ClipboardList, Clock, PackageOpen, TriangleAlert,
+		CheckCircle2, CalendarDays, TrendingUp, Package,
+		ArrowRight, CircleCheck, CornerDownLeft, CircleAlert,
+		PackageCheck, CircleX, RefreshCw
+	} from 'lucide-svelte';
+
+	// ── types ────────────────────────────────────────────────────────────────
+	interface DashboardRequest {
+		rawId: string;
+		id: string;
+		status: string;
+		statusLabel: string;
+		items: { name: string; picture?: string }[];
+		itemCount: number;
+		borrowDate: string;
+		returnDate: string;
+		createdAt: string;
+		instructor: string;
+		daysUntilDue: number | null;
+		isOverdue: boolean;
+	}
+
+	// ── state ─────────────────────────────────────────────────────────────────
+	let loading = $state(true);
+	let allRequests = $state<DashboardRequest[]>([]);
 	let currentTime = $state(new Date());
-	
-	// Placeholder data - will be replaced with real API calls
-	const stats = [
-		{
-			title: 'Active Loans',
-			value: '3',
-			change: '+1',
-			changeType: 'neutral',
-			icon: 'M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4',
-			bgColor: 'bg-blue-500'
-		},
-		{
-			title: 'Pending Requests',
-			value: '2',
-			change: '+2',
-			changeType: 'neutral',
-			icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
-			bgColor: 'bg-yellow-500'
-		},
-		{
-			title: 'Overdue Items',
-			value: '0',
-			change: '0',
-			changeType: 'positive',
-			icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z',
-			bgColor: 'bg-red-500'
-		},
-		{
-			title: 'Available Equipment',
-			value: '247',
-			change: '+12',
-			changeType: 'positive',
-			icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10',
-			bgColor: 'bg-green-500'
+
+	// ── helpers ───────────────────────────────────────────────────────────────
+	function formatRequestCode(id: string) {
+		return `REQ-${id.slice(-6).toUpperCase()}`;
+	}
+
+	function toUiStatus(raw: BorrowRequestRecord['status']): string {
+		const map: Record<string, string> = {
+			pending_instructor: 'pending',
+			approved_instructor: 'approved',
+			ready_for_pickup: 'ready',
+			borrowed: 'picked-up',
+			pending_return: 'pending-return',
+			missing: 'missing',
+			returned: 'returned',
+			rejected: 'rejected'
+		};
+		return map[raw] ?? raw;
+	}
+
+	function toStatusLabel(s: string): string {
+		const labels: Record<string, string> = {
+			'pending': 'Pending Review',
+			'approved': 'Instructor Approved',
+			'ready': 'Ready for Pickup',
+			'picked-up': 'Active Loan',
+			'pending-return': 'Return Initiated',
+			'missing': 'Item Missing',
+			'returned': 'Returned',
+			'rejected': 'Rejected'
+		};
+		return labels[s] ?? s;
+	}
+
+	function calcDaysUntilDue(returnDate: string): number {
+		const now = new Date();
+		now.setHours(0, 0, 0, 0);
+		const due = new Date(returnDate);
+		due.setHours(0, 0, 0, 0);
+		return Math.round((due.getTime() - now.getTime()) / 86_400_000);
+	}
+
+	function mapToCard(r: BorrowRequestRecord): DashboardRequest {
+		const status = toUiStatus(r.status);
+		const days = ['picked-up', 'pending-return', 'missing'].includes(status)
+			? calcDaysUntilDue(r.returnDate)
+			: null;
+		return {
+			rawId: r.id,
+			id: formatRequestCode(r.id),
+			status,
+			statusLabel: toStatusLabel(status),
+			items: r.items.map((i) => ({ name: i.name, picture: i.picture })),
+			itemCount: r.items.length,
+			borrowDate: r.borrowDate,
+			returnDate: r.returnDate,
+			createdAt: r.createdAt,
+			instructor: r.instructor?.fullName ?? 'Pending Assignment',
+			daysUntilDue: days,
+			isOverdue: days !== null && days < 0
+		};
+	}
+
+	async function loadDashboard(force = false) {
+		try {
+			const res = await borrowRequestsAPI.list({ limit: 100 }, { forceRefresh: force });
+			allRequests = res.requests.map(mapToCard);
+		} catch {
+			toastStore.error('Failed to load dashboard data', 'Error');
+		} finally {
+			loading = false;
 		}
-	];
-	
-	const upcomingReturns = [
-		{ item: 'Chef Knife Set', dueDate: 'Tomorrow', daysRemaining: 1, status: 'warning' },
-		{ item: 'Mixing Bowl Large', dueDate: 'In 3 days', daysRemaining: 3, status: 'good' },
-		{ item: 'Digital Scale', dueDate: 'In 5 days', daysRemaining: 5, status: 'good' }
-	];
-	
-	const recentActivity = [
-		{ action: 'Request approved', item: 'Chef Knife Set', time: '2 hours ago', status: 'approved' },
-		{ action: 'Item borrowed', item: 'Mixing Bowl Large', time: '1 day ago', status: 'completed' },
-		{ action: 'Request submitted', item: 'Digital Scale', time: '2 days ago', status: 'pending' },
-		{ action: 'Item returned', item: 'Cutting Board', time: '3 days ago', status: 'completed' },
-		{ action: 'Request rejected', item: 'Food Processor', time: '4 days ago', status: 'rejected' }
-	];
-	
-	onMount(() => {
-		// Show welcome toast if just logged in
+	}
+
+	// ── derived metrics ───────────────────────────────────────────────────────
+	const metrics = $derived({
+		totalRequests: allRequests.length,
+		activeLoans: allRequests.filter((r) => ['picked-up', 'pending-return'].includes(r.status)).length,
+		pendingCount: allRequests.filter((r) => ['pending', 'approved', 'ready'].includes(r.status)).length,
+		overdueCount: allRequests.filter((r) => r.isOverdue).length,
+		returnedCount: allRequests.filter((r) => r.status === 'returned').length,
+		rejectedCount: allRequests.filter((r) => r.status === 'rejected').length
+	});
+
+	// Approval rate — out of resolved (returned + rejected)
+	const approvalRate = $derived.by(() => {
+		const resolved = metrics.returnedCount + metrics.rejectedCount;
+		if (resolved === 0) return null;
+		return Math.round((metrics.returnedCount / resolved) * 100);
+	});
+
+	// On-time return rate — returned requests where returnedAt <= returnDate
+	const onTimeRate = $derived.by(() => {
+		const returned = allRequests.filter((r) => r.status === 'returned');
+		if (returned.length === 0) return null;
+		// We don't have returnedAt here, so use a proxy: non-overdue at time of return
+		// We'll surface this as "completed loan rate" instead
+		return metrics.returnedCount;
+	});
+
+	// Active request in best next-action priority
+	const activeRequests = $derived(
+		allRequests.filter((r) => ['picked-up', 'pending-return', 'missing'].includes(r.status))
+	);
+
+	// Requests pending action (need attention from student or admin)
+	const pendingRequests = $derived(
+		allRequests.filter((r) => ['pending', 'approved', 'ready'].includes(r.status))
+	);
+
+	// Items due within 7 days, sorted by urgency
+	const dueSoon = $derived(
+		allRequests
+			.filter((r) => r.daysUntilDue !== null && r.daysUntilDue <= 7)
+			.sort((a, b) => (a.daysUntilDue ?? 99) - (b.daysUntilDue ?? 99))
+	);
+
+	// Recent history (last 5 terminal requests)
+	const recentHistory = $derived(
+		allRequests
+			.filter((r) => ['returned', 'rejected'].includes(r.status))
+			.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+			.slice(0, 5)
+	);
+
+	// ── greeting ──────────────────────────────────────────────────────────────
+	const greeting = $derived.by(() => {
+		const h = currentTime.getHours();
+		if (h < 12) return 'Good morning';
+		if (h < 18) return 'Good afternoon';
+		return 'Good evening';
+	});
+
+	// ── status badge helpers ──────────────────────────────────────────────────
+	function statusColor(s: string): string {
+		const map: Record<string, string> = {
+			'pending': 'bg-yellow-100 text-yellow-800',
+			'approved': 'bg-blue-100 text-blue-800',
+			'ready': 'bg-emerald-100 text-emerald-800',
+			'picked-up': 'bg-violet-100 text-violet-800',
+			'pending-return': 'bg-orange-100 text-orange-800',
+			'missing': 'bg-rose-100 text-rose-800',
+			'returned': 'bg-teal-100 text-teal-800',
+			'rejected': 'bg-red-100 text-red-800'
+		};
+		return map[s] ?? 'bg-gray-100 text-gray-700';
+	}
+
+	function statusIcon(s: string) {
+		const map: Record<string, unknown> = {
+			'pending': Clock,
+			'approved': CheckCircle2,
+			'ready': PackageCheck,
+			'picked-up': PackageCheck,
+			'pending-return': CornerDownLeft,
+			'missing': CircleAlert,
+			'returned': CircleCheck,
+			'rejected': CircleX
+		};
+		return map[s] ?? Clock;
+	}
+
+	function dueBadge(days: number): { label: string; color: string } {
+		if (days < 0) return { label: `${Math.abs(days)}d overdue`, color: 'bg-red-100 text-red-700' };
+		if (days === 0) return { label: 'Due today', color: 'bg-rose-100 text-rose-700' };
+		if (days === 1) return { label: 'Due tomorrow', color: 'bg-orange-100 text-orange-700' };
+		if (days <= 3) return { label: `${days}d left`, color: 'bg-amber-100 text-amber-700' };
+		return { label: `${days}d left`, color: 'bg-green-100 text-green-700' };
+	}
+
+	function relativeTime(dateStr: string): string {
+		const diff = Date.now() - new Date(dateStr).getTime();
+		const min = Math.floor(diff / 60_000);
+		const hr = Math.floor(diff / 3_600_000);
+		const day = Math.floor(diff / 86_400_000);
+		if (min < 1) return 'just now';
+		if (min < 60) return `${min}m ago`;
+		if (hr < 24) return `${hr}h ago`;
+		if (day < 7) return `${day}d ago`;
+		return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+	}
+
+	// ── lifecycle ─────────────────────────────────────────────────────────────
+	onMount(async () => {
 		if ($justLoggedIn) {
 			toastStore.success('Welcome back! You have successfully logged in.', 'Login Successful', 5000);
-			// Clear the flag
 			authStore.clearJustLoggedIn();
 		}
-		
-		const interval = setInterval(() => {
-			currentTime = new Date();
-		}, 1000);
-		
-		return () => clearInterval(interval);
-	});
-	
-	const greeting = $derived(() => {
-		const hour = currentTime.getHours();
-		if (hour < 12) return 'Good morning';
-		if (hour < 18) return 'Good afternoon';
-		return 'Good evening';
+
+		await loadDashboard();
+
+		const clockId = setInterval(() => { currentTime = new Date(); }, 60_000);
+		return () => clearInterval(clockId);
 	});
 </script>
 
 <svelte:head>
-	<title>Student Dashboard - CHTM Lab Equipment</title>
+	<title>Dashboard - Student Portal</title>
 </svelte:head>
 
 <div class="space-y-6">
-	<!-- Header -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+	<!-- ── Header ─────────────────────────────────────────────────────────── -->
+	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 		<div>
 			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">
-				{greeting()}, {$user?.firstName}!
+				{greeting}, {$user?.firstName}
 			</h1>
 			<p class="mt-1 text-sm text-gray-500">
 				{#if $user?.yearLevel && $user?.block}
-					{$user.yearLevel} • Block {$user.block}
+					{$user.yearLevel} · Block {$user.block}
 				{:else}
-					Lab Equipment Management
+					Student Portal
 				{/if}
 			</p>
 		</div>
-		<div class="flex gap-3">
-			<a href="/student/catalog" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500">
-				<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-				</svg>
-				Browse Equipment
+		<div class="flex items-center gap-2">
+			<button
+				onclick={() => loadDashboard(true)}
+				class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+			>
+				<RefreshCw size={15} />
+				Refresh
+			</button>
+			<a
+				href="/student/request"
+				class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 transition-colors"
+			>
+				<ClipboardList size={15} />
+				New Request
 			</a>
 		</div>
 	</div>
-	
-	<!-- Stats Grid -->
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-		{#each stats as stat}
-			<div class="relative overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:px-6 sm:py-6">
-				<dt>
-					<div class="absolute rounded-md {stat.bgColor} p-3">
-						<svg class="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={stat.icon}/>
-						</svg>
+
+	{#if loading}
+		<!-- ── Skeleton ────────────────────────────────────────────────────── -->
+		<div class="space-y-6" aria-busy="true">
+			<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+				{#each Array(4) as _}
+					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-3">
+						<Skeleton class="h-3.5 w-28" />
+						<Skeleton class="h-9 w-16" />
 					</div>
-					<p class="ml-16 truncate text-sm font-medium text-gray-500">{stat.title}</p>
-				</dt>
-				<dd class="ml-16 flex items-baseline">
-					<p class="text-2xl font-semibold text-gray-900">{stat.value}</p>
-					<p class="ml-2 flex items-baseline text-sm font-semibold {stat.changeType === 'positive' ? 'text-green-600' : stat.changeType === 'negative' ? 'text-red-600' : 'text-gray-600'}">
-						{stat.change}
-					</p>
-				</dd>
+				{/each}
 			</div>
-		{/each}
-	</div>
-	
-	<!-- Quick Actions -->
-	<div class="rounded-lg bg-white shadow">
-		<div class="border-b border-gray-200 px-6 py-4">
-			<h2 class="text-lg font-semibold text-gray-900">Quick Actions</h2>
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+				<div class="lg:col-span-2 rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-5 space-y-4">
+					<Skeleton class="h-5 w-40" />
+					{#each Array(3) as _}
+						<div class="space-y-2">
+							<Skeleton class="h-4 w-full" />
+							<Skeleton class="h-3.5 w-3/4" />
+						</div>
+					{/each}
+				</div>
+				<div class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-5 space-y-4">
+					<Skeleton class="h-5 w-32" />
+					{#each Array(4) as _}
+						<Skeleton class="h-10 w-full rounded-lg" />
+					{/each}
+				</div>
+			</div>
 		</div>
-		<div class="grid grid-cols-1 divide-y divide-gray-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-			<a href="/student/catalog" class="flex items-center px-6 py-5 transition-colors hover:bg-gray-50">
-				<div class="flex h-12 w-12 items-center justify-center rounded-lg bg-pink-100">
-					<svg class="h-6 w-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-					</svg>
-				</div>
-				<div class="ml-4">
-					<p class="text-sm font-medium text-gray-900">Browse Equipment</p>
-					<p class="text-sm text-gray-500">View available items</p>
-				</div>
-			</a>
-			<a href="/student/request" class="flex items-center px-6 py-5 transition-colors hover:bg-gray-50">
-				<div class="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
-					<svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-					</svg>
-				</div>
-				<div class="ml-4">
-					<p class="text-sm font-medium text-gray-900">Submit Request</p>
-					<p class="text-sm text-gray-500">Borrow equipment</p>
-				</div>
-			</a>
-			<a href="/student/borrowed" class="flex items-center px-6 py-5 transition-colors hover:bg-gray-50">
-				<div class="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100">
-					<svg class="h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-					</svg>
-				</div>
-				<div class="ml-4">
-					<p class="text-sm font-medium text-gray-900">View My Items</p>
-					<p class="text-sm text-gray-500">Check borrowed items</p>
-				</div>
-			</a>
-		</div>
-	</div>
-	
-	<!-- Two Column Layout -->
-	<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-		<!-- Upcoming Returns -->
-		<div class="rounded-lg bg-white shadow">
-			<div class="border-b border-gray-200 px-6 py-4">
+
+	{:else}
+
+		<!-- ── KPI cards ───────────────────────────────────────────────────── -->
+		<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+
+			<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
 				<div class="flex items-center justify-between">
-					<h2 class="text-lg font-semibold text-gray-900">Upcoming Returns</h2>
-					<span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800">
-						{upcomingReturns.length} items
-					</span>
+					<p class="text-sm font-medium text-gray-500">Active Loans</p>
+					<div class="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100">
+						<Package size={18} class="text-violet-600" />
+					</div>
 				</div>
+				<p class="mt-3 text-3xl font-bold text-gray-900">{metrics.activeLoans}</p>
+				<p class="mt-1 text-xs text-gray-400">Currently borrowed</p>
 			</div>
-			<div class="divide-y divide-gray-200">
-				{#each upcomingReturns as item}
-					<div class="px-6 py-4 hover:bg-gray-50">
-						<div class="flex items-start justify-between">
-							<div class="flex-1">
-								<p class="text-sm font-medium text-gray-900">{item.item}</p>
-								<p class="mt-1 text-sm text-gray-500">Due: {item.dueDate}</p>
-							</div>
-							<div class="ml-4 flex flex-col items-end">
-								<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {
-									item.status === 'warning' ? 'bg-yellow-100 text-yellow-800' :
-									'bg-green-100 text-green-800'
-								}">
-									{item.daysRemaining} {item.daysRemaining === 1 ? 'day' : 'days'} left
-								</span>
-								<button class="mt-2 text-xs font-medium text-pink-600 hover:text-pink-700">
-									Quick Return
-								</button>
-							</div>
-						</div>
+
+			<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+				<div class="flex items-center justify-between">
+					<p class="text-sm font-medium text-gray-500">In Progress</p>
+					<div class="flex h-9 w-9 items-center justify-center rounded-lg bg-yellow-100">
+						<Clock size={18} class="text-yellow-600" />
 					</div>
-				{/each}
+				</div>
+				<p class="mt-3 text-3xl font-bold text-gray-900">{metrics.pendingCount}</p>
+				<p class="mt-1 text-xs text-gray-400">Awaiting action</p>
 			</div>
-			<div class="border-t border-gray-200 px-6 py-3">
-				<a href="/student/borrowed" class="text-sm font-medium text-pink-600 hover:text-pink-700">
-					View all borrowed items →
-				</a>
+
+			<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+				<div class="flex items-center justify-between">
+					<p class="text-sm font-medium text-gray-500">Overdue</p>
+					<div class="flex h-9 w-9 items-center justify-center rounded-lg {metrics.overdueCount > 0 ? 'bg-red-100' : 'bg-gray-100'}">
+						<TriangleAlert size={18} class="{metrics.overdueCount > 0 ? 'text-red-600' : 'text-gray-400'}" />
+					</div>
+				</div>
+				<p class="mt-3 text-3xl font-bold {metrics.overdueCount > 0 ? 'text-red-600' : 'text-gray-900'}">{metrics.overdueCount}</p>
+				<p class="mt-1 text-xs text-gray-400">Past return date</p>
+			</div>
+
+			<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+				<div class="flex items-center justify-between">
+					<p class="text-sm font-medium text-gray-500">Completion Rate</p>
+					<div class="flex h-9 w-9 items-center justify-center rounded-lg bg-pink-100">
+						<TrendingUp size={18} class="text-pink-600" />
+					</div>
+				</div>
+				{#if approvalRate !== null}
+					<p class="mt-3 text-3xl font-bold text-gray-900">{approvalRate}%</p>
+					<p class="mt-1 text-xs text-gray-400">Returned vs resolved</p>
+				{:else}
+					<p class="mt-3 text-3xl font-bold text-gray-400">—</p>
+					<p class="mt-1 text-xs text-gray-400">No history yet</p>
+				{/if}
 			</div>
 		</div>
-		
-		<!-- Recent Activity -->
-		<div class="rounded-lg bg-white shadow">
-			<div class="border-b border-gray-200 px-6 py-4">
-				<h2 class="text-lg font-semibold text-gray-900">Recent Activity</h2>
-			</div>
-			<div class="divide-y divide-gray-200">
-				{#each recentActivity as activity}
-					<div class="px-6 py-4 hover:bg-gray-50">
-						<div class="flex items-start justify-between">
-							<div class="flex-1">
-								<p class="text-sm font-medium text-gray-900">{activity.action}</p>
-								<p class="mt-1 text-sm text-gray-500">{activity.item}</p>
-							</div>
-							<div class="ml-4 flex flex-col items-end">
-								<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {
-									activity.status === 'completed' ? 'bg-green-100 text-green-800' :
-									activity.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-									activity.status === 'approved' ? 'bg-blue-100 text-blue-800' :
-									'bg-red-100 text-red-800'
-								}">
-									{activity.status}
-								</span>
-								<span class="mt-1 text-xs text-gray-500">{activity.time}</span>
-							</div>
+
+		<!-- ── Main 2-col grid ─────────────────────────────────────────────── -->
+		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+
+			<!-- LEFT col ────────────────────────────────────────────────────── -->
+			<div class="space-y-6 lg:col-span-2">
+
+				<!-- Active Loans -->
+				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+					<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+						<div class="flex items-center gap-2">
+							<PackageOpen size={18} class="text-violet-600" />
+							<h2 class="text-sm font-semibold text-gray-900">Active Loans</h2>
 						</div>
+						<a href="/student/borrowed" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+							View all <ArrowRight size={13} />
+						</a>
 					</div>
-				{/each}
+
+					{#if activeRequests.length === 0}
+						<div class="px-5 py-10 text-center">
+							<PackageCheck size={32} class="mx-auto text-gray-300" />
+							<p class="mt-2 text-sm text-gray-500">No active loans</p>
+						</div>
+					{:else}
+						<ul class="divide-y divide-gray-50">
+							{#each activeRequests as req}
+								{@const badge = req.daysUntilDue !== null ? dueBadge(req.daysUntilDue) : null}
+								<li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
+									<div class="flex -space-x-2 shrink-0">
+										{#each req.items.slice(0, 3) as item}
+											{#if item.picture}
+												<img src={item.picture} alt={item.name} class="h-9 w-9 rounded-full object-cover ring-2 ring-white" />
+											{:else}
+												<div class="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 ring-2 ring-white">
+													<Package size={14} class="text-gray-400" />
+												</div>
+											{/if}
+										{/each}
+										{#if req.items.length > 3}
+											<div class="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 ring-2 ring-white text-xs font-medium text-gray-600">
+												+{req.items.length - 3}
+											</div>
+										{/if}
+									</div>
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-semibold text-gray-900">
+											{req.items.slice(0, 2).map((i) => i.name).join(', ')}{req.items.length > 2 ? ` +${req.items.length - 2} more` : ''}
+										</p>
+										<div class="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
+											<span class="font-mono">{req.id}</span>
+											<span>·</span>
+											<span>Due {new Date(req.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+										</div>
+									</div>
+									<div class="flex shrink-0 flex-col items-end gap-1.5">
+										<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(req.status)}">
+											<svelte:component this={statusIcon(req.status)} size={10} />
+											{req.statusLabel}
+										</span>
+										{#if badge}
+											<span class="rounded-full px-2 py-0.5 text-xs font-semibold {badge.color}">
+												{badge.label}
+											</span>
+										{/if}
+									</div>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+
+				<!-- Pending Requests -->
+				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+					<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+						<div class="flex items-center gap-2">
+							<Clock size={18} class="text-yellow-500" />
+							<h2 class="text-sm font-semibold text-gray-900">Pending Requests</h2>
+						</div>
+						<a href="/student/requests" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+							View all <ArrowRight size={13} />
+						</a>
+					</div>
+
+					{#if pendingRequests.length === 0}
+						<div class="px-5 py-10 text-center">
+							<CheckCircle2 size={32} class="mx-auto text-gray-300" />
+							<p class="mt-2 text-sm text-gray-500">No pending requests</p>
+						</div>
+					{:else}
+						<ul class="divide-y divide-gray-50">
+							{#each pendingRequests as req}
+								<li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-semibold text-gray-900">
+											{req.items.slice(0, 2).map((i) => i.name).join(', ')}{req.items.length > 2 ? ` +${req.items.length - 2}` : ''}
+										</p>
+										<div class="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
+											<span class="font-mono">{req.id}</span>
+											<span>·</span>
+											<CalendarDays size={11} />
+											<span>{new Date(req.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(req.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+										</div>
+									</div>
+									<span class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(req.status)}">
+										<svelte:component this={statusIcon(req.status)} size={10} />
+										{req.statusLabel}
+									</span>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+
+				<!-- Recent History -->
+				{#if recentHistory.length > 0}
+					<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+						<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+							<div class="flex items-center gap-2">
+								<CheckCircle2 size={18} class="text-teal-500" />
+								<h2 class="text-sm font-semibold text-gray-900">Recent History</h2>
+							</div>
+							<a href="/student/history" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+								View all <ArrowRight size={13} />
+							</a>
+						</div>
+						<ul class="divide-y divide-gray-50">
+							{#each recentHistory as req}
+								<li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-medium text-gray-800">
+											{req.items.slice(0, 2).map((i) => i.name).join(', ')}{req.items.length > 2 ? ` +${req.items.length - 2}` : ''}
+										</p>
+										<p class="mt-0.5 font-mono text-xs text-gray-400">{req.id}</p>
+									</div>
+									<div class="flex shrink-0 flex-col items-end gap-1">
+										<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(req.status)}">
+											<svelte:component this={statusIcon(req.status)} size={10} />
+											{req.statusLabel}
+										</span>
+										<span class="text-xs text-gray-400">{relativeTime(req.createdAt)}</span>
+									</div>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
+
 			</div>
-			<div class="border-t border-gray-200 px-6 py-3">
-				<a href="/student/history" class="text-sm font-medium text-pink-600 hover:text-pink-700">
-					View all activity →
-				</a>
+
+			<!-- RIGHT sidebar ─────────────────────────────────────────────── -->
+			<div class="space-y-6">
+
+				<!-- Performance -->
+				<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+					<div class="mb-4 flex items-center gap-2">
+						<TrendingUp size={17} class="text-pink-600" />
+						<h2 class="text-sm font-semibold text-gray-900">Performance</h2>
+					</div>
+					<dl class="space-y-3">
+						<div class="flex items-center justify-between">
+							<dt class="text-xs text-gray-500">Total Requests</dt>
+							<dd class="text-sm font-semibold text-gray-900">{metrics.totalRequests}</dd>
+						</div>
+						<div class="flex items-center justify-between">
+							<dt class="text-xs text-gray-500">Successfully Returned</dt>
+							<dd class="text-sm font-semibold text-teal-600">{metrics.returnedCount}</dd>
+						</div>
+						<div class="flex items-center justify-between">
+							<dt class="text-xs text-gray-500">Rejected</dt>
+							<dd class="text-sm font-semibold {metrics.rejectedCount > 0 ? 'text-red-600' : 'text-gray-400'}">{metrics.rejectedCount}</dd>
+						</div>
+						<div class="flex items-center justify-between">
+							<dt class="text-xs text-gray-500">Overdue</dt>
+							<dd class="text-sm font-semibold {metrics.overdueCount > 0 ? 'text-red-600' : 'text-gray-400'}">{metrics.overdueCount}</dd>
+						</div>
+						{#if approvalRate !== null}
+							<div class="border-t border-gray-100 pt-3">
+								<div class="mb-1.5 flex items-center justify-between">
+									<dt class="text-xs text-gray-500">Completion Rate</dt>
+									<dd class="text-xs font-bold text-gray-700">{approvalRate}%</dd>
+								</div>
+								<div class="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+									<div
+										class="h-2 rounded-full transition-all {approvalRate >= 80 ? 'bg-teal-500' : approvalRate >= 50 ? 'bg-amber-500' : 'bg-red-500'}"
+										style="width: {approvalRate}%"
+									></div>
+								</div>
+							</div>
+						{/if}
+					</dl>
+				</div>
+
+				<!-- Due Soon -->
+				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+					<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+						<div class="flex items-center gap-2">
+							<CalendarDays size={17} class="text-orange-500" />
+							<h2 class="text-sm font-semibold text-gray-900">Due Soon</h2>
+						</div>
+						{#if dueSoon.length > 0}
+							<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700">{dueSoon.length}</span>
+						{/if}
+					</div>
+
+					{#if dueSoon.length === 0}
+						<div class="px-5 py-8 text-center">
+							<CalendarDays size={28} class="mx-auto text-gray-300" />
+							<p class="mt-2 text-xs text-gray-400">Nothing due soon</p>
+						</div>
+					{:else}
+						<ul class="divide-y divide-gray-50">
+							{#each dueSoon as req}
+								{@const badge = dueBadge(req.daysUntilDue!)}
+								<li class="px-5 py-3.5">
+									<div class="flex items-start justify-between gap-2">
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-xs font-semibold text-gray-800">
+												{req.items[0]?.name ?? '—'}{req.items.length > 1 ? ` +${req.items.length - 1}` : ''}
+											</p>
+											<p class="mt-0.5 font-mono text-[11px] text-gray-400">{req.id}</p>
+										</div>
+										<span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold {badge.color}">{badge.label}</span>
+									</div>
+								</li>
+							{/each}
+						</ul>
+						<div class="border-t border-gray-100 px-5 py-3">
+							<a href="/student/borrowed" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+								Manage returns <ArrowRight size={12} />
+							</a>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Quick Actions -->
+				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+					<div class="border-b border-gray-100 px-5 py-4">
+						<h2 class="text-sm font-semibold text-gray-900">Quick Actions</h2>
+					</div>
+					<div class="divide-y divide-gray-50">
+						<a href="/student/request" class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors">
+							<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-pink-100">
+								<ClipboardList size={15} class="text-pink-600" />
+							</div>
+							<div>
+								<p class="text-xs font-semibold text-gray-800">New Request</p>
+								<p class="text-[11px] text-gray-400">Borrow equipment</p>
+							</div>
+						</a>
+						<a href="/student/requests" class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors">
+							<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-yellow-100">
+								<Clock size={15} class="text-yellow-600" />
+							</div>
+							<div>
+								<p class="text-xs font-semibold text-gray-800">My Requests</p>
+								<p class="text-[11px] text-gray-400">Track all requests</p>
+							</div>
+						</a>
+						<a href="/student/borrowed" class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors">
+							<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-violet-100">
+								<Package size={15} class="text-violet-600" />
+							</div>
+							<div>
+								<p class="text-xs font-semibold text-gray-800">Borrowed Items</p>
+								<p class="text-[11px] text-gray-400">Monitor active loans</p>
+							</div>
+						</a>
+						<a href="/student/catalog" class="flex items-center gap-3 px-5 py-3.5 hover:bg-gray-50 transition-colors">
+							<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-100">
+								<PackageOpen size={15} class="text-teal-600" />
+							</div>
+							<div>
+								<p class="text-xs font-semibold text-gray-800">Browse Catalog</p>
+								<p class="text-[11px] text-gray-400">View available items</p>
+							</div>
+						</a>
+					</div>
+				</div>
+
 			</div>
 		</div>
-	</div>
+
+	{/if}
 </div>

@@ -9,7 +9,8 @@ import {
 	BORROW_REQUESTS_COLLECTION,
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
-	parseObjectId
+	parseObjectId,
+	publishBorrowRequestRealtimeEvent
 } from '../../shared';
 
 export const POST: RequestHandler = async (event) => {
@@ -65,6 +66,11 @@ export const POST: RequestHandler = async (event) => {
 		);
 
 		await invalidateBorrowRequestCaches();
+		publishBorrowRequestRealtimeEvent(
+			{ ...request, _id: requestId },
+			'reminder_sent',
+			now
+		);
 		return json({
 			success: true,
 			message: 'Overdue reminder recorded successfully',

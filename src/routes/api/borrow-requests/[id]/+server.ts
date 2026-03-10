@@ -1,18 +1,20 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getDatabase } from '$lib/server/db/mongodb';
+import { ObjectId } from 'mongodb';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { cacheService } from '$lib/server/cache';
 import { logger } from '$lib/server/utils/logger';
 import type { BorrowRequest, BorrowRequestResponse } from '$lib/server/models/BorrowRequest';
-import { toBorrowRequestResponse } from '$lib/server/models/BorrowRequest';
+import { BorrowRequestStatus, toBorrowRequestResponse } from '$lib/server/models/BorrowRequest';
 import type { User } from '$lib/server/models/User';
 import {
 	BORROW_REQUESTS_COLLECTION,
 	buildBorrowRequestDetailCacheKey,
 	canAccessBorrowRequest,
 	getAuthenticatedUser,
-	parseObjectId
+	parseObjectId,
+	publishBorrowRequestRealtimeEvent
 } from '../shared';
 
 export const GET: RequestHandler = async (event) => {
@@ -111,5 +113,68 @@ export const GET: RequestHandler = async (event) => {
 	} catch (error) {
 		logger.error('Error fetching borrow request detail', { error });
 		return json({ error: 'Failed to fetch borrow request' }, { status: 500 });
+	}
+};
+
+export const DELETE: RequestHandler = async (event) => {
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
+	if (rateLimitResult instanceof Response) {
+		return rateLimitResult;
+	}
+
+	try {
+		const user = getAuthenticatedUser(event);
+		if (!user) {
+			return json({ error: 'Unauthorized' }, { status: 401 });
+		}
+
+		// Only students can cancel their own requests
+		if (user.role !== 'student') {
+			return json({ error: 'Forbidden: Only students can cancel requests' }, { status: 403 });
+		}
+
+		const requestId = parseObjectId(event.params.id);
+		if (!requestId) {
+			return json({ error: 'Invalid request ID' }, { status: 400 });
+		}
+
+		const db = await getDatabase();
+		const collection = db.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION);
+
+		// Student can only cancel their own pending requests
+		const updated = await collection.findOneAndUpdate(
+			{
+				_id: requestId,
+				studentId: new ObjectId(user.userId),
+				status: BorrowRequestStatus.PENDING_INSTRUCTOR
+			},
+			{
+				$set: {
+					status: BorrowRequestStatus.REJECTED,
+					rejectReason: 'Request cancelled by student',
+					rejectedAt: new Date(),
+					updatedAt: new Date(),
+					updatedBy: new ObjectId(user.userId)
+				}
+			},
+			{ returnDocument: 'after' }
+		);
+
+		if (!updated) {
+			return json(
+				{ error: 'Request not found or cannot be cancelled. Only pending requests can be cancelled.' },
+				{ status: 400 }
+			);
+		}
+
+		// Invalidate caches
+		const cacheKey = buildBorrowRequestDetailCacheKey(event.params.id);
+		await cacheService.delete(cacheKey);
+		publishBorrowRequestRealtimeEvent(updated, 'cancelled');
+
+		return json(toBorrowRequestResponse(updated));
+	} catch (error) {
+		logger.error('Error cancelling borrow request', { error });
+		return json({ error: 'Failed to cancel borrow request' }, { status: 500 });
 	}
 };

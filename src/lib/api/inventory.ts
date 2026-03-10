@@ -228,3 +228,42 @@ export async function uploadInventoryImage(file: File): Promise<{ success: boole
 
 	return handleResponse(response);
 }
+
+// ─── Inventory Real-Time ──────────────────────────────────────────────────────
+
+export type InventoryRealtimeAction =
+	| 'item_created'
+	| 'item_updated'
+	| 'item_archived'
+	| 'item_restored'
+	| 'item_deleted'
+	| 'category_created'
+	| 'category_updated'
+	| 'category_deleted';
+
+export interface InventoryRealtimeEvent {
+	action: InventoryRealtimeAction;
+	entityType: 'item' | 'category';
+	entityId: string;
+	entityName: string;
+	occurredAt: string;
+}
+
+/**
+ * Subscribe to real-time inventory change events via Server-Sent Events.
+ * Returns an unsubscribe function that closes the connection.
+ */
+export function subscribeToInventoryChanges(
+	callback: (event: InventoryRealtimeEvent) => void
+): () => void {
+	if (!browser) return () => {};
+	const source = new EventSource('/api/inventory/stream');
+	source.addEventListener('inventory_change', (e: MessageEvent) => {
+		try {
+			callback(JSON.parse(e.data) as InventoryRealtimeEvent);
+		} catch {
+			// ignore malformed events
+		}
+	});
+	return () => source.close();
+}

@@ -17,6 +17,7 @@ import { logger } from '$lib/server/utils/logger';
 import { logInventoryActivity, getObjectChanges } from '$lib/server/utils/inventoryLogger';
 import { InventoryAction } from '$lib/server/models/InventoryHistory';
 import { cacheService } from '$lib/server/cache';
+import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
 
 /**
  * Determine item status based on quantity and minStock
@@ -274,11 +275,18 @@ export const PATCH: RequestHandler = async (event) => {
 			action
 		});
 
-		// Invalidate inventory cache
-		await cacheService.deletePattern('inventory:items:*');
+		// Invalidate inventory cache (use tag-based invalidation — deletePattern is a no-op on Upstash)
+		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog']);
 		await cacheService.deletePattern('inventory:archived:*');
 		await cacheService.deletePattern('inventory:history:*');
-		await cacheService.invalidateByTags(['inventory-catalog']);
+
+		publishInventoryChange([INVENTORY_CHANNEL], {
+			action: action === InventoryAction.ARCHIVED ? 'item_archived' : action === InventoryAction.RESTORED ? 'item_restored' : 'item_updated',
+			entityType: 'item',
+			entityId: result._id!.toString(),
+			entityName: result.name,
+			occurredAt: new Date().toISOString()
+		});
 
 		return json(toItemResponse(result));
 
@@ -303,13 +311,38 @@ export const DELETE: RequestHandler = async (event) => {
 
 	try {
 		// Verify authentication via cookie
-		const decoded = getUserFromToken(event);
+		let decoded = getUserFromToken(event);
+		
+		// Fallback: Check Authorization header if cookie auth failed
 		if (!decoded) {
+			const authHeader = request.headers.get('authorization');
+			if (authHeader?.startsWith('Bearer ')) {
+				try {
+					const { verifyAccessToken } = await import('$lib/server/utils/jwt');
+					const token = authHeader.slice(7);
+					decoded = verifyAccessToken(token);
+				} catch (err) {
+					// Token validation failed, continue without auth
+				}
+			}
+		}
+		
+		if (!decoded) {
+			logger.warn('DELETE item: No valid authentication found', {
+				itemId: params.id,
+				hasCookie: event.request.headers.get('cookie') ? 'yes' : 'no',
+				hasAuthHeader: request.headers.get('authorization') ? 'yes' : 'no'
+			});
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
 		// Only custodians and superadmins can delete items
 		if (!['custodian', 'superadmin'].includes(decoded.role)) {
+			logger.warn('DELETE item: User lacks delete permissions', {
+				userId: decoded.userId,
+				userRole: decoded.role,
+				itemId: params.id
+			});
 			return json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
 		}
 
@@ -387,11 +420,18 @@ export const DELETE: RequestHandler = async (event) => {
 			scheduledDeletion
 		});
 
-		// Invalidate inventory cache
-		await cacheService.deletePattern('inventory:items:*');
+		// Invalidate inventory cache (use tag-based invalidation — deletePattern is a no-op on Upstash)
+		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog']);
 		await cacheService.deletePattern('inventory:deleted:*');
 		await cacheService.deletePattern('inventory:history:*');
-		await cacheService.invalidateByTags(['inventory-catalog']);
+
+		publishInventoryChange([INVENTORY_CHANNEL], {
+			action: 'item_deleted',
+			entityType: 'item',
+			entityId: item._id!.toString(),
+			entityName: item.name,
+			occurredAt: new Date().toISOString()
+		});
 
 		return json({ 
 			success: true, 

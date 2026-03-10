@@ -16,6 +16,7 @@ import { logger } from '$lib/server/utils/logger';
 import { logInventoryActivity } from '$lib/server/utils/inventoryLogger';
 import { InventoryAction } from '$lib/server/models/InventoryHistory';
 import { cacheService } from '$lib/server/cache';
+import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
 
 /**
  * Determine item status based on quantity and minStock
@@ -150,8 +151,8 @@ export const GET: RequestHandler = async (event) => {
 			pages: Math.ceil(total / limit)
 		};
 
-		// Cache for 3 minutes (balance between freshness and performance)
-		await cacheService.set(cacheKey, response, { ttl: 180 });
+		// Cache for 3 minutes — tagged so mutations can invalidate via invalidateByTags
+		await cacheService.set(cacheKey, response, { ttl: 180, tags: ['inventory-items'] });
 
 		return json(response);
 
@@ -204,8 +205,9 @@ export const POST: RequestHandler = async (event) => {
 		if (body.quantity === undefined || body.quantity < 0) {
 			return json({ error: 'Valid quantity is required' }, { status: 400 });
 		}
-		if (body.minStock === undefined || body.minStock < 0) {
-			return json({ error: 'Valid minimum stock is required' }, { status: 400 });
+		// minStock is optional, default to 0
+		if (body.minStock !== undefined && body.minStock < 0) {
+			return json({ error: 'Minimum stock cannot be negative' }, { status: 400 });
 		}
 
 		// Sanitize inputs
@@ -216,7 +218,7 @@ export const POST: RequestHandler = async (event) => {
 		const location = body.location ? sanitizeInput(body.location.trim()) : undefined;
 		const quantity = Math.max(0, body.quantity);
 		const eomCount = body.eomCount !== undefined ? Math.max(0, body.eomCount) : 0;
-		const minStock = Math.max(0, body.minStock);
+		const minStock = body.minStock !== undefined ? Math.max(0, body.minStock) : 0;
 		const condition = body.condition || 'Good' as ItemCondition;
 
 		// Connect to database
@@ -296,10 +298,17 @@ export const POST: RequestHandler = async (event) => {
 			category
 		});
 
-		// Invalidate inventory cache
-		await cacheService.deletePattern('inventory:items:*');
+		// Invalidate inventory cache (use tag-based invalidation — deletePattern is a no-op on Upstash)
+		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog']);
 		await cacheService.deletePattern('inventory:archived:*');
-		await cacheService.invalidateByTags(['inventory-catalog']);
+
+		publishInventoryChange([INVENTORY_CHANNEL], {
+			action: 'item_created',
+			entityType: 'item',
+			entityId: newItem._id!.toString(),
+			entityName: newItem.name,
+			occurredAt: new Date().toISOString()
+		});
 
 		return json(toItemResponse(newItem), { status: 201 });
 

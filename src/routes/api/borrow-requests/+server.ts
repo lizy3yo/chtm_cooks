@@ -21,16 +21,15 @@ import {
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
 	isBorrowRequestStatus,
-	parseObjectId
+	publishBorrowRequestRealtimeEvent
 } from './shared';
 import { validateCreateBorrowRequest, validateItems, validatePurpose, validateDates } from '$lib/server/middleware/borrowRequestValidation';
 
-export const GET: RequestHandler = async (event) => {
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
-	if (rateLimitResult instanceof Response) {
-		return rateLimitResult;
-	}
+function escapeRegex(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
+export const GET: RequestHandler = async (event) => {
 	try {
 		const user = getAuthenticatedUser(event);
 		if (!user) {
@@ -39,31 +38,52 @@ export const GET: RequestHandler = async (event) => {
 
 		const url = new URL(event.request.url);
 		const status = url.searchParams.get('status') || undefined;
-		const search = url.searchParams.get('search') || undefined;
-		const page = Math.max(1, Number.parseInt(url.searchParams.get('page') || '1', 10));
-		const limit = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get('limit') || '20', 10)));
+		const rawStatuses = url.searchParams.get('statuses') || '';
+		const statuses = rawStatuses
+			.split(',')
+			.map((value) => sanitizeInput(value))
+			.filter((value) => value.length > 0);
+
+		const rawSearch = url.searchParams.get('search') || '';
+		const search = sanitizeInput(rawSearch).slice(0, 80) || undefined;
+
+		const sortBy = url.searchParams.get('sortBy') === 'returnDate' ? 'returnDate' : 'createdAt';
+
+		const parsedPage = Number.parseInt(url.searchParams.get('page') || '1', 10);
+		const parsedLimit = Number.parseInt(url.searchParams.get('limit') || '20', 10);
+		const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
+		const limit = Number.isFinite(parsedLimit) ? Math.min(100, Math.max(1, parsedLimit)) : 20;
 		const skip = (page - 1) * limit;
 
 		if (status && !isBorrowRequestStatus(status)) {
 			return json({ error: 'Invalid status filter' }, { status: 400 });
 		}
 
+		if (statuses.length > 0 && statuses.some((value) => !isBorrowRequestStatus(value))) {
+			return json({ error: 'Invalid statuses filter' }, { status: 400 });
+		}
+
 		const cacheKey = buildBorrowRequestListCacheKey({
 			role: user.role,
 			userId: user.userId,
 			status,
+			statuses,
 			search,
+			sortBy,
 			page,
 			limit
 		});
 
-		const cached = await cacheService.get<{
+		// Check for cache-busting parameter
+		const skipCache = url.searchParams.has('_t');
+
+		const cached = !skipCache ? await cacheService.get<{
 			requests: ReturnType<typeof toBorrowRequestResponse>[];
 			total: number;
 			page: number;
 			limit: number;
 			pages: number;
-		}>(cacheKey);
+		}>(cacheKey) : null;
 
 		if (cached && user.role !== 'custodian') {
 			return json(cached);
@@ -75,6 +95,8 @@ export const GET: RequestHandler = async (event) => {
 		const filter: Record<string, unknown> = {};
 		if (status) {
 			filter.status = status;
+		} else if (statuses.length > 0) {
+			filter.status = { $in: statuses };
 		}
 		if (user.role === 'student') {
 			filter.studentId = new ObjectId(user.userId);
@@ -95,16 +117,20 @@ export const GET: RequestHandler = async (event) => {
 			}
 		}
 		if (search) {
+			const safeSearchRegex = escapeRegex(search);
 			filter.$or = [
-				{ purpose: { $regex: search, $options: 'i' } },
-				{ 'items.name': { $regex: search, $options: 'i' } }
+				{ purpose: { $regex: safeSearchRegex, $options: 'i' } },
+				{ 'items.name': { $regex: safeSearchRegex, $options: 'i' } }
 			];
 		}
+
+		const sort: Record<string, 1 | -1> =
+			sortBy === 'returnDate' ? { returnDate: 1, createdAt: -1 } : { createdAt: -1 };
 
 		const [requests, total] = await Promise.all([
 			collection
 				.find(filter)
-				.sort({ createdAt: -1 })
+				.sort(sort)
 				.skip(skip)
 				.limit(limit)
 				.toArray(),
@@ -186,6 +212,7 @@ export const GET: RequestHandler = async (event) => {
 };
 
 export const POST: RequestHandler = async (event) => {
+	// Rate limit only request submissions — not reads
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
 	if (rateLimitResult instanceof Response) {
 		return rateLimitResult;
@@ -277,7 +304,8 @@ export const POST: RequestHandler = async (event) => {
 					itemId: item.itemId,
 					name: inventoryItem.name,
 					quantity: item.quantity,
-					category: inventoryItem.category
+					category: inventoryItem.category,
+					picture: inventoryItem.picture
 				};
 			}),
 			purpose,
@@ -294,6 +322,7 @@ export const POST: RequestHandler = async (event) => {
 
 		// Invalidate all relevant caches
 		await invalidateBorrowRequestCaches();
+		publishBorrowRequestRealtimeEvent(newRequest as BorrowRequest & { _id: ObjectId }, 'created', now);
 
 		logger.info('Borrow request created successfully', {
 			userId: user.userId,

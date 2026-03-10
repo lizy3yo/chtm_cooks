@@ -29,7 +29,7 @@ export const TOKEN_EXPIRY = {
 const getCookieOptions = (maxAge: number) => ({
 	httpOnly: true,
 	secure: !dev, // HTTPS only in production
-	sameSite: 'strict' as const,
+	sameSite: 'lax' as const, // Changed from 'strict' to 'lax' to support more request types
 	path: '/',
 	maxAge,
 });
@@ -77,7 +77,7 @@ export function clearAuthCookies(event: RequestEvent): void {
 	const cookieOptions = {
 		httpOnly: true,
 		secure: !dev,
-		sameSite: 'strict' as const,
+		sameSite: 'lax' as const,
 		path: '/',
 		maxAge: 0,
 	};

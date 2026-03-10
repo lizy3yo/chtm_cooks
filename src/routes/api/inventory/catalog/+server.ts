@@ -238,9 +238,12 @@ export const GET: RequestHandler = async (event) => {
 		}
 
 		// Build item filter
+		// Students see all non-archived items by default (including Out of Stock),
+		// and their selected availability filter is honoured.
+		// Only archived items are always excluded (handled inside buildItemFilter via archived:false).
 		const itemFilter = buildItemFilter({
 			search,
-			availability: decoded.role === 'student' ? 'available' : availability,
+			availability,
 			condition,
 			categoryId: category
 		});
