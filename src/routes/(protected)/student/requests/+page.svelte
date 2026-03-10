@@ -129,20 +129,7 @@ async function backfillItemPictures(): Promise<void> {
 }
 
 onMount(async () => {
-	await loadRequests(true);
-
-	// Only poll while there are requests actively in-flight (non-terminal states).
-	// Once all are resolved (returned / rejected) the interval self-disables.
-	const ACTIVE_STATUSES = new Set(['pending', 'approved', 'ready', 'picked-up', 'pending-return', 'missing']);
-
-	const intervalId = window.setInterval(() => {
-		const hasInFlight = requests.some((r) => ACTIVE_STATUSES.has(r.status));
-		if (hasInFlight) {
-			void loadRequests();
-		}
-	}, 30_000);
-
-	return () => window.clearInterval(intervalId);
+	await loadRequests();
 });
 
 function getStatusColor(status: string) {

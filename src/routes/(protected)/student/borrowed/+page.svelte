@@ -303,7 +303,7 @@
 	});
 
 	onMount(async () => {
-		await loadBorrowedItems(true);
+		await loadBorrowedItems();
 	});
 </script>
 

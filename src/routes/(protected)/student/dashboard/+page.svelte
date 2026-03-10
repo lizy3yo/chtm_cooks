@@ -220,7 +220,7 @@
 			authStore.clearJustLoggedIn();
 		}
 
-		await loadDashboard(true);
+		await loadDashboard();
 
 		const clockId = setInterval(() => { currentTime = new Date(); }, 60_000);
 		return () => clearInterval(clockId);
