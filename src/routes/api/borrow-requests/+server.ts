@@ -29,11 +29,6 @@ function escapeRegex(value: string): string {
 }
 
 export const GET: RequestHandler = async (event) => {
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
-	if (rateLimitResult instanceof Response) {
-		return rateLimitResult;
-	}
-
 	try {
 		const user = getAuthenticatedUser(event);
 		if (!user) {
@@ -213,6 +208,7 @@ export const GET: RequestHandler = async (event) => {
 };
 
 export const POST: RequestHandler = async (event) => {
+	// Rate limit only request submissions — not reads
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
 	if (rateLimitResult instanceof Response) {
 		return rateLimitResult;

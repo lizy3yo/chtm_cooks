@@ -2,6 +2,7 @@
 import { onMount } from 'svelte';
 import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
+import Skeleton from '$lib/components/ui/Skeleton.svelte';
 import {
 	ClipboardList, Clock, Activity, PackageOpen,
 	CheckCircle2, AlertCircle, X, Search, RotateCcw,
@@ -19,6 +20,7 @@ let showDetailModal = $state(false);
 let selectedRequest = $state<any>(null);
 let dateFilter = $state({ from: '', to: '' });
 let requests = $state<any[]>([]);
+let loading = $state(true);
 let loadingReturn = $state<string | null>(null);
 let showReturnConfirm = $state(false);
 let confirmReturnRequest = $state<any>(null);
@@ -89,14 +91,16 @@ rejectionReason: request.rejectReason
 }
 
 async function loadRequests(forceRefresh = false): Promise<void> {
-try {
-const response = await borrowRequestsAPI.list({}, { forceRefresh });
-requests = response.requests.map(mapRequest);
-await backfillItemPictures();
-} catch (error) {
-console.error('Failed to load student requests', error);
-requests = [];
-}
+	try {
+		const response = await borrowRequestsAPI.list({}, { forceRefresh });
+		requests = response.requests.map(mapRequest);
+		await backfillItemPictures();
+	} catch (error) {
+		console.error('Failed to load student requests', error);
+		requests = [];
+	} finally {
+		loading = false;
+	}
 }
 
 async function backfillItemPictures(): Promise<void> {
@@ -394,6 +398,80 @@ return timeline;
 		<p class="mt-1 text-sm text-gray-500">Track your equipment borrow requests</p>
 	</div>
 	
+	{#if loading}
+		<!-- ── Skeleton loading state ── -->
+		<div class="space-y-6" aria-busy="true" aria-label="Loading requests">
+			<!-- Stats skeleton -->
+			<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				{#each Array(4) as _}
+					<div class="rounded-lg bg-white p-5 shadow space-y-3">
+						<Skeleton class="h-3.5 w-28" />
+						<Skeleton class="h-9 w-16" />
+					</div>
+				{/each}
+			</div>
+
+			<!-- Tabs skeleton -->
+			<div class="border-b border-gray-200 pb-px">
+				<div class="flex gap-6">
+					{#each [72, 80, 60, 64] as w}
+						<Skeleton class="h-4 mb-3" style="width:{w}px" />
+					{/each}
+				</div>
+			</div>
+
+			<!-- Search + filter bar skeleton -->
+			<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+				<Skeleton class="h-10 w-full max-w-md" />
+				<div class="flex items-center gap-3">
+					<Skeleton class="h-10 w-44" />
+					<Skeleton class="h-10 w-20" />
+				</div>
+			</div>
+
+			<!-- Result count + new request bar skeleton -->
+			<Skeleton class="h-10 w-full rounded-lg" />
+
+			<!-- Request card skeletons -->
+			{#each Array(3) as _, i}
+				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 border-l-4 border-gray-200">
+					<div class="p-5 space-y-4">
+						<!-- Header row -->
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-3">
+								<Skeleton class="h-4 w-24" />
+								<Skeleton class="h-5 w-28 rounded-full" />
+							</div>
+							<Skeleton class="h-3.5 w-20" />
+						</div>
+						<!-- Equipment chips -->
+						<div class="space-y-2">
+							<Skeleton class="h-3 w-36" />
+							<div class="flex gap-2">
+								{#each Array(i === 0 ? 3 : i === 1 ? 2 : 4) as _}
+									<Skeleton class="h-7 w-24 rounded-md" />
+								{/each}
+							</div>
+						</div>
+						<!-- Metadata row -->
+						<div class="flex flex-wrap gap-x-5 gap-y-2">
+							<Skeleton class="h-3.5 w-40" />
+							<Skeleton class="h-3.5 w-52" />
+							<Skeleton class="h-3.5 w-32" />
+						</div>
+					</div>
+					<!-- Card footer skeleton -->
+					<div class="flex items-center justify-between border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+						<Skeleton class="h-3.5 w-48" />
+						<div class="flex gap-2">
+							<Skeleton class="h-7 w-24 rounded-lg" />
+						</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{:else}
+
 	<!-- Statistics Cards -->
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 		<div class="rounded-lg bg-white p-5 shadow">
@@ -693,6 +771,7 @@ return timeline;
 			</div>
 		{/if}
 	</div>
+	{/if}
 </div>
 
 <!-- Detail Modal -->
