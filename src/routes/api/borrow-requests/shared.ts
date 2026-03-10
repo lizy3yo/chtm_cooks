@@ -62,13 +62,19 @@ export function buildBorrowRequestListCacheKey(input: {
 	role: string;
 	userId: string;
 	status?: string;
+	statuses?: string[];
 	search?: string;
+	sortBy?: 'createdAt' | 'returnDate';
 	page: number;
 	limit: number;
 }): string {
 	const status = input.status || 'all';
+	const statuses = input.statuses && input.statuses.length > 0
+		? [...input.statuses].sort().join(',')
+		: 'none';
 	const search = input.search?.trim().toLowerCase() || 'none';
-	return `borrow-requests:list:${input.role}:${input.userId}:${status}:${search}:${input.page}:${input.limit}`;
+	const sortBy = input.sortBy || 'createdAt';
+	return `borrow-requests:list:${input.role}:${input.userId}:${status}:${statuses}:${search}:${sortBy}:${input.page}:${input.limit}`;
 }
 
 export function buildBorrowRequestDetailCacheKey(id: string): string {

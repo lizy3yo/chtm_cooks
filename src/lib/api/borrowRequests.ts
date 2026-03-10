@@ -159,13 +159,21 @@ function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T): v
 
 function buildListCacheKey(params: {
 	status?: BorrowRequestStatus;
+	statuses?: BorrowRequestStatus[];
 	search?: string;
+	sortBy?: 'createdAt' | 'returnDate';
 	page?: number;
 	limit?: number;
 } = {}): string {
+	const statuses = params.statuses && params.statuses.length > 0
+		? [...params.statuses].sort().join(',')
+		: 'none';
+
 	return [
 		params.status || 'all',
+		statuses,
 		params.search?.trim().toLowerCase() || 'none',
+		params.sortBy || 'createdAt',
 		String(params.page || 1),
 		String(params.limit || 20)
 	].join(':');
@@ -181,7 +189,9 @@ export const borrowRequestsAPI = {
 	async list(
 		params: {
 			status?: BorrowRequestStatus;
+			statuses?: BorrowRequestStatus[];
 			search?: string;
+			sortBy?: 'createdAt' | 'returnDate';
 			page?: number;
 			limit?: number;
 		} = {},
@@ -189,7 +199,11 @@ export const borrowRequestsAPI = {
 	): Promise<BorrowRequestListResponse> {
 		const query = new URLSearchParams();
 		if (params.status) query.set('status', params.status);
+		if (params.statuses && params.statuses.length > 0) {
+			query.set('statuses', params.statuses.join(','));
+		}
 		if (params.search) query.set('search', params.search);
+		if (params.sortBy) query.set('sortBy', params.sortBy);
 		if (params.page) query.set('page', String(params.page));
 		if (params.limit) query.set('limit', String(params.limit));
 
@@ -354,7 +368,9 @@ export const borrowRequestsAPI = {
 
 	peekCachedList(params: {
 		status?: BorrowRequestStatus;
+		statuses?: BorrowRequestStatus[];
 		search?: string;
+		sortBy?: 'createdAt' | 'returnDate';
 		page?: number;
 		limit?: number;
 	} = {}): BorrowRequestListResponse | null {

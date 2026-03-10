@@ -3,6 +3,7 @@
 	import { authStore, isAuthenticated } from '$lib/stores/auth';
 	import ShortcutKeyModal from '$lib/components/auth/ShortcutKeyModal.svelte';
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
+	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
 
@@ -103,6 +104,9 @@
 
 <!-- Global Toast Notifications -->
 <ToastContainer />
+
+<!-- Global Confirm/Alert Dialogs -->
+<ConfirmDialogContainer />
 
 <!-- Shortcut Key Modals -->
 <ShortcutKeyModal 

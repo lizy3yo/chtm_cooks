@@ -20,10 +20,13 @@ import {
 	buildBorrowRequestListCacheKey,
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
-	isBorrowRequestStatus,
-	parseObjectId
+	isBorrowRequestStatus
 } from './shared';
 import { validateCreateBorrowRequest, validateItems, validatePurpose, validateDates } from '$lib/server/middleware/borrowRequestValidation';
+
+function escapeRegex(value: string): string {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 export const GET: RequestHandler = async (event) => {
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -39,20 +42,38 @@ export const GET: RequestHandler = async (event) => {
 
 		const url = new URL(event.request.url);
 		const status = url.searchParams.get('status') || undefined;
-		const search = url.searchParams.get('search') || undefined;
-		const page = Math.max(1, Number.parseInt(url.searchParams.get('page') || '1', 10));
-		const limit = Math.min(100, Math.max(1, Number.parseInt(url.searchParams.get('limit') || '20', 10)));
+		const rawStatuses = url.searchParams.get('statuses') || '';
+		const statuses = rawStatuses
+			.split(',')
+			.map((value) => sanitizeInput(value))
+			.filter((value) => value.length > 0);
+
+		const rawSearch = url.searchParams.get('search') || '';
+		const search = sanitizeInput(rawSearch).slice(0, 80) || undefined;
+
+		const sortBy = url.searchParams.get('sortBy') === 'returnDate' ? 'returnDate' : 'createdAt';
+
+		const parsedPage = Number.parseInt(url.searchParams.get('page') || '1', 10);
+		const parsedLimit = Number.parseInt(url.searchParams.get('limit') || '20', 10);
+		const page = Number.isFinite(parsedPage) ? Math.max(1, parsedPage) : 1;
+		const limit = Number.isFinite(parsedLimit) ? Math.min(100, Math.max(1, parsedLimit)) : 20;
 		const skip = (page - 1) * limit;
 
 		if (status && !isBorrowRequestStatus(status)) {
 			return json({ error: 'Invalid status filter' }, { status: 400 });
 		}
 
+		if (statuses.length > 0 && statuses.some((value) => !isBorrowRequestStatus(value))) {
+			return json({ error: 'Invalid statuses filter' }, { status: 400 });
+		}
+
 		const cacheKey = buildBorrowRequestListCacheKey({
 			role: user.role,
 			userId: user.userId,
 			status,
+			statuses,
 			search,
+			sortBy,
 			page,
 			limit
 		});
@@ -75,6 +96,8 @@ export const GET: RequestHandler = async (event) => {
 		const filter: Record<string, unknown> = {};
 		if (status) {
 			filter.status = status;
+		} else if (statuses.length > 0) {
+			filter.status = { $in: statuses };
 		}
 		if (user.role === 'student') {
 			filter.studentId = new ObjectId(user.userId);
@@ -95,16 +118,20 @@ export const GET: RequestHandler = async (event) => {
 			}
 		}
 		if (search) {
+			const safeSearchRegex = escapeRegex(search);
 			filter.$or = [
-				{ purpose: { $regex: search, $options: 'i' } },
-				{ 'items.name': { $regex: search, $options: 'i' } }
+				{ purpose: { $regex: safeSearchRegex, $options: 'i' } },
+				{ 'items.name': { $regex: safeSearchRegex, $options: 'i' } }
 			];
 		}
+
+		const sort: Record<string, 1 | -1> =
+			sortBy === 'returnDate' ? { returnDate: 1, createdAt: -1 } : { createdAt: -1 };
 
 		const [requests, total] = await Promise.all([
 			collection
 				.find(filter)
-				.sort({ createdAt: -1 })
+				.sort(sort)
 				.skip(skip)
 				.limit(limit)
 				.toArray(),
