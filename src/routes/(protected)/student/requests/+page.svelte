@@ -50,6 +50,10 @@ if (normalized.includes('processor')) return '🔧';
 return '📦';
 }
 
+function isCancelledRequest(status: BorrowRequestRecord['status'], rejectionReason?: string): boolean {
+	return status === 'cancelled' || (status === 'rejected' && rejectionReason === 'Request cancelled by student');
+}
+
 function toUiStatus(status: BorrowRequestRecord['status'], rejectionReason?: string): 'pending' | 'approved' | 'ready' | 'picked-up' | 'pending-return' | 'missing' | 'returned' | 'rejected' | 'cancelled' {
 switch (status) {
 case 'pending_instructor':
@@ -66,12 +70,10 @@ case 'missing':
 return 'missing';
 case 'returned':
 return 'returned';
+case 'cancelled':
+return 'cancelled';
 case 'rejected':
-// Distinguish between student cancellation and instructor/custodian rejection
-if (rejectionReason === 'Request cancelled by student') {
-  return 'cancelled';
-}
-return 'rejected';
+return isCancelledRequest(status, rejectionReason) ? 'cancelled' : 'rejected';
 default:
 return 'approved';
 }
@@ -250,6 +252,7 @@ function getStatusIconComponent(status: string) {
 		case 'pending-return': return CornerDownLeft;
 		case 'missing': return CircleAlert;
 		case 'returned': return CheckCircle2;
+		case 'cancelled': return CircleX;
 		case 'rejected': return CircleX;
 		default: return Clock;
 	}
@@ -481,6 +484,8 @@ timeline.push({ step: 'Instructor Approved', status: 'completed', date: request.
 timeline.push({ step: 'Custodian Approved', status: 'completed', date: request.releasedDate || request.requestDate, by: 'Custodian' });
 timeline.push({ step: 'Pickup Confirmed', status: 'completed', date: request.pickedUpDate || request.requestDate, by: 'Custodian' });
 timeline.push({ step: 'Returned', status: 'completed', date: request.returnedDate || request.requestDate, by: 'Student' });
+} else if (request.status === 'cancelled') {
+timeline.push({ step: 'Request Cancelled', status: 'cancelled', date: request.requestDate, by: 'You' });
 } else if (request.status === 'rejected') {
 timeline.push({ step: 'Request Rejected', status: 'rejected', date: request.requestDate, by: request.instructor });
 }
@@ -1019,12 +1024,17 @@ return timeline;
 													<div>
 														<span class="flex h-8 w-8 items-center justify-center rounded-full {
 															step.status === 'completed' ? 'bg-pink-600' :
+															step.status === 'cancelled' ? 'bg-slate-500' :
 															step.status === 'rejected' ? 'bg-red-600' :
 															'bg-gray-300'
 														}">
 															{#if step.status === 'completed'}
 																<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+																</svg>
+															{:else if step.status === 'cancelled'}
+																<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
 																</svg>
 															{:else if step.status === 'rejected'}
 																<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">

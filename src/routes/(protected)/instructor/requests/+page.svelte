@@ -41,7 +41,11 @@ const rejectReasons = [
 'Other (specify)'
 ];
 
-function toUiStatus(status: BorrowRequestStatus): 'pending' | 'fulfillment' | 'borrowed' | 'history' {
+function isCancelledRequest(status: BorrowRequestStatus, rejectionReason?: string): boolean {
+	return status === 'cancelled' || (status === 'rejected' && rejectionReason === 'Request cancelled by student');
+}
+
+function toUiStatus(status: BorrowRequestStatus, rejectionReason?: string): 'pending' | 'fulfillment' | 'borrowed' | 'history' {
 switch (status) {
 case 'pending_instructor':
 return 'pending';
@@ -52,6 +56,7 @@ case 'borrowed':
 case 'pending_return':
 case 'missing':
 return 'borrowed';
+case 'cancelled':
 case 'returned':
 case 'rejected':
 return 'history';
@@ -91,7 +96,7 @@ return date.toLocaleString();
 }
 
 function mapRequest(record: BorrowRequestRecord): any {
-const status = toUiStatus(record.status);
+const status = toUiStatus(record.status, record.rejectReason);
 const studentName = record.student?.fullName || `Student ${record.studentId.slice(-6).toUpperCase()}`;
 const user = $authStore.user;
 return {
@@ -128,6 +133,8 @@ record.status === 'approved_instructor'
 ? 'Preparing'
 : record.status === 'ready_for_pickup'
 ? 'Ready for Pickup'
+: isCancelledRequest(record.status, record.rejectReason)
+? 'Cancelled by Student'
 : record.status === 'borrowed'
 ? 'Picked Up'
 : record.status === 'pending_return'
@@ -458,7 +465,7 @@ default: return 'bg-gray-100 text-gray-800';
 }
 }
 
-function getCardBorderColor(status: string, rawStatus?: BorrowRequestStatus): string {
+function getCardBorderColor(status: string, rawStatus?: BorrowRequestStatus, rejectionReason?: string): string {
 	switch (status) {
 		case 'pending':
 			return 'border-amber-400';
@@ -469,13 +476,14 @@ function getCardBorderColor(status: string, rawStatus?: BorrowRequestStatus): st
 			if (rawStatus === 'missing') return 'border-rose-600';
 			return 'border-violet-500';
 		case 'history':
+			if (isCancelledRequest(rawStatus ?? 'returned', rejectionReason)) return 'border-slate-400';
 			return rawStatus === 'rejected' ? 'border-red-500' : 'border-teal-500';
 		default:
 			return 'border-gray-200';
 	}
 }
 
-function getStatusIconComponent(status: string, rawStatus?: BorrowRequestStatus) {
+function getStatusIconComponent(status: string, rawStatus?: BorrowRequestStatus, rejectionReason?: string) {
 	if (status === 'pending') return Clock3;
 	if (status === 'fulfillment') return rawStatus === 'ready_for_pickup' ? CheckCircle2 : PackageCheck;
 	if (status === 'borrowed') {
@@ -483,11 +491,11 @@ function getStatusIconComponent(status: string, rawStatus?: BorrowRequestStatus)
 		if (rawStatus === 'missing') return CircleAlert;
 		return PackageCheck;
 	}
-	if (status === 'history') return rawStatus === 'rejected' ? CircleX : CheckCircle2;
+	if (status === 'history') return rawStatus === 'rejected' || isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? CircleX : CheckCircle2;
 	return Clock3;
 }
 
-function getStatusLabel(status: string, rawStatus?: BorrowRequestStatus): string {
+function getStatusLabel(status: string, rawStatus?: BorrowRequestStatus, rejectionReason?: string): string {
 	if (status === 'pending') return 'Pending Review';
 	if (status === 'fulfillment') return rawStatus === 'ready_for_pickup' ? 'Ready for Pickup' : 'In Preparation';
 	if (status === 'borrowed') {
@@ -495,11 +503,14 @@ function getStatusLabel(status: string, rawStatus?: BorrowRequestStatus): string
 		if (rawStatus === 'missing') return 'Missing Item';
 		return 'Active Loan';
 	}
-	if (status === 'history') return rawStatus === 'rejected' ? 'Rejected' : 'Returned';
+	if (status === 'history') {
+		if (isCancelledRequest(rawStatus ?? 'returned', rejectionReason)) return 'Cancelled';
+		return rawStatus === 'rejected' ? 'Rejected' : 'Returned';
+	}
 	return status;
 }
 
-function getStatusColor(status: string, rawStatus?: BorrowRequestStatus): string {
+function getStatusColor(status: string, rawStatus?: BorrowRequestStatus, rejectionReason?: string): string {
 	if (status === 'pending') return 'bg-amber-100 text-amber-800';
 	if (status === 'fulfillment') return rawStatus === 'ready_for_pickup' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800';
 	if (status === 'borrowed') {
@@ -507,11 +518,14 @@ function getStatusColor(status: string, rawStatus?: BorrowRequestStatus): string
 		if (rawStatus === 'missing') return 'bg-rose-100 text-rose-800';
 		return 'bg-violet-100 text-violet-800';
 	}
-	if (status === 'history') return rawStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-teal-100 text-teal-800';
+	if (status === 'history') {
+		if (isCancelledRequest(rawStatus ?? 'returned', rejectionReason)) return 'bg-slate-100 text-slate-800';
+		return rawStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-teal-100 text-teal-800';
+	}
 	return 'bg-gray-100 text-gray-800';
 }
 
-function getStatusHint(status: string, rawStatus?: BorrowRequestStatus): { text: string; color: string } {
+function getStatusHint(status: string, rawStatus?: BorrowRequestStatus, rejectionReason?: string): { text: string; color: string } {
 	if (status === 'pending') {
 		return {
 			text: 'Review the request and decide whether to approve or reject it.',
@@ -551,17 +565,21 @@ function getStatusHint(status: string, rawStatus?: BorrowRequestStatus): { text:
 
 	if (status === 'history') {
 		return {
-			text: rawStatus === 'rejected'
+			text: isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
+				? 'This request was cancelled by the student before approval and moved to history.'
+				: rawStatus === 'rejected'
 				? 'This request was rejected and moved to the history list.'
 				: 'This request has been completed and closed.',
-			color: rawStatus === 'rejected' ? 'text-red-700' : 'text-teal-700'
+			color: isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
+				? 'text-slate-700'
+				: rawStatus === 'rejected' ? 'text-red-700' : 'text-teal-700'
 		};
 	}
 
 	return { text: '', color: 'text-gray-400' };
 }
 
-function getStatusBadge(status: string, rawStatus?: BorrowRequestStatus, custodianStatus?: string) {
+function getStatusBadge(status: string, rawStatus?: BorrowRequestStatus, custodianStatus?: string, rejectionReason?: string) {
 switch (status) {
 case 'pending':
 return { text: 'Pending Approval', color: 'bg-yellow-100 text-yellow-800', icon: 'Pending' };
@@ -579,9 +597,9 @@ icon: rawStatus === 'pending_return' ? 'Return' : rawStatus === 'missing' ? 'Ale
 };
 case 'history':
 return {
-text: rawStatus === 'rejected' ? 'Rejected' : 'Returned',
-color: rawStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-teal-100 text-teal-800',
-icon: rawStatus === 'rejected' ? 'Rejected' : 'Returned'
+text: isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'Cancelled' : rawStatus === 'rejected' ? 'Rejected' : 'Returned',
+color: isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'bg-slate-100 text-slate-800' : rawStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-teal-100 text-teal-800',
+icon: isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'Cancelled' : rawStatus === 'rejected' ? 'Rejected' : 'Returned'
 };
 default:
 return { text: status, color: 'bg-gray-100 text-gray-800', icon: 'Status' };
@@ -624,7 +642,7 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'history', 
 	return {
 		icon: Archive,
 		title: 'No request history yet',
-		description: 'Returned and rejected requests will appear here once the workflow is completed.'
+		description: 'Returned, cancelled, and rejected requests will appear here once the workflow is completed.'
 	};
 }
 </script>
@@ -845,14 +863,14 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'history', 
 					/>
 				{/if}
 
-				<div class="flex-1 overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus)}">
+				<div class="flex-1 overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}">
 					<div class="p-5">
 						<div class="flex items-start justify-between gap-3">
 							<div class="flex min-w-0 flex-wrap items-center gap-2">
 								<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
-								<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold {getStatusColor(request.status, request.rawStatus)}">
-									<svelte:component this={getStatusIconComponent(request.status, request.rawStatus)} size={12} />
-									{getStatusLabel(request.status, request.rawStatus)}
+								<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold {getStatusColor(request.status, request.rawStatus, request.rejectionReason)}">
+									<svelte:component this={getStatusIconComponent(request.status, request.rawStatus, request.rejectionReason)} size={12} />
+									{getStatusLabel(request.status, request.rawStatus, request.rejectionReason)}
 								</span>
 							</div>
 							<time class="shrink-0 whitespace-nowrap text-xs text-gray-400">
@@ -971,8 +989,8 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'history', 
 					</div>
 
 					<div class="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-						<div class="text-xs font-medium {getStatusHint(request.status, request.rawStatus).color}">
-							{getStatusHint(request.status, request.rawStatus).text || ' '}
+						<div class="text-xs font-medium {getStatusHint(request.status, request.rawStatus, request.rejectionReason).color}">
+							{getStatusHint(request.status, request.rawStatus, request.rejectionReason).text || ' '}
 						</div>
 						<div class="flex items-center gap-2">
 							<button

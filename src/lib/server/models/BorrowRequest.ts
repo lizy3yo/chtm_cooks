@@ -9,6 +9,7 @@ export enum BorrowRequestStatus {
 	PENDING_RETURN = 'pending_return',
 	MISSING = 'missing',
 	RETURNED = 'returned',
+	CANCELLED = 'cancelled',
 	REJECTED = 'rejected'
 }
 
@@ -168,8 +169,9 @@ export function canTransitionStatus(
 	switch (current) {
 		case BorrowRequestStatus.PENDING_INSTRUCTOR:
 			return (
-				actorRole === 'instructor' &&
-				(next === BorrowRequestStatus.APPROVED_INSTRUCTOR || next === BorrowRequestStatus.REJECTED)
+				(actorRole === 'instructor' &&
+					(next === BorrowRequestStatus.APPROVED_INSTRUCTOR || next === BorrowRequestStatus.REJECTED)) ||
+				(actorRole === 'student' && next === BorrowRequestStatus.CANCELLED)
 			);
 		case BorrowRequestStatus.APPROVED_INSTRUCTOR:
 			return actorRole === 'custodian' && next === BorrowRequestStatus.READY_FOR_PICKUP;

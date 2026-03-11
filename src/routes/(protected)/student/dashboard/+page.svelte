@@ -37,7 +37,11 @@
 		return `REQ-${id.slice(-6).toUpperCase()}`;
 	}
 
-	function toUiStatus(raw: BorrowRequestRecord['status']): string {
+	function isCancelledRequest(raw: BorrowRequestRecord['status'], rejectionReason?: string): boolean {
+		return raw === 'cancelled' || (raw === 'rejected' && rejectionReason === 'Request cancelled by student');
+	}
+
+	function toUiStatus(raw: BorrowRequestRecord['status'], rejectionReason?: string): string {
 		const map: Record<string, string> = {
 			pending_instructor: 'pending',
 			approved_instructor: 'approved',
@@ -46,8 +50,10 @@
 			pending_return: 'pending-return',
 			missing: 'missing',
 			returned: 'returned',
+			cancelled: 'cancelled',
 			rejected: 'rejected'
 		};
+		if (isCancelledRequest(raw, rejectionReason)) return 'cancelled';
 		return map[raw] ?? raw;
 	}
 
@@ -60,6 +66,7 @@
 			'pending-return': 'Return Initiated',
 			'missing': 'Item Missing',
 			'returned': 'Returned',
+			'cancelled': 'Cancelled',
 			'rejected': 'Rejected'
 		};
 		return labels[s] ?? s;
@@ -74,7 +81,7 @@
 	}
 
 	function mapToCard(r: BorrowRequestRecord): DashboardRequest {
-		const status = toUiStatus(r.status);
+		const status = toUiStatus(r.status, r.rejectReason);
 		const days = ['picked-up', 'pending-return', 'missing'].includes(status)
 			? calcDaysUntilDue(r.returnDate)
 			: null;
@@ -174,6 +181,7 @@
 			'pending-return': 'bg-orange-100 text-orange-800',
 			'missing': 'bg-rose-100 text-rose-800',
 			'returned': 'bg-teal-100 text-teal-800',
+			'cancelled': 'bg-slate-100 text-slate-800',
 			'rejected': 'bg-red-100 text-red-800'
 		};
 		return map[s] ?? 'bg-gray-100 text-gray-700';
@@ -188,6 +196,7 @@
 			'pending-return': CornerDownLeft,
 			'missing': CircleAlert,
 			'returned': CircleCheck,
+			'cancelled': CircleX,
 			'rejected': CircleX
 		};
 		return map[s] ?? Clock;

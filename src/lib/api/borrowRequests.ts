@@ -8,6 +8,7 @@ export type BorrowRequestStatus =
 	| 'pending_return'
 	| 'missing'
 	| 'returned'
+	| 'cancelled'
 	| 'rejected';
 
 export type BorrowRequestRealtimeAction =
