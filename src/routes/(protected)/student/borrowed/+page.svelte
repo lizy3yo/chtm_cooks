@@ -1,13 +1,18 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
+	import {
+		borrowRequestsAPI,
+		type BorrowRequestRealtimeEvent,
+		type BorrowRequestRecord
+	} from '$lib/api/borrowRequests';
+	import { financialObligationsAPI } from '$lib/api/financialObligations';
 	import { confirmStore } from '$lib/stores/confirm';
 	import { ClipboardX } from 'lucide-svelte';
 
-	type LoanFilter = 'all' | 'overdue' | 'due-soon' | 'on-track' | 'return-initiated';
+	type LoanFilter = 'all' | 'overdue' | 'due-soon' | 'on-track' | 'return-initiated' | 'unresolved';
 	type LoanSort = 'urgent' | 'due-date' | 'latest-borrowed';
 	type ViewMode = 'by-request' | 'by-item';
-	type ItemOperationalStatus = 'in-use' | 'return-in-progress' | 'returned' | 'damaged' | 'missing' | 'replaced' | 'payable' | 'paid';
+	type ItemOperationalStatus = 'in-use' | 'return-in-progress' | 'returned' | 'damaged' | 'missing' | 'replaced' | 'payable' | 'paid' | 'unresolved-damaged' | 'unresolved-missing';
 
 	interface LoanCard {
 		id: string;
@@ -26,6 +31,8 @@
 		returnedItems: number;
 		damagedItems: number;
 		missingItems: number;
+		hasUnresolvedIssue: boolean;
+		unresolvedItems: number;
 	}
 
 	interface ItemRow {
@@ -40,6 +47,7 @@
 		settlementLabel: string;
 		isOverdue: boolean;
 		daysDelta: number;
+		hasUnresolvedIssue: boolean;
 	}
 
 	let isLoading = $state(true);
@@ -51,6 +59,17 @@
 	let selectedFilter = $state<LoanFilter>('all');
 	let sortBy = $state<LoanSort>('urgent');
 	let loans = $state<LoanCard[]>([]);
+	let liveSyncActive = $state(false);
+
+	let refreshInFlight = false;
+	let pendingRefresh = false;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+	let unresolvedRequestIds = $state<Set<string>>(new Set());
+	let unresolvedItemKeys = $state<Set<string>>(new Set());
+
+	function buildIssueKey(requestId: string, itemId: string): string {
+		return `${requestId}:${itemId}`;
+	}
 
 	function formatRequestCode(id: string): string {
 		return `REQ-${id.slice(-6).toUpperCase()}`;
@@ -83,6 +102,9 @@
 		const returnedItems = request.items.filter((item) => item.inspection?.status === 'good').length;
 		const damagedItems = request.items.filter((item) => item.inspection?.status === 'damaged').length;
 		const missingItems = request.items.filter((item) => item.inspection?.status === 'missing').length;
+		const unresolvedItems = request.items.filter((item) =>
+			unresolvedItemKeys.has(buildIssueKey(request.id, item.itemId))
+		).length;
 
 		return {
 			id: request.id,
@@ -100,14 +122,19 @@
 			instructorName: request.instructor?.fullName || 'Assigned Instructor',
 			returnedItems,
 			damagedItems,
-			missingItems
+			missingItems,
+			hasUnresolvedIssue: unresolvedRequestIds.has(request.id),
+			unresolvedItems
 		};
 	}
 
 	function getItemStatus(item: BorrowRequestRecord['items'][number], loan: LoanCard): ItemOperationalStatus {
 		const notes = (item.inspection?.notes || '').toLowerCase();
+		const hasUnresolvedIssue = unresolvedItemKeys.has(buildIssueKey(loan.id, item.itemId));
 		if (notes.includes('paid')) return 'paid';
 		if (notes.includes('replaced')) return 'replaced';
+		if (hasUnresolvedIssue && item.inspection?.status === 'damaged') return 'unresolved-damaged';
+		if (hasUnresolvedIssue && item.inspection?.status === 'missing') return 'unresolved-missing';
 		if (item.inspection?.status === 'good') return 'returned';
 		if (item.inspection?.status === 'damaged' && (notes.includes('pay') || notes.includes('charge'))) return 'payable';
 		if (item.inspection?.status === 'damaged') return 'damaged';
@@ -119,6 +146,8 @@
 
 	function getItemStatusLabel(status: ItemOperationalStatus): string {
 		if (status === 'returned') return 'Returned';
+		if (status === 'unresolved-damaged') return 'Unresolved Damage';
+		if (status === 'unresolved-missing') return 'Unresolved Missing';
 		if (status === 'damaged') return 'Damaged';
 		if (status === 'missing') return 'Missing';
 		if (status === 'replaced') return 'Replaced';
@@ -130,6 +159,8 @@
 
 	function getItemStatusClasses(status: ItemOperationalStatus): string {
 		if (status === 'returned') return 'bg-emerald-100 text-emerald-700 ring-emerald-200';
+		if (status === 'unresolved-damaged') return 'bg-rose-100 text-rose-700 ring-rose-200';
+		if (status === 'unresolved-missing') return 'bg-red-100 text-red-700 ring-red-200';
 		if (status === 'damaged') return 'bg-amber-100 text-amber-700 ring-amber-200';
 		if (status === 'missing') return 'bg-red-100 text-red-700 ring-red-200';
 		if (status === 'replaced') return 'bg-cyan-100 text-cyan-700 ring-cyan-200';
@@ -139,7 +170,9 @@
 		return 'bg-blue-100 text-blue-700 ring-blue-200';
 	}
 
-	function getSettlementLabel(item: BorrowRequestRecord['items'][number]): string {
+	function getSettlementLabel(item: BorrowRequestRecord['items'][number], requestId: string): string {
+		const isUnresolved = unresolvedItemKeys.has(buildIssueKey(requestId, item.itemId));
+		if (isUnresolved) return 'Open incident case';
 		if (item.inspection?.status === 'good') return 'No charge';
 		if (item.inspection?.status === 'damaged' || item.inspection?.status === 'missing') {
 			return item.inspection.unitPrice ? `Charge review: ${item.inspection.unitPrice.toLocaleString()}` : 'Charge review';
@@ -150,8 +183,8 @@
 	async function loadBorrowedItems(forceRefresh = false): Promise<void> {
 		isLoading = true;
 		try {
-			const requests = (
-				await borrowRequestsAPI.list(
+			const [requestResponse, obligationResponse] = await Promise.all([
+				borrowRequestsAPI.list(
 					{
 						statuses: ['borrowed', 'pending_return', 'missing'],
 						sortBy: 'returnDate',
@@ -159,11 +192,21 @@
 						limit: 100
 					},
 					{ forceRefresh }
-				)
-			).requests;
+				),
+				financialObligationsAPI.getObligations({ status: 'pending', limit: 200 })
+			]);
+
+			const nextUnresolvedRequestIds = new Set(obligationResponse.obligations.map((obligation) => obligation.borrowRequestId));
+			const nextUnresolvedItemKeys = new Set(
+				obligationResponse.obligations.map((obligation) => buildIssueKey(obligation.borrowRequestId, obligation.itemId))
+			);
+			unresolvedRequestIds = nextUnresolvedRequestIds;
+			unresolvedItemKeys = nextUnresolvedItemKeys;
+
+			const requests = requestResponse.requests;
 
 			loans = requests
-				.filter((request) => ['borrowed', 'pending_return', 'missing'].includes(request.status))
+				.filter((request) => request.status === 'borrowed' || request.status === 'pending_return' || (request.status === 'missing' && nextUnresolvedRequestIds.has(request.id)))
 				.map(toLoanCard);
 
 			const overdueCount = loans.filter((loan) => loan.isOverdue).length;
@@ -209,7 +252,35 @@
 		}
 	}
 
+	async function refreshBorrowedItems(): Promise<void> {
+		if (refreshInFlight) {
+			pendingRefresh = true;
+			return;
+		}
+
+		refreshInFlight = true;
+		try {
+			borrowRequestsAPI.invalidateCache();
+			await loadBorrowedItems(true);
+		} finally {
+			refreshInFlight = false;
+			if (pendingRefresh) {
+				pendingRefresh = false;
+				await refreshBorrowedItems();
+			}
+		}
+	}
+
+	function scheduleRefresh(): void {
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			refreshBorrowedItems();
+		}, 250);
+	}
+
 	function getLoanTone(loan: LoanCard): 'danger' | 'warning' | 'safe' | 'muted' {
+		if (loan.hasUnresolvedIssue) return 'danger';
 		if (loan.status === 'missing') return 'danger';
 		if (loan.status === 'pending_return') return 'muted';
 		if (loan.isOverdue) return 'danger';
@@ -226,6 +297,7 @@
 	}
 
 	function getLoanSummary(loan: LoanCard): string {
+		if (loan.hasUnresolvedIssue) return `${loan.unresolvedItems} unresolved item ${loan.unresolvedItems === 1 ? 'case' : 'cases'}`;
 		if (loan.status === 'missing') return 'Marked as missing. Coordinate with custodian immediately.';
 		if (loan.status === 'pending_return') return 'Return initiated. Waiting for custodian confirmation.';
 		if (loan.isOverdue) return `${Math.abs(loan.daysDelta)} day${Math.abs(loan.daysDelta) > 1 ? 's' : ''} overdue`;
@@ -242,6 +314,7 @@
 			if (selectedFilter === 'due-soon' && !loan.isDueSoon) return false;
 			if (selectedFilter === 'on-track' && (loan.isOverdue || loan.isDueSoon || loan.status !== 'borrowed')) return false;
 			if (selectedFilter === 'return-initiated' && loan.status !== 'pending_return') return false;
+			if (selectedFilter === 'unresolved' && !loan.hasUnresolvedIssue) return false;
 
 			if (!normalizedSearch) return true;
 
@@ -280,9 +353,10 @@
 					returnDate: loan.returnDate,
 					instructorName: loan.instructorName,
 					status: getItemStatus(item, loan),
-					settlementLabel: getSettlementLabel(item),
+					settlementLabel: getSettlementLabel(item, loan.id),
 					isOverdue: loan.isOverdue,
-					daysDelta: loan.daysDelta
+					daysDelta: loan.daysDelta,
+					hasUnresolvedIssue: unresolvedItemKeys.has(buildIssueKey(loan.id, item.itemId))
 				});
 			}
 		}
@@ -299,11 +373,40 @@
 		totalActive: loans.length,
 		overdue: loans.filter((loan) => loan.isOverdue).length,
 		dueSoon: loans.filter((loan) => loan.isDueSoon).length,
-		pendingReturn: loans.filter((loan) => loan.status === 'pending_return').length
+		unresolved: loans.filter((loan) => loan.hasUnresolvedIssue).length
 	});
 
-	onMount(async () => {
-		await loadBorrowedItems();
+	onMount(() => {
+		void loadBorrowedItems();
+
+		const unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((_event: BorrowRequestRealtimeEvent) => {
+			scheduleRefresh();
+		});
+		liveSyncActive = true;
+
+		const pollInterval = setInterval(() => {
+			void refreshBorrowedItems();
+		}, 30_000);
+
+		const onFocus = () => {
+			void refreshBorrowedItems();
+		};
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') {
+				void refreshBorrowedItems();
+			}
+		};
+
+		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			unsubscribeSSE();
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+			clearInterval(pollInterval);
+			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 </script>
 
@@ -342,8 +445,8 @@
 			<p class="mt-2 text-3xl font-semibold text-amber-600">{metrics.dueSoon}</p>
 		</div>
 		<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-			<p class="text-sm font-medium text-gray-600">Return Initiated</p>
-			<p class="mt-2 text-3xl font-semibold text-slate-700">{metrics.pendingReturn}</p>
+			<p class="text-sm font-medium text-gray-600">Unresolved Cases</p>
+			<p class="mt-2 text-3xl font-semibold text-rose-700">{metrics.unresolved}</p>
 		</div>
 	</div>
 
@@ -378,6 +481,7 @@
 					<option value="due-soon">Due Soon</option>
 					<option value="on-track">On Track</option>
 					<option value="return-initiated">Return Initiated</option>
+					<option value="unresolved">Unresolved</option>
 				</select>
 				<select bind:value={sortBy} class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
 					<option value="urgent">Sort: Most Urgent</option>
@@ -447,6 +551,11 @@
 								<div class="rounded-md bg-red-50 px-2.5 py-1.5 text-red-700">
 									<span class="font-semibold">Missing:</span> {loan.missingItems}
 								</div>
+								{#if loan.hasUnresolvedIssue}
+									<div class="rounded-md bg-rose-50 px-2.5 py-1.5 text-rose-700 sm:col-span-2">
+										<span class="font-semibold">Case Status:</span> Unresolved
+									</div>
+								{/if}
 							</div>
 							<p class="mt-4 text-xs text-gray-500"><span class="font-medium text-gray-700">Purpose:</span> {loan.purpose}</p>
 						</div>
@@ -479,7 +588,7 @@
 							<a href="/student/requests" class="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
 								Track Request
 							</a>
-							{#if loan.isOverdue || loan.status === 'missing'}
+							{#if loan.isOverdue || loan.hasUnresolvedIssue || loan.status === 'missing'}
 								<a href="/student/account/help" class="inline-flex items-center justify-center rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100">
 									Contact Support
 								</a>
@@ -515,7 +624,7 @@
 													{getItemStatusLabel(itemStatus)}
 												</span>
 											</td>
-											<td class="py-3 pr-4 text-xs text-gray-700">{getSettlementLabel(item)}</td>
+											<td class="py-3 pr-4 text-xs text-gray-700">{getSettlementLabel(item, loan.id)}</td>
 										</tr>
 									{/each}
 								</tbody>

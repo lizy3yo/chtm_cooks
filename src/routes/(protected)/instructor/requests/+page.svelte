@@ -1,6 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { authStore } from '$lib/stores/auth';
+import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestStatus } from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
@@ -340,6 +341,16 @@ function getErrorMessage(error: unknown, fallback: string): string {
 async function approveRequest(rawId: string): Promise<void> {
 	if (bulkActionInFlight || isActionInFlight(rawId)) return;
 
+	const confirmed = await confirmStore.confirm({
+		title: 'Approve Request',
+		message: 'Approve this request and forward it to custodian fulfillment?',
+		type: 'info',
+		confirmText: 'Approve',
+		cancelText: 'Cancel'
+	});
+
+	if (!confirmed) return;
+
 	setActionInFlight(rawId, true);
 	try {
 		const updated = await borrowRequestsAPI.approve(rawId);
@@ -379,6 +390,15 @@ async function bulkApprove(): Promise<void> {
 	const requestIds = Array.from(new Set(selectedRequests));
 	if (requestIds.length === 0 || bulkActionInFlight) return;
 
+	const confirmed = await confirmStore.warning(
+		`Approve ${requestIds.length} selected request${requestIds.length === 1 ? '' : 's'}?`,
+		'Bulk Approve Requests',
+		'Approve All',
+		'Cancel'
+	);
+
+	if (!confirmed) return;
+
 	bulkActionInFlight = true;
 	try {
 		const results = await Promise.allSettled(requestIds.map((rawId) => borrowRequestsAPI.approve(rawId)));
@@ -416,6 +436,15 @@ async function bulkApprove(): Promise<void> {
 async function bulkReject(): Promise<void> {
 	const requestIds = Array.from(new Set(selectedRequests));
 	if (!rejectReason || requestIds.length === 0 || bulkActionInFlight) return;
+
+	const confirmed = await confirmStore.danger(
+		`Reject ${requestIds.length} selected request${requestIds.length === 1 ? '' : 's'} with the provided reason?`,
+		'Confirm Bulk Rejection',
+		'Reject Requests',
+		'Review Again'
+	);
+
+	if (!confirmed) return;
 
 	bulkActionInFlight = true;
 	try {

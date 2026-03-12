@@ -1,10 +1,18 @@
 <script lang="ts">
 import { onMount } from 'svelte';
-import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestStatus } from '$lib/api/borrowRequests';
+import {
+borrowRequestsAPI,
+type BorrowRequestItem,
+type BorrowRequestRealtimeEvent,
+type BorrowRequestRecord,
+type BorrowRequestStatus
+} from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
+import { confirmStore } from '$lib/stores/confirm';
+import { toastStore } from '$lib/stores/toast';
 import ItemInspectionModal from '$lib/components/custodian/ItemInspectionModal.svelte';
 
-type Tab = 'pending' | 'ready' | 'active' | 'missing' | 'history';
+type Tab = 'pending' | 'ready' | 'active' | 'unresolved' | 'history';
 
 let activeTab = $state<Tab>('pending');
 let showDetailModal = $state(false);
@@ -13,10 +21,14 @@ let selectedRequest = $state<any>(null);
 let requests = $state<any[]>([]);
 let searchQuery = $state('');
 let sortBy = $state<'date' | 'student' | 'status'>('date');
-let actionSuccess = $state<string | null>(null);
-let actionError = $state<string | null>(null);
 let openActionMenuFor = $state<string | null>(null);
 let itemPictureCache = $state<Map<string, string>>(new Map());
+let liveSyncActive = $state(false);
+let inspectionItems = $state<BorrowRequestItem[]>([]);
+
+let refreshInFlight = false;
+let pendingRefresh = false;
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 function isCancelledRequest(status: BorrowRequestStatus, rejectionReason?: string): boolean {
 return status === 'cancelled' || (status === 'rejected' && rejectionReason === 'Request cancelled by student');
@@ -28,7 +40,7 @@ case 'approved_instructor': return 'pending';
 case 'ready_for_pickup': return 'ready';
 case 'borrowed': return 'active';
 case 'pending_return': return 'active';
-case 'missing': return 'missing';
+case 'missing': return 'unresolved';
 case 'cancelled': return 'history';
 case 'returned': return 'history';
 case 'rejected': return 'history';
@@ -78,6 +90,8 @@ const studentName = record.student?.fullName || `Student ${record.studentId.slic
 const now = new Date();
 const isOverdue = ['borrowed', 'pending_return'].includes(record.status) && new Date(record.returnDate) < now;
 const daysOverdue = isOverdue ? Math.max(1, Math.ceil((now.getTime() - new Date(record.returnDate).getTime()) / (1000 * 60 * 60 * 24))) : 0;
+const damagedItemCount = record.items.filter((item) => item.inspection?.status === 'damaged').length;
+const missingItemCount = record.items.filter((item) => item.inspection?.status === 'missing').length;
 
 return {
 rawId: record.id,
@@ -87,6 +101,8 @@ id: getDisplayId(record.id),
 student: {
 name: studentName,
 avatar: initials(studentName),
+yearLevel: record.student?.yearLevel || 'N/A',
+block: record.student?.block || 'N/A',
 studentId: record.studentId.slice(-8).toUpperCase(),
 email: record.student?.email || 'N/A'
 },
@@ -113,65 +129,73 @@ lastReminderAt: formatDateTime(record.lastReminderAt),
 reminderCount: record.reminderCount || 0,
 approvedBy: record.instructor?.fullName || 'Instructor',
 rejectionReason: record.rejectReason,
-approvedDate: formatDateTime(record.approvedAt)
+approvedDate: formatDateTime(record.approvedAt),
+damagedItemCount,
+missingItemCount
 };
 }
 
-function clearActionMessages(): void {
-actionSuccess = null;
-actionError = null;
+function getErrorMessage(error: unknown, fallback: string): string {
+if (error instanceof Error && error.message) {
+return error.message;
 }
-
-function setActionSuccess(message: string): void {
-actionSuccess = message;
-actionError = null;
-setTimeout(() => {
-actionSuccess = null;
-}, 4000);
-}
-
-function setActionError(message: string): void {
-actionError = message;
-actionSuccess = null;
-setTimeout(() => {
-actionError = null;
-}, 6000);
+return fallback;
 }
 
 async function markReady(rawId: string): Promise<void> {
 closeActionMenu();
-clearActionMessages();
+
+const confirmed = await confirmStore.confirm({
+title: 'Release for Pickup',
+message: 'Mark this request as ready for student pickup?',
+type: 'info',
+confirmText: 'Mark Ready',
+cancelText: 'Cancel'
+});
+
+if (!confirmed) return;
+
 try {
 await borrowRequestsAPI.release(rawId);
 await loadRequests(true);
-setActionSuccess('Request marked ready for student pickup.');
+toastStore.success('Request marked ready for student pickup.');
 } catch (error) {
 console.error('Failed to mark request as ready for pickup', error);
-setActionError(error instanceof Error ? error.message : 'Failed to mark request as ready for pickup');
+toastStore.error(getErrorMessage(error, 'Failed to mark request as ready for pickup.'));
 }
 }
 
 async function confirmPickup(rawId: string): Promise<void> {
 closeActionMenu();
-clearActionMessages();
+
+const confirmed = await confirmStore.confirm({
+title: 'Confirm Pickup',
+message: 'Confirm that the student has successfully picked up all released items?',
+type: 'warning',
+confirmText: 'Confirm Pickup',
+cancelText: 'Cancel'
+});
+
+if (!confirmed) return;
+
 try {
 await borrowRequestsAPI.pickup(rawId);
 await loadRequests(true);
-setActionSuccess('Pickup confirmed successfully.');
+toastStore.success('Pickup confirmed successfully.');
 } catch (error) {
 console.error('Failed to confirm item pickup', error);
-setActionError(error instanceof Error ? error.message : 'Failed to confirm item pickup');
+toastStore.error(getErrorMessage(error, 'Failed to confirm item pickup.'));
 }
 }
 
 async function confirmReturn(rawId: string): Promise<void> {
 closeActionMenu();
-clearActionMessages();
 	
 	// Open inspection modal instead of directly confirming
 	const request = requests.find(r => r.rawId === rawId);
 	if (request) {
 		selectedRequest = request;
+		inspectionItems = buildInspectionItems(request);
 		showInspectionModal = true;
 	}
 }
@@ -193,42 +217,60 @@ async function handleInspectionSubmit(
 		selectedRequest = null;
 		
 		if (result.obligationsCreated > 0) {
-			setActionSuccess(
+			toastStore.success(
 				`Inspection complete. ${result.obligationsCreated} financial obligation(s) created for damaged/missing items.`
 			);
 		} else {
-			setActionSuccess('All items returned in good condition. Inventory updated successfully.');
+			toastStore.success('All items returned intact. Inventory updated successfully.');
 		}
 	} catch (error) {
 		console.error('Failed to submit inspection', error);
-		setActionError(error instanceof Error ? error.message : 'Failed to submit inspection');
+		toastStore.error(getErrorMessage(error, 'Failed to submit inspection.'));
 		throw error;
 	}
 }
 
 async function markMissing(rawId: string): Promise<void> {
 	closeActionMenu();
-	clearActionMessages();
+
+	const confirmed = await confirmStore.danger(
+		'Mark this request as missing? This should only be used when an item cannot be accounted for after verification.',
+		'Mark Request as Missing',
+		'Mark Missing',
+		'Cancel'
+	);
+
+	if (!confirmed) return;
 try {
 	await borrowRequestsAPI.markMissing(rawId);
 	await loadRequests(true);
-	setActionSuccess('Request marked as missing for escalation and follow-up.');
+	toastStore.warning('Request marked as missing for escalation and follow-up.');
 } catch (error) {
 	console.error('Failed to mark item as missing', error);
-	setActionError(error instanceof Error ? error.message : 'Failed to mark item as missing');
+	toastStore.error(getErrorMessage(error, 'Failed to mark item as missing.'));
 }
 }
 
 async function sendReminder(rawId: string): Promise<void> {
 closeActionMenu();
-clearActionMessages();
+
+const confirmed = await confirmStore.confirm({
+title: 'Send Overdue Reminder',
+message: 'Send an overdue reminder for this request now?',
+type: 'default',
+confirmText: 'Send Reminder',
+cancelText: 'Cancel'
+});
+
+if (!confirmed) return;
+
 try {
 	const result = await borrowRequestsAPI.sendOverdueReminder(rawId);
 	await loadRequests(true);
-	setActionSuccess(`${result.message} (total reminders: ${result.reminderCount})`);
+	toastStore.info(`${result.message} (total reminders: ${result.reminderCount})`);
 } catch (error) {
 	console.error('Failed to send overdue reminder', error);
-	setActionError(error instanceof Error ? error.message : 'Failed to send overdue reminder');
+	toastStore.error(getErrorMessage(error, 'Failed to send overdue reminder.'));
 }
 }
 
@@ -239,10 +281,73 @@ requests = response.requests
 .filter((record) => record.status !== 'pending_instructor')
 .map(mapRequest);
 await backfillItemPictures();
+	syncSelectedRequestWithLatestData();
 } catch (error) {
 console.error('Failed to load custodian requests', error);
 requests = [];
 }
+}
+
+function buildInspectionItems(request: any): BorrowRequestItem[] {
+	const requestItemById = new Map<string, any>();
+	for (const item of request.items ?? []) {
+		requestItemById.set(item.itemId, item);
+	}
+
+	return (request.rawItems ?? []).map((item: BorrowRequestItem) => {
+		const fallbackPicture =
+			requestItemById.get(item.itemId)?.picture ??
+			itemPictureCache.get(item.itemId) ??
+			null;
+
+		return {
+			...item,
+			picture: item.picture ?? fallbackPicture
+		};
+	});
+}
+
+function syncSelectedRequestWithLatestData(): void {
+	if (!selectedRequest) return;
+	const fresh = requests.find((request) => request.rawId === selectedRequest.rawId);
+	if (fresh) {
+		selectedRequest = fresh;
+		if (showInspectionModal) {
+			inspectionItems = buildInspectionItems(fresh);
+		}
+	} else {
+		showDetailModal = false;
+		showInspectionModal = false;
+		selectedRequest = null;
+		inspectionItems = [];
+	}
+}
+
+async function refreshRequests(): Promise<void> {
+	if (refreshInFlight) {
+		pendingRefresh = true;
+		return;
+	}
+
+	refreshInFlight = true;
+	try {
+		borrowRequestsAPI.invalidateCache();
+		await loadRequests(true);
+	} finally {
+		refreshInFlight = false;
+		if (pendingRefresh) {
+			pendingRefresh = false;
+			await refreshRequests();
+		}
+	}
+}
+
+function scheduleRefresh(): void {
+	if (refreshTimer !== null) clearTimeout(refreshTimer);
+	refreshTimer = setTimeout(() => {
+		refreshTimer = null;
+		refreshRequests();
+	}, 250);
 }
 
 async function backfillItemPictures(): Promise<void> {
@@ -266,13 +371,45 @@ async function backfillItemPictures(): Promise<void> {
 			}
 		}
 		itemPictureCache = next;
+		if (selectedRequest && showInspectionModal) {
+			inspectionItems = buildInspectionItems(selectedRequest);
+		}
 	} catch {
 		// Keep graceful fallback when catalog pictures are unavailable.
 	}
 }
 
-onMount(async () => {
-await loadRequests();
+onMount(() => {
+	void loadRequests();
+
+	const unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((_event: BorrowRequestRealtimeEvent) => {
+		scheduleRefresh();
+	});
+	liveSyncActive = true;
+
+	const pollInterval = setInterval(() => {
+		void refreshRequests();
+	}, 30_000);
+
+	const onFocus = () => {
+		void refreshRequests();
+	};
+	const onVisible = () => {
+		if (document.visibilityState === 'visible') {
+			void refreshRequests();
+		}
+	};
+
+	window.addEventListener('focus', onFocus);
+	document.addEventListener('visibilitychange', onVisible);
+
+	return () => {
+		unsubscribeSSE();
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		clearInterval(pollInterval);
+		window.removeEventListener('focus', onFocus);
+		document.removeEventListener('visibilitychange', onVisible);
+	};
 });
 
 const filteredRequests = $derived(
@@ -309,7 +446,7 @@ const tabCounts = $derived({
 pending: requests.filter(r => r.status === 'pending').length,
 ready: requests.filter(r => r.status === 'ready').length,
 active: requests.filter(r => r.status === 'active').length,
-missing: requests.filter(r => r.status === 'missing').length,
+unresolved: requests.filter(r => r.status === 'unresolved').length,
 history: requests.filter(r => r.status === 'history').length
 });
 
@@ -342,8 +479,8 @@ case 'active':
 return rawStatus === 'pending_return'
 ? { text: 'Return Requested', color: 'bg-orange-100 text-orange-800' }
 : { text: 'On Loan', color: 'bg-purple-100 text-purple-800' };
-case 'missing':
-return { text: 'Missing', color: 'bg-rose-100 text-rose-800' };
+case 'unresolved':
+return { text: 'Unresolved', color: 'bg-amber-100 text-amber-800' };
 case 'history':
 return isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
 ? { text: 'Cancelled', color: 'bg-slate-100 text-slate-800' }
@@ -363,7 +500,7 @@ case 'ready':
 return 'border-green-500';
 case 'active':
 return rawStatus === 'pending_return' ? 'border-orange-500' : 'border-purple-500';
-case 'missing':
+case 'unresolved':
 return 'border-rose-500';
 case 'history':
 return isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'border-slate-400' : rawStatus === 'rejected' ? 'border-red-500' : 'border-gray-300';
@@ -396,9 +533,9 @@ return {
 text: 'This equipment is currently on loan and should be monitored until return.',
 color: 'text-purple-700'
 };
-case 'missing':
+case 'unresolved':
 return {
-text: 'This request is under follow-up because one or more items were reported missing.',
+text: 'This request has open incident cases. Coordinate with the student to resolve outstanding damage or missing items.',
 color: 'text-rose-700'
 };
 case 'history':
@@ -435,16 +572,6 @@ return { text: '', color: 'text-gray-500' };
 	
 	<!-- Statistics Cards -->
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-		{#if actionSuccess}
-			<div class="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-800 lg:col-span-5">
-				{actionSuccess}
-			</div>
-		{/if}
-		{#if actionError}
-			<div class="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800 lg:col-span-5">
-				{actionError}
-			</div>
-		{/if}
 		<div class="rounded-lg bg-white p-5 shadow">
 			<div class="flex items-center justify-between">
 				<div>
@@ -547,13 +674,17 @@ return { text: '', color: 'text-gray-500' };
 				</span>
 			</button>
 			<button
-				onclick={() => activeTab = 'missing'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'missing' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
+				onclick={() => activeTab = 'unresolved'}
+				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'unresolved' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
 			>
-				Missing
-				<span class="ml-2 rounded-full {activeTab === 'missing' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.missing}
-				</span>
+				Unresolved
+				{#if tabCounts.unresolved > 0}
+					<span class="ml-2 rounded-full {activeTab === 'unresolved' ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-600'} px-2 py-0.5 text-xs font-semibold">
+						{tabCounts.unresolved}
+					</span>
+				{:else}
+					<span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">0</span>
+				{/if}
 			</button>
 			<button
 				onclick={() => activeTab = 'history'}
@@ -619,10 +750,30 @@ return { text: '', color: 'text-gray-500' };
 						<div class="min-w-0 flex-1">
 							<div class="flex min-w-0 flex-wrap items-center gap-2">
 								<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
-								<span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold {getStatusBadge(request.status, request.rawStatus, request.rejectionReason).color}">
+								<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold {getStatusBadge(request.status, request.rawStatus, request.rejectionReason).color}">
 									<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-									<span>{getStatusBadge(request.status, request.rawStatus, request.rejectionReason).text}</span>
+									{getStatusBadge(request.status, request.rawStatus, request.rejectionReason).text}
 								</span>
+								{#if request.status === 'unresolved'}
+									{#if request.missingItemCount > 0}
+										<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-200">
+											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+											{request.missingItemCount} Missing
+										</span>
+									{/if}
+									{#if request.damagedItemCount > 0}
+										<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-800 ring-1 ring-rose-200">
+											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+											{request.damagedItemCount} Damaged
+										</span>
+									{/if}
+									{#if request.missingItemCount === 0 && request.damagedItemCount === 0}
+										<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-200">
+											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+											Missing
+										</span>
+									{/if}
+								{/if}
 							</div>
 
 							<div class="mt-4 flex items-start gap-3">
@@ -630,13 +781,9 @@ return { text: '', color: 'text-gray-500' };
 									{request.student.avatar}
 								</div>
 								<div class="min-w-0">
-									<h3 class="truncate text-lg font-semibold text-gray-900">{request.student.name}</h3>
-									<div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500">
-										<span>{request.student.studentId}</span>
-										{#if request.student.email !== 'N/A'}
-											<span class="truncate">{request.student.email}</span>
-										{/if}
-									</div>
+									<h3 class="text-lg font-semibold text-gray-900">{request.student.name}</h3>
+									<p class="text-sm text-gray-500">{request.student.yearLevel} &bull; Block {request.student.block}</p>
+									<p class="mt-1 text-xs text-gray-400">Student ID {request.student.studentId}</p>
 								</div>
 							</div>
 						</div>
@@ -733,7 +880,7 @@ return { text: '', color: 'text-gray-500' };
 								{/if}
 								{#if request.missingDate}
 									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-rose-700 ring-1 ring-rose-200">
-										Missing: {request.missingDate}
+										Unresolved: {request.missingDate}
 									</span>
 								{/if}
 							</div>
@@ -981,7 +1128,7 @@ return { text: '', color: 'text-gray-500' };
 								{#if selectedRequest.missingDate}
 									<div class="flex items-center gap-2 text-sm">
 										<span class="text-rose-600">⚠</span>
-										<span class="text-gray-600">Marked missing</span>
+										<span class="text-gray-600">Flagged as unresolved</span>
 										<span class="ml-auto text-xs text-gray-500">{selectedRequest.missingDate}</span>
 									</div>
 								{/if}
@@ -1022,12 +1169,13 @@ return { text: '', color: 'text-gray-500' };
 <!-- Item Inspection Modal -->
 {#if showInspectionModal && selectedRequest}
 	<ItemInspectionModal
-		items={selectedRequest.rawItems}
+		items={inspectionItems}
 		requestId={selectedRequest.rawId}
 		onSubmit={handleInspectionSubmit}
 		onCancel={() => {
 			showInspectionModal = false;
 			selectedRequest = null;
+			inspectionItems = [];
 		}}
 	/>
 {/if}

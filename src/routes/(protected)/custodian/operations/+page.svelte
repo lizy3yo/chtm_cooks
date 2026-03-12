@@ -1,8 +1,29 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { user } from '$lib/stores/auth';
+	import { toastStore } from '$lib/stores/toast';
+	import {
+		financialObligationsAPI,
+		type FinancialObligation,
+		type ObligationStatus,
+		type ObligationType,
+		type ResolutionType
+	} from '$lib/api/financialObligations';
 
-	let activeTab = $state<'conditions' | 'maintenance' | 'audit'>('conditions');
+	type ResolutionDraft = {
+		resolutionType: ResolutionType;
+		amountPaid: number;
+		resolutionNotes: string;
+		paymentReference: string;
+	};
+
+	let activeTab = $state<'conditions' | 'maintenance' | 'audit' | 'issues'>('conditions');
+	let obligations = $state<FinancialObligation[]>([]);
+	let obligationsLoading = $state(true);
+	let obligationsError = $state<string | null>(null);
+	let actionById = $state<Record<string, ResolutionDraft>>({});
+	let savingId = $state<string | null>(null);
 
 	// Sample data for item conditions
 	let items = $state([
@@ -189,6 +210,103 @@
 	const pendingMaintenance = $derived(
 		maintenanceRecords.filter(m => m.status === 'pending' || m.status === 'in-progress').length
 	);
+	const openIssueCases = $derived(obligations.filter((obligation) => obligation.status === 'pending').length);
+	const damagedIssueCases = $derived(obligations.filter((obligation) => obligation.type === 'damaged').length);
+	const missingIssueCases = $derived(obligations.filter((obligation) => obligation.type === 'missing').length);
+
+	function ensureActionDraft(id: string): ResolutionDraft {
+		if (!actionById[id]) {
+			actionById[id] = {
+				resolutionType: 'payment',
+				amountPaid: 0,
+				resolutionNotes: '',
+				paymentReference: ''
+			};
+		}
+		return actionById[id];
+	}
+
+	function formatDate(value: string): string {
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) return value;
+		return date.toLocaleDateString();
+	}
+
+	function formatMoney(value: number): string {
+		return `PHP ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+	}
+
+	function getIssueTypeBadgeClass(type: ObligationType): string {
+		return type === 'missing' ? 'bg-red-100 text-red-800 ring-red-200' : 'bg-rose-100 text-rose-800 ring-rose-200';
+	}
+
+	function getObligationStatusBadgeClass(status: ObligationStatus): string {
+		switch (status) {
+			case 'pending':
+				return 'bg-amber-100 text-amber-800 ring-amber-200';
+			case 'paid':
+				return 'bg-emerald-100 text-emerald-800 ring-emerald-200';
+			case 'replaced':
+				return 'bg-cyan-100 text-cyan-800 ring-cyan-200';
+			case 'waived':
+				return 'bg-slate-100 text-slate-800 ring-slate-200';
+		}
+	}
+
+	function toObligationStatusLabel(status: ObligationStatus): string {
+		switch (status) {
+			case 'pending':
+				return 'Pending';
+			case 'paid':
+				return 'Paid';
+			case 'replaced':
+				return 'Replaced';
+			case 'waived':
+				return 'Waived';
+		}
+	}
+
+	async function loadIssueCases(): Promise<void> {
+		obligationsLoading = true;
+		obligationsError = null;
+		try {
+			const response = await financialObligationsAPI.getObligations({ limit: 200 });
+			obligations = response.obligations;
+		} catch (error) {
+			obligationsError = error instanceof Error ? error.message : 'Failed to load issue cases.';
+			obligations = [];
+		} finally {
+			obligationsLoading = false;
+		}
+	}
+
+	async function resolveIssueCase(obligation: FinancialObligation): Promise<void> {
+		const draft = ensureActionDraft(obligation.id);
+		if (draft.resolutionType === 'payment' && draft.amountPaid <= 0) {
+			toastStore.error('Payment amount must be greater than zero.');
+			return;
+		}
+
+		savingId = obligation.id;
+		try {
+			await financialObligationsAPI.resolveObligation(obligation.id, {
+				resolutionType: draft.resolutionType,
+				amountPaid: draft.resolutionType === 'payment' ? draft.amountPaid : undefined,
+				resolutionNotes: draft.resolutionNotes || undefined,
+				paymentReference: draft.paymentReference || undefined
+			});
+			toastStore.success('Issue case resolved successfully.');
+			await loadIssueCases();
+		} catch (error) {
+			toastStore.error(error instanceof Error ? error.message : 'Failed to resolve issue case.');
+		} finally {
+			savingId = null;
+		}
+	}
+
+	onMount(() => {
+		void loadIssueCases();
+	});
 
 	function updateItemCondition(itemId: number, newCondition: string) {
 		const item = items.find(i => i.id === itemId);
@@ -410,9 +528,9 @@
 		<div class="bg-white rounded-lg shadow p-6">
 			<div class="flex items-center justify-between">
 				<div>
-					<p class="text-sm font-medium text-gray-600">Pending Maintenance</p>
-					<p class="text-2xl font-bold text-blue-600">{pendingMaintenance}</p>
-					<p class="text-xs text-gray-500 mt-1">Active tasks</p>
+					<p class="text-sm font-medium text-gray-600">Open Issue Cases</p>
+					<p class="text-2xl font-bold text-blue-600">{openIssueCases}</p>
+					<p class="text-xs text-gray-500 mt-1">Damage and missing incidents</p>
 				</div>
 				<div class="bg-blue-100 p-3 rounded-full">
 					<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -427,6 +545,14 @@
 	<div class="bg-white rounded-lg shadow mb-6">
 		<div class="border-b border-gray-200">
 			<nav class="flex -mb-px overflow-x-auto" aria-label="Tabs">
+				<button
+					onclick={() => (activeTab = 'issues')}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'issues'
+						? 'border-pink-500 text-pink-600'
+						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Issue Cases
+				</button>
 				<button
 					onclick={() => (activeTab = 'conditions')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'conditions'
@@ -455,6 +581,79 @@
 		</div>
 
 		<div class="p-6">
+			{#if activeTab === 'issues'}
+				<div class="space-y-6">
+					<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+						<div class="rounded-lg border border-gray-200 bg-gray-50 p-5">
+							<p class="text-sm font-medium text-gray-600">Pending Cases</p>
+							<p class="mt-2 text-3xl font-bold text-amber-600">{openIssueCases}</p>
+						</div>
+						<div class="rounded-lg border border-gray-200 bg-gray-50 p-5">
+							<p class="text-sm font-medium text-gray-600">Damaged Cases</p>
+							<p class="mt-2 text-3xl font-bold text-rose-600">{damagedIssueCases}</p>
+						</div>
+						<div class="rounded-lg border border-gray-200 bg-gray-50 p-5">
+							<p class="text-sm font-medium text-gray-600">Missing Cases</p>
+							<p class="mt-2 text-3xl font-bold text-red-600">{missingIssueCases}</p>
+						</div>
+					</div>
+
+					{#if obligationsLoading}
+						<div class="rounded-lg border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">Loading issue cases...</div>
+					{:else if obligationsError}
+						<div class="rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">{obligationsError}</div>
+					{:else if obligations.length === 0}
+						<div class="rounded-lg border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">No issue cases found.</div>
+					{:else}
+						<div class="space-y-3">
+							{#each obligations as obligation (obligation.id)}
+								{@const draft = ensureActionDraft(obligation.id)}
+								<div class="rounded-lg border border-gray-200 p-4">
+									<div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+										<div>
+											<div class="flex flex-wrap items-center gap-2">
+												<p class="text-sm font-semibold text-gray-900">{obligation.itemName}</p>
+												<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 {getIssueTypeBadgeClass(obligation.type)}">
+													{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
+												</span>
+												<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 {getObligationStatusBadgeClass(obligation.status)}">
+													{toObligationStatusLabel(obligation.status)}
+												</span>
+											</div>
+											<p class="mt-1 text-xs text-gray-600">Student: {obligation.studentName || 'Student'} · {obligation.studentEmail || obligation.studentId}</p>
+											<p class="mt-1 text-xs text-gray-500">Incident: {formatDate(obligation.incidentDate)} · Due: {formatDate(obligation.dueDate)}</p>
+											<p class="mt-1 text-xs text-gray-700">Balance: {formatMoney(obligation.balance)}</p>
+										</div>
+
+										{#if obligation.status === 'pending'}
+											<div class="w-full max-w-xl rounded-lg border border-gray-200 bg-gray-50 p-3">
+												<div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+													<select bind:value={draft.resolutionType} class="rounded-md border border-gray-300 bg-white px-2.5 py-2 text-xs">
+														<option value="payment">Payment</option>
+														<option value="replacement">Replacement</option>
+														<option value="waiver">Waiver</option>
+													</select>
+													{#if draft.resolutionType === 'payment'}
+														<input type="number" min="0" step="0.01" bind:value={draft.amountPaid} placeholder="Payment amount" class="rounded-md border border-gray-300 bg-white px-2.5 py-2 text-xs" />
+													{/if}
+													<input type="text" bind:value={draft.paymentReference} placeholder="Reference (optional)" class="rounded-md border border-gray-300 bg-white px-2.5 py-2 text-xs" />
+													<input type="text" bind:value={draft.resolutionNotes} placeholder="Resolution notes (optional)" class="rounded-md border border-gray-300 bg-white px-2.5 py-2 text-xs" />
+												</div>
+												<div class="mt-2 flex justify-end">
+													<button onclick={() => resolveIssueCase(obligation)} disabled={savingId === obligation.id} class="rounded-md bg-pink-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-pink-700 disabled:opacity-50">
+														{savingId === obligation.id ? 'Saving...' : 'Apply Resolution'}
+													</button>
+												</div>
+											</div>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
+
 			<!-- Item Conditions Tab -->
 			{#if activeTab === 'conditions'}
 				<div class="space-y-6">
