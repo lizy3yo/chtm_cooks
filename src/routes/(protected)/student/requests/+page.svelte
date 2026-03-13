@@ -116,6 +116,16 @@ async function loadRequests(forceRefresh = false): Promise<void> {
 	await backfillItemPictures();
 }
 
+function hydrateRequestsFromClientCache(): boolean {
+	const cached = borrowRequestsAPI.peekCachedList({});
+	if (!cached) return false;
+
+	requests = cached.requests.map(mapRequest);
+	loading = false;
+	void backfillItemPictures();
+	return true;
+}
+
 async function backfillItemPictures(): Promise<void> {
 	// Collect itemIds that have no stored picture
 	const missingIds = new Set<string>();
@@ -145,15 +155,17 @@ async function backfillItemPictures(): Promise<void> {
  * Refresh the list, guarding against overlapping fetches.
  * If a fetch is already running, set a flag so we re-run once it finishes.
  */
-async function refreshRequests(): Promise<void> {
+async function refreshRequests(forceRefresh = false): Promise<void> {
 	if (refreshInFlight) {
 		pendingRefresh = true;
 		return;
 	}
 	refreshInFlight = true;
 	try {
-		borrowRequestsAPI.invalidateCache();
-		await loadRequests(true);
+		if (forceRefresh) {
+			borrowRequestsAPI.invalidateCache();
+		}
+		await loadRequests(forceRefresh);
 		// Sync the open detail modal if it is stale
 		syncSelectedRequestWithLatestData();
 	} finally {
@@ -181,11 +193,11 @@ function syncSelectedRequestWithLatestData(): void {
  * Coalesce rapid SSE events into a single refresh after a short debounce.
  * This prevents N simultaneous fetches when multiple mutations happen quickly.
  */
-function scheduleRefresh(): void {
+function scheduleRefresh(forceRefresh = false): void {
 	if (refreshTimer !== null) clearTimeout(refreshTimer);
 	refreshTimer = setTimeout(() => {
 		refreshTimer = null;
-		refreshRequests();
+		refreshRequests(forceRefresh);
 	}, 250);
 }
 
@@ -193,18 +205,19 @@ let _unsubscribeSSE: (() => void) | null = null;
 let _pollInterval: ReturnType<typeof setInterval> | null = null;
 
 onMount(() => {
-	// Kick off initial load (non-blocking — don't await here so we can return cleanup synchronously)
-	loadRequests(true);
+	// Instant paint from client memory cache, then refresh through normal cache path.
+	hydrateRequestsFromClientCache();
+	void loadRequests();
 
 	// --- SSE real-time subscription ---
 	_unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((_event: BorrowRequestRealtimeEvent) => {
-		scheduleRefresh();
+		scheduleRefresh(true);
 	});
 	liveSyncActive = true;
 
 	// --- 30-second polling fallback (handles SSE gaps / reconnects) ---
 	_pollInterval = setInterval(() => {
-		refreshRequests();
+		void refreshRequests();
 	}, 30_000);
 
 	// --- Refresh on tab/window focus so stale data is never shown ---
