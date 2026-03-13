@@ -480,7 +480,7 @@
 								<CheckCircle2 size={18} class="text-teal-500" />
 								<h2 class="text-sm font-semibold text-gray-900">Recent History</h2>
 							</div>
-							<a href="/student/history" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+							<a href="/student/account/history" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
 								View all <ArrowRight size={13} />
 							</a>
 						</div>
