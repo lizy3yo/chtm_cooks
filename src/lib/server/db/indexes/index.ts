@@ -59,6 +59,7 @@ export type {
 // Export definitions
 export {
 	userIndexes,
+	financialObligationIndexes,
 	allIndexDefinitions,
 	getIndexesByCollection,
 	getIndexesByPriority,

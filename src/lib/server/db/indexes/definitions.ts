@@ -8,6 +8,7 @@
 
 import type { IndexDefinition } from './types';
 import { borrowRequestIndexes } from './borrowRequestsIndexes';
+import { financialObligationIndexes } from './financialObligationsIndexes';
 
 /**
  * ============================================================================
@@ -893,6 +894,7 @@ export const allIndexDefinitions: IndexDefinition[] = [
 	...rememberTokenIndexes,
 	...inventoryItemIndexes,
 	...inventoryCategoryIndexes,
+	...financialObligationIndexes,
 	...borrowRequestIndexes
 	// ...sessionIndexes,
 	// ...otherCollectionIndexes,

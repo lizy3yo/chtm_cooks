@@ -50,6 +50,20 @@ interface ApiError {
 	message?: string;
 }
 
+interface RequestOptions {
+	forceRefresh?: boolean;
+}
+
+interface CacheEntry<T> {
+	data: T;
+	expiresAt: number;
+}
+
+const CLIENT_CACHE_TTL_MS = 60 * 1000;
+const listCache = new Map<string, CacheEntry<FinancialObligationsListResponse>>();
+const detailCache = new Map<string, CacheEntry<{ obligation: FinancialObligation }>>();
+const inFlight = new Map<string, Promise<unknown>>();
+
 function getFetchOptions(method: string, body?: unknown): RequestInit {
 	const options: RequestInit = {
 		method,
@@ -77,6 +91,55 @@ async function handleResponse<T>(response: Response): Promise<T> {
 	return payload;
 }
 
+function getFreshCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
+	if (!browser) {
+		return null;
+	}
+
+	const entry = cache.get(key);
+	if (!entry) {
+		return null;
+	}
+
+	if (Date.now() > entry.expiresAt) {
+		cache.delete(key);
+		return null;
+	}
+
+	return entry.data;
+}
+
+function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T): void {
+	if (!browser) {
+		return;
+	}
+
+	cache.set(key, {
+		data,
+		expiresAt: Date.now() + CLIENT_CACHE_TTL_MS
+	});
+}
+
+function buildListCacheKey(params: {
+	status?: ObligationStatus;
+	studentId?: string;
+	page?: number;
+	limit?: number;
+} = {}): string {
+	return [
+		params.status || 'all',
+		params.studentId || 'self',
+		String(params.page || 1),
+		String(params.limit || 50)
+	].join(':');
+}
+
+function invalidateAllCaches(): void {
+	listCache.clear();
+	detailCache.clear();
+	inFlight.clear();
+}
+
 /**
  * Financial Obligations API Client
  * Industry-standard client for managing financial obligations
@@ -90,7 +153,7 @@ export const financialObligationsAPI = {
 		studentId?: string;
 		page?: number;
 		limit?: number;
-	} = {}): Promise<FinancialObligationsListResponse> {
+	} = {}, options: RequestOptions = {}): Promise<FinancialObligationsListResponse> {
 		try {
 			const searchParams = new URLSearchParams();
 
@@ -98,12 +161,38 @@ export const financialObligationsAPI = {
 			if (params.studentId) searchParams.set('studentId', params.studentId);
 			if (params.page) searchParams.set('page', params.page.toString());
 			if (params.limit) searchParams.set('limit', params.limit.toString());
+			if (options.forceRefresh) searchParams.set('_t', Date.now().toString());
 
 			const query = searchParams.toString();
 			const url = `/api/financial-obligations${query ? `?${query}` : ''}`;
+			const cacheKey = buildListCacheKey(params);
+			const inFlightKey = `list:${cacheKey}`;
 
-			const response = await fetch(url, getFetchOptions('GET'));
-			return await handleResponse<FinancialObligationsListResponse>(response);
+			if (!options.forceRefresh) {
+				const cached = getFreshCache(listCache, cacheKey);
+				if (cached) {
+					return cached;
+				}
+
+				const existingRequest = inFlight.get(inFlightKey) as Promise<FinancialObligationsListResponse> | undefined;
+				if (existingRequest) {
+					return existingRequest;
+				}
+			}
+
+			const requestPromise = (async () => {
+				const response = await fetch(url, getFetchOptions('GET'));
+				const data = await handleResponse<FinancialObligationsListResponse>(response);
+				setCache(listCache, cacheKey, data);
+				return data;
+			})();
+
+			inFlight.set(inFlightKey, requestPromise);
+			try {
+				return await requestPromise;
+			} finally {
+				inFlight.delete(inFlightKey);
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'Failed to fetch obligations';
 			throw new Error(message);
@@ -113,10 +202,37 @@ export const financialObligationsAPI = {
 	/**
 	 * Get a specific financial obligation
 	 */
-	async getObligation(id: string): Promise<{ obligation: FinancialObligation }> {
+	async getObligation(id: string, options: RequestOptions = {}): Promise<{ obligation: FinancialObligation }> {
 		try {
-			const response = await fetch(`/api/financial-obligations/${id}`, getFetchOptions('GET'));
-			return await handleResponse<{ obligation: FinancialObligation }>(response);
+			const inFlightKey = `detail:${id}`;
+			if (!options.forceRefresh) {
+				const cached = getFreshCache(detailCache, id);
+				if (cached) {
+					return cached;
+				}
+
+				const existingRequest = inFlight.get(inFlightKey) as Promise<{ obligation: FinancialObligation }> | undefined;
+				if (existingRequest) {
+					return existingRequest;
+				}
+			}
+
+			const url = options.forceRefresh
+				? `/api/financial-obligations/${id}?_t=${Date.now()}`
+				: `/api/financial-obligations/${id}`;
+			const requestPromise = (async () => {
+				const response = await fetch(url, getFetchOptions('GET'));
+				const data = await handleResponse<{ obligation: FinancialObligation }>(response);
+				setCache(detailCache, id, data);
+				return data;
+			})();
+
+			inFlight.set(inFlightKey, requestPromise);
+			try {
+				return await requestPromise;
+			} finally {
+				inFlight.delete(inFlightKey);
+			}
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'Failed to fetch obligation';
 			throw new Error(message);
@@ -132,10 +248,29 @@ export const financialObligationsAPI = {
 	): Promise<{ success: boolean; message: string }> {
 		try {
 			const response = await fetch(`/api/financial-obligations/${id}`, getFetchOptions('PATCH', resolution));
-			return await handleResponse<{ success: boolean; message: string }>(response);
+			const data = await handleResponse<{ success: boolean; message: string }>(response);
+			invalidateAllCaches();
+			return data;
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'Failed to resolve obligation';
 			throw new Error(message);
 		}
+	},
+
+	peekCachedObligations(params: {
+		status?: ObligationStatus;
+		studentId?: string;
+		page?: number;
+		limit?: number;
+	} = {}): FinancialObligationsListResponse | null {
+		return getFreshCache(listCache, buildListCacheKey(params));
+	},
+
+	peekCachedObligation(id: string): { obligation: FinancialObligation } | null {
+		return getFreshCache(detailCache, id);
+	},
+
+	invalidateCache(): void {
+		invalidateAllCaches();
 	}
 };

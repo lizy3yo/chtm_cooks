@@ -8,7 +8,9 @@ import { BorrowRequestStatus } from '$lib/server/models/BorrowRequest';
 import { ObligationStatus } from '$lib/server/models/FinancialObligation';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
+import { sanitizeInput } from '$lib/server/utils/validation';
 import { getAuthenticatedUser, BORROW_REQUESTS_COLLECTION, invalidateBorrowRequestCaches, publishBorrowRequestRealtimeEvent } from '../../shared';
+import { FINANCIAL_OBLIGATIONS_COLLECTION, invalidateFinancialObligationCaches } from '../../../financial-obligations/shared';
 
 interface ItemInspectionInput {
 	itemId: string;
@@ -19,6 +21,10 @@ interface ItemInspectionInput {
 
 interface InspectItemsRequest {
 	items: ItemInspectionInput[];
+}
+
+function isValidInspectionStatus(value: string): value is ItemInspectionStatus {
+	return value === 'good' || value === 'damaged' || value === 'missing';
 }
 
 /**
@@ -45,9 +51,35 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: 'Invalid request ID' }, { status: 400 });
 		}
 
-		const body: InspectItemsRequest = await event.request.json();
+		let body: InspectItemsRequest;
+		try {
+			body = (await event.request.json()) as InspectItemsRequest;
+		} catch {
+			return json({ error: 'Invalid JSON payload' }, { status: 400 });
+		}
+
 		if (!body.items || !Array.isArray(body.items) || body.items.length === 0) {
 			return json({ error: 'Items array is required' }, { status: 400 });
+		}
+
+		const seenItemIds = new Set<string>();
+		for (const item of body.items) {
+			if (!ObjectId.isValid(item.itemId)) {
+				return json({ error: 'Invalid item ID in inspection payload' }, { status: 400 });
+			}
+			if (seenItemIds.has(item.itemId)) {
+				return json({ error: 'Duplicate item IDs are not allowed in inspection payload' }, { status: 400 });
+			}
+			seenItemIds.add(item.itemId);
+			if (!isValidInspectionStatus(item.status)) {
+				return json({ error: 'Invalid inspection status' }, { status: 400 });
+			}
+			if (item.unitPrice !== undefined && (!Number.isFinite(item.unitPrice) || item.unitPrice < 0)) {
+				return json({ error: 'Unit price must be a valid non-negative number' }, { status: 400 });
+			}
+			if (item.notes !== undefined) {
+				item.notes = sanitizeInput(item.notes).slice(0, 500);
+			}
 		}
 
 		const db = await getDatabase();
@@ -185,7 +217,7 @@ export const POST: RequestHandler = async (event) => {
 
 		// Insert financial obligations
 		if (obligations.length > 0) {
-			await db.collection<FinancialObligation>('financial_obligations').insertMany(obligations);
+			await db.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION).insertMany(obligations);
 		}
 
 		// If all good, restore inventory
@@ -220,6 +252,7 @@ export const POST: RequestHandler = async (event) => {
 		});
 
 		await invalidateBorrowRequestCaches();
+		await invalidateFinancialObligationCaches();
 		publishBorrowRequestRealtimeEvent(
 			{ ...borrowRequest, _id: new ObjectId(requestId), status: newStatus },
 			'items_inspected',
