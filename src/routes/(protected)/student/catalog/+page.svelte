@@ -4,16 +4,15 @@
 	import { catalogAPI, type CatalogResponse, type CatalogFilters, type CatalogItem } from '$lib/api/catalog';
 	import { subscribeToInventoryChanges } from '$lib/api/inventory';
 	import { requestCartCount, requestCartStore } from '$lib/stores/requestCart';
-	import Toast from '$lib/components/ui/Toast.svelte';
-	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
+	import { toastStore } from '$lib/stores/toast';
 	
 	// UI State Management
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
-	let toastMessage = $state<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
 	let selectedItem = $state<CatalogItem | null>(null);
 	let showFullImage = $state(false);
+	let hasShownUnauthorizedToast = $state(false);
 	
 	// Filter State
 	let searchQuery = $state('');
@@ -131,16 +130,25 @@
 			catalogData = await catalogAPI.getCatalog(filters, { forceRefresh: options.forceRefresh });
 		} catch (err) {
 			const errorMsg = err instanceof Error ? err.message : 'Failed to load catalog';
+			const isUnauthorized = /(^|\s)(unauthorized|401)(\s|$)/i.test(errorMsg);
+
+			if (isUnauthorized) {
+				if (!hasShownUnauthorizedToast) {
+					hasShownUnauthorizedToast = true;
+					toastStore.error('Your session has expired. Please sign in again.', 'Authentication Required', 4500);
+				}
+				error = null;
+				await goto('/auth/login');
+				return;
+			}
+
 			if (!background) {
 				error = errorMsg;
 			}
 			console.error('Catalog fetch error:', err);
 
 			if (!background) {
-				toastMessage = {
-					type: 'error',
-					message: `Error loading catalog: ${errorMsg}`
-				};
+				toastStore.error(`Error loading catalog: ${errorMsg}`, 'Catalog Error');
 			}
 		} finally {
 			if (!background) {
@@ -160,11 +168,7 @@
 		sortBy = 'name';
 		currentPage = 1;
 		error = null;
-		
-		toastMessage = {
-			type: 'info',
-			message: 'Filters cleared'
-		};
+		toastStore.info('Filters cleared', 'Catalog Filters');
 	}
 	
 	/**
@@ -233,7 +237,7 @@
 	 */
 	function requestItem(item: CatalogItem): void {
 		if (item.status === 'Out of Stock') {
-			toastMessage = { type: 'error', message: 'This item is currently out of stock' };
+			toastStore.error('This item is currently out of stock', 'Cannot Request Item');
 			return;
 		}
 
@@ -246,16 +250,16 @@
 		});
 
 		if (result === 'added') {
-			toastMessage = { type: 'success', message: `${item.name} was added to your request list.` };
+			toastStore.success(`${item.name} was added to your request list.`, 'Item Added');
 			return;
 		}
 
 		if (result === 'incremented') {
-			toastMessage = { type: 'success', message: `${item.name} quantity updated in your request list.` };
+			toastStore.success(`${item.name} quantity updated in your request list.`, 'Request List Updated');
 			return;
 		}
 
-		toastMessage = { type: 'info', message: `${item.name} is already at max available quantity in your request list.` };
+		toastStore.info(`${item.name} is already at max available quantity in your request list.`, 'Max Quantity Reached');
 	}
 	
 	/**
@@ -331,12 +335,6 @@
 	<title>Equipment Catalog - Student Portal</title>
 	<meta name="description" content="Browse and request available cooking equipment and utensils." />
 </svelte:head>
-
-<ToastContainer>
-	{#if toastMessage}
-		<Toast type={toastMessage.type} message={toastMessage.message} onClose={() => toastMessage = null} />
-	{/if}
-</ToastContainer>
 
 {#if selectedItem}
 	<div class="fixed inset-0 z-50 flex items-center justify-center p-4">

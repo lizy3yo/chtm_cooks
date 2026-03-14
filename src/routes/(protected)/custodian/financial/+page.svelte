@@ -5,6 +5,8 @@
 	import { financialObligationsAPI, type FinancialObligation } from '$lib/api/financialObligations';
 
 	let activeTab = $state<'donations' | 'replacements' | 'history'>('replacements');
+	let replacementsFilter = $state<'all' | 'pending' | 'paid' | 'replaced'>('all');
+	let replacementsView = $state<'by-request' | 'by-item'>('by-item');
 	let obligations = $state<FinancialObligation[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
@@ -142,10 +144,79 @@
 		donations.reduce((sum, d) => sum + (d.amount || 0), 0)
 	);
 	const outstandingPayments = $derived(
-		replacementPayments
-			.filter(p => p.status !== 'paid')
-			.reduce((sum, p) => sum + (p.amountDue - p.amountPaid), 0)
+		obligations
+			.filter((o) => o.status === 'pending')
+			.reduce((sum, o) => sum + o.balance, 0)
 	);
+
+	const obligationCounts = $derived({
+		all: obligations.length,
+		pending: obligations.filter((o) => o.status === 'pending').length,
+		paid: obligations.filter((o) => o.status === 'paid').length,
+		replaced: obligations.filter((o) => o.status === 'replaced').length
+	});
+
+	const filteredObligations = $derived(
+		replacementsFilter === 'all' ? obligations : obligations.filter((o) => o.status === replacementsFilter)
+	);
+
+	const requestSummaries = $derived.by(() => {
+		const grouped = new Map<
+			string,
+			{
+				borrowRequestId: string;
+				requestCode: string;
+				studentName: string;
+				studentEmail: string;
+				items: number;
+				missingCount: number;
+				damagedCount: number;
+				amount: number;
+				amountPaid: number;
+				balance: number;
+				latestDueDate: string;
+				statuses: Set<string>;
+			}
+		>();
+
+		for (const obligation of filteredObligations) {
+			const existing = grouped.get(obligation.borrowRequestId);
+			const dueDate = obligation.dueDate;
+
+			if (existing) {
+				existing.items += 1;
+				existing.missingCount += obligation.type === 'missing' ? 1 : 0;
+				existing.damagedCount += obligation.type === 'damaged' ? 1 : 0;
+				existing.amount += obligation.amount;
+				existing.amountPaid += obligation.amountPaid;
+				existing.balance += obligation.balance;
+				existing.statuses.add(obligation.status);
+				if (new Date(dueDate).getTime() > new Date(existing.latestDueDate).getTime()) {
+					existing.latestDueDate = dueDate;
+				}
+				continue;
+			}
+
+			grouped.set(obligation.borrowRequestId, {
+				borrowRequestId: obligation.borrowRequestId,
+				requestCode: `REQ-${obligation.borrowRequestId.slice(-6).toUpperCase()}`,
+				studentName: obligation.studentName || 'Unknown Student',
+				studentEmail: obligation.studentEmail || 'N/A',
+				items: 1,
+				missingCount: obligation.type === 'missing' ? 1 : 0,
+				damagedCount: obligation.type === 'damaged' ? 1 : 0,
+				amount: obligation.amount,
+				amountPaid: obligation.amountPaid,
+				balance: obligation.balance,
+				latestDueDate: dueDate,
+				statuses: new Set([obligation.status])
+			});
+		}
+
+		return [...grouped.values()].sort(
+			(a, b) => new Date(a.latestDueDate).getTime() - new Date(b.latestDueDate).getTime()
+		);
+	});
 	const totalCollected = $derived(
 		paymentHistory.reduce((sum, p) => sum + p.amount, 0)
 	);
@@ -166,7 +237,7 @@
 		isLoading = true;
 		error = null;
 		try {
-			const response = await financialObligationsAPI.getObligations({ status: 'pending' });
+			const response = await financialObligationsAPI.getObligations({ limit: 500 });
 			obligations = response.obligations;
 		} catch (err) {
 			console.error('Failed to load obligations', err);
@@ -326,6 +397,47 @@
 				return 'bg-gray-100 text-gray-800';
 		}
 	}
+
+	function getObligationStatusClass(status: string): string {
+		switch (status) {
+			case 'pending':
+				return 'bg-amber-100 text-amber-800 ring-amber-200';
+			case 'paid':
+				return 'bg-emerald-100 text-emerald-800 ring-emerald-200';
+			case 'replaced':
+				return 'bg-cyan-100 text-cyan-800 ring-cyan-200';
+			case 'waived':
+				return 'bg-slate-100 text-slate-700 ring-slate-200';
+			default:
+				return 'bg-gray-100 text-gray-700 ring-gray-200';
+		}
+	}
+
+	function getRequestSummaryStatusClass(statuses: Set<string>): string {
+		if (statuses.size === 1) {
+			const [status] = [...statuses];
+			return getObligationStatusClass(status);
+		}
+
+		if (statuses.has('pending')) {
+			return 'bg-amber-100 text-amber-800 ring-amber-200';
+		}
+
+		return 'bg-slate-100 text-slate-700 ring-slate-200';
+	}
+
+	function getRequestSummaryStatusLabel(statuses: Set<string>): string {
+		if (statuses.size === 1) {
+			const [status] = [...statuses];
+			return status.charAt(0).toUpperCase() + status.slice(1);
+		}
+
+		if (statuses.has('pending')) {
+			return 'Mixed';
+		}
+
+		return 'Resolved';
+	}
 </script>
 
 <div class="p-6">
@@ -400,20 +512,23 @@
 		<div class="border-b border-gray-200">
 			<nav class="flex -mb-px overflow-x-auto" aria-label="Tabs">
 				<button
-					onclick={() => (activeTab = 'donations')}
-					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'donations'
-						? 'border-pink-500 text-pink-600'
-						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Donations Tracking
-				</button>
-				<button
 					onclick={() => (activeTab = 'replacements')}
 					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'replacements'
 						? 'border-pink-500 text-pink-600'
 						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
 				>
 					Replacement Payments
+					{#if obligationCounts.pending > 0}
+						<span class="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">{obligationCounts.pending}</span>
+					{/if}
+				</button>
+				<button
+					onclick={() => (activeTab = 'donations')}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'donations'
+						? 'border-pink-500 text-pink-600'
+						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Donations Tracking
 				</button>
 				<button
 					onclick={() => (activeTab = 'history')}
@@ -569,11 +684,52 @@
 			<!-- Replacement Payments Tab -->
 			{#if activeTab === 'replacements'}
 				<div class="space-y-6">
-					<div class="flex justify-between items-center">
-						<h3 class="text-lg font-semibold text-gray-900">Replacement & Damage Payment Tracking</h3>
-						<span class="text-sm text-gray-600">
-							Outstanding: <span class="font-bold text-orange-600">₱{obligations.reduce((sum, o) => sum + o.balance, 0).toLocaleString()}</span>
+					<!-- Sub-tab header -->
+					<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+						<div>
+							<h3 class="text-lg font-semibold text-gray-900">Replacement & Damage Payment Tracking</h3>
+							<p class="mt-0.5 text-sm text-gray-500">Manage outstanding financial obligations from damage and missing incidents.</p>
+						</div>
+						<span class="shrink-0 text-sm text-gray-600">
+							Outstanding: <span class="font-bold text-amber-600">PHP {outstandingPayments.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
 						</span>
+					</div>
+
+					<!-- Inner filter tabs -->
+					<div class="border-b border-gray-200">
+						<nav class="-mb-px flex gap-6 overflow-x-auto">
+							{#each [
+								{ key: 'all', label: 'All', count: obligationCounts.all },
+								{ key: 'pending', label: 'Pending', count: obligationCounts.pending },
+								{ key: 'paid', label: 'Paid', count: obligationCounts.paid },
+								{ key: 'replaced', label: 'Replaced', count: obligationCounts.replaced }
+							] as tab}
+								<button
+									onclick={() => (replacementsFilter = tab.key as typeof replacementsFilter)}
+									class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {replacementsFilter === tab.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+								>
+									{tab.label}
+									<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {replacementsFilter === tab.key ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+										{tab.count}
+									</span>
+								</button>
+							{/each}
+						</nav>
+					</div>
+
+					<div class="inline-flex w-fit items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
+						<button
+							onclick={() => (replacementsView = 'by-request')}
+							class="rounded-lg px-4 py-2 text-sm font-medium transition-colors {replacementsView === 'by-request' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
+						>
+							By Request
+						</button>
+						<button
+							onclick={() => (replacementsView = 'by-item')}
+							class="rounded-lg px-4 py-2 text-sm font-medium transition-colors {replacementsView === 'by-item' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
+						>
+							By Item
+						</button>
 					</div>
 
 					{#if isLoading}
@@ -591,22 +747,80 @@
 							</svg>
 							<p class="text-red-600">{error}</p>
 						</div>
-					{:else if obligations.length === 0}
-						<div class="py-12 text-center">
-							<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					{:else if filteredObligations.length === 0}
+						<div class="rounded-lg border-2 border-dashed border-gray-200 py-14 text-center">
+							<svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 							</svg>
-							<h3 class="mt-4 text-lg font-medium text-gray-900">All clear!</h3>
-							<p class="mt-2 text-sm text-gray-500">No pending financial obligations. All students are in good standing.</p>
+							<p class="mt-3 text-sm font-medium text-gray-700">{replacementsFilter === 'all' ? 'No obligations recorded.' : `No ${replacementsFilter} obligations.`}</p>
+							<p class="mt-1 text-xs text-gray-500">Obligations from damage and missing incidents will appear here.</p>
+						</div>
+					{:else if replacementsView === 'by-request'}
+						<div class="overflow-x-auto rounded-lg border border-gray-200">
+							<table class="min-w-full divide-y divide-gray-200">
+								<thead class="bg-gray-50">
+									<tr>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Request</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Items</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Issue Mix</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Amount</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Paid</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Balance</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Due Date</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-200 bg-white">
+									{#each requestSummaries as summary}
+										<tr class="hover:bg-gray-50">
+											<td class="whitespace-nowrap px-6 py-4">
+												<div class="text-sm font-semibold text-gray-900">{summary.requestCode}</div>
+											</td>
+											<td class="px-6 py-4">
+												<div class="text-sm font-medium text-gray-900">{summary.studentName}</div>
+												<div class="text-sm text-gray-500">{summary.studentEmail}</div>
+											</td>
+											<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{summary.items}</td>
+											<td class="px-6 py-4">
+												<div class="flex flex-wrap gap-2">
+													{#if summary.missingCount > 0}
+														<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-200">
+															<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+															{summary.missingCount} Missing
+														</span>
+													{/if}
+													{#if summary.damagedCount > 0}
+														<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-800 ring-1 ring-rose-200">
+															<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+															{summary.damagedCount} Damaged
+														</span>
+													{/if}
+												</div>
+											</td>
+											<td class="whitespace-nowrap px-6 py-4">
+												<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getRequestSummaryStatusClass(summary.statuses)}">
+													{getRequestSummaryStatusLabel(summary.statuses)}
+												</span>
+											</td>
+											<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">PHP {summary.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+											<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">PHP {summary.amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+											<td class="whitespace-nowrap px-6 py-4 text-sm font-semibold {summary.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}">PHP {summary.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+											<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{new Date(summary.latestDueDate).toLocaleDateString()}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
 						</div>
 					{:else}
-						<div class="overflow-x-auto">
+						<div class="overflow-x-auto rounded-lg border border-gray-200">
 							<table class="min-w-full divide-y divide-gray-200">
 								<thead class="bg-gray-50">
 									<tr>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
@@ -615,7 +829,7 @@
 									</tr>
 								</thead>
 								<tbody class="bg-white divide-y divide-gray-200">
-									{#each obligations as obligation}
+									{#each filteredObligations as obligation}
 										<tr class="hover:bg-gray-50">
 											<td class="px-6 py-4 whitespace-nowrap">
 												<div class="text-sm font-medium text-gray-900">{obligation.studentName || 'Unknown Student'}</div>
@@ -626,46 +840,58 @@
 												<div class="text-xs text-gray-500">Qty: {obligation.quantity}</div>
 											</td>
 											<td class="px-6 py-4 whitespace-nowrap">
-												<span class="px-2 py-1 text-xs font-medium rounded-full {obligation.type === 'missing' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
+												<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {obligation.type === 'missing' ? 'bg-red-100 text-red-800 ring-red-200' : 'bg-rose-100 text-rose-800 ring-rose-200'}">
+													<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
 													{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
 												</span>
 											</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{obligation.amount.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{obligation.amountPaid.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-orange-600">₱{obligation.balance.toLocaleString()}</td>
+											<td class="px-6 py-4 whitespace-nowrap">
+												<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getObligationStatusClass(obligation.status)}">
+													{obligation.status.charAt(0).toUpperCase() + obligation.status.slice(1)}
+												</span>
+											</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">PHP {obligation.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">PHP {obligation.amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold {obligation.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}">PHP {obligation.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
 											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(obligation.dueDate).toLocaleDateString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-												<button
-													onclick={() => {
-														const amount = parseFloat(prompt(`Enter payment amount (Balance: ₱${obligation.balance}):`) || '0');
-														if (amount > 0 && amount <= obligation.balance) {
-															handleResolveObligation(obligation.id, 'payment', amount);
-														}
-													}}
-													class="text-emerald-600 hover:text-emerald-900 font-medium"
-												>
-													Record Payment
-												</button>
-												<button
-													onclick={() => {
-														if (confirm(`Mark item as replaced by student?`)) {
-															handleResolveObligation(obligation.id, 'replacement');
-														}
-													}}
-													class="text-blue-600 hover:text-blue-900 font-medium"
-												>
-													Mark Replaced
-												</button>
-												<button
-													onclick={() => {
-														if (confirm(`Waive this obligation? This action cannot be undone.`)) {
-															handleResolveObligation(obligation.id, 'waiver');
-														}
-													}}
-													class="text-gray-600 hover:text-gray-900 font-medium"
-												>
-													Waive
-												</button>
+											<td class="px-6 py-4 whitespace-nowrap">
+												{#if obligation.status === 'pending'}
+													<div class="flex items-center gap-3">
+														<button
+															onclick={() => {
+																const amount = parseFloat(prompt(`Enter payment amount (Balance: PHP ${obligation.balance}):`) || '0');
+																if (amount > 0 && amount <= obligation.balance) {
+																	handleResolveObligation(obligation.id, 'payment', amount);
+																}
+															}}
+															class="text-sm font-medium text-emerald-600 hover:text-emerald-800"
+														>
+															Record Payment
+														</button>
+														<button
+															onclick={() => {
+																if (confirm('Mark item as replaced by student?')) {
+																	handleResolveObligation(obligation.id, 'replacement');
+																}
+															}}
+															class="text-sm font-medium text-blue-600 hover:text-blue-800"
+														>
+															Mark Replaced
+														</button>
+														<button
+															onclick={() => {
+																if (confirm('Waive this obligation? This action cannot be undone.')) {
+																	handleResolveObligation(obligation.id, 'waiver');
+																}
+															}}
+															class="text-sm font-medium text-gray-500 hover:text-gray-700"
+														>
+															Waive
+														</button>
+													</div>
+												{:else}
+													<span class="text-xs text-gray-400">Resolved</span>
+												{/if}
 											</td>
 										</tr>
 									{/each}

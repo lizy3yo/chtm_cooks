@@ -150,7 +150,7 @@ export const DELETE: RequestHandler = async (event) => {
 			},
 			{
 				$set: {
-					status: BorrowRequestStatus.REJECTED,
+					status: BorrowRequestStatus.CANCELLED,
 					rejectReason: 'Request cancelled by student',
 					rejectedAt: new Date(),
 					updatedAt: new Date(),

@@ -25,6 +25,7 @@ import { getBorrowRequestRealtimeChannels } from '../shared';
 import type { RequestHandler } from './$types';
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
+const RETRY_INTERVAL_MS = 3_000;
 
 export const GET: RequestHandler = async (event) => {
 	const user = getUserFromToken(event);
@@ -33,20 +34,50 @@ export const GET: RequestHandler = async (event) => {
 	}
 
 	const channels = getBorrowRequestRealtimeChannels(user);
+	if (channels.length === 0) {
+		return new Response('Forbidden', { status: 403 });
+	}
+
+	let cleanupStream = () => {};
 
 	const stream = new ReadableStream({
 		start(controller) {
-			const encode = (sseData: string) => new TextEncoder().encode(sseData);
+			const encoder = new TextEncoder();
+			let closed = false;
+			let eventId = Date.now();
 
-			const send = (eventName: string, data: unknown) => {
+			const cleanupFns: Array<() => void> = [];
+			const cleanup = () => {
+				if (closed) return;
+				closed = true;
+				for (const fn of cleanupFns) fn();
 				try {
-					controller.enqueue(
-						encode(`event: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`)
-					);
+					controller.close();
 				} catch {
-					// Stream already closed — unsubscribers will clean up.
+					// Already closed.
 				}
 			};
+			cleanupStream = cleanup;
+
+			const encode = (sseData: string) => encoder.encode(sseData);
+
+			const sendRaw = (raw: string) => {
+				if (closed) return;
+				try {
+					controller.enqueue(encode(raw));
+				} catch {
+					cleanup();
+				}
+			};
+
+			const send = (eventName: string, data: unknown) => {
+				sendRaw(
+					`id: ${eventId++}\nevent: ${eventName}\ndata: ${JSON.stringify(data)}\n\n`
+				);
+			};
+
+			// Advise clients how long to wait before reconnect attempts.
+			sendRaw(`retry: ${RETRY_INTERVAL_MS}\n\n`);
 
 			// Acknowledge connection immediately.
 			send('connected', { channels, ts: new Date().toISOString() });
@@ -60,29 +91,26 @@ export const GET: RequestHandler = async (event) => {
 			const unsubscribers = channels.map((ch) =>
 				subscribeToBorrowRequestChannel(ch, onEvent)
 			);
+			cleanupFns.push(...unsubscribers);
 
 			// Keepalive heartbeat so the connection is not cut by idle timeouts.
 			const heartbeat = setInterval(() => {
 				send('heartbeat', { ts: new Date().toISOString() });
 			}, HEARTBEAT_INTERVAL_MS);
+			cleanupFns.push(() => clearInterval(heartbeat));
 
 			// Cleanup on client disconnect.
-			event.request.signal.addEventListener('abort', () => {
-				clearInterval(heartbeat);
-				for (const unsub of unsubscribers) unsub();
-				try {
-					controller.close();
-				} catch {
-					// Already closed.
-				}
-			});
+			event.request.signal.addEventListener('abort', cleanup, { once: true });
+		},
+		cancel() {
+			cleanupStream();
 		}
 	});
 
 	return new Response(stream, {
 		headers: {
 			'Content-Type': 'text/event-stream',
-			'Cache-Control': 'no-cache',
+			'Cache-Control': 'no-cache, no-transform',
 			Connection: 'keep-alive',
 			'X-Accel-Buffering': 'no'
 		}

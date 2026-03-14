@@ -1,6 +1,17 @@
 <script lang="ts">
-	let activeTab = $state<'overview' | 'students' | 'equipment'>('overview');
+	import { onMount } from 'svelte';
+	import {
+		financialObligationsAPI,
+		type FinancialObligation,
+		type ObligationStatus,
+		type ObligationType
+	} from '$lib/api/financialObligations';
+
+	let activeTab = $state<'overview' | 'students' | 'equipment' | 'issues'>('overview');
 	let dateRange = $state('semester');
+	let obligations = $state<FinancialObligation[]>([]);
+	let issuesLoading = $state(true);
+	let issuesError = $state<string | null>(null);
 	
 	// Mock data
 	const approvalMetrics = {
@@ -32,6 +43,84 @@
 		{ name: 'Mixing Bowls', requests: 38, availability: 95 },
 		{ name: 'Digital Scale', requests: 32, availability: 78 }
 	];
+
+	function formatDate(value: string): string {
+		const date = new Date(value);
+		if (Number.isNaN(date.getTime())) return value;
+		return date.toLocaleDateString();
+	}
+
+	function formatMoney(value: number): string {
+		return `PHP ${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+	}
+
+	function getTypeBadgeClass(type: ObligationType): string {
+		return type === 'missing'
+			? 'bg-red-100 text-red-800 ring-red-200'
+			: 'bg-rose-100 text-rose-800 ring-rose-200';
+	}
+
+	function getStatusBadgeClass(status: ObligationStatus): string {
+		switch (status) {
+			case 'pending':
+				return 'bg-amber-100 text-amber-800 ring-amber-200';
+			case 'paid':
+				return 'bg-emerald-100 text-emerald-800 ring-emerald-200';
+			case 'replaced':
+				return 'bg-cyan-100 text-cyan-800 ring-cyan-200';
+			case 'waived':
+				return 'bg-slate-100 text-slate-800 ring-slate-200';
+		}
+	}
+
+	function toStatusLabel(status: ObligationStatus): string {
+		switch (status) {
+			case 'pending':
+				return 'Pending';
+			case 'paid':
+				return 'Paid';
+			case 'replaced':
+				return 'Replaced';
+			case 'waived':
+				return 'Waived';
+		}
+	}
+
+	async function loadIssueCases(): Promise<void> {
+		issuesLoading = true;
+		issuesError = null;
+		try {
+			const response = await financialObligationsAPI.getObligations({ limit: 200 });
+			obligations = response.obligations;
+		} catch (error) {
+			issuesError = error instanceof Error ? error.message : 'Failed to load issue case analytics.';
+			obligations = [];
+		} finally {
+			issuesLoading = false;
+		}
+	}
+
+	const issueMetrics = $derived({
+		total: obligations.length,
+		pending: obligations.filter((obligation) => obligation.status === 'pending').length,
+		missing: obligations.filter((obligation) => obligation.type === 'missing').length,
+		damaged: obligations.filter((obligation) => obligation.type === 'damaged').length
+	});
+
+	const topIssueStudents = $derived.by(() => {
+		const counts = new Map<string, { studentName: string; count: number }>();
+		for (const obligation of obligations) {
+			const key = obligation.studentId;
+			const entry = counts.get(key) || { studentName: obligation.studentName || 'Student', count: 0 };
+			entry.count += 1;
+			counts.set(key, entry);
+		}
+		return [...counts.values()].sort((a, b) => b.count - a.count).slice(0, 5);
+	});
+
+	onMount(() => {
+		void loadIssueCases();
+	});
 </script>
 
 <svelte:head>
@@ -81,6 +170,12 @@
 				class="border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'equipment' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
 				Equipment Insights
+			</button>
+			<button
+				onclick={() => activeTab = 'issues'}
+				class="border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'issues' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+			>
+				Issue Cases
 			</button>
 		</nav>
 	</div>
@@ -215,6 +310,101 @@
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
 					</svg>
 					<p class="mt-2 text-sm text-gray-500">Approval activity heatmap will be displayed here</p>
+				</div>
+			</div>
+		</div>
+	{/if}
+
+	{#if activeTab === 'issues'}
+		<div class="space-y-6">
+			<div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+				<div class="rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+					<p class="text-sm font-medium text-gray-500">Total Cases</p>
+					<p class="mt-2 text-2xl font-semibold text-gray-900">{issueMetrics.total}</p>
+				</div>
+				<div class="rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+					<p class="text-sm font-medium text-gray-500">Pending</p>
+					<p class="mt-2 text-2xl font-semibold text-amber-600">{issueMetrics.pending}</p>
+				</div>
+				<div class="rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+					<p class="text-sm font-medium text-gray-500">Damaged</p>
+					<p class="mt-2 text-2xl font-semibold text-rose-600">{issueMetrics.damaged}</p>
+				</div>
+				<div class="rounded-lg bg-white px-4 py-5 shadow sm:p-6">
+					<p class="text-sm font-medium text-gray-500">Missing</p>
+					<p class="mt-2 text-2xl font-semibold text-red-600">{issueMetrics.missing}</p>
+				</div>
+			</div>
+
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+				<div class="rounded-lg bg-white shadow">
+					<div class="border-b border-gray-200 px-6 py-4">
+						<h2 class="text-lg font-semibold text-gray-900">Recent Issue Cases</h2>
+						<p class="mt-1 text-sm text-gray-500">Damage and missing incidents linked to student borrowing.</p>
+					</div>
+					{#if issuesLoading}
+						<div class="px-6 py-8 text-sm text-gray-500">Loading issue analytics...</div>
+					{:else if issuesError}
+						<div class="px-6 py-8 text-sm text-red-700">{issuesError}</div>
+					{:else if obligations.length === 0}
+						<div class="px-6 py-8 text-sm text-gray-500">No issue cases recorded for the selected period.</div>
+					{:else}
+						<div class="overflow-x-auto">
+							<table class="min-w-full divide-y divide-gray-200">
+								<thead class="bg-gray-50">
+									<tr>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Type</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Balance</th>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-200 bg-white">
+									{#each obligations.slice(0, 10) as obligation}
+										<tr>
+											<td class="whitespace-nowrap px-6 py-4">
+												<div class="text-sm font-medium text-gray-900">{obligation.studentName || 'Student'}</div>
+												<div class="text-xs text-gray-500">{formatDate(obligation.incidentDate)}</div>
+											</td>
+											<td class="px-6 py-4 text-sm text-gray-900">{obligation.itemName}</td>
+											<td class="px-6 py-4">
+												<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 {getTypeBadgeClass(obligation.type)}">
+													{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
+												</span>
+											</td>
+											<td class="px-6 py-4">
+												<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold ring-1 {getStatusBadgeClass(obligation.status)}">
+													{toStatusLabel(obligation.status)}
+												</span>
+											</td>
+											<td class="px-6 py-4 text-sm text-gray-700">{formatMoney(obligation.balance)}</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
+				</div>
+
+				<div class="rounded-lg bg-white p-6 shadow">
+					<h2 class="text-lg font-semibold text-gray-900">Issue Concentration</h2>
+					<p class="mt-1 text-sm text-gray-500">Students with the highest number of recorded cases.</p>
+					<div class="mt-4 space-y-3">
+						{#if topIssueStudents.length === 0}
+							<p class="text-sm text-gray-500">No issue concentrations to report.</p>
+						{:else}
+							{#each topIssueStudents as student}
+								<div class="rounded-lg bg-gray-50 px-4 py-3">
+									<div class="flex items-center justify-between">
+										<p class="text-sm font-medium text-gray-900">{student.studentName}</p>
+										<span class="text-sm font-semibold text-rose-700">{student.count}</span>
+									</div>
+									<p class="mt-1 text-xs text-gray-500">Recorded damage/missing cases</p>
+								</div>
+							{/each}
+						{/if}
+					</div>
 				</div>
 			</div>
 		</div>

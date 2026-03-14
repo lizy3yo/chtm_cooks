@@ -12,7 +12,19 @@ import {
 } from '$lib/server/models/FinancialObligation';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
-import { getAuthenticatedUser } from '../../borrow-requests/shared';
+import type { BorrowRequest } from '$lib/server/models/BorrowRequest';
+import { BORROW_REQUESTS_COLLECTION, publishBorrowRequestRealtimeEvent } from '../../borrow-requests/shared';
+import { cacheService } from '$lib/server/cache';
+import {
+	buildFinancialObligationDetailCacheKey,
+	FINANCIAL_OBLIGATIONS_CACHE_TAG,
+	FINANCIAL_OBLIGATIONS_COLLECTION,
+	getAuthenticatedUser,
+	invalidateFinancialObligationCaches,
+	isResolutionType,
+	parseObjectId,
+	sanitizeResolutionPayload
+} from '../shared';
 
 /**
  * GET /api/financial-obligations/[id]
@@ -31,15 +43,25 @@ export const GET: RequestHandler = async (event) => {
 		}
 
 		const obligationId = event.params.id;
-		if (!ObjectId.isValid(obligationId)) {
+		const obligationObjectId = parseObjectId(obligationId);
+		if (!obligationObjectId) {
 			return json({ error: 'Invalid obligation ID' }, { status: 400 });
+		}
+
+		const cacheKey = buildFinancialObligationDetailCacheKey(obligationId);
+		const cached = await cacheService.get<{ obligation: ReturnType<typeof toFinancialObligationResponse> }>(cacheKey);
+		if (cached) {
+			if (user.role === 'student' && cached.obligation.studentId !== user.userId) {
+				return json({ error: 'Forbidden' }, { status: 403 });
+			}
+			return json(cached);
 		}
 
 		const db = await getDatabase();
 
 		const obligation = await db
-			.collection<FinancialObligation>('financial_obligations')
-			.findOne({ _id: new ObjectId(obligationId) });
+			.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION)
+			.findOne({ _id: obligationObjectId });
 
 		if (!obligation) {
 			return json({ error: 'Obligation not found' }, { status: 404 });
@@ -57,10 +79,16 @@ export const GET: RequestHandler = async (event) => {
 
 		const studentName = student ? `${student.firstName} ${student.lastName}` : undefined;
 		const studentEmail = student?.email;
-
-		return json({
+		const response = {
 			obligation: toFinancialObligationResponse(obligation, studentName, studentEmail)
+		};
+
+		await cacheService.set(cacheKey, response, {
+			ttl: 120,
+			tags: [FINANCIAL_OBLIGATIONS_CACHE_TAG]
 		});
+
+		return json(response);
 	} catch (error) {
 		logger.error('financial-obligations', 'Failed to retrieve obligation', { error });
 		return json({ error: 'Internal server error' }, { status: 500 });
@@ -85,18 +113,30 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 
 		const obligationId = event.params.id;
-		if (!ObjectId.isValid(obligationId)) {
+		const obligationObjectId = parseObjectId(obligationId);
+		if (!obligationObjectId) {
 			return json({ error: 'Invalid obligation ID' }, { status: 400 });
 		}
 
-		const body: ResolveFinancialObligationRequest = await event.request.json();
-
-		if (!body.resolutionType) {
-			return json({ error: 'Resolution type is required' }, { status: 400 });
+		let body: ResolveFinancialObligationRequest;
+		try {
+			body = (await event.request.json()) as ResolveFinancialObligationRequest;
+		} catch {
+			return json({ error: 'Invalid JSON payload' }, { status: 400 });
 		}
 
-		if (body.resolutionType === ResolutionType.PAYMENT) {
-			if (body.amountPaid === undefined || body.amountPaid < 0) {
+		if (!isResolutionType(body.resolutionType)) {
+			return json({ error: 'Invalid resolution type' }, { status: 400 });
+		}
+
+		const sanitizedBody = sanitizeResolutionPayload(body);
+
+		if (sanitizedBody.resolutionType === ResolutionType.PAYMENT) {
+			if (
+				typeof sanitizedBody.amountPaid !== 'number' ||
+				!Number.isFinite(sanitizedBody.amountPaid) ||
+				sanitizedBody.amountPaid <= 0
+			) {
 				return json({ error: 'Valid payment amount is required' }, { status: 400 });
 			}
 		}
@@ -106,8 +146,8 @@ export const PATCH: RequestHandler = async (event) => {
 
 		// Get the obligation
 		const obligation = await db
-			.collection<FinancialObligation>('financial_obligations')
-			.findOne({ _id: new ObjectId(obligationId) });
+			.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION)
+			.findOne({ _id: obligationObjectId });
 
 		if (!obligation) {
 			return json({ error: 'Obligation not found' }, { status: 404 });
@@ -121,42 +161,70 @@ export const PATCH: RequestHandler = async (event) => {
 		let newStatus = ObligationStatus.PENDING;
 		let totalAmountPaid = obligation.amountPaid;
 
-		if (body.resolutionType === ResolutionType.PAYMENT) {
-			totalAmountPaid += body.amountPaid || 0;
+		if (sanitizedBody.resolutionType === ResolutionType.PAYMENT) {
+			totalAmountPaid += sanitizedBody.amountPaid || 0;
+			if (totalAmountPaid > obligation.amount) {
+				return json({ error: 'Payment amount exceeds outstanding balance' }, { status: 400 });
+			}
 			newStatus = totalAmountPaid >= obligation.amount ? ObligationStatus.PAID : ObligationStatus.PENDING;
-		} else if (body.resolutionType === ResolutionType.REPLACEMENT) {
+		} else if (sanitizedBody.resolutionType === ResolutionType.REPLACEMENT) {
 			newStatus = ObligationStatus.REPLACED;
-		} else if (body.resolutionType === ResolutionType.WAIVER) {
+		} else if (sanitizedBody.resolutionType === ResolutionType.WAIVER) {
 			newStatus = ObligationStatus.WAIVED;
 		}
 
 		// Update obligation
-		const updateResult = await db
-			.collection<FinancialObligation>('financial_obligations')
-			.updateOne(
-				{ _id: new ObjectId(obligationId) },
-				{
-					$set: {
-						status: newStatus,
-						amountPaid: totalAmountPaid,
-						resolutionType: body.resolutionType,
-						resolutionDate: newStatus !== ObligationStatus.PENDING ? now : undefined,
-						resolutionNotes: body.resolutionNotes,
-						paymentReference: body.paymentReference,
-						updatedAt: now,
-						updatedBy: new ObjectId(user.userId)
-					}
-				}
+		const updateDoc: {
+			$set: Record<string, unknown>;
+			$unset?: Record<string, ''>;
+		} = {
+			$set: {
+				status: newStatus,
+				amountPaid: totalAmountPaid,
+				resolutionType: sanitizedBody.resolutionType,
+				resolutionNotes: sanitizedBody.resolutionNotes,
+				paymentReference: sanitizedBody.paymentReference,
+				updatedAt: now,
+				updatedBy: new ObjectId(user.userId)
+			}
+		};
+
+		if (newStatus !== ObligationStatus.PENDING) {
+			updateDoc.$set.resolutionDate = now;
+		} else {
+			updateDoc.$unset = { resolutionDate: '' };
+		}
+
+		const updatedObligation = await db
+			.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION)
+			.findOneAndUpdate(
+				{ _id: obligationObjectId, status: ObligationStatus.PENDING },
+				updateDoc,
+				{ returnDocument: 'after' }
 			);
 
-		if (updateResult.matchedCount === 0) {
+		if (!updatedObligation) {
 			return json({ error: 'Failed to update obligation' }, { status: 500 });
+		}
+
+		await invalidateFinancialObligationCaches();
+
+		const relatedBorrowRequest = await db
+			.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION)
+			.findOne({ _id: obligation.borrowRequestId });
+
+		if (relatedBorrowRequest) {
+			publishBorrowRequestRealtimeEvent(
+				{ ...relatedBorrowRequest, _id: obligation.borrowRequestId },
+				'obligation_updated',
+				now
+			);
 		}
 
 		logger.info('financial-obligations', 'Obligation resolved', {
 			obligationId,
 			userId: user.userId,
-			resolutionType: body.resolutionType,
+			resolutionType: sanitizedBody.resolutionType,
 			newStatus
 		});
 

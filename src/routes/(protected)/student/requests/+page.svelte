@@ -2,12 +2,14 @@
 import { onMount } from 'svelte';
 import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestRealtimeEvent } from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
+import { confirmStore } from '$lib/stores/confirm';
+import { toastStore } from '$lib/stores/toast';
 import Skeleton from '$lib/components/ui/Skeleton.svelte';
 import {
 	ClipboardList, Clock, Activity, PackageOpen,
-	CheckCircle2, AlertCircle, X, Search, RotateCcw,
-	Plus, ClipboardX, Package, CalendarDays, FileText,
-	UserCircle, TriangleAlert, Info, CornerDownLeft,
+	CheckCircle2, X, Search, RotateCcw,
+	Plus, ClipboardX, CalendarDays, FileText,
+	UserCircle, Info, CornerDownLeft,
 	Check, CircleX, PackageCheck, CircleAlert
 } from 'lucide-svelte';
 
@@ -22,14 +24,6 @@ let dateFilter = $state({ from: '', to: '' });
 let requests = $state<any[]>([]);
 let loading = $state(true);
 let loadingReturn = $state<string | null>(null);
-let showReturnConfirm = $state(false);
-let confirmReturnRequest = $state<any>(null);
-let returnError = $state<string | null>(null);
-let returnSuccess = $state<string | null>(null);
-let showCancelConfirm = $state(false);
-let confirmCancelRequest = $state<any>(null);
-let cancelError = $state<string | null>(null);
-let cancelSuccess = $state<string | null>(null);
 let loadingCancel = $state<string | null>(null);
 // itemId → picture URL, back-filled from catalog for legacy requests
 let itemPictureCache = $state<Map<string, string>>(new Map());
@@ -50,6 +44,10 @@ if (normalized.includes('processor')) return '🔧';
 return '📦';
 }
 
+function isCancelledRequest(status: BorrowRequestRecord['status'], rejectionReason?: string): boolean {
+	return status === 'cancelled' || (status === 'rejected' && rejectionReason === 'Request cancelled by student');
+}
+
 function toUiStatus(status: BorrowRequestRecord['status'], rejectionReason?: string): 'pending' | 'approved' | 'ready' | 'picked-up' | 'pending-return' | 'missing' | 'returned' | 'rejected' | 'cancelled' {
 switch (status) {
 case 'pending_instructor':
@@ -66,12 +64,10 @@ case 'missing':
 return 'missing';
 case 'returned':
 return 'returned';
+case 'cancelled':
+return 'cancelled';
 case 'rejected':
-// Distinguish between student cancellation and instructor/custodian rejection
-if (rejectionReason === 'Request cancelled by student') {
-  return 'cancelled';
-}
-return 'rejected';
+return isCancelledRequest(status, rejectionReason) ? 'cancelled' : 'rejected';
 default:
 return 'approved';
 }
@@ -120,6 +116,16 @@ async function loadRequests(forceRefresh = false): Promise<void> {
 	await backfillItemPictures();
 }
 
+function hydrateRequestsFromClientCache(): boolean {
+	const cached = borrowRequestsAPI.peekCachedList({});
+	if (!cached) return false;
+
+	requests = cached.requests.map(mapRequest);
+	loading = false;
+	void backfillItemPictures();
+	return true;
+}
+
 async function backfillItemPictures(): Promise<void> {
 	// Collect itemIds that have no stored picture
 	const missingIds = new Set<string>();
@@ -149,15 +155,17 @@ async function backfillItemPictures(): Promise<void> {
  * Refresh the list, guarding against overlapping fetches.
  * If a fetch is already running, set a flag so we re-run once it finishes.
  */
-async function refreshRequests(): Promise<void> {
+async function refreshRequests(forceRefresh = false): Promise<void> {
 	if (refreshInFlight) {
 		pendingRefresh = true;
 		return;
 	}
 	refreshInFlight = true;
 	try {
-		borrowRequestsAPI.invalidateCache();
-		await loadRequests(true);
+		if (forceRefresh) {
+			borrowRequestsAPI.invalidateCache();
+		}
+		await loadRequests(forceRefresh);
 		// Sync the open detail modal if it is stale
 		syncSelectedRequestWithLatestData();
 	} finally {
@@ -185,11 +193,11 @@ function syncSelectedRequestWithLatestData(): void {
  * Coalesce rapid SSE events into a single refresh after a short debounce.
  * This prevents N simultaneous fetches when multiple mutations happen quickly.
  */
-function scheduleRefresh(): void {
+function scheduleRefresh(forceRefresh = false): void {
 	if (refreshTimer !== null) clearTimeout(refreshTimer);
 	refreshTimer = setTimeout(() => {
 		refreshTimer = null;
-		refreshRequests();
+		refreshRequests(forceRefresh);
 	}, 250);
 }
 
@@ -197,18 +205,19 @@ let _unsubscribeSSE: (() => void) | null = null;
 let _pollInterval: ReturnType<typeof setInterval> | null = null;
 
 onMount(() => {
-	// Kick off initial load (non-blocking — don't await here so we can return cleanup synchronously)
-	loadRequests(true);
+	// Instant paint from client memory cache, then refresh through normal cache path.
+	hydrateRequestsFromClientCache();
+	void loadRequests();
 
 	// --- SSE real-time subscription ---
 	_unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((_event: BorrowRequestRealtimeEvent) => {
-		scheduleRefresh();
+		scheduleRefresh(true);
 	});
 	liveSyncActive = true;
 
 	// --- 30-second polling fallback (handles SSE gaps / reconnects) ---
 	_pollInterval = setInterval(() => {
-		refreshRequests();
+		void refreshRequests();
 	}, 30_000);
 
 	// --- Refresh on tab/window focus so stale data is never shown ---
@@ -250,6 +259,7 @@ function getStatusIconComponent(status: string) {
 		case 'pending-return': return CornerDownLeft;
 		case 'missing': return CircleAlert;
 		case 'returned': return CheckCircle2;
+		case 'cancelled': return CircleX;
 		case 'rejected': return CircleX;
 		default: return Clock;
 	}
@@ -349,110 +359,64 @@ function getReadyPickupMessage(): string {
 return 'Please proceed to the custodian desk. Pickup will be confirmed by the custodian upon release of items.';
 }
 
-function requestReturnConfirmation(request: any) {
-	confirmReturnRequest = request;
-	showReturnConfirm = true;
-}
+async function requestReturnConfirmation(request: any) {
+	if (loadingReturn === request.rawId) return;
 
-function cancelReturnConfirm() {
-	showReturnConfirm = false;
-	confirmReturnRequest = null;
-}
+	const confirmed = await confirmStore.warning(
+		'Are you ready to return these items? The custodian will inspect and confirm the return.',
+		`Initiate Return for ${request.id}`,
+		'Initiate Return',
+		'Keep Active'
+	);
 
-async function confirmReturn() {
-	if (!confirmReturnRequest) return;
-	
-	const requestId = confirmReturnRequest.rawId;
-	const requestCode = confirmReturnRequest.id;
-	
+	if (!confirmed) return;
+
+	const requestId = request.rawId;
 	loadingReturn = requestId;
-	returnError = null;
-	returnSuccess = null;
-	showReturnConfirm = false;
-	
+
 	try {
 		await borrowRequestsAPI.initiateReturn(requestId);
-		
-		// Immediately clear cache and update local state
 		borrowRequestsAPI.invalidateCache();
-		requests = requests.map(req => 
-			req.rawId === requestId 
-				? { ...req, status: 'pending-return' }
-				: req
+		requests = requests.map((req) =>
+			req.rawId === requestId ? { ...req, status: 'pending-return' } : req
 		);
-		
-		returnSuccess = `Return initiated for ${requestCode}. The custodian will confirm the return.`;
-		
-		// Clear success message after 5 seconds
-		setTimeout(() => {
-			returnSuccess = null;
-		}, 5000);
+		toastStore.success(`Return initiated for ${request.id}. The custodian will confirm the return.`);
 	} catch (error: any) {
 		console.error('Failed to initiate return', error);
-		const errorMessage = error?.message || 'An unexpected error occurred. Please try again.';
-		returnError = `Failed to initiate return: ${errorMessage}`;
-		
-		// Clear error message after 8 seconds
-		setTimeout(() => {
-			returnError = null;
-		}, 8000);
+		toastStore.error(`Failed to initiate return: ${error?.message || 'Please try again.'}`);
 	} finally {
 		loadingReturn = null;
-		confirmReturnRequest = null;
 	}
 }
 
-function requestCancelConfirmation(request: any) {
-	confirmCancelRequest = request;
-	showCancelConfirm = true;
-}
+async function requestCancelConfirmation(request: any) {
+	if (loadingCancel === request.rawId) return;
 
-function cancelCancelConfirm() {
-	showCancelConfirm = false;
-	confirmCancelRequest = null;
-}
+	const confirmed = await confirmStore.danger(
+		'Are you sure you want to cancel this request? This action cannot be undone.',
+		`Cancel ${request.id}`,
+		'Cancel Request',
+		'Keep Request'
+	);
 
-async function confirmCancel() {
-	if (!confirmCancelRequest) return;
-	
-	const requestId = confirmCancelRequest.rawId;
-	const requestCode = confirmCancelRequest.id;
-	
+	if (!confirmed) return;
+
+	const requestId = request.rawId;
 	loadingCancel = requestId;
-	cancelError = null;
-	cancelSuccess = null;
-	showCancelConfirm = false;
-	
-	// Optimistically update UI immediately
-	requests = requests.filter(req => req.rawId !== requestId);
-	closeDetailModal();
-	cancelSuccess = `Request ${requestCode} has been cancelled successfully.`;
-	
+
 	try {
-		// Cancel the pending request on server
 		await borrowRequestsAPI.cancel(requestId);
 		borrowRequestsAPI.invalidateCache();
-		
-		// Clear success message after 5 seconds
-		setTimeout(() => {
-			cancelSuccess = null;
-		}, 5000);
+		requests = requests.filter((req) => req.rawId !== requestId);
+		if (selectedRequest?.rawId === requestId) {
+			closeDetailModal();
+		}
+		toastStore.success(`Request ${request.id} has been cancelled.`);
 	} catch (error: any) {
 		console.error('Failed to cancel request', error);
-		
-		// Revert optimistic update on error by reloading
-		await loadRequests(true);
-		
-		const errorMessage = error?.message || 'An unexpected error occurred. Please try again.';
-		cancelError = `Failed to cancel request: ${errorMessage}`;
-		
-		// Clear error message after 8 seconds
-		setTimeout(() => {
-			cancelError = null;
-		}, 8000);
+		toastStore.error(`Failed to cancel request: ${error?.message || 'Please try again.'}`);
 	} finally {
 		loadingCancel = null;
-		confirmCancelRequest = null;
 	}
 }
 
@@ -481,6 +445,8 @@ timeline.push({ step: 'Instructor Approved', status: 'completed', date: request.
 timeline.push({ step: 'Custodian Approved', status: 'completed', date: request.releasedDate || request.requestDate, by: 'Custodian' });
 timeline.push({ step: 'Pickup Confirmed', status: 'completed', date: request.pickedUpDate || request.requestDate, by: 'Custodian' });
 timeline.push({ step: 'Returned', status: 'completed', date: request.returnedDate || request.requestDate, by: 'Student' });
+} else if (request.status === 'cancelled') {
+timeline.push({ step: 'Request Cancelled', status: 'cancelled', date: request.requestDate, by: 'You' });
 } else if (request.status === 'rejected') {
 timeline.push({ step: 'Request Rejected', status: 'rejected', date: request.requestDate, by: request.instructor });
 }
@@ -494,78 +460,6 @@ return timeline;
 </svelte:head>
 
 <div class="space-y-6">
-	<!-- Success Notification -->
-	{#if returnSuccess}
-		<div class="rounded-lg bg-green-50 border border-green-200 p-4 shadow-sm">
-			<div class="flex items-start gap-3">
-				<CheckCircle2 size={20} class="text-green-500 flex-shrink-0 mt-0.5" />
-				<div class="flex-1">
-					<p class="text-sm font-medium text-green-800">{returnSuccess}</p>
-				</div>
-				<button 
-					onclick={() => returnSuccess = null}
-					class="text-green-500 hover:text-green-700"
-				>
-					<X size={20} />
-				</button>
-			</div>
-		</div>
-	{/if}
-	
-	<!-- Error Notification -->
-	{#if returnError}
-		<div class="rounded-lg bg-red-50 border border-red-200 p-4 shadow-sm">
-			<div class="flex items-start gap-3">
-				<AlertCircle size={20} class="text-red-500 flex-shrink-0 mt-0.5" />
-				<div class="flex-1">
-					<p class="text-sm font-medium text-red-800">{returnError}</p>
-				</div>
-				<button 
-					onclick={() => returnError = null}
-					class="text-red-500 hover:text-red-700"
-				>
-					<X size={20} />
-				</button>
-			</div>
-		</div>
-	{/if}
-	
-	<!-- Cancel Success Notification -->
-	{#if cancelSuccess}
-		<div class="rounded-lg bg-green-50 border border-green-200 p-4 shadow-sm">
-			<div class="flex items-start gap-3">
-				<CheckCircle2 size={20} class="text-green-500 flex-shrink-0 mt-0.5" />
-				<div class="flex-1">
-					<p class="text-sm font-medium text-green-800">{cancelSuccess}</p>
-				</div>
-				<button 
-					onclick={() => cancelSuccess = null}
-					class="text-green-500 hover:text-green-700"
-				>
-					<X size={20} />
-				</button>
-			</div>
-		</div>
-	{/if}
-	
-	<!-- Cancel Error Notification -->
-	{#if cancelError}
-		<div class="rounded-lg bg-red-50 border border-red-200 p-4 shadow-sm">
-			<div class="flex items-start gap-3">
-				<AlertCircle size={20} class="text-red-500 flex-shrink-0 mt-0.5" />
-				<div class="flex-1">
-					<p class="text-sm font-medium text-red-800">{cancelError}</p>
-				</div>
-				<button 
-					onclick={() => cancelError = null}
-					class="text-red-500 hover:text-red-700"
-				>
-					<X size={20} />
-				</button>
-			</div>
-		</div>
-	{/if}
-	
 	<!-- Page Header -->
 	<div>
 		<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">My Requests</h1>
@@ -1019,12 +913,17 @@ return timeline;
 													<div>
 														<span class="flex h-8 w-8 items-center justify-center rounded-full {
 															step.status === 'completed' ? 'bg-pink-600' :
+															step.status === 'cancelled' ? 'bg-slate-500' :
 															step.status === 'rejected' ? 'bg-red-600' :
 															'bg-gray-300'
 														}">
 															{#if step.status === 'completed'}
 																<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+																</svg>
+															{:else if step.status === 'cancelled'}
+																<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
 																</svg>
 															{:else if step.status === 'rejected'}
 																<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1121,158 +1020,4 @@ return timeline;
 	</div>
 {/if}
 
-<!-- Return Confirmation Modal -->
-{#if showReturnConfirm && confirmReturnRequest}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-		<div class="relative w-full max-w-md rounded-lg bg-white/95 p-6 shadow-xl ring-1 ring-black/5 backdrop-blur-sm">
-			<!-- Header -->
-			<div class="mb-4">
-				<div class="flex items-center gap-3">
-					<div class="flex h-12 w-12 items-center justify-center rounded-full bg-orange-100">
-					<CornerDownLeft size={24} class="text-orange-600" />
-					</div>
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900">Confirm Return</h3>
-						<p class="text-sm text-gray-500">{confirmReturnRequest.id}</p>
-					</div>
-				</div>
-			</div>
-			
-			<!-- Content -->
-			<div class="mb-6">
-				<p class="text-sm text-gray-700 mb-4">
-					Are you ready to return the following items? Once confirmed, the custodian will be notified to process your return.
-				</p>
-				
-				<!-- Items List -->
-				<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-					<p class="text-xs font-medium text-gray-500 mb-2">ITEMS TO RETURN</p>
-					<div class="space-y-2">
-						{#each confirmReturnRequest.items as item}
-								{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-								<div class="flex items-center gap-2 text-sm text-gray-700">
-									{#if pic}
-										<img src={pic} alt={item.name} class="h-7 w-7 rounded object-cover shrink-0" />
-									{:else}
-										<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-gray-200">
-										<Package size={20} class="text-gray-400" />
-										</div>
-									{/if}
-								<span class="font-medium">{item.name}</span>
-							</div>
-						{/each}
-					</div>
-				</div>
-				
-				<!-- Important Note -->
-				<div class="mt-4 rounded-lg bg-blue-50 border border-blue-200 p-3">
-					<div class="flex gap-2">
-					<Info size={16} class="text-blue-600 flex-shrink-0 mt-0.5" />
-						<p class="text-xs text-blue-800">
-							Please bring all items to the custodian desk. The return will be completed once the custodian verifies and confirms all items.
-						</p>
-					</div>
-				</div>
-			</div>
-			
-			<!-- Actions -->
-			<div class="flex gap-3">
-				<button
-					onclick={cancelReturnConfirm}
-					class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-				>
-					Cancel
-				</button>
-				<button
-					onclick={confirmReturn}
-					class="flex-1 rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 transition-colors"
-				>
-					Confirm Return
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
-
-<!-- Cancel Confirmation Modal -->
-{#if showCancelConfirm && confirmCancelRequest}
-	<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-		<div class="relative w-full max-w-md rounded-lg bg-white/95 p-6 shadow-xl ring-1 ring-black/5 backdrop-blur-sm">
-			<!-- Header -->
-			<div class="mb-4">
-				<div class="flex items-center gap-3">
-					<div class="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-						<CircleX size={24} class="text-red-600" />
-					</div>
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900">Cancel Request</h3>
-						<p class="text-sm text-gray-500">{confirmCancelRequest.id}</p>
-					</div>
-				</div>
-			</div>
-			
-			<!-- Content -->
-			<div class="mb-6">
-				<p class="text-sm text-gray-700 mb-4">
-					Are you sure you want to cancel this request? This action cannot be undone.
-				</p>
-				
-				<!-- Items List -->
-				<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-					<p class="text-xs font-medium text-gray-500 mb-2">REQUESTED ITEMS</p>
-					<div class="space-y-2">
-						{#each confirmCancelRequest.items as item}
-							{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-							<div class="flex items-center gap-2 text-sm text-gray-700">
-								{#if pic}
-									<img src={pic} alt={item.name} class="h-7 w-7 rounded object-cover shrink-0" />
-								{:else}
-									<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-gray-200">
-										<Package size={20} class="text-gray-400" />
-									</div>
-								{/if}
-								<span class="font-medium">{item.name}</span>
-							</div>
-						{/each}
-					</div>
-				</div>
-				
-				<!-- Warning Note -->
-				<div class="mt-4 rounded-lg bg-red-50 border border-red-200 p-3">
-					<div class="flex gap-2">
-						<TriangleAlert size={16} class="text-red-600 flex-shrink-0 mt-0.5" />
-						<p class="text-xs text-red-800">
-							If you need these items later, you will need to submit a new request.
-						</p>
-					</div>
-				</div>
-			</div>
-			
-			<!-- Actions -->
-			<div class="flex gap-3">
-				<button
-					onclick={cancelCancelConfirm}
-					class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-				>
-					Keep Request
-				</button>
-				<button
-					onclick={confirmCancel}
-					disabled={loadingCancel === confirmCancelRequest.rawId}
-					class="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-				>
-					{#if loadingCancel === confirmCancelRequest.rawId}
-						<svg class="h-4 w-4 inline-block animate-spin mr-1" fill="none" viewBox="0 0 24 24">
-							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-						</svg>
-						Cancelling…
-					{:else}
-						Yes, Cancel Request
-					{/if}
-				</button>
-			</div>
-		</div>
-	</div>
-{/if}
 
