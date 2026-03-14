@@ -2,7 +2,7 @@
 
 A modern, full-stack student management system built with SvelteKit, featuring role-based authentication, email verification, password reset, and comprehensive user management.
 
-## 🚀 Features
+## Features
 
 ### Authentication System
 - **Student Registration**: Self-service registration with email verification
@@ -33,7 +33,7 @@ A modern, full-stack student management system built with SvelteKit, featuring r
 - **Rate Limiting**: Redis-based request throttling
 - **Security Headers**: CSP, HSTS, and more
 
-## 📚 Documentation
+## Documentation
 
 Comprehensive documentation is available:
 - **[VERIFICATION_GUIDE.md](./VERIFICATION_GUIDE.md)**: Email verification and password reset system
@@ -42,7 +42,7 @@ Comprehensive documentation is available:
 - **[DASHBOARD_TESTING.md](./DASHBOARD_TESTING.md)**: Quick testing reference
 - **[POSTMAN_COLLECTION.json](./POSTMAN_COLLECTION.json)**: API collection for Postman
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 ### Frontend
 - **SvelteKit 2.x**: Full-stack framework
@@ -57,7 +57,7 @@ Comprehensive documentation is available:
 - **JWT**: Token authentication
 - **bcrypt**: Password hashing
 
-## 📦 Installation
+##  Installation
 
 ### Prerequisites
 - Node.js 18+ 
@@ -109,7 +109,7 @@ npm run dev
 
 The app will be available at `http://localhost:5173`
 
-## 🧪 Testing
+##  Testing
 
 ### Using Postman
 
@@ -174,7 +174,7 @@ db.users.updateOne(
 2. **Admin Dashboard**: `http://localhost:5173/admin`
 3. **User Management**: `http://localhost:5173/admin/users` (superadmin only)
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 src/
@@ -207,7 +207,7 @@ src/
 └── static/                        # Static assets
 ```
 
-## 🔐 User Roles
+##  User Roles
 
 ### Student
 - Self-registration with email verification
@@ -233,7 +233,7 @@ src/
 - System statistics and analytics
 - All permissions
 
-## 🚀 Deployment
+##  Deployment
 
 ### Building for Production
 
@@ -255,7 +255,7 @@ npm run preview
 
 See [SvelteKit adapters](https://svelte.dev/docs/kit/adapters) for deployment options.
 
-## 🤝 Contributing
+##  Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -263,11 +263,11 @@ See [SvelteKit adapters](https://svelte.dev/docs/kit/adapters) for deployment op
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📝 License
+##  License
 
 [Your License Here]
 
-## 📧 Support
+## Support
 
 For issues or questions:
 1. Check the documentation files
