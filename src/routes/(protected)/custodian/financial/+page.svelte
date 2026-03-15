@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
-	import { user } from '$lib/stores/auth';
 	import { financialObligationsAPI, type FinancialObligation } from '$lib/api/financialObligations';
+	import { donationsAPI, type DonationResponse, type CreateDonationRequest, DonationType } from '$lib/api/donations';
+	import { toastStore } from '$lib/stores/toast';
+	import { confirmStore } from '$lib/stores/confirm';
 
 	let activeTab = $state<'donations' | 'replacements' | 'history'>('replacements');
 	let replacementsFilter = $state<'all' | 'pending' | 'paid' | 'replaced'>('all');
@@ -21,123 +22,26 @@
 	);
 	const selectedSummaryItem = $derived(selectedSummaryItems[selectedSummaryItemIndex] ?? null);
 
-	// Sample data for donations
-	let donations = $state([
-		{
-			id: 1,
-			donorName: 'Maria Santos Foundation',
-			type: 'cash',
-			amount: 15000,
-			item: null,
-			date: '2024-01-15',
-			purpose: 'Kitchen Equipment Fund',
-			receiptNumber: 'DON-2024-001'
-		},
-		{
-			id: 2,
-			donorName: 'John Rodriguez',
-			type: 'item',
-			amount: null,
-			item: 'Chef Knife Set (5 pcs)',
-			date: '2024-01-18',
-			purpose: 'Student Training',
-			receiptNumber: 'DON-2024-002'
-		},
-		{
-			id: 3,
-			donorName: 'ABC Corporation',
-			type: 'cash',
-			amount: 25000,
-			item: null,
-			date: '2024-01-20',
-			purpose: 'General Laboratory Support',
-			receiptNumber: 'DON-2024-003'
-		}
-	]);
+	// Donations real data
+	let donations = $state<DonationResponse[]>([]);
+	let donationsLoading = $state(false);
 
-	// Sample data for replacement payments
-	let replacementPayments = $state([
-		{
-			id: 1,
-			studentName: 'Carlos Reyes',
-			studentId: '2021-00145',
-			item: 'Chef Knife',
-			amountDue: 2500,
-			amountPaid: 0,
-			status: 'pending',
-			dueDate: '2024-02-15',
-			incidentDate: '2024-01-10',
-			reason: 'Lost'
-		},
-		{
-			id: 2,
-			studentName: 'Lisa Tan',
-			studentId: '2021-00289',
-			item: 'Mixing Bowl Set',
-			amountDue: 1500,
-			amountPaid: 1500,
-			status: 'paid',
-			dueDate: '2024-02-01',
-			incidentDate: '2024-01-05',
-			reason: 'Damaged'
-		},
-		{
-			id: 3,
-			studentName: 'Mark Gonzales',
-			studentId: '2021-00321',
-			item: 'Digital Thermometer',
-			amountDue: 800,
-			amountPaid: 400,
-			status: 'partial',
-			dueDate: '2024-02-20',
-			incidentDate: '2024-01-12',
-			reason: 'Damaged'
-		}
-	]);
-
-	// Sample data for payment history
-	let paymentHistory = $state([
-		{
-			id: 1,
-			name: 'Lisa Tan',
-			type: 'replacement',
-			amount: 1500,
-			date: '2024-01-25',
-			status: 'completed',
-			paymentMethod: 'Cash',
-			receiptNumber: 'REP-2024-002'
-		},
-		{
-			id: 2,
-			name: 'Maria Santos Foundation',
-			type: 'donation',
-			amount: 15000,
-			date: '2024-01-15',
-			status: 'completed',
-			paymentMethod: 'Bank Transfer',
-			receiptNumber: 'DON-2024-001'
-		},
-		{
-			id: 3,
-			name: 'Mark Gonzales',
-			type: 'replacement',
-			amount: 400,
-			date: '2024-01-22',
-			status: 'completed',
-			paymentMethod: 'Cash',
-			receiptNumber: 'REP-2024-003'
-		},
-		{
-			id: 4,
-			name: 'ABC Corporation',
-			type: 'donation',
-			amount: 25000,
-			date: '2024-01-20',
-			status: 'completed',
-			paymentMethod: 'Check',
-			receiptNumber: 'DON-2024-003'
-		}
-	]);
+	// Payment history (derived from resolved obligations)
+	const paymentHistory = $derived(
+		obligations
+			.filter((o) => o.status !== 'pending')
+			.map((o) => ({
+				id: o.id,
+				name: o.studentName || 'Unknown Student',
+				type: 'replacement' as const,
+				amount: o.amountPaid,
+				date: o.resolutionDate || o.updatedAt,
+				status: 'completed',
+				paymentMethod: 'Cash',
+				receiptNumber: o.paymentReference || `REP-${o.id.slice(-6).toUpperCase()}`
+			}))
+			.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+	);
 
 	// New donation form state
 	let newDonation = $state({
@@ -146,12 +50,14 @@
 		amount: 0,
 		item: '',
 		purpose: '',
-		date: new Date().toISOString().split('T')[0]
+		date: new Date().toISOString().split('T')[0],
+		notes: ''
 	});
+	let donationSubmitting = $state(false);
 
 	// Stats
 	const totalDonations = $derived(
-		donations.reduce((sum, d) => sum + (d.amount || 0), 0)
+		donations.filter(d => d.type === DonationType.CASH).reduce((sum, d) => sum + (d.amount || 0), 0)
 	);
 	const outstandingPayments = $derived(
 		obligations
@@ -230,7 +136,9 @@
 		);
 	});
 	const totalCollected = $derived(
-		paymentHistory.reduce((sum, p) => sum + p.amount, 0)
+		obligations
+			.filter((o) => o.status !== 'pending')
+			.reduce((sum, o) => sum + o.amountPaid, 0)
 	);
 	const recentActivityCount = $derived(
 		paymentHistory.filter(p => {
@@ -241,8 +149,18 @@
 		}).length
 	);
 
+	let unsubscribeDonations: (() => void) | null = null;
+
 	onMount(async () => {
-		await loadObligations();
+		await Promise.all([loadObligations(), loadDonations()]);
+
+		unsubscribeDonations = donationsAPI.subscribeToChanges(async () => {
+			await loadDonations();
+		});
+
+		return () => {
+			unsubscribeDonations?.();
+		};
 	});
 
 	async function loadObligations(): Promise<void> {
@@ -259,6 +177,19 @@
 		}
 	}
 
+	async function loadDonations(): Promise<void> {
+		donationsLoading = true;
+		try {
+			const response = await donationsAPI.getAll({ limit: 200 });
+			donations = response.donations;
+		} catch (err) {
+			console.error('Failed to load donations', err);
+			toastStore.error(err instanceof Error ? err.message : 'Failed to load donations', 'Error');
+		} finally {
+			donationsLoading = false;
+		}
+	}
+
 	async function handleResolveObligation(
 		id: string,
 		resolutionType: 'payment' | 'replacement' | 'waiver',
@@ -271,129 +202,80 @@
 				resolutionNotes: `Resolved via ${resolutionType}`
 			});
 			await loadObligations();
-			alert('Obligation resolved successfully');
+			toastStore.success('Obligation resolved successfully', 'Success');
 		} catch (err) {
 			console.error('Failed to resolve obligation', err);
-			alert(err instanceof Error ? err.message : 'Failed to resolve obligation');
+			toastStore.error(err instanceof Error ? err.message : 'Failed to resolve obligation', 'Error');
 		}
 	}
 
-	function handleAddDonation() {
-		if (!newDonation.donorName) {
-			alert('Please enter donor name');
+	async function handleAddDonation(): Promise<void> {
+		if (!newDonation.donorName.trim()) {
+			toastStore.warning('Please enter donor name', 'Validation');
 			return;
 		}
 		if (newDonation.type === 'cash' && newDonation.amount <= 0) {
-			alert('Please enter donation amount');
+			toastStore.warning('Please enter a valid donation amount', 'Validation');
 			return;
 		}
-		if (newDonation.type === 'item' && !newDonation.item) {
-			alert('Please enter item description');
+		if (newDonation.type === 'item' && !newDonation.item.trim()) {
+			toastStore.warning('Please enter item description', 'Validation');
+			return;
+		}
+		if (!newDonation.purpose.trim()) {
+			toastStore.warning('Please enter the purpose', 'Validation');
 			return;
 		}
 
-		const receiptNumber = `DON-2024-${String(donations.length + 1).padStart(3, '0')}`;
-		donations = [
-			...donations,
-			{
-				id: donations.length + 1,
-				donorName: newDonation.donorName,
-				type: newDonation.type,
-				amount: newDonation.type === 'cash' ? newDonation.amount : null,
-				item: newDonation.type === 'item' ? newDonation.item : null,
+		donationSubmitting = true;
+		try {
+			const payload: CreateDonationRequest = {
+				donorName: newDonation.donorName.trim(),
+				type: newDonation.type as 'cash' | 'item',
+				amount: newDonation.type === 'cash' ? newDonation.amount : undefined,
+				itemDescription: newDonation.type === 'item' ? newDonation.item.trim() : undefined,
+				purpose: newDonation.purpose.trim(),
 				date: newDonation.date,
-				purpose: newDonation.purpose,
-				receiptNumber
-			}
-		];
+				notes: newDonation.notes.trim() || undefined
+			};
 
-		// Add to payment history if cash donation
-		if (newDonation.type === 'cash') {
-			paymentHistory = [
-				{
-					id: paymentHistory.length + 1,
-					name: newDonation.donorName,
-					type: 'donation',
-					amount: newDonation.amount,
-					date: newDonation.date,
-					status: 'completed',
-					paymentMethod: 'Cash',
-					receiptNumber
-				},
-				...paymentHistory
-			];
+			await donationsAPI.create(payload);
+			await loadDonations();
+
+			// Reset form
+			newDonation = {
+				donorName: '',
+				type: 'cash',
+				amount: 0,
+				item: '',
+				purpose: '',
+				date: new Date().toISOString().split('T')[0],
+				notes: ''
+			};
+
+			toastStore.success('Donation recorded successfully', 'Success');
+		} catch (err) {
+			console.error('Failed to record donation', err);
+			toastStore.error(err instanceof Error ? err.message : 'Failed to record donation', 'Error');
+		} finally {
+			donationSubmitting = false;
 		}
-
-		// Reset form
-		newDonation = {
-			donorName: '',
-			type: 'cash',
-			amount: 0,
-			item: '',
-			purpose: '',
-			date: new Date().toISOString().split('T')[0]
-		};
-
-		alert('Donation recorded successfully!');
 	}
 
 	function processPayment(paymentId: number) {
-		const payment = replacementPayments.find(p => p.id === paymentId);
-		if (!payment) return;
-
-		const amountToPayStr = prompt(`Enter payment amount (Balance: ₱${payment.amountDue - payment.amountPaid}):`);
-		if (!amountToPayStr) return;
-
-		const amountToPay = parseFloat(amountToPayStr);
-		if (isNaN(amountToPay) || amountToPay <= 0) {
-			alert('Invalid amount');
-			return;
-		}
-
-		const remainingBalance = payment.amountDue - payment.amountPaid;
-		if (amountToPay > remainingBalance) {
-			alert(`Amount exceeds balance of ₱${remainingBalance}`);
-			return;
-		}
-
-		payment.amountPaid += amountToPay;
-		if (payment.amountPaid >= payment.amountDue) {
-			payment.status = 'paid';
-		} else if (payment.amountPaid > 0) {
-			payment.status = 'partial';
-		}
-
-		// Add to payment history
-		const receiptNumber = `REP-2024-${String(paymentHistory.filter(p => p.type === 'replacement').length + 1).padStart(3, '0')}`;
-		paymentHistory = [
-			{
-				id: paymentHistory.length + 1,
-				name: payment.studentName,
-				type: 'replacement',
-				amount: amountToPay,
-				date: new Date().toISOString().split('T')[0],
-				status: 'completed',
-				paymentMethod: 'Cash',
-				receiptNumber
-			},
-			...paymentHistory
-		];
-
-		alert(`Payment of ₱${amountToPay} recorded successfully!`);
+		// Legacy stub — obligations are resolved via handleResolveObligation
 	}
 
 	function sendPaymentReminder(paymentId: number) {
-		const payment = replacementPayments.find(p => p.id === paymentId);
-		if (!payment) return;
-		alert(`Payment reminder sent to ${payment.studentName}`);
+		// Legacy stub
 	}
 
 	function printReceipt(receiptNumber: string) {
-		alert(`Printing receipt ${receiptNumber}...`);
+		toastStore.info(`Printing receipt ${receiptNumber}…`, 'Print');
 	}
 
 	function exportHistory() {
-		alert('Exporting payment history to CSV...');
+		toastStore.info('Exporting payment history to CSV…', 'Export');
 	}
 
 	function getStatusColor(status: string) {
@@ -628,13 +510,23 @@
 									placeholder="Purpose of donation"
 								/>
 							</div>
+							<div class="md:col-span-3">
+								<label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+								<input
+									type="text"
+									bind:value={newDonation.notes}
+									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
+									placeholder="Additional notes"
+								/>
+							</div>
 						</div>
 						<div class="mt-4">
 							<button
 								onclick={handleAddDonation}
-								class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-6 rounded-md transition-colors"
+								disabled={donationSubmitting}
+								class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium py-2 px-6 rounded-md transition-colors"
 							>
-								Record Donation
+								{donationSubmitting ? 'Recording…' : 'Record Donation'}
 							</button>
 						</div>
 					</div>
@@ -642,7 +534,15 @@
 					<!-- Donations List -->
 					<div>
 						<h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Donations</h3>
-						{#if donations.length === 0}
+						{#if donationsLoading}
+							<div class="text-center py-12 bg-gray-50 rounded-lg">
+								<svg class="w-8 h-8 text-gray-400 mx-auto mb-4 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+								</svg>
+								<p class="text-gray-500">Loading donations...</p>
+							</div>
+						{:else if donations.length === 0}
 							<div class="py-12 text-center">
 								<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -678,17 +578,37 @@
 													{#if donation.type === 'cash'}
 														₱{donation.amount?.toLocaleString()}
 													{:else}
-														{donation.item}
+														{donation.itemDescription}
 													{/if}
 												</td>
 												<td class="px-6 py-4 text-sm text-gray-900">{donation.purpose}</td>
 												<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{donation.date}</td>
-												<td class="px-6 py-4 whitespace-nowrap text-sm">
+												<td class="px-6 py-4 whitespace-nowrap text-sm flex items-center gap-3">
 													<button
 														onclick={() => printReceipt(donation.receiptNumber)}
 														class="text-emerald-600 hover:text-emerald-900 font-medium"
 													>
 														Print Receipt
+													</button>
+													<button
+														onclick={async () => {
+															const confirmed = await confirmStore.danger(
+																`Delete donation ${donation.receiptNumber} from ${donation.donorName}? This cannot be undone.`,
+																'Delete Donation',
+																'Delete'
+															);
+															if (!confirmed) return;
+															try {
+																await donationsAPI.delete(donation.id);
+																await loadDonations();
+																toastStore.success('Donation deleted successfully', 'Deleted');
+															} catch (err) {
+																toastStore.error(err instanceof Error ? err.message : 'Failed to delete donation', 'Error');
+															}
+														}}
+														class="text-red-500 hover:text-red-700 font-medium"
+													>
+														Delete
 													</button>
 												</td>
 											</tr>
@@ -1093,10 +1013,10 @@
 						{#if selectedSummaryItem.status === 'pending'}
 							<div class="flex flex-wrap gap-2 pt-1">
 								<button
-									onclick={() => {
+									onclick={async () => {
 										const amount = parseFloat(prompt(`Enter payment amount (Balance: PHP ${selectedSummaryItem!.balance}):`) || '0');
 										if (amount > 0 && amount <= selectedSummaryItem!.balance) {
-											handleResolveObligation(selectedSummaryItem!.id, 'payment', amount);
+											await handleResolveObligation(selectedSummaryItem!.id, 'payment', amount);
 											selectedSummary = null;
 										}
 									}}
@@ -1105,9 +1025,10 @@
 									Record Payment
 								</button>
 								<button
-									onclick={() => {
-										if (confirm('Mark item as replaced by student?')) {
-											handleResolveObligation(selectedSummaryItem!.id, 'replacement');
+									onclick={async () => {
+										const confirmed = await confirmStore.confirm({ type: 'info', title: 'Mark as Replaced', message: 'Mark this item as replaced by the student?', confirmText: 'Mark Replaced' });
+										if (confirmed) {
+											await handleResolveObligation(selectedSummaryItem!.id, 'replacement');
 											selectedSummary = null;
 										}
 									}}
@@ -1116,9 +1037,10 @@
 									Mark Replaced
 								</button>
 								<button
-									onclick={() => {
-										if (confirm('Waive this obligation? This action cannot be undone.')) {
-											handleResolveObligation(selectedSummaryItem!.id, 'waiver');
+									onclick={async () => {
+										const confirmed = await confirmStore.danger('Waive this obligation? This action cannot be undone.', 'Waive Obligation', 'Waive');
+										if (confirmed) {
+											await handleResolveObligation(selectedSummaryItem!.id, 'waiver');
 											selectedSummary = null;
 										}
 									}}
@@ -1244,10 +1166,10 @@
 					{#if selectedObligation.status === 'pending'}
 						<div class="flex flex-wrap gap-2 pt-1">
 							<button
-								onclick={() => {
+								onclick={async () => {
 									const amount = parseFloat(prompt(`Enter payment amount (Balance: PHP ${selectedObligation!.balance}):`) || '0');
 									if (amount > 0 && amount <= selectedObligation!.balance) {
-										handleResolveObligation(selectedObligation!.id, 'payment', amount);
+										await handleResolveObligation(selectedObligation!.id, 'payment', amount);
 										selectedObligation = null;
 									}
 								}}
@@ -1256,9 +1178,10 @@
 								Record Payment
 							</button>
 							<button
-								onclick={() => {
-									if (confirm('Mark item as replaced by student?')) {
-										handleResolveObligation(selectedObligation!.id, 'replacement');
+								onclick={async () => {
+									const confirmed = await confirmStore.confirm({ type: 'info', title: 'Mark as Replaced', message: 'Mark this item as replaced by the student?', confirmText: 'Mark Replaced' });
+									if (confirmed) {
+										await handleResolveObligation(selectedObligation!.id, 'replacement');
 										selectedObligation = null;
 									}
 								}}
@@ -1267,9 +1190,10 @@
 								Mark Replaced
 							</button>
 							<button
-								onclick={() => {
-									if (confirm('Waive this obligation? This action cannot be undone.')) {
-										handleResolveObligation(selectedObligation!.id, 'waiver');
+								onclick={async () => {
+									const confirmed = await confirmStore.danger('Waive this obligation? This action cannot be undone.', 'Waive Obligation', 'Waive');
+									if (confirmed) {
+										await handleResolveObligation(selectedObligation!.id, 'waiver');
 										selectedObligation = null;
 									}
 								}}
