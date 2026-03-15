@@ -65,6 +65,7 @@ export interface BorrowRequestUserSummary {
 	email?: string;
 	firstName?: string;
 	lastName?: string;
+	profilePhotoUrl?: string;
 	fullName?: string;
 	yearLevel?: string;
 	block?: string;

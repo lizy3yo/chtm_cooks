@@ -94,8 +94,14 @@ export const POST: RequestHandler = async (event) => {
 			role: user.role,
 			firstName: user.firstName,
 			lastName: user.lastName,
+			profilePhotoUrl: user.profilePhotoUrl,
 			isActive: user.isActive,
-			createdAt: user.createdAt
+			createdAt: user.createdAt,
+			...(user.role === 'student' && {
+				yearLevel: user.yearLevel,
+				block: user.block,
+				agreedToTerms: user.agreedToTerms
+			})
 		};
 
 		// Handle "Remember Me" functionality

@@ -101,6 +101,7 @@ id: getDisplayId(record.id),
 student: {
 name: studentName,
 avatar: initials(studentName),
+	avatarUrl: record.student?.profilePhotoUrl || null,
 yearLevel: record.student?.yearLevel || 'N/A',
 block: record.student?.block || 'N/A',
 studentId: record.studentId.slice(-8).toUpperCase(),
@@ -777,8 +778,17 @@ return { text: '', color: 'text-gray-500' };
 							</div>
 
 							<div class="mt-4 flex items-start gap-3">
-								<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-pink-100 font-semibold text-pink-700">
-									{request.student.avatar}
+								<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 font-semibold text-pink-700">
+									{#if request.student.avatarUrl}
+										<img
+											src={request.student.avatarUrl}
+											alt={request.student.name}
+											class="h-full w-full object-cover"
+											loading="lazy"
+										/>
+									{:else}
+										{request.student.avatar}
+									{/if}
 								</div>
 								<div class="min-w-0">
 									<h3 class="text-lg font-semibold text-gray-900">{request.student.name}</h3>

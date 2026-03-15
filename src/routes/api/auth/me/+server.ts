@@ -35,6 +35,7 @@ export const GET: RequestHandler = async (event) => {
 			role: user.role,
 			firstName: user.firstName,
 			lastName: user.lastName,
+			profilePhotoUrl: user.profilePhotoUrl,
 			isActive: user.isActive,
 			createdAt: user.createdAt,
 			// Include student-specific fields if role is STUDENT

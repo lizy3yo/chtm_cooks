@@ -109,6 +109,7 @@ name: studentName,
 yearLevel: record.student?.yearLevel || 'N/A',
 block: record.student?.block || 'N/A',
 avatar: initials(studentName),
+	avatarUrl: record.student?.profilePhotoUrl || null,
 studentId: record.studentId.slice(-8).toUpperCase(),
 email: record.student?.email || 'N/A'
 },
@@ -908,8 +909,17 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'history', 
 						</div>
 
 						<div class="mt-4 flex items-start gap-3">
-							<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-pink-100 font-semibold text-pink-700">
-								{request.student.avatar}
+							<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 font-semibold text-pink-700">
+								{#if request.student.avatarUrl}
+									<img
+										src={request.student.avatarUrl}
+										alt={request.student.name}
+										class="h-full w-full object-cover"
+										loading="lazy"
+									/>
+								{:else}
+									{request.student.avatar}
+								{/if}
 							</div>
 							<div class="min-w-0">
 								<h3 class="text-lg font-semibold text-gray-900">{request.student.name}</h3>
@@ -1096,8 +1106,17 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'history', 
 							<h4 class="text-sm font-medium text-gray-700 mb-3">Student Information</h4>
 							<div class="rounded-xl border border-white/70 bg-white/55 p-4 backdrop-blur-sm">
 								<div class="flex items-center gap-3 mb-4">
-									<div class="flex h-16 w-16 items-center justify-center rounded-full bg-pink-100 text-pink-700 font-semibold text-xl">
-										{selectedRequest.student.avatar}
+									<div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-pink-700 font-semibold text-xl">
+										{#if selectedRequest.student.avatarUrl}
+											<img
+												src={selectedRequest.student.avatarUrl}
+												alt={selectedRequest.student.name}
+												class="h-full w-full object-cover"
+												loading="lazy"
+											/>
+										{:else}
+											{selectedRequest.student.avatar}
+										{/if}
 									</div>
 									<div>
 										<p class="font-semibold">{selectedRequest.student.name}</p>

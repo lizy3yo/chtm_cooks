@@ -10,6 +10,7 @@ export interface FinancialObligation {
 	studentId: string;
 	studentName?: string;
 	studentEmail?: string;
+	studentProfilePhotoUrl?: string;
 	itemId: string;
 	itemName: string;
 	itemCategory?: string;

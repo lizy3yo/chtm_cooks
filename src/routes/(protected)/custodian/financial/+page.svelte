@@ -168,6 +168,7 @@
 				requestCode: string;
 				studentName: string;
 				studentEmail: string;
+				studentProfilePhotoUrl: string | null;
 				items: number;
 				missingCount: number;
 				damagedCount: number;
@@ -202,6 +203,7 @@
 				requestCode: `REQ-${obligation.borrowRequestId.slice(-6).toUpperCase()}`,
 				studentName: obligation.studentName || 'Unknown Student',
 				studentEmail: obligation.studentEmail || 'N/A',
+				studentProfilePhotoUrl: obligation.studentProfilePhotoUrl || null,
 				items: 1,
 				missingCount: obligation.type === 'missing' ? 1 : 0,
 				damagedCount: obligation.type === 'damaged' ? 1 : 0,
@@ -437,6 +439,14 @@
 		}
 
 		return 'Resolved';
+	}
+
+	function getInitials(name?: string): string {
+		if (!name) return '??';
+		const parts = name.trim().split(/\s+/).filter(Boolean);
+		if (parts.length === 0) return '??';
+		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+		return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 	}
 </script>
 
@@ -778,8 +788,24 @@
 												<div class="text-sm font-semibold text-gray-900">{summary.requestCode}</div>
 											</td>
 											<td class="px-6 py-4">
-												<div class="text-sm font-medium text-gray-900">{summary.studentName}</div>
-												<div class="text-sm text-gray-500">{summary.studentEmail}</div>
+												<div class="flex items-center gap-3">
+													<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+														{#if summary.studentProfilePhotoUrl}
+															<img
+																src={summary.studentProfilePhotoUrl}
+																alt={summary.studentName}
+																class="h-full w-full object-cover"
+																loading="lazy"
+															/>
+														{:else}
+															{getInitials(summary.studentName)}
+														{/if}
+													</div>
+													<div>
+														<div class="text-sm font-medium text-gray-900">{summary.studentName}</div>
+														<div class="text-sm text-gray-500">{summary.studentEmail}</div>
+													</div>
+												</div>
 											</td>
 											<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{summary.items}</td>
 											<td class="px-6 py-4">
@@ -832,8 +858,24 @@
 									{#each filteredObligations as obligation}
 										<tr class="hover:bg-gray-50">
 											<td class="px-6 py-4 whitespace-nowrap">
-												<div class="text-sm font-medium text-gray-900">{obligation.studentName || 'Unknown Student'}</div>
-												<div class="text-sm text-gray-500">{obligation.studentEmail || 'N/A'}</div>
+												<div class="flex items-center gap-3">
+													<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+														{#if obligation.studentProfilePhotoUrl}
+															<img
+																src={obligation.studentProfilePhotoUrl}
+																alt={obligation.studentName || 'Student'}
+																class="h-full w-full object-cover"
+																loading="lazy"
+															/>
+														{:else}
+															{getInitials(obligation.studentName || 'Unknown Student')}
+														{/if}
+													</div>
+													<div>
+														<div class="text-sm font-medium text-gray-900">{obligation.studentName || 'Unknown Student'}</div>
+														<div class="text-sm text-gray-500">{obligation.studentEmail || 'N/A'}</div>
+													</div>
+												</div>
 											</td>
 											<td class="px-6 py-4 whitespace-nowrap">
 												<div class="text-sm text-gray-900">{obligation.itemName}</div>

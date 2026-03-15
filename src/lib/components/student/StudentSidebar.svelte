@@ -83,6 +83,10 @@
 	function toggleProfileDropdown() {
 		isProfileDropdownOpen = !isProfileDropdownOpen;
 	}
+
+	function getUserInitials(firstName?: string, lastName?: string): string {
+		return `${firstName?.charAt(0) ?? ''}${lastName?.charAt(0) ?? ''}`.toUpperCase();
+	}
 </script>
 
 <!-- Mobile Top Navigation -->
@@ -217,7 +221,15 @@
 							class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-100 to-pink-50 border-2 border-pink-200 text-pink-700 font-semibold shadow-sm transition-all hover:shadow-md"
 							title="{$user.firstName} {$user.lastName}"
 						>
-							{$user.firstName?.charAt(0)}{$user.lastName?.charAt(0)}
+							{#if $user.profilePhotoUrl}
+								<img
+									src={$user.profilePhotoUrl}
+									alt="{$user.firstName} {$user.lastName}"
+									class="h-full w-full rounded-full object-cover"
+								/>
+							{:else}
+								{getUserInitials($user.firstName, $user.lastName)}
+							{/if}
 						</button>
 					</div>
 				{:else}
@@ -228,7 +240,15 @@
 						title="{$user.firstName} {$user.lastName}"
 					>
 						<div class="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-pink-100 to-pink-50 border-2 border-pink-200 text-pink-700 font-semibold shadow-sm transition-all">
-							{$user.firstName?.charAt(0)}{$user.lastName?.charAt(0)}
+							{#if $user.profilePhotoUrl}
+								<img
+									src={$user.profilePhotoUrl}
+									alt="{$user.firstName} {$user.lastName}"
+									class="h-full w-full rounded-full object-cover"
+								/>
+							{:else}
+								{getUserInitials($user.firstName, $user.lastName)}
+							{/if}
 						</div>
 						<div class="ml-3 flex-1 min-w-0 text-left">
 							<p class="truncate text-sm font-medium text-gray-900">

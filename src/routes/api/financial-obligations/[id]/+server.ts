@@ -79,8 +79,14 @@ export const GET: RequestHandler = async (event) => {
 
 		const studentName = student ? `${student.firstName} ${student.lastName}` : undefined;
 		const studentEmail = student?.email;
+		const studentProfilePhotoUrl = student?.profilePhotoUrl;
 		const response = {
-			obligation: toFinancialObligationResponse(obligation, studentName, studentEmail)
+			obligation: toFinancialObligationResponse(
+				obligation,
+				studentName,
+				studentEmail,
+				studentProfilePhotoUrl
+			)
 		};
 
 		await cacheService.set(cacheKey, response, {
