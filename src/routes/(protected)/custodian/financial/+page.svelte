@@ -10,6 +10,16 @@
 	let obligations = $state<FinancialObligation[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
+	let selectedObligation = $state<FinancialObligation | null>(null);
+	let selectedSummary = $state<{ borrowRequestId: string; requestCode: string; studentName: string; studentEmail: string; studentProfilePhotoUrl: string | null; items: number; missingCount: number; damagedCount: number; amount: number; amountPaid: number; balance: number; latestDueDate: string; statuses: Set<string> } | null>(null);
+	let selectedSummaryItemIndex = $state(0);
+
+	const selectedSummaryItems = $derived(
+		selectedSummary
+			? obligations.filter(o => o.borrowRequestId === selectedSummary!.borrowRequestId)
+			: []
+	);
+	const selectedSummaryItem = $derived(selectedSummaryItems[selectedSummaryItemIndex] ?? null);
 
 	// Sample data for donations
 	let donations = $state([
@@ -772,13 +782,10 @@
 									<tr>
 										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Request</th>
 										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student</th>
-										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Items</th>
 										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Issue Mix</th>
 										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Amount</th>
-										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Paid</th>
 										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Balance</th>
-										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Due Date</th>
+										<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500"></th>
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-gray-200 bg-white">
@@ -791,25 +798,19 @@
 												<div class="flex items-center gap-3">
 													<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
 														{#if summary.studentProfilePhotoUrl}
-															<img
-																src={summary.studentProfilePhotoUrl}
-																alt={summary.studentName}
-																class="h-full w-full object-cover"
-																loading="lazy"
-															/>
+															<img src={summary.studentProfilePhotoUrl} alt={summary.studentName} class="h-full w-full object-cover" loading="lazy" />
 														{:else}
 															{getInitials(summary.studentName)}
 														{/if}
 													</div>
 													<div>
 														<div class="text-sm font-medium text-gray-900">{summary.studentName}</div>
-														<div class="text-sm text-gray-500">{summary.studentEmail}</div>
+														<div class="text-xs text-gray-500">{summary.studentEmail}</div>
 													</div>
 												</div>
 											</td>
-											<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{summary.items}</td>
 											<td class="px-6 py-4">
-												<div class="flex flex-wrap gap-2">
+												<div class="flex flex-wrap gap-1.5">
 													{#if summary.missingCount > 0}
 														<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-200">
 															<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
@@ -829,10 +830,17 @@
 													{getRequestSummaryStatusLabel(summary.statuses)}
 												</span>
 											</td>
-											<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">PHP {summary.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-											<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">PHP {summary.amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-											<td class="whitespace-nowrap px-6 py-4 text-sm font-semibold {summary.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}">PHP {summary.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-											<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{new Date(summary.latestDueDate).toLocaleDateString()}</td>
+											<td class="whitespace-nowrap px-6 py-4 text-sm font-semibold {summary.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}">
+												PHP {summary.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+											</td>
+											<td class="whitespace-nowrap px-6 py-4 text-right">
+												<button
+													onclick={() => { selectedSummary = summary; selectedSummaryItemIndex = 0; }}
+													class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors"
+												>
+													View Details
+												</button>
+											</td>
 										</tr>
 									{/each}
 								</tbody>
@@ -847,11 +855,8 @@
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"></th>
 									</tr>
 								</thead>
 								<tbody class="bg-white divide-y divide-gray-200">
@@ -861,19 +866,14 @@
 												<div class="flex items-center gap-3">
 													<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
 														{#if obligation.studentProfilePhotoUrl}
-															<img
-																src={obligation.studentProfilePhotoUrl}
-																alt={obligation.studentName || 'Student'}
-																class="h-full w-full object-cover"
-																loading="lazy"
-															/>
+															<img src={obligation.studentProfilePhotoUrl} alt={obligation.studentName || 'Student'} class="h-full w-full object-cover" loading="lazy" />
 														{:else}
 															{getInitials(obligation.studentName || 'Unknown Student')}
 														{/if}
 													</div>
 													<div>
 														<div class="text-sm font-medium text-gray-900">{obligation.studentName || 'Unknown Student'}</div>
-														<div class="text-sm text-gray-500">{obligation.studentEmail || 'N/A'}</div>
+														<div class="text-xs text-gray-500">{obligation.studentEmail || 'N/A'}</div>
 													</div>
 												</div>
 											</td>
@@ -892,48 +892,16 @@
 													{obligation.status.charAt(0).toUpperCase() + obligation.status.slice(1)}
 												</span>
 											</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">PHP {obligation.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">PHP {obligation.amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold {obligation.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}">PHP {obligation.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(obligation.dueDate).toLocaleDateString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap">
-												{#if obligation.status === 'pending'}
-													<div class="flex items-center gap-3">
-														<button
-															onclick={() => {
-																const amount = parseFloat(prompt(`Enter payment amount (Balance: PHP ${obligation.balance}):`) || '0');
-																if (amount > 0 && amount <= obligation.balance) {
-																	handleResolveObligation(obligation.id, 'payment', amount);
-																}
-															}}
-															class="text-sm font-medium text-emerald-600 hover:text-emerald-800"
-														>
-															Record Payment
-														</button>
-														<button
-															onclick={() => {
-																if (confirm('Mark item as replaced by student?')) {
-																	handleResolveObligation(obligation.id, 'replacement');
-																}
-															}}
-															class="text-sm font-medium text-blue-600 hover:text-blue-800"
-														>
-															Mark Replaced
-														</button>
-														<button
-															onclick={() => {
-																if (confirm('Waive this obligation? This action cannot be undone.')) {
-																	handleResolveObligation(obligation.id, 'waiver');
-																}
-															}}
-															class="text-sm font-medium text-gray-500 hover:text-gray-700"
-														>
-															Waive
-														</button>
-													</div>
-												{:else}
-													<span class="text-xs text-gray-400">Resolved</span>
-												{/if}
+											<td class="px-6 py-4 whitespace-nowrap text-sm font-semibold {obligation.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}">
+												PHP {obligation.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+											</td>
+											<td class="px-6 py-4 whitespace-nowrap text-right">
+												<button
+													onclick={() => selectedObligation = obligation}
+													class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors"
+												>
+													View Details
+												</button>
 											</td>
 										</tr>
 									{/each}
@@ -1017,3 +985,312 @@
 		</div>
 	</div>
 </div>
+
+<!-- Request Summary Detail Modal -->
+{#if selectedSummary}
+	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="summary-modal-title">
+		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => selectedSummary = null}></div>
+		<div class="flex min-h-full items-center justify-center p-4">
+			<div class="relative z-50 w-full max-w-lg rounded-xl bg-white shadow-2xl">
+
+				<!-- Header -->
+				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+					<div>
+						<h2 id="summary-modal-title" class="text-base font-semibold text-gray-900">{selectedSummary.requestCode}</h2>
+						<p class="mt-0.5 text-xs text-gray-500">{selectedSummary.studentName} · {selectedSummary.items} item{selectedSummary.items !== 1 ? 's' : ''}</p>
+					</div>
+					<button
+						onclick={() => selectedSummary = null}
+						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+						aria-label="Close"
+					>
+						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+
+				<!-- Body -->
+				<div class="px-6 py-5 space-y-5">
+
+					<!-- Student -->
+					<div class="flex items-center gap-3">
+						<div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-sm font-semibold text-pink-700">
+							{#if selectedSummary.studentProfilePhotoUrl}
+								<img src={selectedSummary.studentProfilePhotoUrl} alt={selectedSummary.studentName} class="h-full w-full object-cover" />
+							{:else}
+								{getInitials(selectedSummary.studentName)}
+							{/if}
+						</div>
+						<div>
+							<p class="text-sm font-medium text-gray-900">{selectedSummary.studentName}</p>
+							<p class="text-xs text-gray-500">{selectedSummary.studentEmail}</p>
+						</div>
+						<div class="ml-auto">
+							<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getRequestSummaryStatusClass(selectedSummary.statuses)}">
+								{getRequestSummaryStatusLabel(selectedSummary.statuses)}
+							</span>
+						</div>
+					</div>
+
+					<!-- Item selector dropdown -->
+					{#if selectedSummaryItems.length > 0}
+						<div>
+							<label for="summary-item-select" class="block text-xs font-medium text-gray-500 mb-1.5">Item</label>
+							<select
+								id="summary-item-select"
+								bind:value={selectedSummaryItemIndex}
+								class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+							>
+								{#each selectedSummaryItems as item, i}
+									<option value={i}>
+										{item.itemName} — {item.type === 'missing' ? 'Missing' : 'Damaged'} · Qty {item.quantity}
+									</option>
+								{/each}
+							</select>
+						</div>
+					{/if}
+
+					<!-- Selected item detail -->
+					{#if selectedSummaryItem}
+						<div class="rounded-lg bg-gray-50 p-4 space-y-3 text-sm">
+							<div class="flex items-center justify-between">
+								<span class="text-xs text-gray-500">Type</span>
+								<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 {selectedSummaryItem.type === 'missing' ? 'bg-red-100 text-red-800 ring-red-200' : 'bg-rose-100 text-rose-800 ring-rose-200'}">
+									<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+									{selectedSummaryItem.type === 'missing' ? 'Missing' : 'Damaged'}
+								</span>
+							</div>
+							<div class="flex items-center justify-between">
+								<span class="text-xs text-gray-500">Status</span>
+								<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getObligationStatusClass(selectedSummaryItem.status)}">
+									{selectedSummaryItem.status.charAt(0).toUpperCase() + selectedSummaryItem.status.slice(1)}
+								</span>
+							</div>
+							<div class="flex items-center justify-between">
+								<span class="text-xs text-gray-500">Due Date</span>
+								<span class="font-medium text-gray-900">{new Date(selectedSummaryItem.dueDate).toLocaleDateString()}</span>
+							</div>
+						</div>
+
+						<!-- Financials for selected item -->
+						<div class="rounded-lg border border-gray-200 divide-y divide-gray-100 text-sm">
+							<div class="flex items-center justify-between px-4 py-3">
+								<span class="text-gray-500">Amount</span>
+								<span class="font-medium text-gray-900">PHP {selectedSummaryItem.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+							</div>
+							<div class="flex items-center justify-between px-4 py-3">
+								<span class="text-gray-500">Paid</span>
+								<span class="font-medium text-gray-900">PHP {selectedSummaryItem.amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+							</div>
+							<div class="flex items-center justify-between px-4 py-3">
+								<span class="text-gray-500">Balance</span>
+								<span class="font-semibold {selectedSummaryItem.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}">PHP {selectedSummaryItem.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+							</div>
+						</div>
+
+						<!-- Actions for selected item -->
+						{#if selectedSummaryItem.status === 'pending'}
+							<div class="flex flex-wrap gap-2 pt-1">
+								<button
+									onclick={() => {
+										const amount = parseFloat(prompt(`Enter payment amount (Balance: PHP ${selectedSummaryItem!.balance}):`) || '0');
+										if (amount > 0 && amount <= selectedSummaryItem!.balance) {
+											handleResolveObligation(selectedSummaryItem!.id, 'payment', amount);
+											selectedSummary = null;
+										}
+									}}
+									class="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 transition-colors"
+								>
+									Record Payment
+								</button>
+								<button
+									onclick={() => {
+										if (confirm('Mark item as replaced by student?')) {
+											handleResolveObligation(selectedSummaryItem!.id, 'replacement');
+											selectedSummary = null;
+										}
+									}}
+									class="flex-1 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
+								>
+									Mark Replaced
+								</button>
+								<button
+									onclick={() => {
+										if (confirm('Waive this obligation? This action cannot be undone.')) {
+											handleResolveObligation(selectedSummaryItem!.id, 'waiver');
+											selectedSummary = null;
+										}
+									}}
+									class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 transition-colors"
+								>
+									Waive
+								</button>
+							</div>
+						{/if}
+					{/if}
+
+					<!-- Request totals -->
+					<div class="border-t border-gray-100 pt-4">
+						<p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Request Total</p>
+						<div class="flex items-center justify-between text-sm">
+							<span class="text-gray-500">Total Balance</span>
+							<span class="font-semibold {selectedSummary.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}">PHP {selectedSummary.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+						</div>
+					</div>
+				</div>
+
+				<!-- Footer -->
+				<div class="flex justify-end border-t border-gray-200 px-6 py-4">
+					<button
+						onclick={() => selectedSummary = null}
+						class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors"
+					>
+						Close
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Obligation Detail Modal -->
+{#if selectedObligation}
+	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="obligation-modal-title">
+		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => selectedObligation = null}></div>
+		<div class="flex min-h-full items-center justify-center p-4">
+			<div class="relative z-50 w-full max-w-lg rounded-xl bg-white shadow-2xl">
+
+				<!-- Header -->
+				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+					<div>
+						<h2 id="obligation-modal-title" class="text-base font-semibold text-gray-900">Obligation Details</h2>
+						<p class="mt-0.5 text-xs text-gray-500">{selectedObligation.itemName} · {selectedObligation.studentName || 'Unknown Student'}</p>
+					</div>
+					<button
+						onclick={() => selectedObligation = null}
+						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+						aria-label="Close"
+					>
+						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+
+				<!-- Body -->
+				<div class="px-6 py-5 space-y-5">
+
+					<!-- Student -->
+					<div class="flex items-center gap-3">
+						<div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-sm font-semibold text-pink-700">
+							{#if selectedObligation.studentProfilePhotoUrl}
+								<img src={selectedObligation.studentProfilePhotoUrl} alt={selectedObligation.studentName || ''} class="h-full w-full object-cover" />
+							{:else}
+								{getInitials(selectedObligation.studentName || 'Unknown Student')}
+							{/if}
+						</div>
+						<div>
+							<p class="text-sm font-medium text-gray-900">{selectedObligation.studentName || 'Unknown Student'}</p>
+							<p class="text-xs text-gray-500">{selectedObligation.studentEmail || 'N/A'}</p>
+						</div>
+						<div class="ml-auto">
+							<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getObligationStatusClass(selectedObligation.status)}">
+								{selectedObligation.status.charAt(0).toUpperCase() + selectedObligation.status.slice(1)}
+							</span>
+						</div>
+					</div>
+
+					<!-- Details grid -->
+					<div class="grid grid-cols-2 gap-4 rounded-lg bg-gray-50 p-4 text-sm">
+						<div>
+							<p class="text-xs text-gray-500">Item</p>
+							<p class="mt-0.5 font-medium text-gray-900">{selectedObligation.itemName}</p>
+						</div>
+						<div>
+							<p class="text-xs text-gray-500">Quantity</p>
+							<p class="mt-0.5 font-medium text-gray-900">{selectedObligation.quantity}</p>
+						</div>
+						<div>
+							<p class="text-xs text-gray-500">Type</p>
+							<span class="mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 {selectedObligation.type === 'missing' ? 'bg-red-100 text-red-800 ring-red-200' : 'bg-rose-100 text-rose-800 ring-rose-200'}">
+								<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+								{selectedObligation.type === 'missing' ? 'Missing' : 'Damaged'}
+							</span>
+						</div>
+						<div>
+							<p class="text-xs text-gray-500">Due Date</p>
+							<p class="mt-0.5 font-medium text-gray-900">{new Date(selectedObligation.dueDate).toLocaleDateString()}</p>
+						</div>
+					</div>
+
+					<!-- Financials -->
+					<div class="rounded-lg border border-gray-200 divide-y divide-gray-100 text-sm">
+						<div class="flex items-center justify-between px-4 py-3">
+							<span class="text-gray-500">Amount</span>
+							<span class="font-medium text-gray-900">PHP {selectedObligation.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+						</div>
+						<div class="flex items-center justify-between px-4 py-3">
+							<span class="text-gray-500">Paid</span>
+							<span class="font-medium text-gray-900">PHP {selectedObligation.amountPaid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+						</div>
+						<div class="flex items-center justify-between px-4 py-3">
+							<span class="text-gray-500">Balance</span>
+							<span class="font-semibold {selectedObligation.balance > 0 ? 'text-amber-600' : 'text-emerald-600'}">PHP {selectedObligation.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+						</div>
+					</div>
+
+					<!-- Actions -->
+					{#if selectedObligation.status === 'pending'}
+						<div class="flex flex-wrap gap-2 pt-1">
+							<button
+								onclick={() => {
+									const amount = parseFloat(prompt(`Enter payment amount (Balance: PHP ${selectedObligation!.balance}):`) || '0');
+									if (amount > 0 && amount <= selectedObligation!.balance) {
+										handleResolveObligation(selectedObligation!.id, 'payment', amount);
+										selectedObligation = null;
+									}
+								}}
+								class="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 transition-colors"
+							>
+								Record Payment
+							</button>
+							<button
+								onclick={() => {
+									if (confirm('Mark item as replaced by student?')) {
+										handleResolveObligation(selectedObligation!.id, 'replacement');
+										selectedObligation = null;
+									}
+								}}
+								class="flex-1 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
+							>
+								Mark Replaced
+							</button>
+							<button
+								onclick={() => {
+									if (confirm('Waive this obligation? This action cannot be undone.')) {
+										handleResolveObligation(selectedObligation!.id, 'waiver');
+										selectedObligation = null;
+									}
+								}}
+								class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 transition-colors"
+							>
+								Waive
+							</button>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Footer -->
+				<div class="flex justify-end border-t border-gray-200 px-6 py-4">
+					<button
+						onclick={() => selectedObligation = null}
+						class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors"
+					>
+						Close
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
