@@ -25,7 +25,6 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		quantity: item.quantity,
 		eomCount: item.eomCount,
 		variance: item.quantity - item.eomCount,
-		minStock: item.minStock,
 		condition: item.condition,
 		location: item.location,
 		description: item.description,

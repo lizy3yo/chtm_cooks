@@ -15,9 +15,10 @@
 	import { inventoryStore } from '$lib/stores/inventory';
 	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
 	
-	type Tab = 'all-items' | 'categories' | 'low-stock' | 'add-item';
+	type Tab = 'all-items' | 'categories' | 'low-stock';
 	
 	let activeTab = $state<Tab>('all-items');
+	let showAddItemModal = $state(false);
 	
 	// Data from store with client-side caching
 	let items = $state<InventoryItem[]>([]);
@@ -36,7 +37,6 @@
 		pictureFile: null as File | null,
 		quantity: 0,
 		eomCount: 0,
-		minStock: 0,
 		condition: 'Good',
 		location: ''
 	});
@@ -70,6 +70,9 @@
 			}
 			if (e.key === 'Escape' && openDropdownId) {
 				closeDropdown();
+			}
+			if (e.key === 'Escape' && showAddItemModal) {
+				closeAddItemModal();
 			}
 		};
 		
@@ -214,10 +217,17 @@
 	
 	function switchTab(tab: Tab) {
 		activeTab = tab;
-		if (tab !== 'add-item') {
-			resetForm();
-		}
 		// Note: Don't auto-clear category filter - use clearCategoryFilter() explicitly
+	}
+
+	function openAddItemModal() {
+		resetForm();
+		showAddItemModal = true;
+	}
+
+	function closeAddItemModal() {
+		resetForm();
+		showAddItemModal = false;
 	}
 	
 	// Modal state for item details
@@ -234,6 +244,9 @@ let sortOrder = $state('az');
 let query = $state('');
 
 // reactive filtered + sorted items for display (use rune-style $derived)
+const PAGE_SIZE = 10;
+let currentPage = $state(1);
+
 const filteredItems = $derived(items.filter(item => {
 	const isActive = !item.archived;
 	
@@ -245,7 +258,16 @@ const filteredItems = $derived(items.filter(item => {
 	const matchesQuery = !q || (item.name || '').toLowerCase().includes(q);
 	return isActive && matchesCategory && matchesQuery;
 }));
-const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)));
+const sortedItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)));
+const totalPages = $derived(Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE)));
+const displayItems = $derived(sortedItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE));
+
+// Reset to page 1 when filters change
+$effect(() => {
+	filteredItems;
+	sortOrder;
+	currentPage = 1;
+});
 
 	function openModal(item: InventoryItem) {
 		selectedItem = item;
@@ -342,7 +364,6 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 				picture: imageUrl,
 				quantity: newItem.quantity,
 				eomCount: newItem.eomCount,
-				minStock: newItem.minStock,
 				condition: newItem.condition,
 				location: newItem.location
 			};
@@ -380,8 +401,7 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 		inventoryStore.setItems(items);
 		inventoryStore.setCategories(categories);
 
-			resetForm();
-			switchTab('all-items');
+			closeAddItemModal();
 			toastStore.success(wasEditing ? 'Item updated successfully' : 'Item created successfully');
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to save item');
@@ -408,7 +428,6 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 			pictureFile: null,
 			quantity: 0,
 			eomCount: 0,
-			minStock: 0,
 			condition: 'Good',
 			location: ''
 		};
@@ -416,7 +435,7 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 	}
 
 	function editItem(item: InventoryItem) {
-		// prefill form and switch to Add/Edit tab
+		// prefill form and open modal
 		newItem = {
 			name: item.name,
 			category: item.category,
@@ -427,12 +446,11 @@ const displayItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'a
 			pictureFile: null,
 			quantity: item.quantity,
 			eomCount: item.eomCount,
-			minStock: item.minStock,
 			condition: item.condition,
 			location: item.location || ''
 		};
 		editingItemId = item.id;
-		switchTab('add-item');
+		showAddItemModal = true;
 		selectedItem = null;
 	}
 
@@ -1665,7 +1683,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				Import Items
 			</button>
 			<button 
-				onclick={() => switchTab('add-item')}
+				onclick={openAddItemModal}
 				class="inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500"
 				disabled={loading}
 			>
@@ -1750,19 +1768,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				</div>
 			</button>
 			
-			<button
-				onclick={() => switchTab('add-item')}
-				class="whitespace-nowrap border-b-2 px-6 py-4 text-sm font-medium transition-colors {activeTab === 'add-item'
-					? 'border-emerald-500 text-emerald-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				<div class="flex items-center">
-					<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-					</svg>
-					Add New Item
-				</div>
-			</button>
 		</nav>
 	</div>
 	
@@ -1844,7 +1849,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									<tr class="hover:bg-gray-50 cursor-pointer" onclick={() => openModal(item)}>
 										<td class="whitespace-nowrap px-6 py-4">
 											<div class="flex items-center gap-3">
-												<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700">{i + 1}</span>
+												<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700">{(currentPage - 1) * PAGE_SIZE + i + 1}</span>
 												<div class="text-sm font-medium text-gray-900">{item.name}</div>
 											</div>
 										</td>
@@ -1882,6 +1887,53 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 							</tbody>
 						</table>
 					</div>
+
+					<!-- Pagination -->
+					{#if totalPages > 1}
+						<div class="flex items-center justify-between border-t border-gray-200 px-4 py-3 sm:px-6">
+							<div class="text-sm text-gray-500">
+								Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, sortedItems.length)} of {sortedItems.length} items
+							</div>
+							<nav class="flex items-center gap-1" aria-label="Pagination">
+								<button
+									onclick={() => currentPage = Math.max(1, currentPage - 1)}
+									disabled={currentPage === 1}
+									class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+									aria-label="Previous page"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+									</svg>
+								</button>
+
+								{#each Array.from({ length: totalPages }, (_, i) => i + 1) as page}
+									{#if totalPages <= 7 || page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1}
+										<button
+											onclick={() => currentPage = page}
+											class="inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors {currentPage === page ? 'bg-pink-600 text-white shadow-sm' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
+											aria-label="Page {page}"
+											aria-current={currentPage === page ? 'page' : undefined}
+										>
+											{page}
+										</button>
+									{:else if (page === currentPage - 2 || page === currentPage + 2) && totalPages > 7}
+										<span class="inline-flex h-8 w-8 items-center justify-center text-sm text-gray-400">…</span>
+									{/if}
+								{/each}
+
+								<button
+									onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
+									disabled={currentPage === totalPages}
+									class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+									aria-label="Next page"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+									</svg>
+								</button>
+							</nav>
+						</div>
+					{/if}
 				{/if}
 			</div>
 			
@@ -2188,7 +2240,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									</div>
 									<div class="text-right">
 										<div class="text-sm text-gray-600">Current: <span class="font-semibold text-red-600">{item.quantity}</span></div>
-										<div class="text-sm text-gray-600">Min Required: <span class="font-semibold">{item.minStock}</span></div>
 									</div>
 									<button 
 										onclick={() => editItem(item)}
@@ -2203,174 +2254,165 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				{/if}
 			</div>
 			
-		{:else if activeTab === 'add-item'}
-			<!-- Add New Item Form -->
-			<div class="p-6">
-				<div class="mb-6">
-					<h3 class="text-lg font-semibold text-gray-900">{editingItemId ? 'Edit Item' : 'Add New Item'}</h3>
-					<p class="mt-1 text-sm text-gray-500">Enter details for the {editingItemId ? 'updated' : 'new'} inventory item</p>
-				</div>
-				
-				<form onsubmit={handleAddItem} class="space-y-6 relative">
-					<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-						<div>
-							<label for="itemName" class="block text-sm font-medium text-gray-700">Item Name *</label>
-							<input
-								type="text"
-								id="itemName"
-								bind:value={newItem.name}
-								required
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-								placeholder="e.g., Chef Knife Set"
-							/>
-						</div>
-					
-						<div>
-							<label for="category" class="block text-sm font-medium text-gray-700">Category *</label>
-							<select
-								id="category"
-								bind:value={newItem.categoryId}
-								onchange={(e) => {
-									const target = e.target as HTMLSelectElement;
-									const selectedCat = categories.find(c => c.id === target.value);
-									if (selectedCat) {
-										newItem.category = selectedCat.name;
-									}
-								}}
-								required
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-							>
-								<option value="">Select a category</option>
-								{#each categories as category}
-									<option value={category.id}>{category.name}</option>
-								{/each}
-							</select>
-						</div>
-					
-						<div>
-							<label for="specification" class="block text-sm font-medium text-gray-700">Specification</label>
-							<input type="text" id="specification" bind:value={newItem.specification} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" placeholder="e.g., Stainless steel, 8-piece" />
-						</div>
-					
-						<div>
-							<label for="toolsOrEquipment" class="block text-sm font-medium text-gray-700">Tools / Equipment</label>
-							<input type="text" id="toolsOrEquipment" bind:value={newItem.toolsOrEquipment} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" placeholder="e.g., Power adapter, Sheath" />
-						</div>
-					
-						<div>
-							<label for="quantity" class="block text-sm font-medium text-gray-700">Current Count *</label>
-							<input
-								type="number"
-								id="quantity"
-								bind:value={newItem.quantity}
-								required
-								min="0"
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-								placeholder="0"
-							/>
-						</div>
-					
-						<div>
-							<label for="eomCount" class="block text-sm font-medium text-gray-700">EOM Count</label>
-							<input type="number" id="eomCount" bind:value={newItem.eomCount} min="0" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" placeholder="0" />
-						</div>
-
-						<div>
-							<label for="minStock" class="block text-sm font-medium text-gray-700">Minimum Stock *</label>
-							<input
-								type="number"
-								id="minStock"
-								bind:value={newItem.minStock}
-								required
-								min="0"
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-								placeholder="0"
-							/>
-						</div>
-
-						<div>
-							<label for="condition" class="block text-sm font-medium text-gray-700">Condition</label>
-							<select id="condition" bind:value={newItem.condition} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-								<option value="Excellent">Excellent</option>
-								<option value="Good">Good</option>
-								<option value="Fair">Fair</option>
-								<option value="Poor">Poor</option>
-								<option value="Damaged">Damaged</option>
-							</select>
-						</div>
-					
-						<div>
-							<label for="location" class="block text-sm font-medium text-gray-700">Storage Location</label>
-							<input
-								type="text"
-								id="location"
-								bind:value={newItem.location}
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-								placeholder="e.g., Cabinet A, Shelf 2"
-							/>
-						</div>
-					
-					</div>
-
-					<!-- Upload control -->
-					<div class="md:col-span-2 mt-2 flex items-center justify-end gap-3" aria-live="polite">
-						<div class="flex items-center gap-3 bg-white p-2 rounded-md shadow-none">
-							<button
-								type="button"
-								onclick={() => pictureInput?.click()}
-								aria-label="Upload item image"
-								class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-								disabled={uploadingImage || loading}
-							>
-								{#if uploadingImage}
-									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-								{:else}
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3l-4 4-4-4"/></svg>
-								{/if}
-								Upload Image
-							</button>
-							<span class="text-sm text-gray-600">{newItem.pictureFile ? newItem.pictureFile.name : 'No file chosen'}</span>
-							{#if newItem.picture}
-								<img src={newItem.picture} alt="preview" class="h-16 w-auto rounded ml-2" />
-								<button type="button" onclick={() => { try { URL.revokeObjectURL(newItem.picture) } catch(e){}; newItem.picture=''; newItem.pictureFile=null }} class="ml-2 text-sm text-red-500">Remove</button>
-							{/if}
-							<input id="picture" type="file" accept="image/*" onchange={handlePictureChange} bind:this={pictureInput} class="hidden" />
-						</div>
-					</div>
-
-					<div class="flex gap-3 border-t border-gray-200 pt-6">
-						<button
-							type="submit"
-							class="inline-flex items-center rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-							disabled={loading || uploadingImage}
-						>
-							{#if loading}
-								<div class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-							{:else}
-								<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-								</svg>
-							{/if}
-							{editingItemId ? 'Update Item' : 'Add Item'}
-						</button>
-						<button
-							type="button"
-							onclick={() => {
-								resetForm();
-								switchTab('all-items');
-							}}
-							class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-							disabled={loading}
-						>
-							Cancel
-						</button>
-					</div>
-				</form>
-			</div>
 		{/if}
 	</div>
 {/if}
 </div>
+
+<!-- Add New Item / Edit Item Modal -->
+{#if showAddItemModal}
+	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="add-item-modal-title">
+		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={closeAddItemModal}></div>
+		<div class="flex min-h-full items-center justify-center p-4">
+			<div class="relative z-50 w-full max-w-2xl rounded-xl bg-white shadow-2xl">
+				<!-- Modal Header -->
+				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+					<div>
+						<h2 id="add-item-modal-title" class="text-lg font-semibold text-gray-900">{editingItemId ? 'Edit Item' : 'Add New Item'}</h2>
+						<p class="mt-0.5 text-sm text-gray-500">Enter details for the {editingItemId ? 'updated' : 'new'} inventory item</p>
+					</div>
+					<button
+						onclick={closeAddItemModal}
+						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+						aria-label="Close modal"
+						disabled={loading}
+					>
+						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+
+				<!-- Modal Body -->
+				<div class="px-6 py-6 max-h-[75vh] overflow-y-auto">
+					<form id="add-item-form" onsubmit={handleAddItem} class="space-y-5">
+						<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
+							<div>
+								<label for="itemName" class="block text-sm font-medium text-gray-700">Item Name *</label>
+								<input
+									type="text"
+									id="itemName"
+									bind:value={newItem.name}
+									required
+									class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+									placeholder="e.g., Chef Knife Set"
+								/>
+							</div>
+
+							<div>
+								<label for="modalCategory" class="block text-sm font-medium text-gray-700">Category *</label>
+								<select
+									id="modalCategory"
+									bind:value={newItem.categoryId}
+									onchange={(e) => {
+										const target = e.target as HTMLSelectElement;
+										const selectedCat = categories.find(c => c.id === target.value);
+										if (selectedCat) newItem.category = selectedCat.name;
+									}}
+									required
+									class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+								>
+									<option value="">Select a category</option>
+									{#each categories as category}
+										<option value={category.id}>{category.name}</option>
+									{/each}
+								</select>
+							</div>
+
+							<div>
+								<label for="modalSpecification" class="block text-sm font-medium text-gray-700">Specification</label>
+								<input type="text" id="modalSpecification" bind:value={newItem.specification} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="e.g., Stainless steel, 8-piece" />
+							</div>
+
+							<div>
+								<label for="modalToolsOrEquipment" class="block text-sm font-medium text-gray-700">Tools / Equipment</label>
+								<input type="text" id="modalToolsOrEquipment" bind:value={newItem.toolsOrEquipment} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="e.g., Power adapter, Sheath" />
+							</div>
+
+							<div>
+								<label for="modalQuantity" class="block text-sm font-medium text-gray-700">Current Count *</label>
+								<input type="number" id="modalQuantity" bind:value={newItem.quantity} required min="0" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="0" />
+							</div>
+
+							<div>
+								<label for="modalEomCount" class="block text-sm font-medium text-gray-700">EOM Count</label>
+								<input type="number" id="modalEomCount" bind:value={newItem.eomCount} min="0" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="0" />
+							</div>
+
+							<div>
+								<label for="modalCondition" class="block text-sm font-medium text-gray-700">Condition</label>
+								<select id="modalCondition" bind:value={newItem.condition} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
+									<option value="Excellent">Excellent</option>
+									<option value="Good">Good</option>
+									<option value="Fair">Fair</option>
+									<option value="Poor">Poor</option>
+									<option value="Damaged">Damaged</option>
+								</select>
+							</div>
+
+							<div class="sm:col-span-2">
+								<label for="modalLocation" class="block text-sm font-medium text-gray-700">Storage Location</label>
+								<input type="text" id="modalLocation" bind:value={newItem.location} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="e.g., Cabinet A, Shelf 2" />
+							</div>
+						</div>
+
+						<!-- Image Upload -->
+						<div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3" aria-live="polite">
+							<button
+								type="button"
+								onclick={() => pictureInput?.click()}
+								aria-label="Upload item image"
+								class="inline-flex items-center gap-2 rounded-lg bg-gray-700 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+								disabled={uploadingImage || loading}
+							>
+								{#if uploadingImage}
+									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+									Uploading...
+								{:else}
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3l-4 4-4-4"/></svg>
+									Upload Image
+								{/if}
+							</button>
+							<span class="flex-1 truncate text-sm text-gray-500">{newItem.pictureFile ? newItem.pictureFile.name : 'No file chosen'}</span>
+							{#if newItem.picture}
+								<img src={newItem.picture} alt="preview" class="h-12 w-12 rounded-lg object-cover border border-gray-200" />
+								<button type="button" onclick={() => { try { URL.revokeObjectURL(newItem.picture) } catch(e){}; newItem.picture=''; newItem.pictureFile=null }} class="text-sm text-red-500 hover:text-red-700" aria-label="Remove image">Remove</button>
+							{/if}
+							<input id="modalPicture" type="file" accept="image/*" onchange={handlePictureChange} bind:this={pictureInput} class="hidden" />
+						</div>
+					</form>
+				</div>
+
+				<!-- Modal Footer -->
+				<div class="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+					<button
+						type="button"
+						onclick={closeAddItemModal}
+						class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:opacity-50"
+						disabled={loading}
+					>
+						Cancel
+					</button>
+					<button
+						type="submit"
+						form="add-item-form"
+						class="inline-flex items-center rounded-lg bg-pink-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:opacity-50"
+						disabled={loading || uploadingImage}
+					>
+						{#if loading}
+							<div class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+						{:else}
+							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+							</svg>
+						{/if}
+						{editingItemId ? 'Update Item' : 'Add Item'}
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <!-- Import Modal -->
 {#if showImportModal}

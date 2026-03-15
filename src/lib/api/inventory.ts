@@ -11,7 +11,6 @@ export interface InventoryItem {
 	quantity: number;
 	eomCount: number;
 	variance: number;
-	minStock: number;
 	condition: string;
 	location?: string;
 	description?: string;
@@ -41,7 +40,6 @@ export interface CreateItemRequest {
 	picture?: string;
 	quantity: number;
 	eomCount?: number;
-	minStock: number;
 	condition: string;
 	location?: string;
 }

@@ -19,12 +19,11 @@ import { cacheService } from '$lib/server/cache';
 import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
 
 /**
- * Determine item status based on quantity and minStock
+ * Determine item status based on quantity
  */
-function determineStatus(quantity: number, minStock: number, archived: boolean): ItemStatus {
+function determineStatus(quantity: number, archived: boolean): ItemStatus {
 	if (archived) return 'Archived' as ItemStatus;
 	if (quantity === 0) return 'Out of Stock' as ItemStatus;
-	if (quantity <= minStock) return 'Low Stock' as ItemStatus;
 	return 'In Stock' as ItemStatus;
 }
 
@@ -43,7 +42,6 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		quantity: item.quantity,
 		eomCount: item.eomCount,
 		variance: item.quantity - item.eomCount,
-		minStock: item.minStock,
 		condition: item.condition,
 		location: item.location,
 		description: item.description,
@@ -205,10 +203,6 @@ export const POST: RequestHandler = async (event) => {
 		if (body.quantity === undefined || body.quantity < 0) {
 			return json({ error: 'Valid quantity is required' }, { status: 400 });
 		}
-		// minStock is optional, default to 0
-		if (body.minStock !== undefined && body.minStock < 0) {
-			return json({ error: 'Minimum stock cannot be negative' }, { status: 400 });
-		}
 
 		// Sanitize inputs
 		const name = sanitizeInput(body.name.trim());
@@ -218,7 +212,6 @@ export const POST: RequestHandler = async (event) => {
 		const location = body.location ? sanitizeInput(body.location.trim()) : undefined;
 		const quantity = Math.max(0, body.quantity);
 		const eomCount = body.eomCount !== undefined ? Math.max(0, body.eomCount) : 0;
-		const minStock = body.minStock !== undefined ? Math.max(0, body.minStock) : 0;
 		const condition = body.condition || 'Good' as ItemCondition;
 
 		// Connect to database
@@ -237,7 +230,7 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		// Determine status
-		const status = determineStatus(quantity, minStock, false);
+		const status = determineStatus(quantity, false);
 
 		// Create item
 		const newItem: InventoryItem = {
@@ -249,7 +242,6 @@ export const POST: RequestHandler = async (event) => {
 			picture: body.picture,
 			quantity,
 			eomCount,
-			minStock,
 			condition,
 			location,
 			status,
@@ -283,7 +275,6 @@ export const POST: RequestHandler = async (event) => {
 				category,
 				categoryId: categoryId?.toString(),
 				quantity,
-				minStock,
 				condition,
 				status
 			},
