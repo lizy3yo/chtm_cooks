@@ -669,58 +669,60 @@ return { text: '', color: 'text-gray-500' };
 	</div>
 	
 	<!-- Tabs Navigation -->
-	<div class="border-b border-gray-200">
-		<nav class="-mb-px flex space-x-6 overflow-x-auto">
-			<button
-				onclick={() => activeTab = 'pending'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'pending' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Pending Preparation
-				<span class="ml-2 rounded-full {activeTab === 'pending' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.pending}
-				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'ready'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'ready' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Ready for Pickup
-				<span class="ml-2 rounded-full {activeTab === 'ready' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.ready}
-				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'active'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'active' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Active
-				<span class="ml-2 rounded-full {activeTab === 'active' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.active}
-				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'unresolved'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'unresolved' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Unresolved
-				{#if tabCounts.unresolved > 0}
-					<span class="ml-2 rounded-full {activeTab === 'unresolved' ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-600'} px-2 py-0.5 text-xs font-semibold">
-						{tabCounts.unresolved}
+	<div class="bg-white rounded-lg shadow">
+		<div class="border-b border-gray-200">
+			<nav class="-mb-px flex overflow-x-auto" aria-label="Tabs">
+				<button
+					onclick={() => activeTab = 'pending'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'pending' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Pending Preparation
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'pending' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.pending}
 					</span>
-				{:else}
-					<span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">0</span>
-				{/if}
-			</button>
-			<button
-				onclick={() => activeTab = 'history'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'history' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				History
-				<span class="ml-2 rounded-full {activeTab === 'history' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.history}
-				</span>
-			</button>
-		</nav>
+				</button>
+				<button
+					onclick={() => activeTab = 'ready'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'ready' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Ready for Pickup
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'ready' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.ready}
+					</span>
+				</button>
+				<button
+					onclick={() => activeTab = 'active'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'active' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Active
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'active' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.active}
+					</span>
+				</button>
+				<button
+					onclick={() => activeTab = 'unresolved'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'unresolved' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Unresolved
+					{#if tabCounts.unresolved > 0}
+						<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs font-semibold {activeTab === 'unresolved' ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-600'}">
+							{tabCounts.unresolved}
+						</span>
+					{:else}
+						<span class="ml-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">0</span>
+					{/if}
+				</button>
+				<button
+					onclick={() => activeTab = 'history'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'history' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					History
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'history' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.history}
+					</span>
+				</button>
+			</nav>
+		</div>
 	</div>
 
 	<!-- History Sub-tabs -->
