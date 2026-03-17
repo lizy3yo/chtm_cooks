@@ -19,7 +19,8 @@ import {
 	UserCircle
 } from 'lucide-svelte';
 
-let activeTab = $state<'pending' | 'fulfillment' | 'borrowed' | 'history'>('pending');
+let activeTab = $state<'pending' | 'fulfillment' | 'borrowed' | 'unresolved' | 'history'>('pending');
+let historySubTab = $state<'all' | 'completed' | 'resolved' | 'cancelled'>('all');
 let showDetailModal = $state(false);
 let selectedRequest = $state<any>(null);
 let selectedRequests = $state<string[]>([]);
@@ -46,7 +47,7 @@ function isCancelledRequest(status: BorrowRequestStatus, rejectionReason?: strin
 	return status === 'cancelled' || (status === 'rejected' && rejectionReason === 'Request cancelled by student');
 }
 
-function toUiStatus(status: BorrowRequestStatus, rejectionReason?: string): 'pending' | 'fulfillment' | 'borrowed' | 'history' {
+function toUiStatus(status: BorrowRequestStatus, rejectionReason?: string): 'pending' | 'fulfillment' | 'borrowed' | 'unresolved' | 'history' {
 switch (status) {
 case 'pending_instructor':
 return 'pending';
@@ -55,8 +56,10 @@ case 'ready_for_pickup':
 return 'fulfillment';
 case 'borrowed':
 case 'pending_return':
-case 'missing':
 return 'borrowed';
+case 'missing':
+return 'unresolved';
+case 'resolved':
 case 'cancelled':
 case 'returned':
 case 'rejected':
@@ -149,6 +152,8 @@ record.status === 'approved_instructor'
 releasedDate: formatDateTime(record.releasedAt),
 pickedUpDate: formatDateTime(record.pickedUpAt),
 actualReturnDate: formatDateTime(record.returnedAt),
+missingDate: formatDateTime(record.missingAt),
+resolvedDate: formatDateTime(record.resolvedAt),
 returnCondition: record.status === 'returned' ? 'Good' : undefined,
 returnNotes: record.rejectionNotes,
 rejectionReason: record.rejectReason,
@@ -225,7 +230,15 @@ document.removeEventListener('visibilitychange', onVisibilityChange);
 
 const filteredRequests = $derived(
 requests
-.filter(req => req.status === activeTab)
+.filter(req => {
+	if (activeTab !== 'history') return req.status === activeTab;
+	if (req.status !== 'history') return false;
+	if (historySubTab === 'all') return true;
+	if (historySubTab === 'resolved') return req.rawStatus === 'resolved';
+	if (historySubTab === 'completed') return req.rawStatus === 'returned';
+	if (historySubTab === 'cancelled') return req.rawStatus === 'cancelled' || req.rawStatus === 'rejected';
+	return true;
+})
 .filter(req => {
 if (!searchQuery) return true;
 const query = searchQuery.toLowerCase();
@@ -257,7 +270,11 @@ const tabCounts = $derived({
 pending: requests.filter(r => r.status === 'pending').length,
 fulfillment: requests.filter(r => r.status === 'fulfillment').length,
 borrowed: requests.filter(r => r.status === 'borrowed').length,
-history: requests.filter(r => r.status === 'history').length
+unresolved: requests.filter(r => r.status === 'unresolved').length,
+history: requests.filter(r => r.status === 'history').length,
+historyResolved: requests.filter(r => r.rawStatus === 'resolved').length,
+historyCompleted: requests.filter(r => r.rawStatus === 'returned').length,
+historyCancelled: requests.filter(r => r.rawStatus === 'cancelled' || r.rawStatus === 'rejected').length
 });
 
 function openDetailModal(request: any) {
@@ -503,9 +520,11 @@ function getCardBorderColor(status: string, rawStatus?: BorrowRequestStatus, rej
 			return rawStatus === 'ready_for_pickup' ? 'border-emerald-500' : 'border-blue-500';
 		case 'borrowed':
 			if (rawStatus === 'pending_return') return 'border-orange-500';
-			if (rawStatus === 'missing') return 'border-rose-600';
 			return 'border-violet-500';
+		case 'unresolved':
+			return 'border-rose-500';
 		case 'history':
+			if (rawStatus === 'resolved') return 'border-emerald-400';
 			if (isCancelledRequest(rawStatus ?? 'returned', rejectionReason)) return 'border-slate-400';
 			return rawStatus === 'rejected' ? 'border-red-500' : 'border-teal-500';
 		default:
@@ -518,9 +537,9 @@ function getStatusIconComponent(status: string, rawStatus?: BorrowRequestStatus,
 	if (status === 'fulfillment') return rawStatus === 'ready_for_pickup' ? CheckCircle2 : PackageCheck;
 	if (status === 'borrowed') {
 		if (rawStatus === 'pending_return') return Clock3;
-		if (rawStatus === 'missing') return CircleAlert;
 		return PackageCheck;
 	}
+	if (status === 'unresolved') return CircleAlert;
 	if (status === 'history') return rawStatus === 'rejected' || isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? CircleX : CheckCircle2;
 	return Clock3;
 }
@@ -530,10 +549,11 @@ function getStatusLabel(status: string, rawStatus?: BorrowRequestStatus, rejecti
 	if (status === 'fulfillment') return rawStatus === 'ready_for_pickup' ? 'Ready for Pickup' : 'In Preparation';
 	if (status === 'borrowed') {
 		if (rawStatus === 'pending_return') return 'Return Requested';
-		if (rawStatus === 'missing') return 'Missing Item';
 		return 'Active Loan';
 	}
+	if (status === 'unresolved') return 'Unresolved';
 	if (status === 'history') {
+		if (rawStatus === 'resolved') return 'Resolved';
 		if (isCancelledRequest(rawStatus ?? 'returned', rejectionReason)) return 'Cancelled';
 		return rawStatus === 'rejected' ? 'Rejected' : 'Returned';
 	}
@@ -545,10 +565,11 @@ function getStatusColor(status: string, rawStatus?: BorrowRequestStatus, rejecti
 	if (status === 'fulfillment') return rawStatus === 'ready_for_pickup' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800';
 	if (status === 'borrowed') {
 		if (rawStatus === 'pending_return') return 'bg-orange-100 text-orange-800';
-		if (rawStatus === 'missing') return 'bg-rose-100 text-rose-800';
 		return 'bg-violet-100 text-violet-800';
 	}
+	if (status === 'unresolved') return 'bg-rose-100 text-rose-800';
 	if (status === 'history') {
+		if (rawStatus === 'resolved') return 'bg-emerald-100 text-emerald-800';
 		if (isCancelledRequest(rawStatus ?? 'returned', rejectionReason)) return 'bg-slate-100 text-slate-800';
 		return rawStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-teal-100 text-teal-800';
 	}
@@ -580,20 +601,26 @@ function getStatusHint(status: string, rawStatus?: BorrowRequestStatus, rejectio
 			};
 		}
 
-		if (rawStatus === 'missing') {
-			return {
-				text: 'A missing-item investigation is currently in progress for this request.',
-				color: 'text-rose-700'
-			};
-		}
-
 		return {
 			text: 'The equipment is currently checked out to the student.',
 			color: 'text-violet-700'
 		};
 	}
 
+	if (status === 'unresolved') {
+		return {
+			text: 'This request has open incident cases. Coordinate with the custodian to resolve outstanding damage or missing items.',
+			color: 'text-rose-700'
+		};
+	}
+
 	if (status === 'history') {
+		if (rawStatus === 'resolved') {
+			return {
+				text: 'All financial obligations from this incident have been settled. The request is fully resolved.',
+				color: 'text-emerald-700'
+			};
+		}
 		return {
 			text: isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
 				? 'This request was cancelled by the student before approval and moved to history.'
@@ -625,18 +652,24 @@ text: rawStatus === 'pending_return' ? 'Return Requested' : rawStatus === 'missi
 color: rawStatus === 'pending_return' ? 'bg-orange-100 text-orange-800' : rawStatus === 'missing' ? 'bg-rose-100 text-rose-800' : 'bg-purple-100 text-purple-800',
 icon: rawStatus === 'pending_return' ? 'Return' : rawStatus === 'missing' ? 'Alert' : 'Borrowed'
 };
+case 'unresolved':
+return {
+text: 'Unresolved',
+color: 'bg-rose-100 text-rose-800',
+icon: 'Alert'
+};
 case 'history':
 return {
-text: isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'Cancelled' : rawStatus === 'rejected' ? 'Rejected' : 'Returned',
-color: isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'bg-slate-100 text-slate-800' : rawStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-teal-100 text-teal-800',
-icon: isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'Cancelled' : rawStatus === 'rejected' ? 'Rejected' : 'Returned'
+text: rawStatus === 'resolved' ? 'Resolved' : isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'Cancelled' : rawStatus === 'rejected' ? 'Rejected' : 'Returned',
+color: rawStatus === 'resolved' ? 'bg-emerald-100 text-emerald-800' : isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'bg-slate-100 text-slate-800' : rawStatus === 'rejected' ? 'bg-red-100 text-red-800' : 'bg-teal-100 text-teal-800',
+icon: rawStatus === 'resolved' ? 'Resolved' : isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'Cancelled' : rawStatus === 'rejected' ? 'Rejected' : 'Returned'
 };
 default:
 return { text: status, color: 'bg-gray-100 text-gray-800', icon: 'Status' };
 }
 }
 
-function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'history', hasSearch: boolean) {
+function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved' | 'history', hasSearch: boolean) {
 	if (hasSearch) {
 		return {
 			icon: SearchX,
@@ -665,14 +698,22 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'history', 
 		return {
 			icon: Archive,
 			title: 'No active borrowed items',
-			description: 'Requests that have been picked up, are pending return, or are under review for missing items will appear here.'
+			description: 'Requests that have been picked up or are pending return will appear here.'
+		};
+	}
+
+	if (tab === 'unresolved') {
+		return {
+			icon: CircleAlert,
+			title: 'No unresolved requests',
+			description: 'Requests with open damage or missing item incidents will appear here.'
 		};
 	}
 
 	return {
 		icon: Archive,
 		title: 'No request history yet',
-		description: 'Returned, cancelled, and rejected requests will appear here once the workflow is completed.'
+		description: 'Returned, resolved, cancelled, and rejected requests will appear here once the workflow is completed.'
 	};
 }
 </script>
@@ -739,46 +780,85 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'history', 
 	</div>
 	
 	<!-- Tabs -->
-	<div class="border-b border-gray-200">
-		<nav class="-mb-px flex space-x-6 overflow-x-auto">
-			<button
-				onclick={() => activeTab = 'pending'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'pending' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Pending Approval
-				<span class="ml-2 rounded-full {activeTab === 'pending' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.pending}
-				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'fulfillment'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'fulfillment' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Preparation
-				<span class="ml-2 rounded-full {activeTab === 'fulfillment' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.fulfillment}
-				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'borrowed'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'borrowed' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Picked Up & Return
-				<span class="ml-2 rounded-full {activeTab === 'borrowed' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.borrowed}
-				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'history'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'history' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				History
-				<span class="ml-2 rounded-full {activeTab === 'history' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.history}
-				</span>
-			</button>
-		</nav>
+	<div class="bg-white rounded-lg shadow">
+		<div class="border-b border-gray-200">
+			<nav class="-mb-px flex overflow-x-auto" aria-label="Tabs">
+				<button
+					onclick={() => activeTab = 'pending'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'pending' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Pending Approval
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'pending' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.pending}
+					</span>
+				</button>
+				<button
+					onclick={() => activeTab = 'fulfillment'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'fulfillment' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Preparation
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'fulfillment' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.fulfillment}
+					</span>
+				</button>
+				<button
+					onclick={() => activeTab = 'borrowed'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'borrowed' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Picked Up & Return
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'borrowed' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.borrowed}
+					</span>
+				</button>
+				<button
+					onclick={() => activeTab = 'unresolved'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'unresolved' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Unresolved
+					{#if tabCounts.unresolved > 0}
+						<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs font-semibold {activeTab === 'unresolved' ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-600'}">
+							{tabCounts.unresolved}
+						</span>
+					{:else}
+						<span class="ml-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">0</span>
+					{/if}
+				</button>
+				<button
+					onclick={() => activeTab = 'history'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'history' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					History
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'history' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.history}
+					</span>
+				</button>
+			</nav>
+		</div>
 	</div>
+
+	<!-- History Sub-tabs -->
+	{#if activeTab === 'history'}
+		<div class="border-b border-gray-200 bg-white px-4">
+			<nav class="-mb-px flex gap-6 overflow-x-auto" aria-label="History filter">
+				{#each [
+					{ key: 'all', label: 'All', count: tabCounts.history },
+					{ key: 'resolved', label: 'Resolved', count: tabCounts.historyResolved },
+					{ key: 'completed', label: 'Completed', count: tabCounts.historyCompleted },
+					{ key: 'cancelled', label: 'Cancelled', count: tabCounts.historyCancelled }
+				] as sub}
+					<button
+						onclick={() => (historySubTab = sub.key as typeof historySubTab)}
+						class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {historySubTab === sub.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+					>
+						{sub.label}
+						<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {historySubTab === sub.key ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+							{sub.count}
+						</span>
+					</button>
+				{/each}
+			</nav>
+		</div>
+	{/if}
 	
 	<!-- Search and Filter Bar -->
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1008,6 +1088,18 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'history', 
 										<div class="flex items-center gap-2 text-xs text-gray-600">
 											<span class="text-green-600">✓</span>
 											<span>Returned on {request.actualReturnDate}</span>
+										</div>
+									{/if}
+									{#if request.missingDate}
+										<div class="flex items-center gap-2 text-xs text-gray-600">
+											<span class="text-rose-600">⚠</span>
+											<span>Reported missing on {request.missingDate}</span>
+										</div>
+									{/if}
+									{#if request.resolvedDate}
+										<div class="flex items-center gap-2 text-xs text-gray-600">
+											<span class="text-emerald-600">✓</span>
+											<span>Resolved on {request.resolvedDate}</span>
 										</div>
 									{/if}
 									{#if request.returnCondition}
