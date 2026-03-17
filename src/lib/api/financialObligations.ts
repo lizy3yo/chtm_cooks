@@ -1,3 +1,10 @@
+/**
+ * Financial Obligations API Client
+ *
+ * Client-side cache + SSE subscription — mirrors the donations.ts pattern.
+ * Credentials are sent via httpOnly cookies (credentials: 'include').
+ */
+
 import { browser } from '$app/environment';
 
 export type ObligationType = 'missing' | 'damaged';
@@ -46,6 +53,8 @@ export interface ResolveObligationRequest {
 	paymentReference?: string;
 }
 
+// ─── Internal types ──────────────────────────────────────────────────────────
+
 interface ApiError {
 	error?: string;
 	message?: string;
@@ -60,73 +69,57 @@ interface CacheEntry<T> {
 	expiresAt: number;
 }
 
-const CLIENT_CACHE_TTL_MS = 60 * 1000;
+// ─── Client-side cache ───────────────────────────────────────────────────────
+
+const CLIENT_CACHE_TTL_MS = 60_000;
 const listCache = new Map<string, CacheEntry<FinancialObligationsListResponse>>();
 const detailCache = new Map<string, CacheEntry<{ obligation: FinancialObligation }>>();
 const inFlight = new Map<string, Promise<unknown>>();
 
 function getFetchOptions(method: string, body?: unknown): RequestInit {
-	const options: RequestInit = {
+	const opts: RequestInit = {
 		method,
 		credentials: 'include',
-		headers: {
-			'Content-Type': 'application/json'
-		}
+		headers: { 'Content-Type': 'application/json' }
 	};
-
-	if (body !== undefined) {
-		options.body = JSON.stringify(body);
-	}
-
-	return options;
+	if (body !== undefined) opts.body = JSON.stringify(body);
+	return opts;
 }
 
 async function handleResponse<T>(response: Response): Promise<T> {
 	const payload = (await response.json().catch(() => ({}))) as T & ApiError;
-
 	if (!response.ok) {
-		const message = payload.message || payload.error || `Request failed with status ${response.status}`;
+		const message =
+			payload.message || payload.error || `Request failed with status ${response.status}`;
 		throw new Error(message);
 	}
-
 	return payload;
 }
 
 function getFreshCache<T>(cache: Map<string, CacheEntry<T>>, key: string): T | null {
-	if (!browser) {
-		return null;
-	}
-
+	if (!browser) return null;
 	const entry = cache.get(key);
-	if (!entry) {
-		return null;
-	}
-
+	if (!entry) return null;
 	if (Date.now() > entry.expiresAt) {
 		cache.delete(key);
 		return null;
 	}
-
 	return entry.data;
 }
 
 function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T): void {
-	if (!browser) {
-		return;
-	}
-
-	cache.set(key, {
-		data,
-		expiresAt: Date.now() + CLIENT_CACHE_TTL_MS
-	});
+	if (!browser) return;
+	cache.set(key, { data, expiresAt: Date.now() + CLIENT_CACHE_TTL_MS });
 }
 
-function buildListCacheKey(params: {
-	status?: ObligationStatus;
-	studentId?: string;
-	page?: number;
-	limit?: number;
-} = {}): string {
+function buildListCacheKey(
+	params: {
+		status?: ObligationStatus;
+		studentId?: string;
+		page?: number;
+		limit?: number;
+	} = {}
+): string {
 	return [
 		params.status || 'all',
 		params.studentId || 'self',
@@ -141,129 +134,164 @@ function invalidateAllCaches(): void {
 	inFlight.clear();
 }
 
-/**
- * Financial Obligations API Client
- * Industry-standard client for managing financial obligations
- */
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 export const financialObligationsAPI = {
 	/**
-	 * Get financial obligations with optional filters
+	 * Fetch paginated financial obligations with optional filters.
 	 */
-	async getObligations(params: {
-		status?: ObligationStatus;
-		studentId?: string;
-		page?: number;
-		limit?: number;
-	} = {}, options: RequestOptions = {}): Promise<FinancialObligationsListResponse> {
+	async getObligations(
+		params: {
+			status?: ObligationStatus;
+			studentId?: string;
+			page?: number;
+			limit?: number;
+		} = {},
+		options: RequestOptions = {}
+	): Promise<FinancialObligationsListResponse> {
+		const searchParams = new URLSearchParams();
+		if (params.status) searchParams.set('status', params.status);
+		if (params.studentId) searchParams.set('studentId', params.studentId);
+		if (params.page) searchParams.set('page', String(params.page));
+		if (params.limit) searchParams.set('limit', String(params.limit));
+		if (options.forceRefresh) searchParams.set('_t', String(Date.now()));
+
+		const query = searchParams.toString();
+		const url = `/api/financial-obligations${query ? `?${query}` : ''}`;
+		const cacheKey = buildListCacheKey(params);
+		const inFlightKey = `list:${cacheKey}`;
+
+		if (!options.forceRefresh) {
+			const cached = getFreshCache(listCache, cacheKey);
+			if (cached) return cached;
+
+			const existing = inFlight.get(inFlightKey) as
+				| Promise<FinancialObligationsListResponse>
+				| undefined;
+			if (existing) return existing;
+		}
+
+		const req = (async () => {
+			const res = await fetch(url, getFetchOptions('GET'));
+			const data = await handleResponse<FinancialObligationsListResponse>(res);
+			setCache(listCache, cacheKey, data);
+			return data;
+		})();
+
+		inFlight.set(inFlightKey, req);
 		try {
-			const searchParams = new URLSearchParams();
-
-			if (params.status) searchParams.set('status', params.status);
-			if (params.studentId) searchParams.set('studentId', params.studentId);
-			if (params.page) searchParams.set('page', params.page.toString());
-			if (params.limit) searchParams.set('limit', params.limit.toString());
-			if (options.forceRefresh) searchParams.set('_t', Date.now().toString());
-
-			const query = searchParams.toString();
-			const url = `/api/financial-obligations${query ? `?${query}` : ''}`;
-			const cacheKey = buildListCacheKey(params);
-			const inFlightKey = `list:${cacheKey}`;
-
-			if (!options.forceRefresh) {
-				const cached = getFreshCache(listCache, cacheKey);
-				if (cached) {
-					return cached;
-				}
-
-				const existingRequest = inFlight.get(inFlightKey) as Promise<FinancialObligationsListResponse> | undefined;
-				if (existingRequest) {
-					return existingRequest;
-				}
-			}
-
-			const requestPromise = (async () => {
-				const response = await fetch(url, getFetchOptions('GET'));
-				const data = await handleResponse<FinancialObligationsListResponse>(response);
-				setCache(listCache, cacheKey, data);
-				return data;
-			})();
-
-			inFlight.set(inFlightKey, requestPromise);
-			try {
-				return await requestPromise;
-			} finally {
-				inFlight.delete(inFlightKey);
-			}
-		} catch (error) {
-			const message = error instanceof Error ? error.message : 'Failed to fetch obligations';
-			throw new Error(message);
+			return await req;
+		} finally {
+			inFlight.delete(inFlightKey);
 		}
 	},
 
 	/**
-	 * Get a specific financial obligation
+	 * Fetch a single financial obligation by ID.
 	 */
-	async getObligation(id: string, options: RequestOptions = {}): Promise<{ obligation: FinancialObligation }> {
+	async getObligation(
+		id: string,
+		options: RequestOptions = {}
+	): Promise<{ obligation: FinancialObligation }> {
+		const inFlightKey = `detail:${id}`;
+
+		if (!options.forceRefresh) {
+			const cached = getFreshCache(detailCache, id);
+			if (cached) return cached;
+
+			const existing = inFlight.get(inFlightKey) as
+				| Promise<{ obligation: FinancialObligation }>
+				| undefined;
+			if (existing) return existing;
+		}
+
+		const url = options.forceRefresh
+			? `/api/financial-obligations/${id}?_t=${Date.now()}`
+			: `/api/financial-obligations/${id}`;
+
+		const req = (async () => {
+			const res = await fetch(url, getFetchOptions('GET'));
+			const data = await handleResponse<{ obligation: FinancialObligation }>(res);
+			setCache(detailCache, id, data);
+			return data;
+		})();
+
+		inFlight.set(inFlightKey, req);
 		try {
-			const inFlightKey = `detail:${id}`;
-			if (!options.forceRefresh) {
-				const cached = getFreshCache(detailCache, id);
-				if (cached) {
-					return cached;
-				}
-
-				const existingRequest = inFlight.get(inFlightKey) as Promise<{ obligation: FinancialObligation }> | undefined;
-				if (existingRequest) {
-					return existingRequest;
-				}
-			}
-
-			const url = options.forceRefresh
-				? `/api/financial-obligations/${id}?_t=${Date.now()}`
-				: `/api/financial-obligations/${id}`;
-			const requestPromise = (async () => {
-				const response = await fetch(url, getFetchOptions('GET'));
-				const data = await handleResponse<{ obligation: FinancialObligation }>(response);
-				setCache(detailCache, id, data);
-				return data;
-			})();
-
-			inFlight.set(inFlightKey, requestPromise);
-			try {
-				return await requestPromise;
-			} finally {
-				inFlight.delete(inFlightKey);
-			}
-		} catch (error) {
-			const message = error instanceof Error ? error.message : 'Failed to fetch obligation';
-			throw new Error(message);
+			return await req;
+		} finally {
+			inFlight.delete(inFlightKey);
 		}
 	},
 
 	/**
-	 * Resolve a financial obligation (payment, replacement, or waiver)
+	 * Resolve a financial obligation (payment, replacement, or waiver).
+	 * Invalidates all client-side caches on success.
 	 */
 	async resolveObligation(
 		id: string,
 		resolution: ResolveObligationRequest
 	): Promise<{ success: boolean; message: string }> {
+		const res = await fetch(
+			`/api/financial-obligations/${id}`,
+			getFetchOptions('PATCH', resolution)
+		);
+		const data = await handleResponse<{ success: boolean; message: string }>(res);
+		invalidateAllCaches();
+		return data;
+	},
+
+	/**
+	 * Reconcile stale 'missing' borrow requests where all obligations are already resolved.
+	 * Call once on page mount to fix any records that pre-date the auto-resolve logic.
+	 * Fails silently — non-critical path.
+	 */
+	async reconcile(): Promise<{ reconciled: number }> {
 		try {
-			const response = await fetch(`/api/financial-obligations/${id}`, getFetchOptions('PATCH', resolution));
-			const data = await handleResponse<{ success: boolean; message: string }>(response);
-			invalidateAllCaches();
-			return data;
-		} catch (error) {
-			const message = error instanceof Error ? error.message : 'Failed to resolve obligation';
-			throw new Error(message);
+			const res = await fetch(
+				'/api/financial-obligations/reconcile',
+				getFetchOptions('POST')
+			);
+			return await handleResponse<{ reconciled: number }>(res);
+		} catch {
+			return { reconciled: 0 };
 		}
 	},
 
-	peekCachedObligations(params: {
-		status?: ObligationStatus;
-		studentId?: string;
-		page?: number;
-		limit?: number;
-	} = {}): FinancialObligationsListResponse | null {
+	/**
+	 * Subscribe to real-time financial obligation changes via SSE.
+	 * Invalidates client cache and calls `onEvent` on every change.
+	 * Returns an unsubscribe function — call it in component cleanup.
+	 */
+	subscribeToChanges(onEvent: () => void): () => void {
+		if (!browser) return () => {};
+
+		const es = new EventSource('/api/financial-obligations/stream', {
+			withCredentials: true
+		});
+
+		es.addEventListener('financial_obligation_change', () => {
+			invalidateAllCaches();
+			onEvent();
+		});
+
+		es.addEventListener('error', () => {
+			// EventSource auto-reconnects; no action needed.
+		});
+
+		return () => es.close();
+	},
+
+	// ─── Cache utilities ────────────────────────────────────────────────────
+
+	peekCachedObligations(
+		params: {
+			status?: ObligationStatus;
+			studentId?: string;
+			page?: number;
+			limit?: number;
+		} = {}
+	): FinancialObligationsListResponse | null {
 		return getFreshCache(listCache, buildListCacheKey(params));
 	},
 

@@ -38,6 +38,7 @@ export function isBorrowRequestStatus(value: string): boolean {
 	       'borrowed',
 	       'pending_return',
 	       'missing',
+	       'resolved',
 	       'returned',
 	       'cancelled',
 	       'rejected'

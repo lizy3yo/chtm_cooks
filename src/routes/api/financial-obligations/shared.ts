@@ -8,6 +8,12 @@ import {
 import { getUserFromToken } from '$lib/server/middleware/auth/verify';
 import { sanitizeInput } from '$lib/server/utils/validation';
 import type { RequestEvent } from '@sveltejs/kit';
+import {
+	publishFinancialObligationChange,
+	getFinancialObligationRealtimeChannels,
+	type FinancialObligationRealtimeAction,
+	type FinancialObligationRealtimeEvent
+} from '$lib/server/realtime/financialObligationEvents';
 
 export const FINANCIAL_OBLIGATIONS_COLLECTION = 'financial_obligations';
 export const FINANCIAL_OBLIGATIONS_CACHE_TAG = 'financial-obligations';
@@ -69,4 +75,26 @@ export function parseObjectId(id: string): ObjectId | null {
 	}
 
 	return new ObjectId(id);
+}
+
+/**
+ * Publish a financial obligation realtime event to all subscribed SSE clients.
+ * Fan-out targets: the owning student's channel + role:custodian + role:superadmin.
+ */
+export function publishFinancialObligationRealtimeEvent(
+	studentId: string,
+	action: FinancialObligationRealtimeAction,
+	borrowRequestId: string,
+	obligationId?: string,
+	occurredAt: Date = new Date()
+): void {
+	const channels = getFinancialObligationRealtimeChannels(studentId);
+	const event: FinancialObligationRealtimeEvent = {
+		action,
+		obligationId,
+		borrowRequestId,
+		studentId,
+		occurredAt: occurredAt.toISOString()
+	};
+	publishFinancialObligationChange(channels, event);
 }

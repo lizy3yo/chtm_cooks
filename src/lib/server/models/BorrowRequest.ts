@@ -8,6 +8,7 @@ export enum BorrowRequestStatus {
 	BORROWED = 'borrowed',
 	PENDING_RETURN = 'pending_return',
 	MISSING = 'missing',
+	RESOLVED = 'resolved',
 	RETURNED = 'returned',
 	CANCELLED = 'cancelled',
 	REJECTED = 'rejected'
@@ -53,6 +54,7 @@ export interface BorrowRequest {
 	releasedAt?: Date;
 	pickedUpAt?: Date;
 	missingAt?: Date;
+	resolvedAt?: Date;
 	lastReminderAt?: Date;
 	reminderCount?: number;
 	returnedAt?: Date;
@@ -94,6 +96,7 @@ export interface BorrowRequestResponse {
 	releasedAt?: Date;
 	pickedUpAt?: Date;
 	missingAt?: Date;
+	resolvedAt?: Date;
 	lastReminderAt?: Date;
 	reminderCount?: number;
 	returnedAt?: Date;
@@ -149,6 +152,7 @@ export function toBorrowRequestResponse(request: BorrowRequest): BorrowRequestRe
 		releasedAt: request.releasedAt,
 		pickedUpAt: request.pickedUpAt,
 		missingAt: request.missingAt,
+		resolvedAt: request.resolvedAt,
 		lastReminderAt: request.lastReminderAt,
 		reminderCount: request.reminderCount,
 		returnedAt: request.returnedAt,

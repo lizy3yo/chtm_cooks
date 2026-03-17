@@ -6,7 +6,8 @@
 	import { confirmStore } from '$lib/stores/confirm';
 
 	let activeTab = $state<'donations' | 'replacements' | 'history'>('replacements');
-	let replacementsFilter = $state<'all' | 'pending' | 'paid' | 'replaced'>('all');
+	let replacementsFilter = $state<'all' | 'pending' | 'paid' | 'replaced' | 'waived'>('all');
+	let historyFilter = $state<'all' | 'resolved' | 'waived'>('all');
 	let replacementsView = $state<'by-request' | 'by-item'>('by-item');
 	let obligations = $state<FinancialObligation[]>([]);
 	let isLoading = $state(true);
@@ -36,12 +37,26 @@
 				type: 'replacement' as const,
 				amount: o.amountPaid,
 				date: o.resolutionDate || o.updatedAt,
-				status: 'completed',
-				paymentMethod: 'Cash',
+				status: o.status === 'waived' ? 'waived' : 'resolved',
+				obligationStatus: o.status,
+				resolutionType: o.resolutionType,
+				paymentMethod: o.resolutionType === 'replacement' ? 'Item Replacement' : o.resolutionType === 'waiver' ? 'Waived' : 'Cash',
 				receiptNumber: o.paymentReference || `REP-${o.id.slice(-6).toUpperCase()}`
 			}))
 			.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 	);
+
+	const filteredPaymentHistory = $derived(
+		historyFilter === 'all'
+			? paymentHistory
+			: paymentHistory.filter((p) => p.status === historyFilter)
+	);
+
+	const historyCounts = $derived({
+		all: paymentHistory.length,
+		resolved: paymentHistory.filter((p) => p.status === 'resolved').length,
+		waived: paymentHistory.filter((p) => p.status === 'waived').length
+	});
 
 	// New donation form state
 	let newDonation = $state({
@@ -69,7 +84,8 @@
 		all: obligations.length,
 		pending: obligations.filter((o) => o.status === 'pending').length,
 		paid: obligations.filter((o) => o.status === 'paid').length,
-		replaced: obligations.filter((o) => o.status === 'replaced').length
+		replaced: obligations.filter((o) => o.status === 'replaced').length,
+		waived: obligations.filter((o) => o.status === 'waived').length
 	});
 
 	const filteredObligations = $derived(
@@ -150,15 +166,22 @@
 	);
 
 	let unsubscribeDonations: (() => void) | null = null;
+	let unsubscribeFinancial: (() => void) | null = null;
 
 	onMount(async () => {
+		await financialObligationsAPI.reconcile();
 		await Promise.all([loadObligations(), loadDonations()]);
+
+		unsubscribeFinancial = financialObligationsAPI.subscribeToChanges(async () => {
+			await loadObligations();
+		});
 
 		unsubscribeDonations = donationsAPI.subscribeToChanges(async () => {
 			await loadDonations();
 		});
 
 		return () => {
+			unsubscribeFinancial?.();
 			unsubscribeDonations?.();
 		};
 	});
@@ -642,7 +665,8 @@
 								{ key: 'all', label: 'All', count: obligationCounts.all },
 								{ key: 'pending', label: 'Pending', count: obligationCounts.pending },
 								{ key: 'paid', label: 'Paid', count: obligationCounts.paid },
-								{ key: 'replaced', label: 'Replaced', count: obligationCounts.replaced }
+								{ key: 'replaced', label: 'Replaced', count: obligationCounts.replaced },
+								{ key: 'waived', label: 'Waived', count: obligationCounts.waived }
 							] as tab}
 								<button
 									onclick={() => (replacementsFilter = tab.key as typeof replacementsFilter)}
@@ -835,55 +859,84 @@
 			<!-- Payment History Tab -->
 			{#if activeTab === 'history'}
 				<div class="space-y-6">
-					<div class="flex justify-between items-center">
-						<h3 class="text-lg font-semibold text-gray-900">Payment History</h3>
+					<!-- Header row -->
+					<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+						<div>
+							<h3 class="text-lg font-semibold text-gray-900">Payment History</h3>
+							<p class="mt-0.5 text-sm text-gray-500">Audit trail of all settled financial obligations.</p>
+						</div>
 						<button
 							onclick={exportHistory}
-							class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm"
+							class="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm"
 						>
 							Export to CSV
 						</button>
 					</div>
 
-					{#if paymentHistory.length === 0}
-						<div class="py-12 text-center">
-							<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<!-- History sub-filter tabs -->
+					<div class="border-b border-gray-200">
+						<nav class="-mb-px flex gap-6 overflow-x-auto">
+							{#each [
+								{ key: 'all', label: 'All', count: historyCounts.all },
+								{ key: 'resolved', label: 'Resolved', count: historyCounts.resolved },
+								{ key: 'waived', label: 'Waived', count: historyCounts.waived }
+							] as tab}
+								<button
+									onclick={() => (historyFilter = tab.key as typeof historyFilter)}
+									class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {historyFilter === tab.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+								>
+									{tab.label}
+									<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {historyFilter === tab.key ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+										{tab.count}
+									</span>
+								</button>
+							{/each}
+						</nav>
+					</div>
+
+					{#if filteredPaymentHistory.length === 0}
+						<div class="rounded-lg border-2 border-dashed border-gray-200 py-14 text-center">
+							<svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
 							</svg>
-							<h3 class="mt-4 text-lg font-medium text-gray-900">No payment history</h3>
-							<p class="mt-2 text-sm text-gray-500">Completed payments and transactions will appear here for your records.</p>
+							<p class="mt-3 text-sm font-medium text-gray-700">{historyFilter === 'all' ? 'No payment history yet.' : `No ${historyFilter} records.`}</p>
+							<p class="mt-1 text-xs text-gray-500">Settled obligations will appear here once resolved.</p>
 						</div>
 					{:else}
-						<div class="overflow-x-auto">
+						<div class="overflow-x-auto rounded-lg border border-gray-200">
 							<table class="min-w-full divide-y divide-gray-200">
 								<thead class="bg-gray-50">
 									<tr>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receipt #</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction Type</th>
+										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Resolution</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Method</th>
+										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Method</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
 										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
 									</tr>
 								</thead>
 								<tbody class="bg-white divide-y divide-gray-200">
-									{#each paymentHistory as transaction}
+									{#each filteredPaymentHistory as transaction}
 										<tr class="hover:bg-gray-50">
 											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{transaction.receiptNumber}</td>
 											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transaction.name}</td>
 											<td class="px-6 py-4 whitespace-nowrap">
-												<span class="px-2 py-1 text-xs font-medium rounded-full {transaction.type === 'donation' ? 'bg-emerald-100 text-emerald-800' : 'bg-purple-100 text-purple-800'}">
-													{transaction.type === 'donation' ? 'Donation' : 'Replacement'}
+												<span class="px-2 py-1 text-xs font-medium rounded-full {transaction.resolutionType === 'payment' ? 'bg-emerald-100 text-emerald-800' : transaction.resolutionType === 'replacement' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'}">
+													{transaction.resolutionType === 'payment' ? 'Cash Payment' : transaction.resolutionType === 'replacement' ? 'Item Replaced' : 'Waived'}
 												</span>
 											</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱{transaction.amount.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transaction.paymentMethod}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{transaction.date}</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+												{transaction.amount > 0 ? `₱${transaction.amount.toLocaleString()}` : '—'}
+											</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{transaction.paymentMethod}</td>
+											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+												{new Date(transaction.date).toLocaleDateString()}
+											</td>
 											<td class="px-6 py-4 whitespace-nowrap">
-												<span class="px-2 py-1 text-xs font-medium rounded-full {getStatusColor(transaction.status)}">
-													{transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
+												<span class="px-2 py-1 text-xs font-medium rounded-full {transaction.status === 'resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}">
+													{transaction.status === 'resolved' ? 'Resolved' : 'Waived'}
 												</span>
 											</td>
 											<td class="px-6 py-4 whitespace-nowrap text-sm">

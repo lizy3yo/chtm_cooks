@@ -1,7 +1,6 @@
 <script lang="ts">
 import { onMount } from 'svelte';
-import {
-borrowRequestsAPI,
+import { borrowRequestsAPI,
 type BorrowRequestItem,
 type BorrowRequestRealtimeEvent,
 type BorrowRequestRecord,
@@ -11,10 +10,13 @@ import { catalogAPI } from '$lib/api/catalog';
 import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import ItemInspectionModal from '$lib/components/custodian/ItemInspectionModal.svelte';
+import { financialObligationsAPI } from '$lib/api/financialObligations';
 
 type Tab = 'pending' | 'ready' | 'active' | 'unresolved' | 'history';
+type HistorySubTab = 'all' | 'completed' | 'resolved' | 'cancelled';
 
 let activeTab = $state<Tab>('pending');
+let historySubTab = $state<HistorySubTab>('all');
 let showDetailModal = $state(false);
 let showInspectionModal = $state(false);
 let selectedRequest = $state<any>(null);
@@ -41,6 +43,7 @@ case 'ready_for_pickup': return 'ready';
 case 'borrowed': return 'active';
 case 'pending_return': return 'active';
 case 'missing': return 'unresolved';
+case 'resolved': return 'history';
 case 'cancelled': return 'history';
 case 'returned': return 'history';
 case 'rejected': return 'history';
@@ -126,6 +129,7 @@ releasedDate: formatDateTime(record.releasedAt),
 pickedUpDate: formatDateTime(record.pickedUpAt),
 returnedDate: formatDateTime(record.returnedAt),
 missingDate: formatDateTime(record.missingAt),
+resolvedDate: formatDateTime(record.resolvedAt),
 lastReminderAt: formatDateTime(record.lastReminderAt),
 reminderCount: record.reminderCount || 0,
 approvedBy: record.instructor?.fullName || 'Instructor',
@@ -381,6 +385,9 @@ async function backfillItemPictures(): Promise<void> {
 }
 
 onMount(() => {
+	void financialObligationsAPI.reconcile().then(({ reconciled }) => {
+		if (reconciled > 0) loadRequests(true);
+	});
 	void loadRequests();
 
 	const unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((_event: BorrowRequestRealtimeEvent) => {
@@ -415,7 +422,15 @@ onMount(() => {
 
 const filteredRequests = $derived(
 requests
-.filter(req => (activeTab === 'history' ? req.status === 'history' : req.status === activeTab))
+.filter(req => {
+	if (activeTab !== 'history') return req.status === activeTab;
+	if (req.status !== 'history') return false;
+	if (historySubTab === 'all') return true;
+	if (historySubTab === 'resolved') return req.rawStatus === 'resolved';
+	if (historySubTab === 'completed') return req.rawStatus === 'returned';
+	if (historySubTab === 'cancelled') return req.rawStatus === 'cancelled' || req.rawStatus === 'rejected';
+	return true;
+})
 .filter(req => {
 if (!searchQuery) return true;
 const query = searchQuery.toLowerCase();
@@ -448,7 +463,10 @@ pending: requests.filter(r => r.status === 'pending').length,
 ready: requests.filter(r => r.status === 'ready').length,
 active: requests.filter(r => r.status === 'active').length,
 unresolved: requests.filter(r => r.status === 'unresolved').length,
-history: requests.filter(r => r.status === 'history').length
+history: requests.filter(r => r.status === 'history').length,
+historyResolved: requests.filter(r => r.rawStatus === 'resolved').length,
+historyCompleted: requests.filter(r => r.rawStatus === 'returned').length,
+historyCancelled: requests.filter(r => r.rawStatus === 'cancelled' || r.rawStatus === 'rejected').length
 });
 
 function openDetailModal(request: any) {
@@ -483,6 +501,7 @@ return rawStatus === 'pending_return'
 case 'unresolved':
 return { text: 'Unresolved', color: 'bg-amber-100 text-amber-800' };
 case 'history':
+if (rawStatus === 'resolved') return { text: 'Resolved', color: 'bg-emerald-100 text-emerald-800' };
 return isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
 ? { text: 'Cancelled', color: 'bg-slate-100 text-slate-800' }
 : rawStatus === 'rejected'
@@ -504,7 +523,7 @@ return rawStatus === 'pending_return' ? 'border-orange-500' : 'border-purple-500
 case 'unresolved':
 return 'border-rose-500';
 case 'history':
-return isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'border-slate-400' : rawStatus === 'rejected' ? 'border-red-500' : 'border-gray-300';
+return isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'border-slate-400' : rawStatus === 'rejected' ? 'border-red-500' : rawStatus === 'resolved' ? 'border-emerald-400' : 'border-gray-300';
 default:
 return 'border-gray-300';
 }
@@ -549,6 +568,11 @@ color: 'text-slate-700'
 ? {
 text: 'This request was closed without fulfillment and has been archived.',
 color: 'text-red-700'
+}
+: rawStatus === 'resolved'
+? {
+text: 'All financial obligations from this incident have been settled. The request is fully resolved.',
+color: 'text-emerald-700'
 }
 : {
 text: 'This request has been completed and archived in the request history.',
@@ -698,7 +722,31 @@ return { text: '', color: 'text-gray-500' };
 			</button>
 		</nav>
 	</div>
-	
+
+	<!-- History Sub-tabs -->
+	{#if activeTab === 'history'}
+		<div class="border-b border-gray-200 bg-white px-4">
+			<nav class="-mb-px flex gap-6 overflow-x-auto" aria-label="History filter">
+				{#each [
+					{ key: 'all', label: 'All', count: tabCounts.history },
+					{ key: 'resolved', label: 'Resolved', count: tabCounts.historyResolved },
+					{ key: 'completed', label: 'Completed', count: tabCounts.historyCompleted },
+					{ key: 'cancelled', label: 'Cancelled', count: tabCounts.historyCancelled }
+				] as sub}
+					<button
+						onclick={() => (historySubTab = sub.key as HistorySubTab)}
+						class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {historySubTab === sub.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+					>
+						{sub.label}
+						<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {historySubTab === sub.key ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+							{sub.count}
+						</span>
+					</button>
+				{/each}
+			</nav>
+		</div>
+	{/if}
+
 	<!-- Search and Filter Bar -->
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div class="flex-1 max-w-md">
@@ -891,6 +939,11 @@ return { text: '', color: 'text-gray-500' };
 								{#if request.missingDate}
 									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-rose-700 ring-1 ring-rose-200">
 										Unresolved: {request.missingDate}
+									</span>
+								{/if}
+								{#if request.resolvedDate}
+									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-emerald-700 ring-1 ring-emerald-200">
+										Resolved: {request.resolvedDate}
 									</span>
 								{/if}
 							</div>
@@ -1140,6 +1193,13 @@ return { text: '', color: 'text-gray-500' };
 										<span class="text-rose-600">⚠</span>
 										<span class="text-gray-600">Flagged as unresolved</span>
 										<span class="ml-auto text-xs text-gray-500">{selectedRequest.missingDate}</span>
+									</div>
+								{/if}
+								{#if selectedRequest.resolvedDate}
+									<div class="flex items-center gap-2 text-sm">
+										<span class="text-emerald-600">✓</span>
+										<span class="text-gray-600">All obligations resolved</span>
+										<span class="ml-auto text-xs text-gray-500">{selectedRequest.resolvedDate}</span>
 									</div>
 								{/if}
 							</div>

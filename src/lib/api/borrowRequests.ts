@@ -7,6 +7,7 @@ export type BorrowRequestStatus =
 	| 'borrowed'
 	| 'pending_return'
 	| 'missing'
+	| 'resolved'
 	| 'returned'
 	| 'cancelled'
 	| 'rejected';
@@ -92,6 +93,7 @@ export interface BorrowRequestRecord {
 	pickedUpAt?: string;
 	returnedAt?: string;
 	missingAt?: string;
+	resolvedAt?: string;
 	lastReminderAt?: string;
 	reminderCount?: number;
 	createdAt: string;
