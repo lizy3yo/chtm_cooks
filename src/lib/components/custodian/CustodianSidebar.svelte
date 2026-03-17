@@ -115,9 +115,9 @@
 
 <!-- Sidebar -->
 <aside
-	class="fixed inset-y-0 left-0 z-40 transform border-r border-gray-200 shadow-lg transition-all duration-300 ease-in-out {isMobileMenuOpen
+	class="fixed inset-y-0 left-0 z-50 transform border-r border-gray-200 shadow-lg transition-all duration-300 ease-in-out {isMobileMenuOpen
 		? 'translate-x-0'
-		: '-translate-x-full'} lg:translate-x-0 {isMobileMenuOpen ? 'w-full' : $sidebarCollapsed ? 'lg:w-20' : 'w-72'}"
+		: '-translate-x-full'} lg:translate-x-0 {$sidebarCollapsed ? 'lg:w-20' : 'w-56 md:w-72'}"
 	style="background-color: #ffffff;"
 >
 	<div class="flex h-full flex-col overflow-hidden">
@@ -150,16 +150,16 @@
 			{/if}
 		</div>
 		
-		<!-- Desktop Collapse Toggle - Half-circle tab when collapsed -->
+		<!-- Desktop Collapse Toggle - Floating on Side when collapsed -->
 		{#if $sidebarCollapsed}
 			<button
 				onclick={toggleCollapse}
-				class="hidden lg:flex items-center justify-center h-12 w-6 rounded-r-full bg-white border-2 border-gray-200 hover:bg-pink-50 text-gray-600 shadow-md transition-all duration-200 absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-50"
+				class="hidden lg:flex shrink-0 items-center justify-center h-8 w-8 rounded-full bg-white border-2 border-gray-200 hover:border-pink-500 hover:bg-pink-50 hover:text-pink-600 text-gray-600 shadow-md hover:shadow-lg transition-all duration-200 absolute top-4 -right-4 z-50"
 				aria-label="Expand sidebar"
 				title="Expand sidebar"
 			>
-				<svg class="h-5 w-5 transform rotate-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 5l7 7-7 7"/>
+				<svg class="h-4 w-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/>
 				</svg>
 			</button>
 		{/if}
