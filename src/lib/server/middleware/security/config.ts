@@ -46,7 +46,8 @@ const cspDirectives: CSPDirectives = {
 	// API connections: restrict to your API endpoints
 	'connect-src': [
 		"'self'",
-		'https://api.yourdomain.com' // Add your API domains
+		'https://res.cloudinary.com',
+		'https://api.cloudinary.com'
 	],
 
 	// Media: audio and video sources
@@ -229,9 +230,11 @@ const productionConfig: Partial<SecurityHeadersConfig> = {
 	xPermittedCrossDomainPolicies: 'none',
 
 	// Cross-Origin policies: Enable for better isolation
-	crossOriginEmbedderPolicy: 'require-corp', // Enables SharedArrayBuffer
+	// 'credentialless' allows cross-origin images/media (e.g. Cloudinary) while
+	// still enabling SharedArrayBuffer isolation. 'require-corp' would block them.
+	crossOriginEmbedderPolicy: 'credentialless',
 	crossOriginOpenerPolicy: 'same-origin', // Prevents cross-origin window access
-	crossOriginResourcePolicy: 'same-origin', // Prevents cross-origin resource loading
+	crossOriginResourcePolicy: 'cross-origin', // Allow cross-origin resources (Cloudinary, etc.)
 
 	// Origin-Agent-Cluster: Enable process isolation
 	originAgentCluster: true
