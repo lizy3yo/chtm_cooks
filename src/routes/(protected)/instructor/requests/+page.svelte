@@ -906,61 +906,49 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 	
 	<!-- Request Cards -->
 	<div class="space-y-4">
-		{#if activeTab === 'pending'}
-			<div class="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
-				<div class="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-					<div class="flex flex-wrap items-center gap-3">
-						<label class="inline-flex items-center gap-2 text-sm font-medium text-gray-700">
-							<input
-								type="checkbox"
-								checked={filteredRequests.length > 0 && filteredRequests.every((request) => selectedRequests.includes(request.rawId))}
-								onchange={toggleSelectAllVisiblePendingRequests}
-								class="h-4 w-4 rounded border-gray-300 text-pink-600"
-							>
-							<span>Select All ({filteredRequests.length})</span>
-						</label>
-
-						<span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {selectedRequests.length > 0 ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-500'}">
-							{selectedRequests.length} selected
-						</span>
-
-						<div class="flex flex-wrap items-center gap-2">
-							<button
-								onclick={bulkApprove}
-								disabled={selectedRequests.length === 0 || bulkActionInFlight}
-								class="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
-							>
-								{bulkActionInFlight ? 'Processing...' : 'Bulk Approve'}
-							</button>
-							<button
-								onclick={() => showBulkRejectModal = true}
-								disabled={selectedRequests.length === 0 || bulkActionInFlight}
-								class="rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:border-red-200 disabled:text-red-300 disabled:hover:bg-white"
-							>
-								Bulk Reject
-							</button>
-							<button
-								onclick={() => selectedRequests = []}
-								disabled={selectedRequests.length === 0 || bulkActionInFlight}
-								class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:bg-white"
-							>
-								Clear
-							</button>
-						</div>
-					</div>
-
-					<span class="text-xs text-gray-500">
-						Showing {filteredRequests.length} of {tabCounts.pending} requests
-					</span>
-				</div>
+		<div class="flex items-center justify-between">
+			<div class="flex items-center gap-3">
+				{#if activeTab === 'pending'}
+					<label class="inline-flex items-center gap-2 text-sm text-gray-600">
+						<input
+							type="checkbox"
+							checked={filteredRequests.length > 0 && filteredRequests.every((request) => selectedRequests.includes(request.rawId))}
+							onchange={toggleSelectAllVisiblePendingRequests}
+							class="h-4 w-4 rounded border-gray-300 text-pink-600"
+						/>
+						<span>Select all</span>
+					</label>
+					{#if selectedRequests.length > 0}
+						<span class="text-xs text-gray-400">|</span>
+						<span class="text-xs text-gray-500">{selectedRequests.length} selected</span>
+						<button
+							onclick={bulkApprove}
+							disabled={bulkActionInFlight}
+							class="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{bulkActionInFlight ? 'Processing…' : 'Approve'}
+						</button>
+						<button
+							onclick={() => showBulkRejectModal = true}
+							disabled={bulkActionInFlight}
+							class="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							Reject
+						</button>
+						<button
+							onclick={() => selectedRequests = []}
+							disabled={bulkActionInFlight}
+							class="text-xs text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							Clear
+						</button>
+					{/if}
+				{/if}
 			</div>
-		{:else}
-			<div class="flex items-center justify-between rounded-lg bg-gray-50 p-3">
-				<span class="text-sm font-medium text-gray-700">
-					{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
-				</span>
-			</div>
-		{/if}
+			<span class="text-xs text-gray-400">
+				{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'}
+			</span>
+		</div>
 		
 		{#each filteredRequests as request}
 			<div class="flex items-start gap-3">
