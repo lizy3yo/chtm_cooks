@@ -2,6 +2,20 @@ import winston from 'winston';
 import DailyRotateFile from 'winston-daily-rotate-file';
 import { dev } from '$app/environment';
 import path from 'path';
+import fs from 'fs';
+
+/**
+ * Vercel and other serverless platforms have a read-only filesystem.
+ * Only attempt file-based logging when we can actually write to disk.
+ */
+function isFilesystemWritable(): boolean {
+	try {
+		fs.mkdirSync('logs', { recursive: true });
+		return true;
+	} catch {
+		return false;
+	}
+}
 
 /**
  * Custom log levels with priority
@@ -106,8 +120,8 @@ function createLogger() {
 		);
 	}
 
-	// File transports (production)
-	if (!dev) {
+	// File transports (production, writable filesystem only)
+	if (!dev && isFilesystemWritable()) {
 		// Error logs
 		transports.push(
 			createRotateTransport('error', 'error')
@@ -136,11 +150,11 @@ function createLogger() {
 		// Don't exit on handled exceptions
 		exitOnError: false,
 		// Handle uncaught exceptions
-		exceptionHandlers: dev
+		exceptionHandlers: dev || !isFilesystemWritable()
 			? []
 			: [createRotateTransport('error', 'exceptions')],
 		// Handle unhandled promise rejections
-		rejectionHandlers: dev
+		rejectionHandlers: dev || !isFilesystemWritable()
 			? []
 			: [createRotateTransport('error', 'rejections')]
 	});

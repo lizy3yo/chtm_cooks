@@ -135,7 +135,7 @@ For detailed testing instructions, see [DASHBOARD_TESTING.md](./DASHBOARD_TESTIN
 
 See [TESTING_GUIDE.md](./TESTING_GUIDE.md) for comprehensive manual testing scenarios.
 
-## 🎯 Quick Start
+##  Quick Start
 
 ### Create Your First Superadmin
 
