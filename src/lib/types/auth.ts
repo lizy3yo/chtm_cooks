@@ -8,6 +8,7 @@ export interface UserResponse {
 	role: UserRole;
 	firstName: string;
 	lastName: string;
+	profilePhotoUrl?: string;
 	isActive: boolean;
 	createdAt: Date;
 	yearLevel?: string;

@@ -119,13 +119,25 @@ export const GET: RequestHandler = async (event) => {
 			: [];
 
 		const studentMap = new Map(
-			students.map((s) => [s._id!.toString(), { name: `${s.firstName} ${s.lastName}`, email: s.email }])
+			students.map((s) => [
+				s._id!.toString(),
+				{
+					name: `${s.firstName} ${s.lastName}`,
+					email: s.email,
+					profilePhotoUrl: s.profilePhotoUrl
+				}
+			])
 		);
 
 		const response = {
 			obligations: obligations.map((obligation) => {
 				const studentInfo = studentMap.get(obligation.studentId.toString());
-				return toFinancialObligationResponse(obligation, studentInfo?.name, studentInfo?.email);
+				return toFinancialObligationResponse(
+					obligation,
+					studentInfo?.name,
+					studentInfo?.email,
+					studentInfo?.profilePhotoUrl
+				);
 			}),
 			total,
 			page,

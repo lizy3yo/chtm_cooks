@@ -20,12 +20,11 @@ import { cacheService } from '$lib/server/cache';
 import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
 
 /**
- * Determine item status based on quantity and minStock
+ * Determine item status based on quantity
  */
-function determineStatus(quantity: number, minStock: number, archived: boolean): ItemStatus {
+function determineStatus(quantity: number, archived: boolean): ItemStatus {
 	if (archived) return 'Archived' as ItemStatus;
 	if (quantity === 0) return 'Out of Stock' as ItemStatus;
-	if (quantity <= minStock) return 'Low Stock' as ItemStatus;
 	return 'In Stock' as ItemStatus;
 }
 
@@ -44,7 +43,6 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		quantity: item.quantity,
 		eomCount: item.eomCount,
 		variance: item.quantity - item.eomCount,
-		minStock: item.minStock,
 		condition: item.condition,
 		location: item.location,
 		description: item.description,
@@ -184,9 +182,6 @@ export const PATCH: RequestHandler = async (event) => {
 		if (body.eomCount !== undefined) {
 			updateFields.eomCount = Math.max(0, body.eomCount);
 		}
-		if (body.minStock !== undefined) {
-			updateFields.minStock = Math.max(0, body.minStock);
-		}
 		if (body.condition !== undefined) {
 			updateFields.condition = body.condition as ItemCondition;
 		}
@@ -197,11 +192,10 @@ export const PATCH: RequestHandler = async (event) => {
 			updateFields.archived = body.archived;
 		}
 
-		// Recalculate status if quantity or minStock changed
+		// Recalculate status if quantity changed
 		const newQuantity = updateFields.quantity ?? currentItem.quantity;
-		const newMinStock = updateFields.minStock ?? currentItem.minStock;
 		const newArchived = updateFields.archived ?? currentItem.archived;
-		updateFields.status = determineStatus(newQuantity, newMinStock, newArchived);
+		updateFields.status = determineStatus(newQuantity, newArchived);
 
 		// Update category counts if category changed
 		if (updateFields.categoryId !== undefined) {

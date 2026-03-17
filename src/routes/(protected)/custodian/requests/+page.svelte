@@ -1,7 +1,6 @@
 <script lang="ts">
 import { onMount } from 'svelte';
-import {
-borrowRequestsAPI,
+import { borrowRequestsAPI,
 type BorrowRequestItem,
 type BorrowRequestRealtimeEvent,
 type BorrowRequestRecord,
@@ -11,10 +10,13 @@ import { catalogAPI } from '$lib/api/catalog';
 import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import ItemInspectionModal from '$lib/components/custodian/ItemInspectionModal.svelte';
+import { financialObligationsAPI } from '$lib/api/financialObligations';
 
 type Tab = 'pending' | 'ready' | 'active' | 'unresolved' | 'history';
+type HistorySubTab = 'all' | 'completed' | 'resolved' | 'cancelled';
 
 let activeTab = $state<Tab>('pending');
+let historySubTab = $state<HistorySubTab>('all');
 let showDetailModal = $state(false);
 let showInspectionModal = $state(false);
 let selectedRequest = $state<any>(null);
@@ -41,6 +43,7 @@ case 'ready_for_pickup': return 'ready';
 case 'borrowed': return 'active';
 case 'pending_return': return 'active';
 case 'missing': return 'unresolved';
+case 'resolved': return 'history';
 case 'cancelled': return 'history';
 case 'returned': return 'history';
 case 'rejected': return 'history';
@@ -101,6 +104,7 @@ id: getDisplayId(record.id),
 student: {
 name: studentName,
 avatar: initials(studentName),
+	avatarUrl: record.student?.profilePhotoUrl || null,
 yearLevel: record.student?.yearLevel || 'N/A',
 block: record.student?.block || 'N/A',
 studentId: record.studentId.slice(-8).toUpperCase(),
@@ -125,6 +129,7 @@ releasedDate: formatDateTime(record.releasedAt),
 pickedUpDate: formatDateTime(record.pickedUpAt),
 returnedDate: formatDateTime(record.returnedAt),
 missingDate: formatDateTime(record.missingAt),
+resolvedDate: formatDateTime(record.resolvedAt),
 lastReminderAt: formatDateTime(record.lastReminderAt),
 reminderCount: record.reminderCount || 0,
 approvedBy: record.instructor?.fullName || 'Instructor',
@@ -380,6 +385,9 @@ async function backfillItemPictures(): Promise<void> {
 }
 
 onMount(() => {
+	void financialObligationsAPI.reconcile().then(({ reconciled }) => {
+		if (reconciled > 0) loadRequests(true);
+	});
 	void loadRequests();
 
 	const unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((_event: BorrowRequestRealtimeEvent) => {
@@ -414,7 +422,15 @@ onMount(() => {
 
 const filteredRequests = $derived(
 requests
-.filter(req => (activeTab === 'history' ? req.status === 'history' : req.status === activeTab))
+.filter(req => {
+	if (activeTab !== 'history') return req.status === activeTab;
+	if (req.status !== 'history') return false;
+	if (historySubTab === 'all') return true;
+	if (historySubTab === 'resolved') return req.rawStatus === 'resolved';
+	if (historySubTab === 'completed') return req.rawStatus === 'returned';
+	if (historySubTab === 'cancelled') return req.rawStatus === 'cancelled' || req.rawStatus === 'rejected';
+	return true;
+})
 .filter(req => {
 if (!searchQuery) return true;
 const query = searchQuery.toLowerCase();
@@ -447,7 +463,10 @@ pending: requests.filter(r => r.status === 'pending').length,
 ready: requests.filter(r => r.status === 'ready').length,
 active: requests.filter(r => r.status === 'active').length,
 unresolved: requests.filter(r => r.status === 'unresolved').length,
-history: requests.filter(r => r.status === 'history').length
+history: requests.filter(r => r.status === 'history').length,
+historyResolved: requests.filter(r => r.rawStatus === 'resolved').length,
+historyCompleted: requests.filter(r => r.rawStatus === 'returned').length,
+historyCancelled: requests.filter(r => r.rawStatus === 'cancelled' || r.rawStatus === 'rejected').length
 });
 
 function openDetailModal(request: any) {
@@ -482,6 +501,7 @@ return rawStatus === 'pending_return'
 case 'unresolved':
 return { text: 'Unresolved', color: 'bg-amber-100 text-amber-800' };
 case 'history':
+if (rawStatus === 'resolved') return { text: 'Resolved', color: 'bg-emerald-100 text-emerald-800' };
 return isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
 ? { text: 'Cancelled', color: 'bg-slate-100 text-slate-800' }
 : rawStatus === 'rejected'
@@ -503,7 +523,7 @@ return rawStatus === 'pending_return' ? 'border-orange-500' : 'border-purple-500
 case 'unresolved':
 return 'border-rose-500';
 case 'history':
-return isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'border-slate-400' : rawStatus === 'rejected' ? 'border-red-500' : 'border-gray-300';
+return isCancelledRequest(rawStatus ?? 'returned', rejectionReason) ? 'border-slate-400' : rawStatus === 'rejected' ? 'border-red-500' : rawStatus === 'resolved' ? 'border-emerald-400' : 'border-gray-300';
 default:
 return 'border-gray-300';
 }
@@ -548,6 +568,11 @@ color: 'text-slate-700'
 ? {
 text: 'This request was closed without fulfillment and has been archived.',
 color: 'text-red-700'
+}
+: rawStatus === 'resolved'
+? {
+text: 'All financial obligations from this incident have been settled. The request is fully resolved.',
+color: 'text-emerald-700'
 }
 : {
 text: 'This request has been completed and archived in the request history.',
@@ -644,60 +669,86 @@ return { text: '', color: 'text-gray-500' };
 	</div>
 	
 	<!-- Tabs Navigation -->
-	<div class="border-b border-gray-200">
-		<nav class="-mb-px flex space-x-6 overflow-x-auto">
-			<button
-				onclick={() => activeTab = 'pending'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'pending' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Pending Preparation
-				<span class="ml-2 rounded-full {activeTab === 'pending' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.pending}
-				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'ready'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'ready' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Ready for Pickup
-				<span class="ml-2 rounded-full {activeTab === 'ready' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.ready}
-				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'active'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'active' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Active
-				<span class="ml-2 rounded-full {activeTab === 'active' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.active}
-				</span>
-			</button>
-			<button
-				onclick={() => activeTab = 'unresolved'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'unresolved' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				Unresolved
-				{#if tabCounts.unresolved > 0}
-					<span class="ml-2 rounded-full {activeTab === 'unresolved' ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-600'} px-2 py-0.5 text-xs font-semibold">
-						{tabCounts.unresolved}
+	<div class="bg-white rounded-lg shadow">
+		<div class="border-b border-gray-200">
+			<nav class="-mb-px flex overflow-x-auto" aria-label="Tabs">
+				<button
+					onclick={() => activeTab = 'pending'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'pending' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Pending Preparation
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'pending' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.pending}
 					</span>
-				{:else}
-					<span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">0</span>
-				{/if}
-			</button>
-			<button
-				onclick={() => activeTab = 'history'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'history' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
-			>
-				History
-				<span class="ml-2 rounded-full {activeTab === 'history' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
-					{tabCounts.history}
-				</span>
-			</button>
-		</nav>
+				</button>
+				<button
+					onclick={() => activeTab = 'ready'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'ready' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Ready for Pickup
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'ready' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.ready}
+					</span>
+				</button>
+				<button
+					onclick={() => activeTab = 'active'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'active' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Active
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'active' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.active}
+					</span>
+				</button>
+				<button
+					onclick={() => activeTab = 'unresolved'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'unresolved' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					Unresolved
+					{#if tabCounts.unresolved > 0}
+						<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs font-semibold {activeTab === 'unresolved' ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-600'}">
+							{tabCounts.unresolved}
+						</span>
+					{:else}
+						<span class="ml-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">0</span>
+					{/if}
+				</button>
+				<button
+					onclick={() => activeTab = 'history'}
+					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'history' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+				>
+					History
+					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'history' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+						{tabCounts.history}
+					</span>
+				</button>
+			</nav>
+		</div>
 	</div>
-	
+
+	<!-- History Sub-tabs -->
+	{#if activeTab === 'history'}
+		<div class="border-b border-gray-200 bg-white px-4">
+			<nav class="-mb-px flex gap-6 overflow-x-auto" aria-label="History filter">
+				{#each [
+					{ key: 'all', label: 'All', count: tabCounts.history },
+					{ key: 'resolved', label: 'Resolved', count: tabCounts.historyResolved },
+					{ key: 'completed', label: 'Completed', count: tabCounts.historyCompleted },
+					{ key: 'cancelled', label: 'Cancelled', count: tabCounts.historyCancelled }
+				] as sub}
+					<button
+						onclick={() => (historySubTab = sub.key as HistorySubTab)}
+						class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {historySubTab === sub.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+					>
+						{sub.label}
+						<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {historySubTab === sub.key ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+							{sub.count}
+						</span>
+					</button>
+				{/each}
+			</nav>
+		</div>
+	{/if}
+
 	<!-- Search and Filter Bar -->
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div class="flex-1 max-w-md">
@@ -777,8 +828,17 @@ return { text: '', color: 'text-gray-500' };
 							</div>
 
 							<div class="mt-4 flex items-start gap-3">
-								<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-pink-100 font-semibold text-pink-700">
-									{request.student.avatar}
+								<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 font-semibold text-pink-700">
+									{#if request.student.avatarUrl}
+										<img
+											src={request.student.avatarUrl}
+											alt={request.student.name}
+											class="h-full w-full object-cover"
+											loading="lazy"
+										/>
+									{:else}
+										{request.student.avatar}
+									{/if}
 								</div>
 								<div class="min-w-0">
 									<h3 class="text-lg font-semibold text-gray-900">{request.student.name}</h3>
@@ -881,6 +941,11 @@ return { text: '', color: 'text-gray-500' };
 								{#if request.missingDate}
 									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-rose-700 ring-1 ring-rose-200">
 										Unresolved: {request.missingDate}
+									</span>
+								{/if}
+								{#if request.resolvedDate}
+									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-emerald-700 ring-1 ring-emerald-200">
+										Resolved: {request.resolvedDate}
 									</span>
 								{/if}
 							</div>
@@ -1130,6 +1195,13 @@ return { text: '', color: 'text-gray-500' };
 										<span class="text-rose-600">⚠</span>
 										<span class="text-gray-600">Flagged as unresolved</span>
 										<span class="ml-auto text-xs text-gray-500">{selectedRequest.missingDate}</span>
+									</div>
+								{/if}
+								{#if selectedRequest.resolvedDate}
+									<div class="flex items-center gap-2 text-sm">
+										<span class="text-emerald-600">✓</span>
+										<span class="text-gray-600">All obligations resolved</span>
+										<span class="ml-auto text-xs text-gray-500">{selectedRequest.resolvedDate}</span>
 									</div>
 								{/if}
 							</div>

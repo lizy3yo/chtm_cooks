@@ -23,7 +23,8 @@ import {
 	invalidateFinancialObligationCaches,
 	isResolutionType,
 	parseObjectId,
-	sanitizeResolutionPayload
+	sanitizeResolutionPayload,
+	publishFinancialObligationRealtimeEvent
 } from '../shared';
 
 /**
@@ -79,8 +80,14 @@ export const GET: RequestHandler = async (event) => {
 
 		const studentName = student ? `${student.firstName} ${student.lastName}` : undefined;
 		const studentEmail = student?.email;
+		const studentProfilePhotoUrl = student?.profilePhotoUrl;
 		const response = {
-			obligation: toFinancialObligationResponse(obligation, studentName, studentEmail)
+			obligation: toFinancialObligationResponse(
+				obligation,
+				studentName,
+				studentEmail,
+				studentProfilePhotoUrl
+			)
 		};
 
 		await cacheService.set(cacheKey, response, {
@@ -207,16 +214,57 @@ export const PATCH: RequestHandler = async (event) => {
 			return json({ error: 'Failed to update obligation' }, { status: 500 });
 		}
 
-		await invalidateFinancialObligationCaches();
-
+		// Fetch the related borrow request before cache invalidation
 		const relatedBorrowRequest = await db
 			.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION)
 			.findOne({ _id: obligation.borrowRequestId });
 
-		if (relatedBorrowRequest) {
+		await invalidateFinancialObligationCaches();
+
+		// Check if all obligations for this borrow request are now resolved.
+		// If so, transition the borrow request from 'missing' → 'resolved'.
+		let autoResolved = false;
+		if (newStatus !== ObligationStatus.PENDING && relatedBorrowRequest?.status === 'missing') {
+			const remainingPending = await db
+				.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION)
+				.countDocuments({
+					borrowRequestId: obligation.borrowRequestId,
+					status: ObligationStatus.PENDING
+				});
+
+			if (remainingPending === 0) {
+				await db
+					.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION)
+					.updateOne(
+						{ _id: obligation.borrowRequestId },
+						{ $set: { status: 'resolved', resolvedAt: now, updatedAt: now } }
+					);
+
+				autoResolved = true;
+				logger.info('financial-obligations', 'Borrow request auto-resolved after all obligations settled', {
+					borrowRequestId: obligation.borrowRequestId.toString()
+				});
+			}
+		}
+
+		// Publish to the financial obligations SSE channel so the financial page updates live.
+		publishFinancialObligationRealtimeEvent(
+			obligation.studentId.toString(),
+			autoResolved ? 'request_auto_resolved' : 'obligation_resolved',
+			obligation.borrowRequestId.toString(),
+			obligationId,
+			now
+		);
+
+		// Also publish to the borrow-requests SSE channel so the requests page updates live.
+		const relatedBorrowRequestFinal = await db
+			.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION)
+			.findOne({ _id: obligation.borrowRequestId });
+
+		if (relatedBorrowRequestFinal) {
 			publishBorrowRequestRealtimeEvent(
-				{ ...relatedBorrowRequest, _id: obligation.borrowRequestId },
-				'obligation_updated',
+				{ ...relatedBorrowRequestFinal, _id: obligation.borrowRequestId },
+				autoResolved ? 'returned' : 'obligation_updated',
 				now
 			);
 		}

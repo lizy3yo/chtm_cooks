@@ -25,7 +25,6 @@ export interface InventoryItem {
 	picture?: string;
 	quantity: number;
 	eomCount: number; // End of Month Count
-	minStock: number;
 	condition: ItemCondition;
 	location?: string;
 	description?: string;
@@ -49,7 +48,6 @@ export interface InventoryItemResponse {
 	quantity: number;
 	eomCount: number;
 	variance: number;
-	minStock: number;
 	condition: ItemCondition;
 	location?: string;
 	description?: string;
@@ -69,7 +67,6 @@ export interface CreateInventoryItemRequest {
 	picture?: string;
 	quantity: number;
 	eomCount?: number;
-	minStock: number;
 	condition: ItemCondition;
 	location?: string;
 	unitPrice?: number;

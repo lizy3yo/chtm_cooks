@@ -150,7 +150,7 @@ export const GET: RequestHandler = async (event) => {
 			? await usersCollection
 				.find(
 					{ _id: { $in: userIds.map((id) => new ObjectId(id)) } },
-					{ projection: { firstName: 1, lastName: 1, email: 1, yearLevel: 1, block: 1 } }
+					{ projection: { firstName: 1, lastName: 1, email: 1, yearLevel: 1, block: 1, profilePhotoUrl: 1 } }
 				)
 				.toArray()
 			: [];
@@ -174,6 +174,7 @@ export const GET: RequestHandler = async (event) => {
 					email: student.email,
 					firstName: student.firstName,
 					lastName: student.lastName,
+					profilePhotoUrl: student.profilePhotoUrl,
 					fullName: `${student.firstName} ${student.lastName}`.trim(),
 					yearLevel: student.yearLevel,
 					block: student.block

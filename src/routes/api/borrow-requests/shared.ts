@@ -31,16 +31,18 @@ export function parseObjectId(id: string): ObjectId | null {
 }
 
 export function isBorrowRequestStatus(value: string): boolean {
-	return [
-		'pending_instructor',
-		'approved_instructor',
-		'ready_for_pickup',
-		'borrowed',
-		'pending_return',
-		'missing',
-		'returned',
-		'rejected'
-	].includes(value);
+       return [
+	       'pending_instructor',
+	       'approved_instructor',
+	       'ready_for_pickup',
+	       'borrowed',
+	       'pending_return',
+	       'missing',
+	       'resolved',
+	       'returned',
+	       'cancelled',
+	       'rejected'
+       ].includes(value);
 }
 
 export function canAccessBorrowRequest(user: JWTPayload, request: BorrowRequest): boolean {

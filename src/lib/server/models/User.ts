@@ -14,6 +14,8 @@ export interface User {
 	role: UserRole;
 	firstName: string;
 	lastName: string;
+	profilePhotoUrl?: string;
+	profilePhotoPublicId?: string;
 	isActive: boolean;
 	createdAt: Date;
 	updatedAt: Date;
@@ -37,6 +39,7 @@ export interface UserResponse {
 	role: UserRole;
 	firstName: string;
 	lastName: string;
+	profilePhotoUrl?: string;
 	isActive: boolean;
 	createdAt: Date;
 	// Student-specific fields

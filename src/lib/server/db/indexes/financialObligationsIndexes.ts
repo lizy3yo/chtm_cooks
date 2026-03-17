@@ -87,5 +87,26 @@ export const financialObligationIndexes: IndexDefinition[] = [
 			writeImpact: '~1% slower on pending obligation writes',
 			storageSize: '~25KB for 100k obligations'
 		}
+	},
+	{
+		collection: 'financial_obligations',
+		type: 'compound',
+		fields: { borrowRequestId: 1, status: 1 },
+		options: {
+			name: 'idx_financial_obligations_request_pending_count',
+			background: true
+		},
+		description: 'Efficient countDocuments for pending obligations per borrow request — used by auto-resolve and reconcile logic',
+		priority: 'critical',
+		usedFor: [
+			'Auto-resolve: count pending obligations after each resolution',
+			'Reconcile endpoint: scan missing requests for zero-pending transition',
+			'Per-request obligation status summary'
+		],
+		impact: {
+			readImprovement: '95x faster for per-request pending obligation count queries',
+			writeImpact: '~2% slower on obligation writes',
+			storageSize: '~30KB for 100k obligations'
+		}
 	}
 ];

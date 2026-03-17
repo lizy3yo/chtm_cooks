@@ -199,7 +199,7 @@ export const archivedItems = derived(items, $items =>
 );
 
 export const lowStockItems = derived(activeItems, $items => 
-	$items.filter(item => item.quantity <= item.minStock && item.quantity > 0)
+	$items.filter(item => item.status === 'Low Stock' || item.status === 'Out of Stock')
 );
 
 export const outOfStockItems = derived(activeItems, $items => 

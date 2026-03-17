@@ -688,6 +688,7 @@
 					{:else}
 						<ul class="h-[252px] divide-y divide-gray-50 overflow-y-auto">
 							{#each activeRequests as req}
+								{@const Icon = statusIcon(req.status)}
 								{@const badge = req.daysUntilDue !== null ? dueBadge(req.daysUntilDue) : null}
 								<li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
 									<div class="flex -space-x-2 shrink-0">
@@ -718,7 +719,7 @@
 									</div>
 									<div class="flex shrink-0 flex-col items-end gap-1.5">
 										<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(req.status)}">
-											<svelte:component this={statusIcon(req.status)} size={10} />
+											<Icon size={10} />
 											{req.statusLabel}
 										</span>
 										{#if badge}
@@ -753,6 +754,7 @@
 					{:else}
 						<ul class="h-[252px] divide-y divide-gray-50 overflow-y-auto">
 							{#each pendingRequests as req}
+								{@const Icon = statusIcon(req.status)}
 								<li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
 									<div class="min-w-0 flex-1">
 										<p class="truncate text-sm font-semibold text-gray-900">
@@ -764,11 +766,11 @@
 											<CalendarDays size={11} />
 											<span>{new Date(req.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(req.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
 										</div>
-									</div>
-									<span class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(req.status)}">
-										<svelte:component this={statusIcon(req.status)} size={10} />
-										{req.statusLabel}
-									</span>
+										</div>
+										<span class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(req.status)}">
+											<Icon size={10} />
+											{req.statusLabel}
+										</span>
 								</li>
 							{/each}
 						</ul>
@@ -789,6 +791,7 @@
 						</div>
 						<ul class="divide-y divide-gray-50">
 							{#each recentHistory as req}
+								{@const Icon = statusIcon(req.status)}
 								<li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
 									<div class="min-w-0 flex-1">
 										<p class="truncate text-sm font-medium text-gray-800">
@@ -798,7 +801,7 @@
 									</div>
 									<div class="flex shrink-0 flex-col items-end gap-1">
 										<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(req.status)}">
-											<svelte:component this={statusIcon(req.status)} size={10} />
+											<Icon size={10} />
 											{req.statusLabel}
 										</span>
 										<span class="text-xs text-gray-400">{relativeTime(req.createdAt)}</span>

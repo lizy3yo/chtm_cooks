@@ -49,6 +49,7 @@ export interface FinancialObligationResponse {
 	studentId: string;
 	studentName?: string;
 	studentEmail?: string;
+	studentProfilePhotoUrl?: string;
 	itemId: string;
 	itemName: string;
 	itemCategory?: string;
@@ -89,7 +90,8 @@ export interface ResolveFinancialObligationRequest {
 export function toFinancialObligationResponse(
 	obligation: FinancialObligation,
 	studentName?: string,
-	studentEmail?: string
+	studentEmail?: string,
+	studentProfilePhotoUrl?: string
 ): FinancialObligationResponse {
 	return {
 		id: obligation._id!.toString(),
@@ -97,6 +99,7 @@ export function toFinancialObligationResponse(
 		studentId: obligation.studentId.toString(),
 		studentName,
 		studentEmail,
+		studentProfilePhotoUrl,
 		itemId: obligation.itemId.toString(),
 		itemName: obligation.itemName,
 		itemCategory: obligation.itemCategory,

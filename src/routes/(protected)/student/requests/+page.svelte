@@ -205,9 +205,19 @@ let _unsubscribeSSE: (() => void) | null = null;
 let _pollInterval: ReturnType<typeof setInterval> | null = null;
 
 onMount(() => {
-	// Instant paint from client memory cache, then refresh through normal cache path.
+	// If navigated here after a new submission, bypass all caches immediately.
+	const isPostSubmit = new URLSearchParams(window.location.search).get('new') === '1';
+
+	if (isPostSubmit) {
+		borrowRequestsAPI.invalidateCache();
+		// Clean the URL without triggering a navigation
+		const cleanUrl = window.location.pathname;
+		history.replaceState(null, '', cleanUrl);
+	}
+
+	// Instant paint from client memory cache (skipped on post-submit since cache was just cleared).
 	hydrateRequestsFromClientCache();
-	void loadRequests();
+	void loadRequests(isPostSubmit);
 
 	// --- SSE real-time subscription ---
 	_unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((_event: BorrowRequestRealtimeEvent) => {

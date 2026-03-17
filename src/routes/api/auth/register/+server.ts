@@ -141,6 +141,7 @@ export const POST: RequestHandler = async (event) => {
 			role: newUser.role,
 			firstName: newUser.firstName,
 			lastName: newUser.lastName,
+			profilePhotoUrl: newUser.profilePhotoUrl,
 			isActive: newUser.isActive,
 			createdAt: newUser.createdAt,
 			// Include student-specific fields if role is STUDENT

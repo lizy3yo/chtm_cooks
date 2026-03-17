@@ -649,10 +649,7 @@
 									{/if}
 								</div>
 
-								<div class="mt-4 flex items-start gap-3">
-									<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-pink-100 font-semibold text-pink-700">
-										{loan.items.length}
-									</div>
+								<div class="mt-4">
 									<div class="min-w-0">
 										<h3 class="text-lg font-semibold text-gray-900">{loan.items.length} item{loan.items.length > 1 ? 's' : ''} on active loan</h3>
 										<p class="text-sm text-gray-500">{getLoanSummary(loan)}</p>
