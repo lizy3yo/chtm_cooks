@@ -26,6 +26,7 @@
 	// Donations real data
 	let donations = $state<DonationResponse[]>([]);
 	let donationsLoading = $state(false);
+	let showDonationModal = $state(false);
 
 	// Payment history (derived from resolved obligations)
 	const paymentHistory = $derived(
@@ -277,6 +278,7 @@
 			};
 
 			toastStore.success('Donation recorded successfully', 'Success');
+			showDonationModal = false;
 		} catch (err) {
 			console.error('Failed to record donation', err);
 			toastStore.error(err instanceof Error ? err.message : 'Failed to record donation', 'Error');
@@ -470,88 +472,21 @@
 			<!-- Donations Tracking Tab -->
 			{#if activeTab === 'donations'}
 				<div class="space-y-6">
-					<!-- Add Donation Section -->
-					<div class="bg-gray-50 border border-gray-200 rounded-lg p-6">
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Record New Donation</h3>
-						<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-1">Donor Name</label>
-								<input
-									type="text"
-									bind:value={newDonation.donorName}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-									placeholder="Enter donor name"
-								/>
-							</div>
-							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-1">Donation Type</label>
-								<select
-									bind:value={newDonation.type}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-								>
-									<option value="cash">Cash</option>
-									<option value="item">Item</option>
-								</select>
-							</div>
-							{#if newDonation.type === 'cash'}
-								<div>
-									<label class="block text-sm font-medium text-gray-700 mb-1">Amount (₱)</label>
-									<input
-										type="number"
-										bind:value={newDonation.amount}
-										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-										placeholder="0.00"
-										min="0"
-										step="0.01"
-									/>
-								</div>
-							{:else}
-								<div>
-									<label class="block text-sm font-medium text-gray-700 mb-1">Item Description</label>
-									<input
-										type="text"
-										bind:value={newDonation.item}
-										class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-										placeholder="Describe the donated item"
-									/>
-								</div>
-							{/if}
-							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-1">Date</label>
-								<input
-									type="date"
-									bind:value={newDonation.date}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-								/>
-							</div>
-							<div class="md:col-span-2">
-								<label class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
-								<input
-									type="text"
-									bind:value={newDonation.purpose}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-									placeholder="Purpose of donation"
-								/>
-							</div>
-							<div class="md:col-span-3">
-								<label class="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
-								<input
-									type="text"
-									bind:value={newDonation.notes}
-									class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-emerald-500"
-									placeholder="Additional notes"
-								/>
-							</div>
+					<!-- Header row -->
+					<div class="flex items-center justify-between">
+						<div>
+							<h3 class="text-lg font-semibold text-gray-900">Donations Tracking</h3>
+							<p class="mt-0.5 text-sm text-gray-500">Record and track donations from individuals and organizations.</p>
 						</div>
-						<div class="mt-4">
-							<button
-								onclick={handleAddDonation}
-								disabled={donationSubmitting}
-								class="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-medium py-2 px-6 rounded-md transition-colors"
-							>
-								{donationSubmitting ? 'Recording…' : 'Record Donation'}
-							</button>
-						</div>
+						<button
+							onclick={() => (showDonationModal = true)}
+							class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-colors"
+						>
+							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+							</svg>
+							Record Donation
+						</button>
 					</div>
 
 					<!-- Donations List -->
@@ -1122,6 +1057,147 @@
 						class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors"
 					>
 						Close
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Record Donation Modal -->
+{#if showDonationModal}
+	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="donation-modal-title">
+		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => { if (!donationSubmitting) showDonationModal = false; }}></div>
+		<div class="flex min-h-full items-center justify-center p-4">
+			<div class="relative z-50 w-full max-w-lg rounded-xl bg-white shadow-2xl">
+
+				<!-- Header -->
+				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+					<div>
+						<h2 id="donation-modal-title" class="text-base font-semibold text-gray-900">Record New Donation</h2>
+						<p class="mt-0.5 text-xs text-gray-500">Add a donation from an individual or organization.</p>
+					</div>
+					<button
+						onclick={() => { if (!donationSubmitting) showDonationModal = false; }}
+						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+						aria-label="Close"
+						disabled={donationSubmitting}
+					>
+						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+
+				<!-- Body -->
+				<div class="px-6 py-5 space-y-4">
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+						<div>
+							<label for="donor-name" class="block text-sm font-medium text-gray-700 mb-1">Donor Name</label>
+							<input
+								id="donor-name"
+								type="text"
+								bind:value={newDonation.donorName}
+								class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+								placeholder="Enter donor name"
+							/>
+						</div>
+						<div>
+							<label for="donation-type" class="block text-sm font-medium text-gray-700 mb-1">Donation Type</label>
+							<select
+								id="donation-type"
+								bind:value={newDonation.type}
+								class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+							>
+								<option value="cash">Cash</option>
+								<option value="item">Item</option>
+							</select>
+						</div>
+					</div>
+
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+						{#if newDonation.type === 'cash'}
+							<div>
+								<label for="donation-amount" class="block text-sm font-medium text-gray-700 mb-1">Amount (₱)</label>
+								<input
+									id="donation-amount"
+									type="number"
+									bind:value={newDonation.amount}
+									class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+									placeholder="0.00"
+									min="0"
+									step="0.01"
+								/>
+							</div>
+						{:else}
+							<div>
+								<label for="donation-item" class="block text-sm font-medium text-gray-700 mb-1">Item Description</label>
+								<input
+									id="donation-item"
+									type="text"
+									bind:value={newDonation.item}
+									class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+									placeholder="Describe the donated item"
+								/>
+							</div>
+						{/if}
+						<div>
+							<label for="donation-date" class="block text-sm font-medium text-gray-700 mb-1">Date</label>
+							<input
+								id="donation-date"
+								type="date"
+								bind:value={newDonation.date}
+								class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+							/>
+						</div>
+					</div>
+
+					<div>
+						<label for="donation-purpose" class="block text-sm font-medium text-gray-700 mb-1">Purpose</label>
+						<input
+							id="donation-purpose"
+							type="text"
+							bind:value={newDonation.purpose}
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+							placeholder="Purpose of donation"
+						/>
+					</div>
+
+					<div>
+						<label for="donation-notes" class="block text-sm font-medium text-gray-700 mb-1">Notes <span class="text-gray-400 font-normal">(optional)</span></label>
+						<input
+							id="donation-notes"
+							type="text"
+							bind:value={newDonation.notes}
+							class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+							placeholder="Additional notes"
+						/>
+					</div>
+				</div>
+
+				<!-- Footer -->
+				<div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
+					<button
+						onclick={() => { if (!donationSubmitting) showDonationModal = false; }}
+						disabled={donationSubmitting}
+						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors disabled:opacity-50"
+					>
+						Cancel
+					</button>
+					<button
+						onclick={handleAddDonation}
+						disabled={donationSubmitting}
+						class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 transition-colors disabled:opacity-60"
+					>
+						{#if donationSubmitting}
+							<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							Recording…
+						{:else}
+							Record Donation
+						{/if}
 					</button>
 				</div>
 			</div>
