@@ -274,7 +274,7 @@
 			requestCartStore.clear();
 
 			toastStore.success('Your request has been submitted successfully', 'Request Submitted');
-			await goto('/student/requests');
+			await goto('/student/requests?new=1');
 		} catch (error) {
 			const message = error instanceof Error ? error.message : 'Failed to submit request';
 			toastStore.error(message, 'Submission Error');
