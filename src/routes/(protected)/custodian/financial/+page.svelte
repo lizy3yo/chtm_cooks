@@ -4,6 +4,7 @@
 	import { donationsAPI, type DonationResponse, type CreateDonationRequest, DonationType } from '$lib/api/donations';
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
+	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 
 	let activeTab = $state<'donations' | 'replacements' | 'history'>('replacements');
 	let replacementsFilter = $state<'all' | 'pending' | 'paid' | 'replaced' | 'waived'>('all');
@@ -376,6 +377,14 @@
 
 	<!-- Stats Overview -->
 	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+		{#if isLoading}
+			{#each Array(4) as _}
+				<div class="bg-white rounded-lg shadow p-6 space-y-3">
+					<Skeleton class="h-3.5 w-32" />
+					<Skeleton class="h-8 w-24" />
+				</div>
+			{/each}
+		{:else}
 		<div class="bg-white rounded-lg shadow p-6">
 			<div class="flex items-center justify-between">
 				<div>
@@ -432,6 +441,7 @@
 				</div>
 			</div>
 		</div>
+		{/if}
 	</div>
 
 	<!-- Tabs Navigation -->
@@ -469,6 +479,55 @@
 		</div>
 
 		<div class="p-6">
+			{#if isLoading}
+				<!-- Skeleton: tab content placeholder -->
+				<div class="space-y-4" role="status" aria-label="Loading financial data">
+					<div class="flex items-center justify-between">
+						<div class="space-y-2">
+							<Skeleton class="h-5 w-56" />
+							<Skeleton class="h-3.5 w-80" />
+						</div>
+						<Skeleton class="h-9 w-32" />
+					</div>
+					<div class="border-b border-gray-200 pb-1 flex gap-6">
+						{#each Array(4) as _}
+							<Skeleton class="h-4 w-16" />
+						{/each}
+					</div>
+					{#each Array(5) as _}
+						<div class="rounded-xl border border-gray-200 bg-white p-5 space-y-3">
+							<div class="flex items-center justify-between">
+								<div class="flex items-center gap-3">
+									<Skeleton variant="circle" class="h-10 w-10" />
+									<div class="space-y-1.5">
+										<Skeleton class="h-4 w-36" />
+										<Skeleton class="h-3 w-24" />
+									</div>
+								</div>
+								<Skeleton class="h-6 w-20" />
+							</div>
+							<div class="flex gap-4">
+								<Skeleton class="h-3 w-28" />
+								<Skeleton class="h-3 w-28" />
+								<Skeleton class="h-3 w-20" />
+							</div>
+						</div>
+					{/each}
+				</div>
+			{:else if error}
+				<div class="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
+					<svg class="mx-auto mb-3 h-8 w-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+					</svg>
+					<p class="text-sm font-medium text-red-700">{error}</p>
+					<button
+						onclick={() => loadObligations()}
+						class="mt-3 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+					>
+						Try Again
+					</button>
+				</div>
+			{:else}
 			<!-- Donations Tracking Tab -->
 			{#if activeTab === 'donations'}
 				<div class="space-y-6">
@@ -493,12 +552,17 @@
 					<div>
 						<h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Donations</h3>
 						{#if donationsLoading}
-							<div class="text-center py-12 bg-gray-50 rounded-lg">
-								<svg class="w-8 h-8 text-gray-400 mx-auto mb-4 animate-spin" fill="none" viewBox="0 0 24 24">
-									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-								</svg>
-								<p class="text-gray-500">Loading donations...</p>
+							<div class="space-y-3" role="status" aria-label="Loading donations">
+								{#each Array(4) as _}
+									<div class="rounded-xl border border-gray-200 bg-white p-4 flex items-center gap-4">
+										<Skeleton variant="circle" class="h-10 w-10 shrink-0" />
+										<div class="flex-1 space-y-2">
+											<Skeleton class="h-4 w-40" />
+											<Skeleton class="h-3 w-24" />
+										</div>
+										<Skeleton class="h-6 w-20" />
+									</div>
+								{/each}
 							</div>
 						{:else if donations.length === 0}
 							<div class="py-12 text-center">
@@ -889,6 +953,7 @@
 						</div>
 					{/if}
 				</div>
+			{/if}
 			{/if}
 		</div>
 	</div>
