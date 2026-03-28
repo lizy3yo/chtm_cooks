@@ -11,6 +11,7 @@ import { borrowRequestIndexes } from './borrowRequestsIndexes';
 import { financialObligationIndexes } from './financialObligationsIndexes';
 import { statisticsIndexes } from './statisticsIndexes';
 import { donationIndexes } from './donationIndexes';
+import { analyticsIndexes } from './analyticsIndexes';
 
 /**
  * ============================================================================
@@ -933,7 +934,8 @@ export const allIndexDefinitions: IndexDefinition[] = [
 	...financialObligationIndexes,
 	...borrowRequestIndexes,
 	...statisticsIndexes,
-	...donationIndexes
+	...donationIndexes,
+	...analyticsIndexes
 	// ...sessionIndexes,
 	// ...otherCollectionIndexes,
 ];

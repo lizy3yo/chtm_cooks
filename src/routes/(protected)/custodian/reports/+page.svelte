@@ -1,923 +1,1026 @@
 <script lang="ts">
-	import { page } from '$app/stores';
-	import { user } from '$lib/stores/auth';
+	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
+	import {
+		fetchAnalytics,
+		subscribeToAnalyticsChanges,
+		clearAnalyticsCache,
+		type AnalyticsReport,
+		type AnalyticsPeriod
+	} from '$lib/api/analyticsReports';
+	import { toastStore } from '$lib/stores/toast';
+	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 
-	let activeTab = $state<'inventory' | 'usage' | 'financial' | 'export'>('inventory');
+	// ── State ─────────────────────────────────────────────────────────────────
 
-	// Date range filters
-	let dateRange = $state({
-		start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
-		end: new Date().toISOString().split('T')[0]
-	});
+	type Tab = 'borrow' | 'inventory' | 'financial' | 'risk';
 
-	// Sample data for inventory reports
-	let inventoryReport = $state([
-		{
-			category: 'Cutlery',
-			totalItems: 125,
-			itemTypes: 8,
-			totalValue: 45000,
-			condition: { good: 110, needsRepair: 10, damaged: 5 },
-			utilizationRate: 88
-		},
-		{
-			category: 'Cookware',
-			totalItems: 89,
-			itemTypes: 12,
-			totalValue: 67500,
-			condition: { good: 78, needsRepair: 8, damaged: 3 },
-			utilizationRate: 92
-		},
-		{
-			category: 'Measuring Tools',
-			totalItems: 45,
-			itemTypes: 6,
-			totalValue: 12000,
-			condition: { good: 38, needsRepair: 5, damaged: 2 },
-			utilizationRate: 76
-		},
-		{
-			category: 'Equipment',
-			totalItems: 28,
-			itemTypes: 9,
-			totalValue: 185000,
-			condition: { good: 24, needsRepair: 3, damaged: 1 },
-			utilizationRate: 85
-		},
-		{
-			category: 'Utensils',
-			totalItems: 156,
-			itemTypes: 15,
-			totalValue: 28000,
-			condition: { good: 145, needsRepair: 8, damaged: 3 },
-			utilizationRate: 94
-		}
-	]);
+	let activeTab = $state<Tab>('borrow');
+	let period = $state<AnalyticsPeriod>('month');
+	let customFrom = $state('');
+	let customTo = $state('');
+	let useCustomRange = $state(false);
 
-	// Sample data for usage statistics
-	let usageStats = $state({
-		topBorrowedItems: [
-			{ name: 'Chef Knife Set', category: 'Cutlery', timesLoaned: 145, currentlyOut: 8, avgDuration: 3.2 },
-			{ name: 'Mixing Bowl (Large)', category: 'Cookware', timesLoaned: 132, currentlyOut: 12, avgDuration: 2.8 },
-			{ name: 'Whisk', category: 'Utensils', timesLoaned: 128, currentlyOut: 15, avgDuration: 2.5 },
-			{ name: 'Measuring Cups', category: 'Measuring Tools', timesLoaned: 115, currentlyOut: 10, avgDuration: 3.0 },
-			{ name: 'Food Processor', category: 'Equipment', timesLoaned: 98, currentlyOut: 3, avgDuration: 4.5 }
-		],
-		monthlyTrends: [
-			{ month: 'Aug 2025', requests: 245, approved: 232, rejected: 13, avgProcessTime: 2.3 },
-			{ month: 'Sep 2025', requests: 268, approved: 255, rejected: 13, avgProcessTime: 2.1 },
-			{ month: 'Oct 2025', requests: 289, approved: 275, rejected: 14, avgProcessTime: 2.0 },
-			{ month: 'Nov 2025', requests: 312, approved: 298, rejected: 14, avgProcessTime: 1.9 },
-			{ month: 'Dec 2025', requests: 295, approved: 282, rejected: 13, avgProcessTime: 2.2 },
-			{ month: 'Jan 2026', requests: 324, approved: 310, rejected: 14, avgProcessTime: 1.8 }
-		],
-		userActivity: [
-			{ program: 'Culinary Arts', activeUsers: 45, totalRequests: 387, avgPerUser: 8.6 },
-			{ program: 'Food & Beverage', activeUsers: 38, totalRequests: 312, avgPerUser: 8.2 },
-			{ program: 'Baking & Pastry', activeUsers: 32, totalRequests: 278, avgPerUser: 8.7 },
-			{ program: 'Hotel Management', activeUsers: 28, totalRequests: 198, avgPerUser: 7.1 }
-		]
-	});
+	let report = $state<AnalyticsReport | null>(null);
+	let isLoading = $state(true);
+	let error = $state<string | null>(null);
+	let lastRefreshed = $state<Date | null>(null);
 
-	// Sample data for financial summary
-	let financialSummary = $state({
-		donations: [
-			{ month: 'Aug 2025', cash: 35000, items: 8, totalValue: 47000 },
-			{ month: 'Sep 2025', cash: 42000, items: 5, totalValue: 51000 },
-			{ month: 'Oct 2025', cash: 28000, items: 12, totalValue: 45000 },
-			{ month: 'Nov 2025', cash: 55000, items: 6, totalValue: 65000 },
-			{ month: 'Dec 2025', cash: 68000, items: 15, totalValue: 89000 },
-			{ month: 'Jan 2026', cash: 45000, items: 9, totalValue: 58000 }
-		],
-		replacementPayments: [
-			{ month: 'Aug 2025', collected: 8500, outstanding: 2500, items: 12 },
-			{ month: 'Sep 2025', collected: 6800, outstanding: 3200, items: 10 },
-			{ month: 'Oct 2025', collected: 9200, outstanding: 1800, items: 14 },
-			{ month: 'Nov 2025', collected: 7500, outstanding: 2800, items: 11 },
-			{ month: 'Dec 2025', collected: 10200, outstanding: 3500, items: 16 },
-			{ month: 'Jan 2026', collected: 8900, outstanding: 2100, items: 13 }
-		],
-		maintenanceCosts: [
-			{ month: 'Aug 2025', preventive: 12000, corrective: 8500, total: 20500 },
-			{ month: 'Sep 2025', preventive: 15000, corrective: 6200, total: 21200 },
-			{ month: 'Oct 2025', preventive: 13500, corrective: 9800, total: 23300 },
-			{ month: 'Nov 2025', preventive: 14000, corrective: 7500, total: 21500 },
-			{ month: 'Dec 2025', preventive: 16500, corrective: 11200, total: 27700 },
-			{ month: 'Jan 2026', preventive: 15000, corrective: 8200, total: 23200 }
-		]
-	});
+	let unsubscribeSSE: (() => void) | null = null;
+	let mounted = false;
 
-	// Export options
-	let exportOptions = $state({
-		format: 'csv' as 'csv' | 'excel' | 'pdf',
-		dataType: 'inventory' as 'inventory' | 'requests' | 'financial' | 'maintenance' | 'audit' | 'all',
-		includeDetails: true,
-		includeImages: false
-	});
+	// ── Derived helpers ───────────────────────────────────────────────────────
 
-	// Stats
-	const totalInventoryValue = $derived(
-		inventoryReport.reduce((sum, cat) => sum + cat.totalValue, 0)
-	);
-	const totalItems = $derived(
-		inventoryReport.reduce((sum, cat) => sum + cat.totalItems, 0)
-	);
-	const avgUtilization = $derived(
-		Math.round(inventoryReport.reduce((sum, cat) => sum + cat.utilizationRate, 0) / inventoryReport.length)
-	);
+	const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+	const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+	const statusColors: Record<string, string> = {
+		pending_instructor: 'bg-yellow-100 text-yellow-800',
+		approved_instructor: 'bg-blue-100 text-blue-800',
+		ready_for_pickup: 'bg-indigo-100 text-indigo-800',
+		borrowed: 'bg-pink-100 text-pink-800',
+		pending_return: 'bg-orange-100 text-orange-800',
+		returned: 'bg-emerald-100 text-emerald-800',
+		missing: 'bg-red-100 text-red-800',
+		resolved: 'bg-teal-100 text-teal-800',
+		cancelled: 'bg-gray-100 text-gray-600',
+		rejected: 'bg-rose-100 text-rose-800'
+	};
+
+	const statusLabels: Record<string, string> = {
+		pending_instructor: 'Pending Approval',
+		approved_instructor: 'Instructor Approved',
+		ready_for_pickup: 'Ready for Pickup',
+		borrowed: 'Borrowed',
+		pending_return: 'Pending Return',
+		returned: 'Returned',
+		missing: 'Missing',
+		resolved: 'Resolved',
+		cancelled: 'Cancelled',
+		rejected: 'Rejected'
+	};
+
+	const conditionColors: Record<string, string> = {
+		Excellent: 'bg-emerald-500',
+		Good: 'bg-green-400',
+		Fair: 'bg-yellow-400',
+		Poor: 'bg-orange-400',
+		Damaged: 'bg-red-500'
+	};
+
+	// ── KPI derived values ────────────────────────────────────────────────────
+
 	const totalRequests = $derived(
-		usageStats.monthlyTrends.reduce((sum, m) => sum + m.requests, 0)
+		report?.borrowRequests.statusBreakdown.reduce((s, i) => s + i.count, 0) ?? 0
 	);
-	const totalDonations = $derived(
-		financialSummary.donations.reduce((sum, d) => sum + d.totalValue, 0)
+	const returnedCount = $derived(
+		report?.borrowRequests.statusBreakdown.find((s) => s.status === 'returned')?.count ?? 0
 	);
-	const totalMaintenanceCost = $derived(
-		financialSummary.maintenanceCosts.reduce((sum, m) => sum + m.total, 0)
+	const approvalRate = $derived(
+		totalRequests > 0
+			? Math.round(
+					((report?.borrowRequests.statusBreakdown
+						.filter((s) => !['rejected', 'cancelled'].includes(s.status))
+						.reduce((s, i) => s + i.count, 0) ?? 0) /
+						totalRequests) *
+						100
+				)
+			: 0
 	);
 
-	function generateReport() {
-		alert(`Generating ${activeTab} report for ${dateRange.start} to ${dateRange.end}...`);
-	}
+	// ── Heatmap helpers ───────────────────────────────────────────────────────
 
-	function exportData() {
-		if (!exportOptions.dataType) {
-			alert('Please select data type to export');
-			return;
+	const heatmapMax = $derived(
+		Math.max(1, ...(report?.borrowRequests.peakHeatmap.map((p) => p.count) ?? [1]))
+	);
+
+	// Donation totals grouped by month (computed, not in template)
+	const donationByMonth = $derived.by(() => {
+		const map = new Map<string, { year: string; month: string; cash: number; cashCount: number; itemCount: number }>();
+		for (const d of report?.financial.donationTotals ?? []) {
+			const key = `${d.year}-${String(d.month).padStart(2, '0')}`;
+			const existing = map.get(key) ?? { year: String(d.year), month: String(d.month).padStart(2, '0'), cash: 0, cashCount: 0, itemCount: 0 };
+			if (d.type === 'cash') {
+				map.set(key, { ...existing, cash: existing.cash + d.totalAmount, cashCount: existing.cashCount + d.count });
+			} else {
+				map.set(key, { ...existing, itemCount: existing.itemCount + d.count });
+			}
 		}
-		alert(`Exporting ${exportOptions.dataType} data as ${exportOptions.format.toUpperCase()}...`);
+		return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+	});
+
+	function heatmapCell(day: number, hour: number): number {
+		return (
+			report?.borrowRequests.peakHeatmap.find(
+				(p) => p.dayOfWeek === day && p.hour === hour
+			)?.count ?? 0
+		);
 	}
 
-	function printReport() {
-		alert('Printing current report...');
+	function heatmapColor(count: number): string {
+		if (count === 0) return 'bg-gray-100';
+		const ratio = count / heatmapMax;
+		if (ratio < 0.2) return 'bg-pink-100';
+		if (ratio < 0.4) return 'bg-pink-200';
+		if (ratio < 0.6) return 'bg-pink-300';
+		if (ratio < 0.8) return 'bg-pink-400';
+		return 'bg-pink-600';
 	}
 
-	function scheduleReport() {
-		alert('Schedule automated report generation...');
+	// ── Bar chart helper (CSS-based) ──────────────────────────────────────────
+
+	function barWidth(value: number, max: number): string {
+		if (max === 0) return '0%';
+		return `${Math.round((value / max) * 100)}%`;
 	}
 
-	function getUtilizationColor(rate: number) {
-		if (rate >= 90) return 'text-pink-600';
-		if (rate >= 75) return 'text-blue-600';
-		if (rate >= 60) return 'text-yellow-600';
-		return 'text-red-600';
+	// ── Trust score badge ─────────────────────────────────────────────────────
+
+	function trustBadge(score: number): string {
+		if (score >= 90) return 'bg-emerald-100 text-emerald-800';
+		if (score >= 70) return 'bg-yellow-100 text-yellow-800';
+		return 'bg-red-100 text-red-800';
 	}
 
-	function getUtilizationBg(rate: number) {
-		if (rate >= 90) return 'bg-pink-500';
-		if (rate >= 75) return 'bg-blue-500';
-		if (rate >= 60) return 'bg-yellow-500';
-		return 'bg-red-500';
+	function trustLabel(score: number): string {
+		if (score >= 90) return 'High';
+		if (score >= 70) return 'Medium';
+		return 'Low';
 	}
+
+	// ── Initials helper ───────────────────────────────────────────────────────
+
+	function getInitials(name: string): string {
+		const parts = name.trim().split(/\s+/).filter(Boolean);
+		if (parts.length === 0) return '??';
+		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+		return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+	}
+
+	// ── Data loading ──────────────────────────────────────────────────────────
+
+	async function loadReport(forceRefresh = false): Promise<void> {
+		if (!browser) return;
+		isLoading = true;
+		error = null;
+		try {
+			report = await fetchAnalytics({
+				period,
+				from: useCustomRange && customFrom ? customFrom : undefined,
+				to: useCustomRange && customTo ? customTo : undefined,
+				forceRefresh
+			});
+			lastRefreshed = new Date();
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to load analytics';
+			toastStore.error(error, 'Analytics Error');
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	function handleRefresh(): void {
+		clearAnalyticsCache();
+		loadReport(true);
+		toastStore.info('Refreshing analytics data…', 'Refresh');
+	}
+
+	onMount(() => {
+		mounted = true;
+		loadReport();
+
+		unsubscribeSSE = subscribeToAnalyticsChanges(() => {
+			loadReport(true);
+		});
+
+		return () => {
+			unsubscribeSSE?.();
+		};
+	});
+
+	// Reload when period changes — skip the initial run (handled by onMount)
+	$effect(() => {
+		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
+		period;
+		if (mounted && browser) loadReport();
+	});
 </script>
 
-<div class="p-6">
-	<!-- Header -->
-	<div class="mb-6">
-		<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-			<div>
-				<h1 class="text-3xl font-bold text-gray-900">Reports & Analytics</h1>
-				<p class="text-gray-600 mt-1">Comprehensive insights and data analysis for informed decision-making</p>
+<div class="p-6 space-y-6">
+
+	<!-- ── Header ──────────────────────────────────────────────────────────── -->
+	<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+		<div>
+			<h1 class="text-3xl font-bold text-gray-900">Reports & Analytics</h1>
+			<p class="mt-1 text-sm text-gray-500">
+				Operational insights across borrowing, inventory, financials, and student risk.
+				{#if lastRefreshed}
+					<span class="ml-1 text-gray-400">
+						Last updated {lastRefreshed.toLocaleTimeString()}
+					</span>
+				{/if}
+			</p>
+		</div>
+		<div class="flex shrink-0 items-center gap-2">
+			<!-- Period selector -->
+			<div class="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
+				{#each [['week','Week'],['month','Month'],['semester','Semester']] as [val, label]}
+					<button
+						onclick={() => { period = val as AnalyticsPeriod; useCustomRange = false; }}
+						class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors {period === val && !useCustomRange ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
+					>
+						{label}
+					</button>
+				{/each}
 			</div>
-			<div class="flex flex-col sm:flex-row gap-2">
-				<button
-					onclick={printReport}
-					class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-md transition-colors text-sm"
-				>
-					<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
-					</svg>
-					Print
-				</button>
-				<button
-					onclick={scheduleReport}
-					class="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-md transition-colors text-sm"
-				>
-					<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-					</svg>
-					Schedule
-				</button>
-				<button
-					onclick={generateReport}
-					class="bg-pink-600 hover:bg-pink-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm"
-				>
-					<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-					</svg>
-					Generate Report
-				</button>
-			</div>
+			<button
+				onclick={handleRefresh}
+				disabled={isLoading}
+				class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+				title="Refresh data"
+			>
+				<svg class="h-4 w-4 {isLoading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+				</svg>
+				Refresh
+			</button>
 		</div>
 	</div>
 
-	<!-- Date Range Filter -->
-	<div class="bg-white rounded-lg shadow p-4 mb-6">
-		<div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-			<label class="text-sm font-medium text-gray-700">Report Period:</label>
-			<div class="flex items-center gap-2">
-				<input
-					type="date"
-					bind:value={dateRange.start}
-					class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm"
-				/>
-				<span class="text-gray-500">to</span>
-				<input
-					type="date"
-					bind:value={dateRange.end}
-					class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm"
-				/>
+	<!-- ── KPI Cards ───────────────────────────────────────────────────────── -->
+	<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+		{#if isLoading}
+			{#each Array(4) as _}
+				<div class="rounded-lg bg-white p-5 shadow space-y-3">
+					<Skeleton class="h-3.5 w-28" />
+					<Skeleton class="h-8 w-20" />
+					<Skeleton class="h-3 w-16" />
+				</div>
+			{/each}
+		{:else}
+			<div class="rounded-lg bg-white p-5 shadow">
+				<p class="text-sm font-medium text-gray-500">Total Requests</p>
+				<p class="mt-1 text-3xl font-bold text-pink-600">{totalRequests.toLocaleString()}</p>
+				<p class="mt-1 text-xs text-gray-400">This {period}</p>
 			</div>
-		</div>
+			<div class="rounded-lg bg-white p-5 shadow">
+				<p class="text-sm font-medium text-gray-500">Overdue Returns</p>
+				<p class="mt-1 text-3xl font-bold {(report?.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">
+					{report?.borrowRequests.overdueCount ?? 0}
+				</p>
+				<p class="mt-1 text-xs text-gray-400">Currently active</p>
+			</div>
+			<div class="rounded-lg bg-white p-5 shadow">
+				<p class="text-sm font-medium text-gray-500">Outstanding Obligations</p>
+				<p class="mt-1 text-3xl font-bold text-amber-600">
+					₱{(report?.financial.summary.totalOutstanding ?? 0).toLocaleString()}
+				</p>
+				<p class="mt-1 text-xs text-gray-400">{report?.financial.summary.pendingCount ?? 0} pending</p>
+			</div>
+			<div class="rounded-lg bg-white p-5 shadow">
+				<p class="text-sm font-medium text-gray-500">Stock Alerts</p>
+				<p class="mt-1 text-3xl font-bold {(report?.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'}">
+					{report?.inventory.stockAlerts.length ?? 0}
+				</p>
+				<p class="mt-1 text-xs text-gray-400">Low / out of stock</p>
+			</div>
+		{/if}
 	</div>
 
-	<!-- Stats Overview -->
-	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-		<div class="bg-white rounded-lg shadow p-6">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Total Inventory Value</p>
-					<p class="text-2xl font-bold text-pink-600">₱{totalInventoryValue.toLocaleString()}</p>
-					<p class="text-xs text-gray-500 mt-1">{totalItems} items</p>
-				</div>
-				<div class="bg-pink-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-					</svg>
-				</div>
-			</div>
-		</div>
-
-		<div class="bg-white rounded-lg shadow p-6">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Avg Utilization Rate</p>
-					<p class="text-2xl font-bold text-blue-600">{avgUtilization}%</p>
-					<p class="text-xs text-gray-500 mt-1">Across all categories</p>
-				</div>
-				<div class="bg-blue-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-					</svg>
-				</div>
-			</div>
-		</div>
-
-		<div class="bg-white rounded-lg shadow p-6">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Total Requests (6mo)</p>
-					<p class="text-2xl font-bold text-purple-600">{totalRequests.toLocaleString()}</p>
-					<p class="text-xs text-gray-500 mt-1">Aug 2025 - Jan 2026</p>
-				</div>
-				<div class="bg-purple-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-					</svg>
-				</div>
-			</div>
-		</div>
-
-		<div class="bg-white rounded-lg shadow p-6">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Total Donations (6mo)</p>
-					<p class="text-2xl font-bold text-pink-600">₱{totalDonations.toLocaleString()}</p>
-					<p class="text-xs text-gray-500 mt-1">Cash & items</p>
-				</div>
-				<div class="bg-pink-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-					</svg>
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Tabs Navigation -->
-	<div class="bg-white rounded-lg shadow mb-6">
+	<!-- ── Tab Navigation ──────────────────────────────────────────────────── -->
+	<div class="rounded-lg bg-white shadow">
 		<div class="border-b border-gray-200">
-			<nav class="flex -mb-px overflow-x-auto" aria-label="Tabs">
-				<button
-					onclick={() => (activeTab = 'inventory')}
-					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'inventory'
-						? 'border-pink-500 text-pink-600'
-						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Inventory Reports
-				</button>
-				<button
-					onclick={() => (activeTab = 'usage')}
-					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'usage'
-						? 'border-pink-500 text-pink-600'
-						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Usage Statistics
-				</button>
-				<button
-					onclick={() => (activeTab = 'financial')}
-					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'financial'
-						? 'border-pink-500 text-pink-600'
-						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Financial Summary
-				</button>
-				<button
-					onclick={() => (activeTab = 'export')}
-					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'export'
-						? 'border-pink-500 text-pink-600'
-						: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Export Data
-				</button>
+			<nav class="-mb-px flex overflow-x-auto" aria-label="Analytics tabs">
+				{#each [
+					{ key: 'borrow', label: 'Borrow Operations' },
+					{ key: 'inventory', label: 'Inventory Utilization' },
+					{ key: 'financial', label: 'Financial Overview' },
+					{ key: 'risk', label: 'Student Risk' }
+				] as tab}
+					<button
+						onclick={() => (activeTab = tab.key as Tab)}
+						class="whitespace-nowrap border-b-2 px-6 py-4 text-sm font-medium transition-colors {activeTab === tab.key
+							? 'border-pink-500 text-pink-600'
+							: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+					>
+						{tab.label}
+					</button>
+				{/each}
 			</nav>
 		</div>
 
 		<div class="p-6">
-			<!-- Inventory Reports Tab -->
-			{#if activeTab === 'inventory'}
-				<div class="space-y-6">
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Inventory Summary by Category</h3>
-						<div class="overflow-x-auto">
-							<table class="min-w-full divide-y divide-gray-200">
-								<thead class="bg-gray-50">
-									<tr>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Items</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Types</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Good</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Needs Repair</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Damaged</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Utilization</th>
-									</tr>
-								</thead>
-								<tbody class="bg-white divide-y divide-gray-200">
-									{#each inventoryReport as category}
-										<tr class="hover:bg-gray-50">
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{category.category}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{category.totalItems}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{category.itemTypes}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱{category.totalValue.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">{category.condition.good}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">{category.condition.needsRepair}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">{category.condition.damaged}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm">
-												<div class="flex items-center">
-													<div class="flex-1 bg-gray-200 rounded-full h-2 mr-2">
-														<div class="{getUtilizationBg(category.utilizationRate)} h-2 rounded-full" style="width: {category.utilizationRate}%"></div>
-													</div>
-													<span class="font-medium {getUtilizationColor(category.utilizationRate)}">{category.utilizationRate}%</span>
-												</div>
-											</td>
-										</tr>
-									{/each}
-									<tr class="bg-gray-50 font-bold">
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">TOTAL</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{totalItems}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{inventoryReport.reduce((sum, cat) => sum + cat.itemTypes, 0)}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{totalInventoryValue.toLocaleString()}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">{inventoryReport.reduce((sum, cat) => sum + cat.condition.good, 0)}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-600">{inventoryReport.reduce((sum, cat) => sum + cat.condition.needsRepair, 0)}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">{inventoryReport.reduce((sum, cat) => sum + cat.condition.damaged, 0)}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">{avgUtilization}%</td>
-									</tr>
-								</tbody>
-							</table>
-						</div>
+			{#if isLoading}
+				<div class="space-y-4" role="status" aria-label="Loading analytics">
+					<div class="flex items-center justify-between">
+						<Skeleton class="h-5 w-48" />
+						<Skeleton class="h-8 w-24" />
 					</div>
-
-					<!-- Insights -->
-					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-							<div class="flex items-start">
-								<svg class="w-5 h-5 text-yellow-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-								</svg>
-								<div>
-									<p class="text-sm font-medium text-yellow-900">Attention Needed</p>
-									<p class="text-sm text-yellow-700 mt-1">{inventoryReport.reduce((sum, cat) => sum + cat.condition.needsRepair, 0)} items need repair across all categories</p>
+					{#each Array(5) as _}
+						<div class="rounded-xl border border-gray-100 p-4 space-y-2">
+							<div class="flex items-center gap-3">
+								<Skeleton variant="circle" class="h-9 w-9" />
+								<div class="flex-1 space-y-1.5">
+									<Skeleton class="h-4 w-40" />
+									<Skeleton class="h-3 w-24" />
 								</div>
+								<Skeleton class="h-6 w-16" />
 							</div>
 						</div>
-						<div class="bg-green-50 border border-green-200 rounded-lg p-4">
-							<div class="flex items-start">
-								<svg class="w-5 h-5 text-green-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-								</svg>
-								<div>
-									<p class="text-sm font-medium text-green-900">High Performance</p>
-									<p class="text-sm text-green-700 mt-1">Utensils category shows highest utilization at 94%</p>
-								</div>
-							</div>
-						</div>
-					</div>
+					{/each}
 				</div>
-			{/if}
+			{:else if error}
+				<div class="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
+					<svg class="mx-auto mb-3 h-8 w-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+					</svg>
+					<p class="text-sm font-medium text-red-700">{error}</p>
+					<button
+						onclick={() => loadReport(true)}
+						class="mt-3 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
+					>
+						Try Again
+					</button>
+				</div>
+			{:else if report}
 
-			<!-- Usage Statistics Tab -->
-			{#if activeTab === 'usage'}
-				<div class="space-y-6">
-					<!-- Top Borrowed Items -->
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Most Frequently Borrowed Items</h3>
-						<div class="overflow-x-auto">
-							<table class="min-w-full divide-y divide-gray-200">
-								<thead class="bg-gray-50">
-									<tr>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Times Loaned</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Currently Out</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Duration (days)</th>
-									</tr>
-								</thead>
-								<tbody class="bg-white divide-y divide-gray-200">
-									{#each usageStats.topBorrowedItems as item, index}
-										<tr class="hover:bg-gray-50">
-											<td class="px-6 py-4 whitespace-nowrap text-sm">
-												{#if index === 0}
-													<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-yellow-100 text-yellow-800 font-bold">🥇</span>
-												{:else if index === 1}
-													<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-gray-200 text-gray-700 font-bold">🥈</span>
-												{:else if index === 2}
-													<span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-orange-100 text-orange-700 font-bold">🥉</span>
-												{:else}
-													<span class="text-gray-500 font-medium">#{index + 1}</span>
-												{/if}
-											</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.name}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{item.category}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{item.timesLoaned}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">{item.currentlyOut}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{item.avgDuration}</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
-					</div>
+			<!-- ══ BORROW OPERATIONS TAB ══════════════════════════════════════ -->
+			{#if activeTab === 'borrow'}
+				<div class="space-y-8">
 
-					<!-- Monthly Trends -->
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">6-Month Request Trends</h3>
-						<div class="overflow-x-auto">
-							<table class="min-w-full divide-y divide-gray-200">
-								<thead class="bg-gray-50">
-									<tr>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Requests</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approved</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rejected</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approval Rate</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Process Time (days)</th>
-									</tr>
-								</thead>
-								<tbody class="bg-white divide-y divide-gray-200">
-									{#each usageStats.monthlyTrends as month}
-										<tr class="hover:bg-gray-50">
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{month.month}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{month.requests}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">{month.approved}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-red-600">{month.rejected}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{Math.round((month.approved / month.requests) * 100)}%</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{month.avgProcessTime}</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
-					</div>
-
-					<!-- User Activity by Program -->
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Usage by Program</h3>
-						<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-							{#each usageStats.userActivity as program}
-								<div class="bg-white border border-gray-200 rounded-lg p-4">
-									<div class="flex justify-between items-start mb-3">
-										<div>
-											<h4 class="font-medium text-gray-900">{program.program}</h4>
-											<p class="text-sm text-gray-500">{program.activeUsers} active users</p>
+					<!-- Requests over time (bar chart) -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Requests Over Time</h3>
+						{#if report.borrowRequests.requestsOverTime.length === 0}
+							<p class="text-sm text-gray-400">No data for this period.</p>
+						{:else}
+							{@const maxCount = Math.max(...report.borrowRequests.requestsOverTime.map((r) => r.count), 1)}
+							<div class="overflow-x-auto">
+								<div class="flex min-w-max items-end gap-1 h-40 pb-6 relative">
+									{#each report.borrowRequests.requestsOverTime as point}
+										<div class="flex flex-col items-center gap-1 group" style="min-width:28px">
+											<span class="text-xs text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">{point.count}</span>
+											<div
+												class="w-5 rounded-t bg-pink-400 hover:bg-pink-600 transition-colors cursor-default"
+												style="height:{Math.max(4, Math.round((point.count / maxCount) * 120))}px"
+												title="{point.date}: {point.count} requests"
+											></div>
+											<span class="text-[10px] text-gray-400 rotate-45 origin-left mt-1 whitespace-nowrap">{point.date.slice(5)}</span>
 										</div>
-										<span class="bg-pink-100 text-pink-800 text-xs font-medium px-2.5 py-1 rounded">
-											{program.avgPerUser} avg/user
-										</span>
-									</div>
-									<div class="flex items-baseline gap-2">
-										<span class="text-2xl font-bold text-gray-900">{program.totalRequests}</span>
-										<span class="text-sm text-gray-500">total requests</span>
-									</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					</section>
+
+					<!-- Status breakdown -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Request Status Breakdown</h3>
+						<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+							{#each report.borrowRequests.statusBreakdown as item}
+								<div class="rounded-xl border border-gray-100 bg-gray-50 p-4 text-center">
+									<p class="text-2xl font-bold text-gray-900">{item.count}</p>
+									<span class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium {statusColors[item.status] ?? 'bg-gray-100 text-gray-600'}">
+										{statusLabels[item.status] ?? item.status}
+									</span>
 								</div>
 							{/each}
 						</div>
-					</div>
-				</div>
-			{/if}
+					</section>
 
-			<!-- Financial Summary Tab -->
-			{#if activeTab === 'financial'}
-				<div class="space-y-6">
-					<!-- Donations Trend -->
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Donations Overview (6 Months)</h3>
-						<div class="overflow-x-auto">
-							<table class="min-w-full divide-y divide-gray-200">
-								<thead class="bg-gray-50">
-									<tr>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cash Donations</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Donations</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
-									</tr>
-								</thead>
-								<tbody class="bg-white divide-y divide-gray-200">
-									{#each financialSummary.donations as donation}
-										<tr class="hover:bg-gray-50">
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{donation.month}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{donation.cash.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{donation.items} items</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-pink-600">₱{donation.totalValue.toLocaleString()}</td>
-										</tr>
-									{/each}
-									<tr class="bg-gray-50 font-bold">
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">TOTAL</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{financialSummary.donations.reduce((sum, d) => sum + d.cash, 0).toLocaleString()}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{financialSummary.donations.reduce((sum, d) => sum + d.items, 0)} items</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-pink-600">₱{totalDonations.toLocaleString()}</td>
-									</tr>
-								</tbody>
-							</table>
-						</div>
-					</div>
-
-					<!-- Replacement Payments -->
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Replacement Payment Collections</h3>
-						<div class="overflow-x-auto">
-							<table class="min-w-full divide-y divide-gray-200">
-								<thead class="bg-gray-50">
-									<tr>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Collected</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Outstanding</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Items Involved</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Collection Rate</th>
-									</tr>
-								</thead>
-								<tbody class="bg-white divide-y divide-gray-200">
-									{#each financialSummary.replacementPayments as payment}
-										<tr class="hover:bg-gray-50">
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{payment.month}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">₱{payment.collected.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600">₱{payment.outstanding.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{payment.items}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-												{Math.round((payment.collected / (payment.collected + payment.outstanding)) * 100)}%
-											</td>
-										</tr>
-									{/each}
-									<tr class="bg-gray-50 font-bold">
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">TOTAL</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-green-600">₱{financialSummary.replacementPayments.reduce((sum, p) => sum + p.collected, 0).toLocaleString()}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600">₱{financialSummary.replacementPayments.reduce((sum, p) => sum + p.outstanding, 0).toLocaleString()}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{financialSummary.replacementPayments.reduce((sum, p) => sum + p.items, 0)}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">-</td>
-									</tr>
-								</tbody>
-							</table>
-						</div>
-					</div>
-
-					<!-- Maintenance Costs -->
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Maintenance Cost Analysis</h3>
-						<div class="overflow-x-auto">
-							<table class="min-w-full divide-y divide-gray-200">
-								<thead class="bg-gray-50">
-									<tr>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preventive</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Corrective</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
-										<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Preventive %</th>
-									</tr>
-								</thead>
-								<tbody class="bg-white divide-y divide-gray-200">
-									{#each financialSummary.maintenanceCosts as cost}
-										<tr class="hover:bg-gray-50">
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cost.month}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">₱{cost.preventive.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600">₱{cost.corrective.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱{cost.total.toLocaleString()}</td>
-											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-												{Math.round((cost.preventive / cost.total) * 100)}%
-											</td>
-										</tr>
-									{/each}
-									<tr class="bg-gray-50 font-bold">
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">TOTAL</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600">₱{financialSummary.maintenanceCosts.reduce((sum, c) => sum + c.preventive, 0).toLocaleString()}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-orange-600">₱{financialSummary.maintenanceCosts.reduce((sum, c) => sum + c.corrective, 0).toLocaleString()}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{totalMaintenanceCost.toLocaleString()}</td>
-										<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">-</td>
-									</tr>
-								</tbody>
-							</table>
-						</div>
-					</div>
-
-					<!-- Financial Insights -->
-					<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-						<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-							<div class="flex items-start">
-								<svg class="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-								</svg>
-								<div>
-									<p class="text-sm font-medium text-blue-900">Maintenance Strategy</p>
-									<p class="text-sm text-blue-700 mt-1">65% of maintenance costs are preventive, indicating good proactive management</p>
-								</div>
-							</div>
-						</div>
-							<div class="bg-pink-50 border border-pink-200 rounded-lg p-4">
-								<div class="flex items-start">
-									<svg class="w-5 h-5 text-pink-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-								</svg>
-								<div>
-									<p class="text-sm font-medium text-pink-900">Positive Trend</p>
-									<p class="text-sm text-pink-700 mt-1">Donations increased by 45% from August to December 2025</p>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-			{/if}
-
-			<!-- Export Data Tab -->
-			{#if activeTab === 'export'}
-				<div class="space-y-6">
-					<div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-						<div class="flex items-start">
-							<svg class="w-5 h-5 text-blue-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-							</svg>
-							<div>
-								<p class="text-sm font-medium text-blue-900">Export Information</p>
-								<p class="text-sm text-blue-700 mt-1">Select your preferred format and data type to export. Exported data will include records within the selected date range.</p>
-							</div>
-						</div>
-					</div>
-
-					<div class="bg-white border border-gray-200 rounded-lg p-6">
-						<h3 class="text-lg font-semibold text-gray-900 mb-6">Export Configuration</h3>
-
-						<div class="space-y-6">
-							<!-- Data Type Selection -->
-							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-3">Select Data Type to Export</label>
-								<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'inventory' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
-										<input
-											type="radio"
-											bind:group={exportOptions.dataType}
-											value="inventory"
-											class="text-pink-600 focus:ring-pink-500"
-										/>
-										<div class="ml-3">
-											<p class="font-medium text-gray-900">Inventory Data</p>
-											<p class="text-sm text-gray-500">All items, categories, and stock levels</p>
-										</div>
-									</label>
-
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'requests' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
-										<input
-											type="radio"
-											bind:group={exportOptions.dataType}
-											value="requests"
-											class="text-pink-600 focus:ring-pink-500"
-										/>
-										<div class="ml-3">
-											<p class="font-medium text-gray-900">Requests & Loans</p>
-											<p class="text-sm text-gray-500">Borrowing history and active loans</p>
-										</div>
-									</label>
-
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'financial' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
-										<input
-											type="radio"
-											bind:group={exportOptions.dataType}
-											value="financial"
-											class="text-pink-600 focus:ring-pink-500"
-										/>
-										<div class="ml-3">
-											<p class="font-medium text-gray-900">Financial Records</p>
-											<p class="text-sm text-gray-500">Donations and payment history</p>
-										</div>
-									</label>
-
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'maintenance' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
-										<input
-											type="radio"
-											bind:group={exportOptions.dataType}
-											value="maintenance"
-											class="text-pink-600 focus:ring-pink-500"
-										/>
-										<div class="ml-3">
-											<p class="font-medium text-gray-900">Maintenance Log</p>
-											<p class="text-sm text-gray-500">All maintenance activities and costs</p>
-										</div>
-									</label>
-
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'audit' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
-										<input
-											type="radio"
-											bind:group={exportOptions.dataType}
-											value="audit"
-											class="text-pink-600 focus:ring-pink-500"
-										/>
-										<div class="ml-3">
-											<p class="font-medium text-gray-900">Audit Trail</p>
-											<p class="text-sm text-gray-500">System activity logs</p>
-										</div>
-									</label>
-
-									<label class="flex items-center p-4 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.dataType === 'all' ? 'border-pink-500 bg-pink-50' : 'border-gray-200 hover:border-gray-300'}">
-										<input
-											type="radio"
-											bind:group={exportOptions.dataType}
-											value="all"
-											class="text-pink-600 focus:ring-pink-500"
-										/>
-										<div class="ml-3">
-											<p class="font-medium text-gray-900">Complete Export</p>
-											<p class="text-sm text-gray-500">All data in separate files</p>
-										</div>
-									</label>
-								</div>
-							</div>
-
-							<!-- Format Selection -->
-							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-3">Export Format</label>
-								<div class="flex gap-3">
-									<label class="flex items-center px-4 py-3 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.format === 'csv' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}">
-										<input
-											type="radio"
-											bind:group={exportOptions.format}
-											value="csv"
-											class="text-emerald-600 focus:ring-emerald-500"
-										/>
-										<span class="ml-2 font-medium text-gray-900">CSV</span>
-									</label>
-
-									<label class="flex items-center px-4 py-3 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.format === 'excel' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}">
-										<input
-											type="radio"
-											bind:group={exportOptions.format}
-											value="excel"
-											class="text-emerald-600 focus:ring-emerald-500"
-										/>
-										<span class="ml-2 font-medium text-gray-900">Excel (.xlsx)</span>
-									</label>
-
-									<label class="flex items-center px-4 py-3 border-2 rounded-lg cursor-pointer transition-colors {exportOptions.format === 'pdf' ? 'border-emerald-500 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}">
-										<input
-											type="radio"
-											bind:group={exportOptions.format}
-											value="pdf"
-											class="text-emerald-600 focus:ring-emerald-500"
-										/>
-										<span class="ml-2 font-medium text-gray-900">PDF</span>
-									</label>
-								</div>
-							</div>
-
-							<!-- Additional Options -->
-							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-3">Additional Options</label>
-								<div class="space-y-2">
-									<label class="flex items-center">
-										<input
-											type="checkbox"
-											bind:checked={exportOptions.includeDetails}
-											class="rounded text-emerald-600 focus:ring-emerald-500"
-										/>
-										<span class="ml-2 text-sm text-gray-700">Include detailed descriptions and notes</span>
-									</label>
-									<label class="flex items-center">
-										<input
-											type="checkbox"
-											bind:checked={exportOptions.includeImages}
-											class="rounded text-emerald-600 focus:ring-emerald-500"
-										/>
-										<span class="ml-2 text-sm text-gray-700">Include item images (increases file size)</span>
-									</label>
-								</div>
-							</div>
-
-							<!-- Export Summary -->
-							<div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-								<h4 class="font-medium text-gray-900 mb-2">Export Summary</h4>
-								<div class="space-y-1 text-sm text-gray-600">
-									<p><span class="font-medium">Data Type:</span> {exportOptions.dataType === 'all' ? 'All Data' : exportOptions.dataType.charAt(0).toUpperCase() + exportOptions.dataType.slice(1)}</p>
-									<p><span class="font-medium">Format:</span> {exportOptions.format.toUpperCase()}</p>
-									<p><span class="font-medium">Date Range:</span> {dateRange.start} to {dateRange.end}</p>
-									<p><span class="font-medium">Options:</span> 
-										{exportOptions.includeDetails ? 'Detailed' : 'Summary'}
-										{exportOptions.includeImages ? ', With Images' : ''}
+					<!-- Turnaround times -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Average Turnaround Times</h3>
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+							{#each [
+								{ label: 'Submission → Approval', value: report.borrowRequests.turnaround.avgApprovalHours, color: 'text-blue-600', bg: 'bg-blue-50' },
+								{ label: 'Approval → Release', value: report.borrowRequests.turnaround.avgReleaseHours, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+								{ label: 'Release → Return', value: report.borrowRequests.turnaround.avgReturnHours, color: 'text-pink-600', bg: 'bg-pink-50' }
+							] as stat}
+								<div class="rounded-xl border border-gray-100 {stat.bg} p-5">
+									<p class="text-xs font-medium text-gray-500">{stat.label}</p>
+									<p class="mt-1 text-2xl font-bold {stat.color}">
+										{stat.value > 0 ? `${stat.value}h` : '—'}
 									</p>
+									<p class="mt-0.5 text-xs text-gray-400">average hours</p>
+								</div>
+							{/each}
+						</div>
+					</section>
+
+					<!-- Overdue returns -->
+					<section>
+						<div class="mb-4 flex items-center justify-between">
+							<h3 class="text-base font-semibold text-gray-900">
+								Overdue Returns
+								{#if report.borrowRequests.overdueCount > 0}
+									<span class="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{report.borrowRequests.overdueCount}</span>
+								{/if}
+							</h3>
+						</div>
+						{#if report.borrowRequests.overdueRequests.length === 0}
+							<div class="rounded-lg border-2 border-dashed border-gray-200 py-10 text-center">
+								<svg class="mx-auto h-10 w-10 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+								</svg>
+								<p class="mt-2 text-sm font-medium text-gray-500">No overdue returns</p>
+							</div>
+						{:else}
+							<div class="overflow-x-auto rounded-lg border border-gray-200">
+								<table class="min-w-full divide-y divide-gray-200">
+									<thead class="bg-gray-50">
+										<tr>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Due Date</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Days Overdue</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Items</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-gray-200 bg-white">
+										{#each report.borrowRequests.overdueRequests as req}
+											<tr class="hover:bg-gray-50">
+												<td class="px-4 py-3 text-sm font-medium text-gray-900">{req.studentName.trim() || 'Unknown'}</td>
+												<td class="px-4 py-3 text-sm text-gray-600">{new Date(req.returnDate).toLocaleDateString()}</td>
+												<td class="px-4 py-3">
+													<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
+														{req.daysOverdue}d overdue
+													</span>
+												</td>
+												<td class="px-4 py-3 text-sm text-gray-600">{req.itemCount}</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{/if}
+					</section>
+
+					<!-- Peak borrowing heatmap -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Peak Borrowing Periods</h3>
+						<p class="mb-3 text-xs text-gray-400">Darker = more requests. Hover for count.</p>
+						<div class="overflow-x-auto">
+							<div class="min-w-max">
+								<!-- Hour labels -->
+								<div class="flex ml-10 mb-1">
+									{#each Array(24) as _, h}
+										<div class="w-7 text-center text-[10px] text-gray-400">{h}</div>
+									{/each}
+								</div>
+								{#each [1,2,3,4,5,6,7] as day}
+									<div class="flex items-center mb-1">
+										<span class="w-9 text-right pr-2 text-xs text-gray-500">{DAY_NAMES[day - 1]}</span>
+										{#each Array(24) as _, h}
+											{@const count = heatmapCell(day, h)}
+											<div
+												class="w-7 h-6 rounded-sm mx-px {heatmapColor(count)} cursor-default transition-colors"
+												title="{DAY_NAMES[day-1]} {h}:00 — {count} requests"
+											></div>
+										{/each}
+									</div>
+								{/each}
+								<!-- Legend -->
+								<div class="flex items-center gap-2 mt-3 ml-10">
+									<span class="text-xs text-gray-400">Less</span>
+									{#each ['bg-gray-100','bg-pink-100','bg-pink-200','bg-pink-300','bg-pink-400','bg-pink-600'] as cls}
+										<div class="w-5 h-4 rounded-sm {cls}"></div>
+									{/each}
+									<span class="text-xs text-gray-400">More</span>
 								</div>
 							</div>
+						</div>
+					</section>
+				</div>
+			{/if}
 
-							<!-- Export Button -->
-							<div class="flex justify-end gap-3">
-								<button
-									onclick={() => {
-										exportOptions = {
-											format: 'csv',
-											dataType: 'inventory',
-											includeDetails: true,
-											includeImages: false
-										};
-									}}
-									class="px-6 py-2 border border-gray-300 rounded-md text-gray-700 font-medium hover:bg-gray-50 transition-colors"
-								>
-									Reset
-								</button>
-								<button
-									onclick={exportData}
-									class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-8 rounded-md transition-colors flex items-center gap-2"
-								>
-									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
-									</svg>
-									Export Data
-								</button>
+			<!-- ══ INVENTORY UTILIZATION TAB ══════════════════════════════════ -->
+			{#if activeTab === 'inventory'}
+				<div class="space-y-8">
+
+					<!-- Most borrowed items -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Most Borrowed Items</h3>
+						{#if report.inventory.mostBorrowedItems.length === 0}
+							<p class="text-sm text-gray-400">No borrow data for this period.</p>
+						{:else}
+							{@const maxBorrows = Math.max(...report.inventory.mostBorrowedItems.map((i) => i.totalBorrows), 1)}
+							<div class="space-y-3">
+								{#each report.inventory.mostBorrowedItems as item, idx}
+									<div class="flex items-center gap-3">
+										<span class="w-5 shrink-0 text-right text-xs font-semibold text-gray-400">#{idx + 1}</span>
+										<div class="flex-1">
+											<div class="flex items-center justify-between mb-1">
+												<span class="text-sm font-medium text-gray-900">{item.name}</span>
+												<span class="text-xs text-gray-500">{item.totalBorrows} borrows</span>
+											</div>
+											<div class="h-2 w-full rounded-full bg-gray-100">
+												<div
+													class="h-2 rounded-full bg-pink-500 transition-all"
+													style="width:{barWidth(item.totalBorrows, maxBorrows)}"
+												></div>
+											</div>
+											<p class="mt-0.5 text-xs text-gray-400">{item.category} · {item.totalQuantity} units total</p>
+										</div>
+									</div>
+								{/each}
 							</div>
-						</div>
-					</div>
+						{/if}
+					</section>
 
-					<!-- Quick Export Presets -->
-					<div>
-						<h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Export Presets</h3>
-						<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-							<button
-								onclick={() => {
-									exportOptions.dataType = 'inventory';
-									exportOptions.format = 'excel';
-									exportData();
-								}}
-								class="p-4 border-2 border-gray-200 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 transition-colors text-left"
-							>
-								<div class="flex items-center justify-between mb-2">
-									<svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-									</svg>
-								</div>
-								<p class="font-medium text-gray-900">Current Inventory</p>
-								<p class="text-sm text-gray-500 mt-1">Excel format with all items</p>
-							</button>
+					<!-- Items currently out -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Items Currently Out</h3>
+						{#if report.inventory.itemsCurrentlyOut.length === 0}
+							<p class="text-sm text-gray-400">No items currently borrowed.</p>
+						{:else}
+							<div class="overflow-x-auto rounded-lg border border-gray-200">
+								<table class="min-w-full divide-y divide-gray-200">
+									<thead class="bg-gray-50">
+										<tr>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Out</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">In Stock</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Utilization</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Condition</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-gray-200 bg-white">
+										{#each report.inventory.itemsCurrentlyOut as item}
+											{@const total = item.quantityOut + item.totalStock}
+											{@const utilPct = total > 0 ? Math.round((item.quantityOut / total) * 100) : 0}
+											<tr class="hover:bg-gray-50">
+												<td class="px-4 py-3 text-sm font-medium text-gray-900">{item.name}</td>
+												<td class="px-4 py-3 text-sm text-gray-500">{item.category}</td>
+												<td class="px-4 py-3 text-sm font-semibold text-pink-600">{item.quantityOut}</td>
+												<td class="px-4 py-3 text-sm text-gray-600">{item.totalStock}</td>
+												<td class="px-4 py-3">
+													<div class="flex items-center gap-2">
+														<div class="h-1.5 w-20 rounded-full bg-gray-100">
+															<div class="h-1.5 rounded-full bg-pink-400" style="width:{utilPct}%"></div>
+														</div>
+														<span class="text-xs text-gray-500">{utilPct}%</span>
+													</div>
+												</td>
+												<td class="px-4 py-3">
+													<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {conditionColors[item.condition] ? conditionColors[item.condition].replace('bg-', 'bg-').replace('-500','-100').replace('-400','-100') + ' text-gray-700' : 'bg-gray-100 text-gray-600'}">
+														{item.condition}
+													</span>
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{/if}
+					</section>
 
-							<button
-								onclick={() => {
-									exportOptions.dataType = 'financial';
-									exportOptions.format = 'pdf';
-									exportData();
-								}}
-								class="p-4 border-2 border-gray-200 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 transition-colors text-left"
-							>
-								<div class="flex items-center justify-between mb-2">
-									<svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-									</svg>
-								</div>
-								<p class="font-medium text-gray-900">Financial Report</p>
-								<p class="text-sm text-gray-500 mt-1">PDF summary for records</p>
-							</button>
+					<!-- Damage / missing rate -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Items with Highest Incident Rate</h3>
+						{#if report.inventory.damageRateItems.length === 0}
+							<p class="text-sm text-gray-400">No inspection data for this period.</p>
+						{:else}
+							<div class="overflow-x-auto rounded-lg border border-gray-200">
+								<table class="min-w-full divide-y divide-gray-200">
+									<thead class="bg-gray-50">
+										<tr>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Inspected</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Damaged</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Missing</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Incident Rate</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-gray-200 bg-white">
+										{#each report.inventory.damageRateItems as item}
+											<tr class="hover:bg-gray-50">
+												<td class="px-4 py-3">
+													<p class="text-sm font-medium text-gray-900">{item.name}</p>
+													<p class="text-xs text-gray-400">{item.category}</p>
+												</td>
+												<td class="px-4 py-3 text-sm text-gray-600">{item.totalInspected}</td>
+												<td class="px-4 py-3 text-sm font-medium text-rose-600">{item.damaged}</td>
+												<td class="px-4 py-3 text-sm font-medium text-red-600">{item.missing}</td>
+												<td class="px-4 py-3">
+													<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {item.incidentRate >= 50 ? 'bg-red-100 text-red-800' : item.incidentRate >= 25 ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}">
+														{item.incidentRate}%
+													</span>
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{/if}
+					</section>
 
-							<button
-								onclick={() => {
-									exportOptions.dataType = 'all';
-									exportOptions.format = 'csv';
-									exportData();
-								}}
-								class="p-4 border-2 border-gray-200 rounded-lg hover:border-emerald-500 hover:bg-emerald-50 transition-colors text-left"
-							>
-								<div class="flex items-center justify-between mb-2">
-									<svg class="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"></path>
-									</svg>
+					<!-- EOM Variance -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">EOM Variance Tracking</h3>
+						<p class="mb-3 text-xs text-gray-400">Negative variance = current stock below end-of-month count.</p>
+						{#if report.inventory.eomVariance.length === 0}
+							<p class="text-sm text-gray-400">No inventory data available.</p>
+						{:else}
+							<div class="overflow-x-auto rounded-lg border border-gray-200">
+								<table class="min-w-full divide-y divide-gray-200">
+									<thead class="bg-gray-50">
+										<tr>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Current Qty</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">EOM Count</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Variance</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-gray-200 bg-white">
+										{#each report.inventory.eomVariance as item}
+											<tr class="hover:bg-gray-50">
+												<td class="px-4 py-3">
+													<p class="text-sm font-medium text-gray-900">{item.name}</p>
+													<p class="text-xs text-gray-400">{item.category}</p>
+												</td>
+												<td class="px-4 py-3 text-sm text-gray-700">{item.quantity}</td>
+												<td class="px-4 py-3 text-sm text-gray-700">{item.eomCount}</td>
+												<td class="px-4 py-3">
+													<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {item.variance < 0 ? 'bg-red-100 text-red-800' : item.variance > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}">
+														{item.variance > 0 ? '+' : ''}{item.variance}
+													</span>
+												</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{/if}
+					</section>
+
+					<!-- Condition distribution + Stock alerts side by side -->
+					<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+						<!-- Condition distribution -->
+						<section>
+							<h3 class="mb-4 text-base font-semibold text-gray-900">Condition Distribution</h3>
+							{#if report.inventory.conditionDistribution.length >= 0}
+								{@const totalItems = report.inventory.conditionDistribution.reduce((s, c) => s + c.count, 0)}
+								<div class="space-y-3">
+									{#each ['Excellent','Good','Fair','Poor','Damaged'] as cond}
+										{@const item = report.inventory.conditionDistribution.find((c) => c.condition === cond)}
+										{@const count = item?.count ?? 0}
+										{@const pct = totalItems > 0 ? Math.round((count / totalItems) * 100) : 0}
+										<div class="flex items-center gap-3">
+											<span class="w-16 shrink-0 text-xs text-gray-600">{cond}</span>
+											<div class="flex-1 h-2 rounded-full bg-gray-100">
+												<div class="h-2 rounded-full {conditionColors[cond] ?? 'bg-gray-400'} transition-all" style="width:{pct}%"></div>
+											</div>
+											<span class="w-12 text-right text-xs text-gray-500">{count} ({pct}%)</span>
+										</div>
+									{/each}
 								</div>
-								<p class="font-medium text-gray-900">Complete Backup</p>
-								<p class="text-sm text-gray-500 mt-1">All data in CSV format</p>
-							</button>
-						</div>
+							{/if}
+						</section>
+
+						<!-- Stock alerts -->
+						<section>
+							<h3 class="mb-4 text-base font-semibold text-gray-900">Stock Alerts</h3>
+							{#if report.inventory.stockAlerts.length === 0}
+								<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
+									<p class="text-sm text-emerald-600 font-medium">All items adequately stocked</p>
+								</div>
+							{:else}
+								<div class="space-y-2">
+									{#each report.inventory.stockAlerts as alert}
+										<div class="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+											<div>
+												<p class="text-sm font-medium text-gray-900">{alert.name}</p>
+												<p class="text-xs text-gray-400">{alert.category}</p>
+											</div>
+											<div class="flex items-center gap-2">
+												<span class="text-sm font-semibold text-gray-700">Qty: {alert.quantity}</span>
+												<span class="rounded-full px-2 py-0.5 text-xs font-semibold {alert.status === 'Out of Stock' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
+													{alert.status}
+												</span>
+											</div>
+										</div>
+									{/each}
+								</div>
+							{/if}
+						</section>
 					</div>
 				</div>
 			{/if}
+
+			<!-- ══ FINANCIAL OVERVIEW TAB ══════════════════════════════════════ -->
+			{#if activeTab === 'financial'}
+				<div class="space-y-8">
+
+					<!-- Summary KPIs -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Financial Summary</h3>
+						<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+							<div class="rounded-xl border border-gray-100 bg-amber-50 p-4">
+								<p class="text-xs font-medium text-gray-500">Outstanding</p>
+								<p class="mt-1 text-xl font-bold text-amber-600">₱{report.financial.summary.totalOutstanding.toLocaleString()}</p>
+								<p class="mt-0.5 text-xs text-gray-400">{report.financial.summary.pendingCount} obligations</p>
+							</div>
+							<div class="rounded-xl border border-gray-100 bg-emerald-50 p-4">
+								<p class="text-xs font-medium text-gray-500">Collected</p>
+								<p class="mt-1 text-xl font-bold text-emerald-600">₱{report.financial.summary.totalCollected.toLocaleString()}</p>
+								<p class="mt-0.5 text-xs text-gray-400">All time</p>
+							</div>
+							<div class="rounded-xl border border-gray-100 bg-blue-50 p-4">
+								<p class="text-xs font-medium text-gray-500">Avg Resolution</p>
+								<p class="mt-1 text-xl font-bold text-blue-600">{report.financial.avgResolutionDays > 0 ? `${report.financial.avgResolutionDays}d` : '—'}</p>
+								<p class="mt-0.5 text-xs text-gray-400">Incident → resolved</p>
+							</div>
+							<div class="rounded-xl border border-gray-100 bg-pink-50 p-4">
+								<p class="text-xs font-medium text-gray-500">Total Obligations</p>
+								<p class="mt-1 text-xl font-bold text-pink-600">{report.financial.summary.totalObligations}</p>
+								<p class="mt-0.5 text-xs text-gray-400">All time</p>
+							</div>
+						</div>
+					</section>
+
+					<!-- Outstanding vs Collected bar + Resolution breakdown side by side -->
+					<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+						<!-- Resolution breakdown -->
+						<section>
+							<h3 class="mb-4 text-base font-semibold text-gray-900">Resolution Breakdown</h3>
+							{#if report.financial.resolutionBreakdown.length === 0}
+								<p class="text-sm text-gray-400">No resolved obligations yet.</p>
+							{:else}
+								{@const totalResolved = report.financial.resolutionBreakdown.reduce((s, r) => s + r.count, 0)}
+								<div class="space-y-3">
+									{#each report.financial.resolutionBreakdown as item}
+										{@const pct = totalResolved > 0 ? Math.round((item.count / totalResolved) * 100) : 0}
+										{@const colors: Record<string, string> = { payment: 'bg-emerald-500', replacement: 'bg-cyan-500', waiver: 'bg-slate-400' }}
+										{@const labels: Record<string, string> = { payment: 'Cash Payment', replacement: 'Item Replaced', waiver: 'Waived' }}
+										<div class="flex items-center gap-3">
+											<span class="w-24 shrink-0 text-xs text-gray-600">{labels[item.type] ?? item.type}</span>
+											<div class="flex-1 h-2.5 rounded-full bg-gray-100">
+												<div class="h-2.5 rounded-full {colors[item.type] ?? 'bg-gray-400'}" style="width:{pct}%"></div>
+											</div>
+											<span class="w-20 text-right text-xs text-gray-500">{item.count} ({pct}%)</span>
+										</div>
+									{/each}
+								</div>
+							{/if}
+						</section>
+
+						<!-- Obligations by category -->
+						<section>
+							<h3 class="mb-4 text-base font-semibold text-gray-900">Obligations by Category</h3>
+							{#if report.financial.obligationsByCategory.length === 0}
+								<p class="text-sm text-gray-400">No obligation data.</p>
+							{:else}
+								{@const maxObl = Math.max(...report.financial.obligationsByCategory.map((o) => o.count), 1)}
+								<div class="space-y-3">
+									{#each report.financial.obligationsByCategory as cat}
+										<div>
+											<div class="flex items-center justify-between mb-1">
+												<span class="text-sm text-gray-700">{cat.category}</span>
+												<span class="text-xs text-gray-500">{cat.count} · ₱{cat.pendingAmount.toLocaleString()} pending</span>
+											</div>
+											<div class="h-2 w-full rounded-full bg-gray-100">
+												<div class="h-2 rounded-full bg-pink-400" style="width:{barWidth(cat.count, maxObl)}"></div>
+											</div>
+										</div>
+									{/each}
+								</div>
+							{/if}
+						</section>
+					</div>
+
+					<!-- Monthly revenue -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Monthly Revenue from Replacements</h3>
+						{#if report.financial.monthlyRevenue.length === 0}
+							<p class="text-sm text-gray-400">No revenue data for the last 6 months.</p>
+						{:else}
+							{@const maxRev = Math.max(...report.financial.monthlyRevenue.map((m) => m.collected), 1)}
+							<div class="overflow-x-auto">
+								<div class="flex min-w-max items-end gap-2 h-36 pb-6">
+									{#each report.financial.monthlyRevenue as m}
+										<div class="flex flex-col items-center gap-1 group" style="min-width:48px">
+											<span class="text-xs text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">₱{m.collected.toLocaleString()}</span>
+											<div
+												class="w-8 rounded-t bg-emerald-400 hover:bg-emerald-600 transition-colors cursor-default"
+												style="height:{Math.max(4, Math.round((m.collected / maxRev) * 100))}px"
+												title="{MONTH_NAMES[m.month - 1]} {m.year}: ₱{m.collected.toLocaleString()}"
+											></div>
+											<span class="text-xs text-gray-400">{MONTH_NAMES[m.month - 1]}</span>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					</section>
+
+					<!-- Donation totals -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Donation Totals (Last 6 Months)</h3>
+						{#if report.financial.donationTotals.length === 0}
+							<p class="text-sm text-gray-400">No donation data for the last 6 months.</p>
+						{:else}
+							<div class="overflow-x-auto rounded-lg border border-gray-200">
+								<table class="min-w-full divide-y divide-gray-200">
+									<thead class="bg-gray-50">
+										<tr>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Month</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Cash Donations</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item Donations</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-gray-200 bg-white">
+										{#each donationByMonth as val}
+											<tr class="hover:bg-gray-50">
+												<td class="px-4 py-3 text-sm font-medium text-gray-900">{MONTH_NAMES[parseInt(val.month) - 1]} {val.year}</td>
+												<td class="px-4 py-3 text-sm text-emerald-700 font-medium">₱{val.cash.toLocaleString()} <span class="text-gray-400 font-normal">({val.cashCount})</span></td>
+												<td class="px-4 py-3 text-sm text-blue-700">{val.itemCount} items</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{/if}
+					</section>
+				</div>
+			{/if}
+
+			<!-- ══ STUDENT RISK TAB ════════════════════════════════════════════ -->
+			{#if activeTab === 'risk'}
+				<div class="space-y-8">
+
+					<!-- Repeat offenders -->
+					<section>
+						<h3 class="mb-1 text-base font-semibold text-gray-900">Repeat Offenders</h3>
+						<p class="mb-4 text-xs text-gray-400">Students with the most active (unpaid) financial obligations.</p>
+						{#if report.studentRisk.repeatOffenders.length === 0}
+							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
+								<p class="text-sm text-emerald-600 font-medium">No students with active obligations</p>
+							</div>
+						{:else}
+							<div class="overflow-x-auto rounded-lg border border-gray-200">
+								<table class="min-w-full divide-y divide-gray-200">
+									<thead class="bg-gray-50">
+										<tr>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Active Obligations</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Total Balance</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-gray-200 bg-white">
+										{#each report.studentRisk.repeatOffenders as s}
+											<tr class="hover:bg-gray-50">
+												<td class="px-4 py-3">
+													<div class="flex items-center gap-3">
+														<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+															{#if s.profilePhotoUrl}
+																<img src={s.profilePhotoUrl} alt={s.studentName} class="h-full w-full object-cover" loading="lazy" />
+															{:else}
+																{getInitials(s.studentName)}
+															{/if}
+														</div>
+														<div>
+															<p class="text-sm font-medium text-gray-900">{s.studentName.trim() || 'Unknown'}</p>
+															<p class="text-xs text-gray-400">{s.studentEmail}</p>
+														</div>
+													</div>
+												</td>
+												<td class="px-4 py-3">
+													<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
+														{s.activeObligations}
+													</span>
+												</td>
+												<td class="px-4 py-3 text-sm font-semibold text-amber-600">₱{(s.totalBalance ?? 0).toLocaleString()}</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{/if}
+					</section>
+
+					<!-- High incident rate -->
+					<section>
+						<h3 class="mb-1 text-base font-semibold text-gray-900">Highest Incident Rate</h3>
+						<p class="mb-4 text-xs text-gray-400">Students with the most damage/missing incidents this period.</p>
+						{#if report.studentRisk.highIncidentStudents.length === 0}
+							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
+								<p class="text-sm text-emerald-600 font-medium">No incidents recorded this period</p>
+							</div>
+						{:else}
+							<div class="space-y-3">
+								{#each report.studentRisk.highIncidentStudents as s}
+									<div class="flex items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+										<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+											{#if s.profilePhotoUrl}
+												<img src={s.profilePhotoUrl} alt={s.studentName} class="h-full w-full object-cover" loading="lazy" />
+											{:else}
+												{getInitials(s.studentName)}
+											{/if}
+										</div>
+										<div class="flex-1 min-w-0">
+											<p class="text-sm font-medium text-gray-900 truncate">{s.studentName.trim() || 'Unknown'}</p>
+											<p class="text-xs text-gray-400 truncate">{s.studentEmail}</p>
+										</div>
+										<div class="flex items-center gap-2 shrink-0">
+											{#if (s.missingCount ?? 0) > 0}
+												<span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">{s.missingCount} missing</span>
+											{/if}
+											{#if (s.damagedCount ?? 0) > 0}
+												<span class="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">{s.damagedCount} damaged</span>
+											{/if}
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					<!-- Overdue students -->
+					<section>
+						<h3 class="mb-1 text-base font-semibold text-gray-900">Students with Overdue Returns</h3>
+						<p class="mb-4 text-xs text-gray-400">Currently borrowed items past their return date.</p>
+						{#if report.studentRisk.overdueStudents.length === 0}
+							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
+								<p class="text-sm text-emerald-600 font-medium">No overdue returns</p>
+							</div>
+						{:else}
+							<div class="space-y-3">
+								{#each report.studentRisk.overdueStudents as s}
+									<div class="flex items-center gap-4 rounded-xl border border-orange-100 bg-orange-50 px-4 py-3">
+										<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+											{#if s.profilePhotoUrl}
+												<img src={s.profilePhotoUrl} alt={s.studentName} class="h-full w-full object-cover" loading="lazy" />
+											{:else}
+												{getInitials(s.studentName)}
+											{/if}
+										</div>
+										<div class="flex-1 min-w-0">
+											<p class="text-sm font-medium text-gray-900 truncate">{s.studentName.trim() || 'Unknown'}</p>
+											<p class="text-xs text-gray-400 truncate">{s.studentEmail}</p>
+										</div>
+										<div class="flex items-center gap-2 shrink-0">
+											<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800">{s.overdueCount} overdue</span>
+											<span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">{s.daysOverdue}d late</span>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					<!-- Trust scores -->
+					<section>
+						<h3 class="mb-1 text-base font-semibold text-gray-900">Student Trust Scores</h3>
+						<p class="mb-4 text-xs text-gray-400">
+							Ratio of clean returns vs. total items returned this period. Minimum 3 items required.
+							Showing lowest-trust students first.
+						</p>
+						{#if report.studentRisk.trustScores.length === 0}
+							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
+								<p class="text-sm text-gray-400">Not enough return data to calculate trust scores.</p>
+							</div>
+						{:else}
+							<div class="space-y-3">
+								{#each report.studentRisk.trustScores as s}
+									<div class="flex items-center gap-4 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
+										<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+											{#if s.profilePhotoUrl}
+												<img src={s.profilePhotoUrl} alt={s.studentName} class="h-full w-full object-cover" loading="lazy" />
+											{:else}
+												{getInitials(s.studentName)}
+											{/if}
+										</div>
+										<div class="flex-1 min-w-0">
+											<p class="text-sm font-medium text-gray-900 truncate">{s.studentName.trim() || 'Unknown'}</p>
+											<p class="text-xs text-gray-400">{s.cleanItems ?? 0}/{s.totalItems ?? 0} clean returns</p>
+										</div>
+										<div class="flex items-center gap-3 shrink-0">
+											<!-- Trust bar -->
+											<div class="hidden sm:flex items-center gap-2">
+												<div class="w-24 h-2 rounded-full bg-gray-100">
+													<div
+														class="h-2 rounded-full transition-all {(s.trustScore ?? 0) >= 90 ? 'bg-emerald-500' : (s.trustScore ?? 0) >= 70 ? 'bg-yellow-400' : 'bg-red-500'}"
+														style="width:{s.trustScore ?? 0}%"
+													></div>
+												</div>
+											</div>
+											<span class="text-sm font-bold {(s.trustScore ?? 0) >= 90 ? 'text-emerald-600' : (s.trustScore ?? 0) >= 70 ? 'text-yellow-600' : 'text-red-600'}">
+												{s.trustScore ?? 0}%
+											</span>
+											<span class="rounded-full px-2 py-0.5 text-xs font-semibold {trustBadge(s.trustScore ?? 0)}">
+												{trustLabel(s.trustScore ?? 0)}
+											</span>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+				</div>
+			{/if}
+
+			{/if} <!-- end else (not loading, no error) -->
 		</div>
 	</div>
 </div>
