@@ -120,9 +120,9 @@ export interface MonthlyRevenuePoint {
 export interface DonationTotalPoint {
 	year: number;
 	month: number;
-	type: string;
+	itemName: string;
 	count: number;
-	totalAmount: number;
+	totalQuantity: number;
 }
 
 export interface StudentRiskEntry {

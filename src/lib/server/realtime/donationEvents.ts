@@ -9,7 +9,7 @@
  *   - Publishers call `publishDonationChange()` after every create / delete.
  */
 
-export type DonationRealtimeAction = 'donation_created' | 'donation_deleted';
+export type DonationRealtimeAction = 'donation_created' | 'donation_updated' | 'donation_deleted';
 
 export interface DonationRealtimeEvent {
 	action: DonationRealtimeAction;

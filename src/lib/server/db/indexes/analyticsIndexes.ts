@@ -185,18 +185,18 @@ export const analyticsIndexes: IndexDefinition[] = [
 	// ── Donations ─────────────────────────────────────────────────────────────
 
 	/**
-	 * Monthly donation totals by type.
-	 * Query: { createdAt: { $gte: sixMonthsAgo } }  →  group by year/month/type
+	 * Monthly donation totals by item.
+	 * Query: { createdAt: { $gte: sixMonthsAgo } }  →  group by year/month/itemName
 	 */
 	{
 		collection: 'donations',
 		type: 'compound',
-		fields: { createdAt: 1, type: 1 },
+		fields: { createdAt: 1, itemName: 1 },
 		options: {
-			name: 'idx_donations_analytics_timeline_type',
+			name: 'idx_donations_analytics_timeline_item',
 			background: true
 		},
-		description: 'Monthly donation totals by type (cash vs item)',
+		description: 'Monthly donation totals by item name',
 		priority: 'medium',
 		usedFor: ['Analytics: donationTotals aggregation'],
 		impact: {

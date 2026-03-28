@@ -431,7 +431,7 @@ export const GET: RequestHandler = async (event) => {
 			{ $sort: { '_id.year': 1, '_id.month': 1 } }
 		]).toArray();
 
-		// Donation totals — cash vs item (last 6 months)
+		// Donation totals — by item name (last 6 months)
 		const donationTotals = await donationsCol.aggregate([
 			{ $match: { createdAt: { $gte: sixMonthsAgo } } },
 			{
@@ -439,10 +439,10 @@ export const GET: RequestHandler = async (event) => {
 					_id: {
 						year: { $year: '$createdAt' },
 						month: { $month: '$createdAt' },
-						type: '$type'
+						itemName: '$itemName'
 					},
 					count: { $sum: 1 },
-					totalAmount: { $sum: { $ifNull: ['$amount', 0] } }
+					totalQuantity: { $sum: { $ifNull: ['$quantity', 0] } }
 				}
 			},
 			{ $sort: { '_id.year': 1, '_id.month': 1 } }
@@ -730,9 +730,9 @@ export const GET: RequestHandler = async (event) => {
 				donationTotals: donationTotals.map((d) => ({
 					year: d._id.year,
 					month: d._id.month,
-					type: d._id.type,
+					itemName: d._id.itemName,
 					count: d.count,
-					totalAmount: d.totalAmount
+					totalQuantity: d.totalQuantity
 				}))
 			},
 			studentRisk: {
