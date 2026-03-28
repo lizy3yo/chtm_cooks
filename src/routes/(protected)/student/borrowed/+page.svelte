@@ -10,6 +10,7 @@
 	import { confirmStore } from '$lib/stores/confirm';
 	import { toastStore } from '$lib/stores/toast';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
+	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import { ClipboardX } from 'lucide-svelte';
 
 	type LoanFilter = 'all' | 'overdue' | 'due-soon' | 'on-track' | 'return-initiated' | 'unresolved';
@@ -672,7 +673,7 @@
 										{#if pic}
 											<img src={pic} alt={item.name} class="h-4 w-4 shrink-0 rounded object-cover" loading="lazy" />
 										{:else}
-											<span>{inferItemIcon(item.name)}</span>
+											<span class="h-4 w-4 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
 										{/if}
 										<span class="truncate">{item.name}</span>
 										<span class="text-gray-400">x{item.quantity}</span>
@@ -789,7 +790,7 @@
 												{#if row.picture}
 													<img src={row.picture} alt={row.itemName} class="h-6 w-6 shrink-0 rounded object-cover" loading="lazy" />
 												{:else}
-													<span>{inferItemIcon(row.itemName)}</span>
+													<span class="h-6 w-6 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
 												{/if}
 												<span>{row.itemName}</span>
 											</div>
@@ -864,7 +865,7 @@
 										{#if pic}
 											<img src={pic} alt={item.name} class="h-4 w-4 shrink-0 rounded object-cover" loading="lazy" />
 										{:else}
-											<span>{inferItemIcon(item.name)}</span>
+											<span class="h-4 w-4 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
 										{/if}
 										<span>{item.name}</span>
 										<span class="text-gray-400">x{item.quantity}</span>
@@ -953,7 +954,7 @@
 														{#if pic}
 															<img src={pic} alt={item.name} class="h-6 w-6 shrink-0 rounded object-cover" loading="lazy" />
 														{:else}
-															<span>{inferItemIcon(item.name)}</span>
+															<span class="h-6 w-6 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
 														{/if}
 														<span class="font-medium text-gray-900">{item.name}</span>
 													</div>

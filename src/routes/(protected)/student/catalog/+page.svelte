@@ -5,6 +5,7 @@
 	import { subscribeToInventoryChanges } from '$lib/api/inventory';
 	import { requestCartCount, requestCartStore } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
+	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	
 	// UI State Management
 	let viewMode = $state<'grid' | 'list'>('grid');
@@ -372,7 +373,7 @@
 								<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full object-cover" loading="lazy" />
 							</button>
 						{:else}
-							<div class="flex h-full w-full items-center justify-center text-6xl">📦</div>
+							<ItemImagePlaceholder size="lg" />
 						{/if}
 					</div>
 				</div>
@@ -670,7 +671,7 @@
 								loading="lazy"
 							/>
 						{:else}
-							<div class="text-6xl">📦</div>
+							<ItemImagePlaceholder size="xl" />
 						{/if}
 					</div>
 
@@ -753,7 +754,7 @@
 											{#if item.picture}
 												<img src={item.picture} alt="" class="w-full h-full object-cover rounded" />
 											{:else}
-												📦
+												<ItemImagePlaceholder size="sm" />
 											{/if}
 										</div>
 										<div class="ml-4">

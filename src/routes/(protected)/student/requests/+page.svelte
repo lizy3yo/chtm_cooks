@@ -5,6 +5,7 @@ import { catalogAPI } from '$lib/api/catalog';
 import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import Skeleton from '$lib/components/ui/Skeleton.svelte';
+import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 import {
 	ClipboardList, Clock, Activity, PackageOpen,
 	CheckCircle2, X, Search, RotateCcw,
@@ -692,9 +693,7 @@ return timeline;
 									{#if pic}
 										<img src={pic} alt={item.name} class="h-4 w-4 rounded object-cover shrink-0" />
 									{:else}
-										<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
-										</svg>
+										<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
 									{/if}
 									{item.name}
 								</span>
@@ -871,10 +870,8 @@ return timeline;
 									{#if pic}
 										<img src={pic} alt={item.name} class="h-10 w-10 rounded-md object-cover shrink-0" />
 										{:else}
-											<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-gray-200">
-												<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
-												</svg>
+											<div class="h-10 w-10 shrink-0 overflow-hidden rounded-md">
+												<ItemImagePlaceholder size="sm" />
 											</div>
 										{/if}
 										<span class="text-sm font-medium text-gray-900">{item.name}</span>

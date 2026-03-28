@@ -5,6 +5,7 @@ import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestStatus } from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
+import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 import {
 	Archive,
 	CalendarDays,
@@ -1222,7 +1223,9 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 										{#if pic}
 											<img src={pic} alt={item.name} class="h-10 w-10 rounded object-cover" loading="lazy" />
 										{:else}
-											<span class="text-2xl">{item.image}</span>
+											<div class="h-10 w-10 shrink-0 overflow-hidden rounded">
+												<ItemImagePlaceholder size="sm" />
+											</div>
 										{/if}
 										<div>
 											<p class="text-sm font-medium">{item.name}</p>
