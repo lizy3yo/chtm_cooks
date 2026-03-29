@@ -135,7 +135,7 @@
 				{#if !$sidebarCollapsed}
 					<div class="ml-3">
 						<h1 class="text-lg font-bold text-gray-900">Student Portal</h1>
-						<p class="text-xs text-gray-500">Lab Equipment</p>
+						<p class="text-xs text-gray-500">CHTM-Cooks</p>
 					</div>
 				{/if}
 			</div>
