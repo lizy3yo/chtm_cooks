@@ -3,6 +3,7 @@
 	import { catalogAPI, type CatalogResponse, type CatalogFilters, type CatalogItem } from '$lib/api/catalog';
 	import { subscribeToInventoryChanges } from '$lib/api/inventory';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
+	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 
 	// UI State
 	let viewMode = $state<'grid' | 'list'>('grid');
@@ -263,7 +264,7 @@
 									<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full object-cover" loading="lazy" />
 								</button>
 							{:else}
-								<div class="flex h-full w-full items-center justify-center text-6xl">📦</div>
+								<ItemImagePlaceholder size="lg" />
 							{/if}
 						</div>
 
@@ -620,7 +621,7 @@
 								{#if item.picture}
 									<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
 								{:else}
-									<div class="flex h-full w-full items-center justify-center text-6xl">📦</div>
+									<ItemImagePlaceholder size="xl" />
 								{/if}
 							</div>
 							<div class="p-4">
@@ -704,7 +705,7 @@
 												{#if item.picture}
 													<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
 												{:else}
-													<div class="flex h-full w-full items-center justify-center text-xl">📦</div>
+													<ItemImagePlaceholder size="sm" />
 												{/if}
 											</div>
 											<div class="min-w-0">

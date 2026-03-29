@@ -14,6 +14,7 @@
 	import { confirmStore } from '$lib/stores/confirm';
 	import { inventoryStore } from '$lib/stores/inventory';
 	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
+	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	
 	type Tab = 'all-items' | 'categories' | 'low-stock';
 	
@@ -1599,7 +1600,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									<img src={selectedItem.picture} alt={selectedItem.name} class="w-44 rounded object-cover" loading="lazy" />
 								</button>
 							{:else}
-								<div class="h-44 w-44 rounded bg-gray-100"></div>
+								<div class="flex h-44 w-44 items-center justify-center overflow-hidden rounded bg-gray-100">
+									<ItemImagePlaceholder size="lg" />
+								</div>
 							{/if}
 						</div>
 						<div class="sm:col-span-2">

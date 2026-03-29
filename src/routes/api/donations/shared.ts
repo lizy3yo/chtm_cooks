@@ -1,3 +1,7 @@
+/**
+ * Shared utilities for the /api/donations route family.
+ */
+
 import { ObjectId } from 'mongodb';
 import { cacheService } from '$lib/server/cache';
 import { getUserFromToken } from '$lib/server/middleware/auth/verify';
@@ -10,13 +14,16 @@ export function getAuthenticatedUser(event: RequestEvent) {
 }
 
 export function buildDonationsListCacheKey(params: {
-	type?: string;
+	search?: string;
 	page: number;
 	limit: number;
 }): string {
-	return ['donations:list', params.type || 'all', String(params.page), String(params.limit)].join(
-		':'
-	);
+	return [
+		'donations:list',
+		params.search || 'all',
+		String(params.page),
+		String(params.limit)
+	].join(':');
 }
 
 export function buildDonationDetailCacheKey(id: string): string {
@@ -37,7 +44,6 @@ export function parseObjectId(id: string): ObjectId | null {
 
 /**
  * Generate a sequential receipt number: DON-YYYY-XXXXXX
- * Uses the current count of documents to produce a zero-padded suffix.
  */
 export function generateReceiptNumber(count: number): string {
 	const year = new Date().getFullYear();

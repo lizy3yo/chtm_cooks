@@ -7,6 +7,7 @@
 	import { borrowRequestsAPI } from '$lib/api/borrowRequests';
 	import { requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
+	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 
 	interface RequestItemOption {
 		id: string;
@@ -376,7 +377,9 @@
 										{#if item.picture}
 											<img src={item.picture} alt={item.name} class="h-10 w-10 rounded object-cover" loading="lazy" />
 										{:else}
-											<span class="text-2xl">{item.image}</span>
+											<div class="h-10 w-10 overflow-hidden rounded">
+												<ItemImagePlaceholder size="sm" />
+											</div>
 										{/if}
 										<div class="flex-1">
 											<p class="text-sm font-medium text-gray-900">{item.name}</p>
@@ -399,7 +402,9 @@
 									{#if item.picture}
 										<img src={item.picture} alt={item.name} class="h-10 w-10 rounded object-cover" loading="lazy" />
 									{:else}
-										<span class="text-2xl">{item.image}</span>
+										<div class="h-10 w-10 overflow-hidden rounded">
+											<ItemImagePlaceholder size="sm" />
+										</div>
 									{/if}
 									<div>
 										<p class="text-sm font-medium text-gray-900">{item.name}</p>

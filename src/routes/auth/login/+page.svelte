@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
 	import { authStore } from '$lib/stores/auth';
@@ -8,43 +9,96 @@
 	import Input from '$lib/components/ui/Input.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import type { LoginRequest } from '$lib/types/auth';
-	
-	// Form state - use separate $state variables for proper binding
-	let email = $state('');
-	let password = $state('');
-	let rememberMe = $state(false);
-	
-	let errors = $state<Record<string, string>>({});
+
+	// ── Storage keys ──────────────────────────────────────────────────────────
+	const KEY_EMAIL    = 'chtm_rm_email';
+	const KEY_CRED     = 'chtm_rm_cred';   // { iv, data } base64 JSON
+	const KEY_DEVICE   = 'chtm_rm_dk';     // base64 exported AES-GCM key
+
+	// ── State ─────────────────────────────────────────────────────────────────
+	let email       = $state('');
+	let password    = $state('');
+	let rememberMe  = $state(false);
 	let isSubmitting = $state(false);
 	let showPassword = $state(false);
-	
-	// Handle form submission
-	async function handleSubmit(event: Event) {
-		event.preventDefault();
-		
-		isSubmitting = true;
-		
+
+	// ── Crypto helpers ────────────────────────────────────────────────────────
+
+	/** Get or create a device-bound AES-GCM key stored in localStorage. */
+	async function getDeviceKey(): Promise<CryptoKey> {
+		const stored = localStorage.getItem(KEY_DEVICE);
+		if (stored) {
+			const raw = Uint8Array.from(atob(stored), c => c.charCodeAt(0));
+			return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
+		}
+		const key = await crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+		const exported = await crypto.subtle.exportKey('raw', key);
+		localStorage.setItem(KEY_DEVICE, btoa(String.fromCharCode(...new Uint8Array(exported))));
+		return key;
+	}
+
+	async function encryptPassword(plain: string): Promise<string> {
+		const key = await getDeviceKey();
+		const iv  = crypto.getRandomValues(new Uint8Array(12));
+		const enc = await crypto.subtle.encrypt(
+			{ name: 'AES-GCM', iv },
+			key,
+			new TextEncoder().encode(plain)
+		);
+		return JSON.stringify({
+			iv:   btoa(String.fromCharCode(...iv)),
+			data: btoa(String.fromCharCode(...new Uint8Array(enc)))
+		});
+	}
+
+	async function decryptPassword(stored: string): Promise<string | null> {
 		try {
-			const formData: LoginRequest = {
-				email,
-				password,
-				rememberMe
-			};
-			
-			// Login - tokens automatically set in httpOnly cookies
+			const { iv, data } = JSON.parse(stored) as { iv: string; data: string };
+			const key     = await getDeviceKey();
+			const ivBytes = Uint8Array.from(atob(iv),   c => c.charCodeAt(0));
+			const cipher  = Uint8Array.from(atob(data), c => c.charCodeAt(0));
+			const plain   = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: ivBytes }, key, cipher);
+			return new TextDecoder().decode(plain);
+		} catch {
+			return null;
+		}
+	}
+
+	// ── Lifecycle ─────────────────────────────────────────────────────────────
+
+	onMount(async () => {
+		const savedEmail = localStorage.getItem(KEY_EMAIL);
+		const savedCred  = localStorage.getItem(KEY_CRED);
+		if (savedEmail && savedCred) {
+			email      = savedEmail;
+			rememberMe = true;
+			const plain = await decryptPassword(savedCred);
+			if (plain) password = plain;
+		}
+	});
+
+	// ── Submit ────────────────────────────────────────────────────────────────
+
+	async function handleSubmit(e: Event) {
+		e.preventDefault();
+		isSubmitting = true;
+
+		if (rememberMe && email.trim() && password) {
+			localStorage.setItem(KEY_EMAIL, email.trim());
+			localStorage.setItem(KEY_CRED, await encryptPassword(password));
+		} else {
+			localStorage.removeItem(KEY_EMAIL);
+			localStorage.removeItem(KEY_CRED);
+			// Keep the device key so it can be reused if they re-enable remember me
+		}
+
+		try {
+			const formData: LoginRequest = { email, password, rememberMe };
 			const response = await authApi.login(formData);
-			
-			console.log('[Login] Full response:', response);
-			console.log('[Login] response.user:', response.user);
-			console.log('[Login] Calling authStore.login with:', response.user);
-			
-			// Update auth store with ONLY the user object
+
 			authStore.login(response.user);
-			
-			// Wait for Svelte to process the store update
 			await tick();
-			
-			// Redirect based on role
+
 			if (response.user.role === 'student') {
 				goto('/student/dashboard');
 			} else if (response.user.role === 'instructor') {
@@ -84,7 +138,7 @@
 				placeholder="your.email@gordoncollege.edu.ph"
 				bind:value={email}
 				required
-				autocomplete="email"
+				autocomplete="username"
 				disabled={isSubmitting}
 			/>
 

@@ -1,34 +1,62 @@
 /**
  * Donations API Client
- * Client-side cache + SSE subscription — mirrors financialObligations.ts pattern.
+ * Item-based donations — client-side cache + SSE subscription.
  */
 
 import { browser } from '$app/environment';
-import { DonationType } from '$lib/shared/donationTypes';
 
-export { DonationType };
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface DonationResponse {
 	id: string;
 	receiptNumber: string;
 	donorName: string;
-	type: DonationType;
-	amount?: number;
-	itemDescription?: string;
+	itemName: string;
+	quantity: number;
+	unit?: string;
 	purpose: string;
 	date: string;
 	notes?: string;
+	inventoryAction: 'new_item' | 'add_to_existing';
+	inventoryItemId?: string;
 	createdAt: string;
 	updatedAt: string;
 }
 
-export interface CreateDonationRequest {
+/** Donation that creates a new inventory item */
+export interface CreateDonationNewItemRequest {
+	inventoryAction: 'new_item';
 	donorName: string;
-	type: DonationType;
-	amount?: number;
-	itemDescription?: string;
+	quantity: number;
+	unit?: string;
 	purpose: string;
 	date: string;
+	notes?: string;
+	// Inventory item fields
+	itemName: string;
+	category: string;
+	categoryId?: string;
+	specification?: string;
+	toolsOrEquipment?: string;
+	condition: string;
+	location?: string;
+}
+
+/** Donation that adds quantity to an existing inventory item */
+export interface CreateDonationAddToExistingRequest {
+	inventoryAction: 'add_to_existing';
+	donorName: string;
+	quantity: number;
+	purpose: string;
+	date: string;
+	notes?: string;
+	inventoryItemId: string;
+}
+
+export type CreateDonationRequest = CreateDonationNewItemRequest | CreateDonationAddToExistingRequest;
+
+export interface AddDonationQuantityRequest {
+	quantityToAdd: number;
 	notes?: string;
 }
 
@@ -39,6 +67,8 @@ export interface DonationsListResponse {
 	limit: number;
 	pages: number;
 }
+
+// ─── Internal helpers ─────────────────────────────────────────────────────────
 
 interface ApiError {
 	error?: string;
@@ -90,8 +120,8 @@ function setCache<T>(cache: Map<string, CacheEntry<T>>, key: string, data: T): v
 	cache.set(key, { data, expiresAt: Date.now() + CLIENT_CACHE_TTL_MS });
 }
 
-function buildListCacheKey(params: { type?: string; page?: number; limit?: number }): string {
-	return [params.type || 'all', String(params.page || 1), String(params.limit || 50)].join(':');
+function buildListCacheKey(params: { search?: string; page?: number; limit?: number }): string {
+	return [params.search || 'all', String(params.page || 1), String(params.limit || 50)].join(':');
 }
 
 function invalidateAllCaches(): void {
@@ -100,15 +130,17 @@ function invalidateAllCaches(): void {
 	inFlight.clear();
 }
 
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 export const donationsAPI = {
 	/**
 	 * Fetch paginated donations list.
 	 */
 	async getAll(
-		params: { type?: string; page?: number; limit?: number; forceRefresh?: boolean } = {}
+		params: { search?: string; page?: number; limit?: number; forceRefresh?: boolean } = {}
 	): Promise<DonationsListResponse> {
 		const searchParams = new URLSearchParams();
-		if (params.type) searchParams.set('type', params.type);
+		if (params.search) searchParams.set('search', params.search);
 		if (params.page) searchParams.set('page', String(params.page));
 		if (params.limit) searchParams.set('limit', String(params.limit));
 		if (params.forceRefresh) searchParams.set('_t', String(Date.now()));
@@ -174,10 +206,20 @@ export const donationsAPI = {
 	},
 
 	/**
-	 * Create a new donation record.
+	 * Create a new item donation record.
 	 */
 	async create(payload: CreateDonationRequest): Promise<DonationResponse> {
 		const res = await fetch('/api/donations', getFetchOptions('POST', payload));
+		const data = await handleResponse<DonationResponse>(res);
+		invalidateAllCaches();
+		return data;
+	},
+
+	/**
+	 * Add quantity to an existing donation record.
+	 */
+	async addQuantity(id: string, payload: AddDonationQuantityRequest): Promise<DonationResponse> {
+		const res = await fetch(`/api/donations/${id}`, getFetchOptions('PATCH', payload));
 		const data = await handleResponse<DonationResponse>(res);
 		invalidateAllCaches();
 		return data;
