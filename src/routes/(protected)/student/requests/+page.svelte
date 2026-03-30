@@ -478,51 +478,55 @@ return timeline;
 	</div>
 	
 	<!-- Statistics Cards -->
-	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-		<div class="rounded-lg bg-white p-5 shadow">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Total Requests</p>
-					<p class="mt-2 text-3xl font-semibold text-gray-900">{stats.totalRequests}</p>
+	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{stats.totalRequests}</p>
 				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-					<ClipboardList size={24} class="text-blue-600" />
-				</div>
-			</div>
-		</div>
-		
-		<div class="rounded-lg bg-white p-5 shadow">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Pending Approval</p>
-					<p class="mt-2 text-3xl font-semibold text-yellow-600">{stats.pendingCount}</p>
-				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100">
-					<Clock size={24} class="text-yellow-600" />
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+					<ClipboardList size={18} class="text-blue-600 sm:hidden" />
+					<ClipboardList size={24} class="hidden text-blue-600 sm:block" />
 				</div>
 			</div>
 		</div>
-		
-		<div class="rounded-lg bg-white p-5 shadow">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Active(s)</p>
-					<p class="mt-2 text-3xl font-semibold text-green-600">{stats.activeCount}</p>
+
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
+					<p class="mt-1 text-2xl font-semibold text-yellow-600 sm:mt-2 sm:text-3xl">{stats.pendingCount}</p>
 				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-					<Activity size={24} class="text-green-600" />
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:h-12 sm:w-12">
+					<Clock size={18} class="text-yellow-600 sm:hidden" />
+					<Clock size={24} class="hidden text-yellow-600 sm:block" />
 				</div>
 			</div>
 		</div>
-		
-		<div class="rounded-lg bg-white p-5 shadow">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Ready for Pickup</p>
-					<p class="mt-2 text-3xl font-semibold text-pink-600">{stats.readyForPickup}</p>
+
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active</p>
+					<p class="mt-1 text-2xl font-semibold text-green-600 sm:mt-2 sm:text-3xl">{stats.activeCount}</p>
 				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-pink-100">
-					<PackageOpen size={24} class="text-pink-600" />
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 sm:h-12 sm:w-12">
+					<Activity size={18} class="text-green-600 sm:hidden" />
+					<Activity size={24} class="hidden text-green-600 sm:block" />
+				</div>
+			</div>
+		</div>
+
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pickup</p>
+					<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">{stats.readyForPickup}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+					<PackageOpen size={18} class="text-pink-600 sm:hidden" />
+					<PackageOpen size={24} class="hidden text-pink-600 sm:block" />
 				</div>
 			</div>
 		</div>
@@ -530,40 +534,40 @@ return timeline;
 	
 	<!-- Tabs -->
 	<div class="border-b border-gray-200">
-		<nav class="-mb-px flex space-x-6 overflow-x-auto">
+		<nav class="-mb-px flex" aria-label="Request tabs">
 			<button
 				onclick={() => activeTab = 'my-request'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'my-request' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
+				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium sm:text-sm {activeTab === 'my-request' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
 				Request
-				<span class="ml-2 rounded-full {activeTab === 'my-request' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
+				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'my-request' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
 					{tabCounts['my-request']}
 				</span>
 			</button>
 			<button
 				onclick={() => activeTab = 'instructor-approved'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'instructor-approved' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
+				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium sm:text-sm {activeTab === 'instructor-approved' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
 				Approval
-				<span class="ml-2 rounded-full {activeTab === 'instructor-approved' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
+				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'instructor-approved' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
 					{tabCounts['instructor-approved']}
 				</span>
 			</button>
 			<button
 				onclick={() => activeTab = 'active'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'active' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
+				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium sm:text-sm {activeTab === 'active' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
 				Active
-				<span class="ml-2 rounded-full {activeTab === 'active' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
+				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'active' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
 					{tabCounts.active}
 				</span>
 			</button>
 			<button
 				onclick={() => activeTab = 'history'}
-				class="whitespace-nowrap border-b-2 px-1 py-4 text-sm font-medium {activeTab === 'history' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500'}"
+				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium sm:text-sm {activeTab === 'history' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
 				History
-				<span class="ml-2 rounded-full {activeTab === 'history' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'} px-2 py-0.5 text-xs">
+				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'history' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
 					{tabCounts.history}
 				</span>
 			</button>
@@ -571,41 +575,31 @@ return timeline;
 	</div>
 	
 	<!-- Search and Filter Bar -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<div class="flex-1 max-w-md">
-			<div class="relative">
-				<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-				<Search size={20} class="text-gray-400" />
-				</div>
-				<input
-					type="text"
-					bind:value={searchQuery}
-					placeholder="Search by request ID, item, or purpose..."
-					class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm placeholder-gray-400 focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-				/>
+	<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+		<div class="relative flex-1">
+			<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+				<Search size={16} class="text-gray-400" />
 			</div>
+			<input
+				type="text"
+				bind:value={searchQuery}
+				placeholder="Search by ID, item, or purpose…"
+				class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm placeholder-gray-400 focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+			/>
 		</div>
-		
-		<div class="flex items-center gap-3">
+		<div class="flex items-center gap-2 shrink-0">
 			<select
 				bind:value={sortBy}
 				class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
 			>
-				<option value="newest">Sort by Date (Newest)</option>
-				<option value="oldest">Sort by Date (Oldest)</option>
-				<option value="return-date">Sort by Return Date</option>
+				<option value="newest">Newest</option>
+				<option value="oldest">Oldest</option>
+				<option value="return-date">Return Date</option>
 			</select>
-			
 			<button
-				onclick={() => {
-					searchQuery = '';
-					dateFilter = { from: '', to: '' };
-					sortBy = 'newest';
-					activeTab = 'my-request';
-				}}
-				class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+				onclick={() => { searchQuery = ''; dateFilter = { from: '', to: '' }; sortBy = 'newest'; activeTab = 'my-request'; }}
+				class="text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors"
 			>
-			<RotateCcw size={16} />
 				Clear
 			</button>
 		</div>
@@ -617,9 +611,9 @@ return timeline;
 			<span class="text-sm font-medium text-gray-700">
 				{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
 			</span>
-			<a href="/student/request" class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-3 py-2 text-xs font-medium text-white hover:bg-pink-700">
-				<Plus size={16} />
-				New Request
+			<a href="/student/request" class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-pink-700 shrink-0">
+				<Plus size={13} />
+				New
 			</a>
 		</div>
 		
@@ -627,37 +621,34 @@ return timeline;
 		{#if loading && requests.length === 0}
 			{#each Array(3) as _, i}
 				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 border-l-4 border-gray-200">
-					<div class="p-5 space-y-4">
-						<!-- Header row -->
-						<div class="flex items-center justify-between">
-							<div class="flex items-center gap-3">
-								<Skeleton class="h-4 w-24" />
-								<Skeleton class="h-5 w-28 rounded-full" />
+					<div class="p-4 space-y-3">
+						<!-- Header: ID + status stacked, then date -->
+						<div class="flex flex-col gap-1">
+							<div class="flex items-center gap-2">
+								<Skeleton class="h-4 w-28" />
+								<Skeleton class="h-5 w-24 rounded-full" />
 							</div>
-							<Skeleton class="h-3.5 w-20" />
+							<Skeleton class="h-3 w-20" />
 						</div>
-						<!-- Equipment chips -->
-						<div class="space-y-2">
-							<Skeleton class="h-3 w-36" />
-							<div class="flex gap-2">
-								{#each Array(i === 0 ? 3 : i === 1 ? 2 : 4) as _}
-									<Skeleton class="h-7 w-24 rounded-md" />
+						<!-- Equipment chips label + chips -->
+						<div class="space-y-1.5">
+							<Skeleton class="h-3 w-32" />
+							<div class="flex flex-wrap gap-1.5">
+								{#each Array(i === 0 ? 2 : i === 1 ? 1 : 3) as _}
+									<Skeleton class="h-6 w-20 rounded-md" />
 								{/each}
 							</div>
 						</div>
-						<!-- Metadata row -->
-						<div class="flex flex-wrap gap-x-5 gap-y-2">
-							<Skeleton class="h-3.5 w-40" />
-							<Skeleton class="h-3.5 w-52" />
-							<Skeleton class="h-3.5 w-32" />
+						<!-- Metadata: stacked on mobile -->
+						<div class="flex flex-col gap-1.5">
+							<Skeleton class="h-3 w-36" />
+							<Skeleton class="h-3 w-full max-w-[200px]" />
+							<Skeleton class="h-3 w-28" />
 						</div>
 					</div>
-					<!-- Card footer skeleton -->
-					<div class="flex items-center justify-between border-t border-gray-100 bg-gray-50/60 px-5 py-3">
-						<Skeleton class="h-3.5 w-48" />
-						<div class="flex gap-2">
-							<Skeleton class="h-7 w-24 rounded-lg" />
-						</div>
+					<!-- Footer: just action button on the right -->
+					<div class="flex justify-end border-t border-gray-100 bg-gray-50/60 px-4 py-3">
+						<Skeleton class="h-7 w-24 rounded-lg" />
 					</div>
 				</div>
 			{/each}
@@ -667,18 +658,18 @@ return timeline;
 			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md border-l-4 {getStatusBorderColor(request.status)}">
 
 				<!-- Card Body -->
-				<div class="p-5">
+				<div class="p-4 sm:p-5">
 
 					<!-- Header: ID · Status · Date -->
-					<div class="flex items-start justify-between gap-3">
-						<div class="flex flex-wrap items-center gap-2 min-w-0">
+					<div class="flex flex-col gap-1">
+						<div class="flex flex-wrap items-center gap-2">
 							<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
-							<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold {getStatusColor(request.status)}">
-							<svelte:component this={getStatusIconComponent(request.status)} size={12} />
+							<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusColor(request.status)}">
+								<svelte:component this={getStatusIconComponent(request.status)} size={11} />
 								{getStatusLabel(request.status)}
 							</span>
 						</div>
-						<time class="shrink-0 whitespace-nowrap text-xs text-gray-400">
+						<time class="text-[11px] text-gray-400">
 							{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
 						</time>
 					</div>
@@ -702,9 +693,9 @@ return timeline;
 					</div>
 
 					<!-- Metadata Row -->
-					<div class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+					<div class="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1.5">
 						<div class="flex items-center gap-1.5 text-xs text-gray-500">
-						<CalendarDays size={14} class="shrink-0 text-gray-400" />
+							<CalendarDays size={13} class="shrink-0 text-gray-400" />
 							<span>
 								{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
 								–
@@ -712,12 +703,12 @@ return timeline;
 							</span>
 						</div>
 						<div class="flex items-center gap-1.5 text-xs text-gray-500 min-w-0">
-						<FileText size={14} class="shrink-0 text-gray-400" />
-							<span class="truncate max-w-[220px]">{request.purpose}</span>
+							<FileText size={13} class="shrink-0 text-gray-400" />
+							<span class="truncate">{request.purpose}</span>
 						</div>
 						<div class="flex items-center gap-1.5 text-xs text-gray-500">
-						<UserCircle size={14} class="shrink-0 text-gray-400" />
-							<span>{request.instructor}</span>
+							<UserCircle size={13} class="shrink-0 text-gray-400" />
+							<span class="truncate">{request.instructor}</span>
 						</div>
 					</div>
 
@@ -737,27 +728,27 @@ return timeline;
 				</div>
 
 				<!-- Card Footer: contextual hint + actions -->
-				<div class="flex items-center justify-between border-t border-gray-100 bg-gray-50/60 px-5 py-3">
+				<div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
 
-					<!-- Left: status hint -->
+					<!-- Status hint -->
 					<div class="text-xs">
 						{#if request.status === 'ready'}
 							<span class="flex items-center gap-1.5 font-medium text-emerald-700">
-							<Info size={14} />
+								<Info size={13} />
 								Proceed to the custodian desk to collect your items
 							</span>
 						{:else if request.status === 'pending-return'}
 							<span class="flex items-center gap-1.5 font-medium text-orange-600">
-							<Clock size={14} />
+								<Clock size={13} />
 								Awaiting custodian confirmation
 							</span>
 						{:else}
-							<span class="text-gray-300">—</span>
+							<span class="hidden sm:block text-gray-300">—</span>
 						{/if}
 					</div>
 
-					<!-- Right: action buttons -->
-					<div class="flex items-center gap-2">
+					<!-- Action buttons -->
+					<div class="flex items-center gap-2 self-end sm:self-auto">
 						<button
 							onclick={() => openDetailModal(request)}
 							class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
@@ -814,13 +805,13 @@ return timeline;
 		{/if}
 		
 		{#if filteredRequests.length === 0}
-			<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
-			<ClipboardX size={48} class="mx-auto text-gray-400" />
+			<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center sm:p-12">
+				<ClipboardX size={40} class="mx-auto text-gray-400" />
 				<h3 class="mt-2 text-sm font-medium text-gray-900">No requests found</h3>
 				<p class="mt-1 text-sm text-gray-500">Get started by creating a new request.</p>
-				<div class="mt-6">
-				<a href="/student/request" class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
-					<Plus size={16} />
+				<div class="mt-4">
+					<a href="/student/request" class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
+						<Plus size={16} />
 						New Request
 					</a>
 				</div>
@@ -833,23 +824,23 @@ return timeline;
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
 		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick={closeDetailModal}></div>
-		<div class="flex min-h-full items-center justify-center p-4">
-			<div class="relative w-full max-w-3xl rounded-lg bg-white/95 shadow-xl ring-1 ring-black/5 backdrop-blur-sm">
+		<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+			<div class="relative w-full rounded-t-2xl bg-white/95 shadow-xl ring-1 ring-black/5 backdrop-blur-sm sm:max-w-3xl sm:rounded-lg">
 				<!-- Header -->
-				<div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+				<div class="border-b border-gray-200 bg-gray-50 px-4 py-4 sm:px-6">
 					<div class="flex items-center justify-between">
 						<div>
-							<h3 class="text-lg font-semibold text-gray-900">Request Details</h3>
-							<p class="mt-1 text-sm text-gray-500">{selectedRequest.id}</p>
+							<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Request Details</h3>
+							<p class="mt-0.5 text-sm text-gray-500">{selectedRequest.id}</p>
 						</div>
-						<button onclick={closeDetailModal} class="text-gray-400 hover:text-gray-500">
-						<X size={24} />
+						<button onclick={closeDetailModal} class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+							<X size={20} />
 						</button>
 					</div>
 				</div>
 				
 				<!-- Content -->
-				<div class="max-h-[70vh] overflow-y-auto px-6 py-6">
+				<div class="max-h-[65vh] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
 					<div class="space-y-6">
 						<!-- Status Badge -->
 						<div>
@@ -883,7 +874,7 @@ return timeline;
 						<!-- Request Information -->
 						<div>
 							<h4 class="text-sm font-medium text-gray-700 mb-3">Request Information</h4>
-							<div class="grid grid-cols-2 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
+							<div class="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
 								<div>
 									<p class="text-xs font-medium text-gray-500">Request Date</p>
 									<p class="mt-2 text-sm font-medium text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString()}</p>
@@ -985,8 +976,8 @@ return timeline;
 				</div>
 				
 				<!-- Footer -->
-				<div class="border-t border-gray-200 bg-gray-50 px-6 py-4">
-					<div class="flex justify-end gap-3">
+				<div class="border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-6 sm:py-4">
+					<div class="flex flex-wrap justify-end gap-2">
 						<button
 							onclick={closeDetailModal}
 							class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
