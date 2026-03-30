@@ -6,6 +6,7 @@
 	import { toastStore } from '$lib/stores/toast';
 	import { sidebarCollapsed } from '$lib/stores/student';
 	import logo from '$lib/assets/CHTM_LOGO.png';
+	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
 	
 	interface NavItem {
 		name: string;
@@ -19,6 +20,7 @@
 
 	let isMobileMenuOpen = $state(false);
 	let isProfileDropdownOpen = $state(false);
+	let signOutOpen = $state(false);
 
 	// Show the mobile top nav only on student routes
 	const showTopNav = derived(page, $page => typeof window !== 'undefined' && $page.url.pathname.startsWith('/student'));
@@ -210,3 +212,9 @@
 		</nav>
 	</div>
 </aside>
+
+<SignOutModal
+	open={signOutOpen}
+	onconfirm={handleLogout}
+	oncancel={() => (signOutOpen = false)}
+/>

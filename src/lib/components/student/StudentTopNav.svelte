@@ -5,9 +5,11 @@
 	import { themeStore } from '$lib/stores/theme';
 	import { toastStore } from '$lib/stores/toast';
 	import { Moon, Sun, HelpCircle, Bell, ChevronDown, LogOut, User, Settings, History, CalendarDays } from 'lucide-svelte';
+	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
 
 	let profileOpen = $state(false);
 	let notifOpen   = $state(false);
+	let signOutOpen = $state(false);
 
 	// ── Live clock ────────────────────────────────────────────────────────────
 	let now = $state(new Date());
@@ -178,7 +180,7 @@
 							<History size={15} class="text-gray-400" /> History
 						</a>
 						<div class="my-1 border-t border-gray-100"></div>
-						<button onclick={logout} role="menuitem" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50">
+						<button onclick={() => { profileOpen = false; signOutOpen = true; }} role="menuitem" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50">
 							<LogOut size={15} /> Sign out
 						</button>
 					</div>
@@ -187,3 +189,9 @@
 		{/if}
 	</div>
 </header>
+
+<SignOutModal
+	open={signOutOpen}
+	onconfirm={logout}
+	oncancel={() => (signOutOpen = false)}
+/>
