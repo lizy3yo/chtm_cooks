@@ -23,15 +23,18 @@
 	let signOutOpen = $state(false);
 
 	// Show the mobile top nav only on student routes
-	const showTopNav = derived(page, $page => typeof window !== 'undefined' && $page.url.pathname.startsWith('/student'));
+	const showTopNav = derived(page, $page => $page.url.pathname.startsWith('/student'));
 
 	// Apply body padding only when the mobile top nav is visible
 	onMount(() => {
 		const unsub = showTopNav.subscribe(val => {
 			if (val) document.body.style.paddingTop = '3.5rem';
-			else if (document.body.style.paddingTop === '3.5rem') document.body.style.paddingTop = '';
+			else document.body.style.paddingTop = '';
 		});
-		return unsub;
+		return () => {
+			unsub();
+			document.body.style.paddingTop = '';
+		};
 	});
 	
 	function toggleCollapse() {

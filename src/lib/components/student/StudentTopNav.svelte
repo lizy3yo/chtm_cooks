@@ -1,11 +1,15 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { authStore, user } from '$lib/stores/auth';
 	import { themeStore } from '$lib/stores/theme';
 	import { toastStore } from '$lib/stores/toast';
 	import { Moon, Sun, HelpCircle, Bell, ChevronDown, LogOut, User, Settings, History, CalendarDays } from 'lucide-svelte';
 	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
+
+	// Only render on student routes — prevents flash on other pages during navigation
+	const isStudentRoute = $derived($page.url.pathname.startsWith('/student'));
 
 	let profileOpen = $state(false);
 	let notifOpen   = $state(false);
@@ -62,6 +66,7 @@
 
 <svelte:window onclick={handleWindowClick} />
 
+{#if isStudentRoute}
 <header
 	class="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 shadow-sm sm:px-6"
 >
@@ -189,6 +194,7 @@
 		{/if}
 	</div>
 </header>
+{/if}
 
 <SignOutModal
 	open={signOutOpen}

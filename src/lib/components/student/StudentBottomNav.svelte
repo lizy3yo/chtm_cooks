@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 
+	const isStudentRoute = $derived($page.url.pathname.startsWith('/student'));
+
 	const items = [
 		{
 			name: 'Home',
@@ -41,6 +43,7 @@
   Matches the system's white bg, border-gray-200, pink accent design.
   The centre "Request" item is a raised circular FAB-style button.
 -->
+{#if isStudentRoute}
 <nav
 	class="fixed inset-x-0 bottom-0 z-40 flex h-16 items-end border-t border-gray-200 bg-white pb-safe lg:hidden"
 	aria-label="Bottom navigation"
@@ -89,3 +92,4 @@
 
 <!-- Spacer so page content isn't hidden behind the bottom nav -->
 <div class="h-16 lg:hidden"></div>
+{/if}
