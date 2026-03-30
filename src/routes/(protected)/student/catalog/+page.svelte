@@ -338,13 +338,13 @@
 </svelte:head>
 
 {#if selectedItem}
-	<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+	<div class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
 		<div class="fixed inset-0 bg-black/40" aria-hidden="true" onclick={closeDetailsModal}></div>
 		<div
 			role="dialog"
 			aria-modal="true"
 			aria-labelledby="catalog-item-details-title"
-			class="relative z-50 w-full max-w-4xl rounded-lg bg-white shadow-xl"
+			class="relative z-50 w-full max-h-[90vh] overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:max-w-4xl sm:rounded-lg"
 		>
 			<div class="flex items-start justify-between border-b border-gray-200 px-6 py-4">
 				<h2 id="catalog-item-details-title" class="text-lg font-semibold text-gray-900">{selectedItem.name}</h2>
@@ -451,12 +451,12 @@
 
 <div class="space-y-6">
 	<!-- Page Header -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 		<div>
 			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Equipment Catalog</h1>
-			<p class="mt-1 text-sm text-gray-500">Browse and request available cooking equipment from our inventory</p>
+			<p class="mt-1 text-sm text-gray-500">Browse and request available cooking equipment</p>
 		</div>
-		<div class="flex gap-2">
+		<div class="flex items-center gap-2">
 			<button
 				onclick={() => goto('/student/request')}
 				class="inline-flex items-center rounded-lg border border-pink-300 bg-pink-50 px-3 py-2 text-sm font-medium text-pink-700 hover:bg-pink-100"
@@ -464,139 +464,105 @@
 				Request List
 				<span class="ml-2 rounded-full bg-pink-600 px-2 py-0.5 text-xs font-semibold text-white">{$requestCartCount}</span>
 			</button>
-			<button
-				onclick={() => (viewMode = 'grid')}
-				aria-label="Switch to grid view"
-				title="Grid view"
-				class="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors {viewMode === 'grid'
-					? 'bg-pink-100 text-pink-700'
-					: 'bg-white text-gray-700 hover:bg-gray-50'} border border-gray-300"
-			>
-				<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-				</svg>
-			</button>
-			<button
-				onclick={() => (viewMode = 'list')}
-				aria-label="Switch to list view"
-				title="List view"
-				class="inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors {viewMode === 'list'
-					? 'bg-pink-100 text-pink-700'
-					: 'bg-white text-gray-700 hover:bg-gray-50'} border border-gray-300"
-			>
-				<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-				</svg>
-			</button>
+			<div class="flex rounded-lg border border-gray-300 overflow-hidden">
+				<button
+					onclick={() => (viewMode = 'grid')}
+					aria-label="Grid view"
+					class="flex items-center px-2.5 py-2 text-sm transition-colors {viewMode === 'grid' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+					</svg>
+				</button>
+				<button
+					onclick={() => (viewMode = 'list')}
+					aria-label="List view"
+					class="flex items-center px-2.5 py-2 text-sm transition-colors border-l border-gray-300 {viewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+					</svg>
+				</button>
+			</div>
 		</div>
 	</div>
 
 	<!-- Search and Filters -->
-	<div class="rounded-lg bg-white p-4 shadow">
-		<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
-			<!-- Search -->
-			<div class="lg:col-span-2">
-				<label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search</label>
-				<div class="relative">
-					<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-						<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-						</svg>
-					</div>
-					<input
-						type="text"
-						id="search"
-						value={searchQuery}
-						onchange={(e) => handleSearch((e.target as HTMLInputElement).value)}
-						oninput={(e) => handleSearch((e.target as HTMLInputElement).value)}
-						placeholder="Search by name, description, or code..."
-						class="block w-full rounded-lg border border-gray-300 pl-10 pr-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-						aria-label="Search equipment"
-						disabled={isLoading}
-					/>
-				</div>
+	<div class="rounded-lg bg-white p-3 shadow sm:p-4">
+		<!-- Search — always full width -->
+		<div class="relative mb-3">
+			<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+				<svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+				</svg>
 			</div>
+			<input
+				type="text"
+				id="search"
+				value={searchQuery}
+				onchange={(e) => handleSearch((e.target as HTMLInputElement).value)}
+				oninput={(e) => handleSearch((e.target as HTMLInputElement).value)}
+				placeholder="Search by name, description, or code…"
+				class="block w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-pink-500 focus:ring-pink-500"
+				aria-label="Search equipment"
+				disabled={isLoading}
+			/>
+		</div>
 
-			<!-- Category Filter -->
-			<div>
-				<label for="category" class="block text-sm font-medium text-gray-700 mb-1">Category</label>
-				<select
-					id="category"
-					value={selectedCategory}
-					onchange={(e) => {
-						selectedCategory = (e.target as HTMLSelectElement).value;
-						handleFilterChange();
-					}}
-					class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-					aria-label="Filter by category"
-					disabled={isLoading}
-				>
-					<option value="all">All Categories</option>
-					{#each categories as category}
-						<option value={category.id}>{category.name}</option>
-					{/each}
-				</select>
-			</div>
+		<!-- Filters — 2 cols on mobile, 4 on sm+ -->
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+			<select
+				id="category"
+				value={selectedCategory}
+				onchange={(e) => { selectedCategory = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
+				class="block w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+				aria-label="Filter by category"
+				disabled={isLoading}
+			>
+				<option value="all">All Categories</option>
+				{#each categories as category}
+					<option value={category.id}>{category.name}</option>
+				{/each}
+			</select>
 
-			<!-- Availability Filter -->
-			<div>
-				<label for="availability" class="block text-sm font-medium text-gray-700 mb-1">Availability</label>
-				<select
-					id="availability"
-					value={selectedAvailability}
-					onchange={(e) => {
-						selectedAvailability = (e.target as HTMLSelectElement).value;
-						handleFilterChange();
-					}}
-					class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-					aria-label="Filter by availability"
-					disabled={isLoading}
-				>
-					{#each availabilityOptions as option}
-						<option value={option.value}>{option.label}</option>
-					{/each}
-				</select>
-			</div>
+			<select
+				id="availability"
+				value={selectedAvailability}
+				onchange={(e) => { selectedAvailability = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
+				class="block w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+				aria-label="Filter by availability"
+				disabled={isLoading}
+			>
+				{#each availabilityOptions as option}
+					<option value={option.value}>{option.label}</option>
+				{/each}
+			</select>
 
-			<!-- Condition Filter -->
-			<div>
-				<label for="condition" class="block text-sm font-medium text-gray-700 mb-1">Condition</label>
-				<select
-					id="condition"
-					value={selectedCondition}
-					onchange={(e) => {
-						selectedCondition = (e.target as HTMLSelectElement).value;
-						handleFilterChange();
-					}}
-					class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-					aria-label="Filter by condition"
-					disabled={isLoading}
-				>
-					{#each conditionOptions as option}
-						<option value={option.value}>{option.label}</option>
-					{/each}
-				</select>
-			</div>
+			<select
+				id="condition"
+				value={selectedCondition}
+				onchange={(e) => { selectedCondition = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
+				class="block w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+				aria-label="Filter by condition"
+				disabled={isLoading}
+			>
+				{#each conditionOptions as option}
+					<option value={option.value}>{option.label}</option>
+				{/each}
+			</select>
 
-			<!-- Sort By -->
-			<div>
-				<label for="sort" class="block text-sm font-medium text-gray-700 mb-1">Sort By</label>
-				<select
-					id="sort"
-					value={sortBy}
-					onchange={(e) => {
-						sortBy = (e.target as HTMLSelectElement).value;
-						handleFilterChange();
-					}}
-					class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-					aria-label="Sort items"
-					disabled={isLoading}
-				>
-					{#each sortOptions as option}
-						<option value={option.value}>{option.label}</option>
-					{/each}
-				</select>
-			</div>
+			<select
+				id="sort"
+				value={sortBy}
+				onchange={(e) => { sortBy = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
+				class="block w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+				aria-label="Sort items"
+				disabled={isLoading}
+			>
+				{#each sortOptions as option}
+					<option value={option.value}>{option.label}</option>
+				{/each}
+			</select>
 		</div>
 	</div>
 
@@ -641,9 +607,23 @@
 	{#if isLoading}
 		<div class="animate-pulse">
 			{#if viewMode === 'grid'}
-				<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-					{#each Array(6) as _}
-						<div class="rounded-lg bg-gray-200 h-80"></div>
+				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
+					{#each Array(8) as _}
+						<div class="overflow-hidden rounded-lg bg-white shadow-sm">
+							<div class="aspect-[4/3] bg-gray-200"></div>
+							<div class="p-2 space-y-1.5">
+								<div class="h-3 w-full rounded bg-gray-200"></div>
+								<div class="h-3 w-3/4 rounded bg-gray-200"></div>
+								<div class="flex gap-1 pt-0.5">
+									<div class="h-4 w-16 rounded bg-gray-200"></div>
+									<div class="h-4 w-12 rounded bg-gray-200"></div>
+								</div>
+								<div class="flex gap-1 pt-1">
+									<div class="h-7 flex-1 rounded-md bg-gray-200"></div>
+									<div class="h-7 w-14 rounded-md bg-gray-200"></div>
+								</div>
+							</div>
+						</div>
 					{/each}
 				</div>
 			{:else}
@@ -658,68 +638,60 @@
 
 	<!-- Equipment Grid View -->
 	{#if !isLoading && viewMode === 'grid' && filteredItems.length > 0}
-		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
 			{#each filteredItems as item (item.id)}
-				<div class="group relative overflow-hidden rounded-lg bg-white shadow transition-all hover:shadow-lg">
-					<!-- Image Section -->
-					<div class="aspect-square bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
+				<div class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
+
+					<!-- Image — 4:3 ratio like Shopee product cards -->
+					<div class="relative aspect-[4/3] overflow-hidden bg-gray-100">
 						{#if item.picture}
 							<img
 								src={item.picture}
 								alt={item.name}
-								class="w-full h-full object-cover"
+								class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
 								loading="lazy"
 							/>
 						{:else}
-							<ItemImagePlaceholder size="xl" />
+							<ItemImagePlaceholder size="lg" />
 						{/if}
+						<!-- Status badge overlaid on image -->
+						<span class="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight {getAvailabilityColor(item.status)}">
+							{item.status === 'In Stock' ? 'In Stock' : item.status === 'Out of Stock' ? 'Out' : item.status}
+						</span>
 					</div>
 
-					<!-- Content Section -->
-					<div class="p-4">
-						<div class="flex items-start justify-between">
-							<div class="flex-1">
-								<h3 class="text-lg font-semibold text-gray-900">{item.name}</h3>
-								<p class="text-sm text-gray-500">{item.specification || 'No specification'}</p>
-							</div>
-							<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {getAvailabilityColor(item.status)}">
-								{item.status}
+					<!-- Content -->
+					<div class="flex flex-1 flex-col p-2">
+						<!-- Name — 2 lines max, never truncates mid-word -->
+						<h3 class="line-clamp-2 text-xs font-semibold leading-snug text-gray-900 sm:text-sm">
+							{item.name}
+						</h3>
+
+						<!-- Category + Condition row -->
+						<div class="mt-1.5 flex flex-wrap items-center gap-1">
+							<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">
+								{getCategoryName(item.categoryId)}
+							</span>
+							<span class="rounded px-1 py-0.5 text-[10px] font-semibold {getConditionColor(item.condition)}">
+								{item.condition}
 							</span>
 						</div>
 
-						<p class="mt-2 text-sm text-gray-600 line-clamp-2">{item.description || 'No description available'}</p>
+						<!-- Qty -->
+						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.quantity}</p>
 
-						<div class="mt-3 flex items-center justify-between">
-							<div class="flex gap-2 flex-wrap">
-								<span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-									{getCategoryName(item.categoryId)}
-								</span>
-								<span class="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold {getConditionColor(item.condition)}">
-									{item.condition}
-								</span>
-							</div>
-							<span class="text-sm font-medium text-gray-700">Q: {item.quantity}</span>
-						</div>
-
-						<!-- Additional Info -->
-						{#if item.location}
-							<p class="mt-2 text-xs text-gray-500">📍 {item.location}</p>
-						{/if}
-
-						<!-- Actions -->
-						<div class="mt-4 flex gap-2">
+						<!-- Actions — pushed to bottom -->
+						<div class="mt-auto flex gap-1 pt-2">
 							<button
 								onclick={() => requestItem(item)}
-								class="flex-1 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 								disabled={item.status === 'Out of Stock'}
-								title={item.status === 'Out of Stock' ? 'Item is out of stock' : 'Request this item'}
+								class="flex-1 rounded-md bg-pink-600 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
 							>
-								Request Item
+								Request
 							</button>
 							<button
 								onclick={() => openDetailsModal(item)}
-								class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 transition-colors"
-								title="View item details"
+								class="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 sm:text-xs"
 							>
 								Details
 							</button>
@@ -732,92 +704,64 @@
 
 	<!-- Equipment List View -->
 	{#if !isLoading && viewMode === 'list' && filteredItems.length > 0}
-		<div class="overflow-hidden rounded-lg bg-white shadow">
-			<div class="overflow-x-auto">
-				<table class="min-w-full divide-y divide-gray-200">
-					<thead class="bg-gray-50">
-						<tr>
-							<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
-							<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
-							<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-							<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Condition</th>
-							<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Qty</th>
-							<th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
-						</tr>
-					</thead>
-					<tbody class="divide-y divide-gray-200 bg-white">
-						{#each filteredItems as item (item.id)}
-							<tr class="hover:bg-gray-50 transition-colors">
-								<td class="whitespace-nowrap px-6 py-4">
-									<div class="flex items-center">
-										<div class="h-10 w-10 flex-shrink-0 text-2xl flex items-center justify-center bg-gray-100 rounded">
-											{#if item.picture}
-												<img src={item.picture} alt="" class="w-full h-full object-cover rounded" />
-											{:else}
-												<ItemImagePlaceholder size="sm" />
-											{/if}
-										</div>
-										<div class="ml-4">
-											<div class="text-sm font-medium text-gray-900">{item.name}</div>
-											<div class="text-xs text-gray-500">{item.specification || 'N/A'}</div>
-										</div>
-									</div>
-								</td>
-								<td class="whitespace-nowrap px-6 py-4">
-									<span class="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-										{getCategoryName(item.categoryId)}
-									</span>
-								</td>
-								<td class="whitespace-nowrap px-6 py-4">
-									<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {getAvailabilityColor(item.status)}">
-										{item.status}
-									</span>
-								</td>
-								<td class="whitespace-nowrap px-6 py-4">
-									<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {getConditionColor(item.condition)}">
-										{item.condition}
-									</span>
-								</td>
-								<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{item.quantity}</td>
-								<td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-									<button
-										onclick={() => requestItem(item)}
-										class="text-pink-600 hover:text-pink-900 disabled:opacity-50 disabled:cursor-not-allowed transition-colors mr-3"
-										disabled={item.status === 'Out of Stock'}
-										title={item.status === 'Out of Stock' ? 'Item is out of stock' : 'Request this item'}
-									>
-										Request
-									</button>
-									<button
-										onclick={() => openDetailsModal(item)}
-										class="text-gray-600 hover:text-gray-900 transition-colors"
-										title="View details"
-									>
-										Details
-									</button>
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
+		<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
+			{#each filteredItems as item (item.id)}
+				<div class="flex items-center gap-3 px-3 py-3 hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5">
+					<!-- Thumbnail -->
+					<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14">
+						{#if item.picture}
+							<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
+						{:else}
+							<ItemImagePlaceholder size="sm" />
+						{/if}
+					</div>
+
+					<!-- Info -->
+					<div class="min-w-0 flex-1">
+						<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+						<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
+						<div class="mt-1 flex flex-wrap items-center gap-1">
+							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
+							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getConditionColor(item.condition)}">{item.condition}</span>
+							<span class="text-[10px] text-gray-400">Qty: {item.quantity}</span>
+						</div>
+					</div>
+
+					<!-- Actions -->
+					<div class="flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+						<button
+							onclick={() => requestItem(item)}
+							disabled={item.status === 'Out of Stock'}
+							class="rounded-md bg-pink-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
+						>
+							Request
+						</button>
+						<button
+							onclick={() => openDetailsModal(item)}
+							class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 sm:text-xs"
+						>
+							Details
+						</button>
+					</div>
+				</div>
+			{/each}
 		</div>
 	{/if}
 
 	<!-- Empty State -->
 	{#if !isLoading && filteredItems.length === 0}
-		<div class="rounded-lg bg-gray-50 border border-gray-200 p-12 text-center">
-			<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+		<div class="rounded-lg bg-gray-50 border border-gray-200 p-8 text-center sm:p-12">
+			<svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
 			</svg>
-			<h3 class="mt-4 text-lg font-medium text-gray-900">No items found</h3>
-			<p class="mt-1 text-sm text-gray-500">Try adjusting your filters or search terms to find what you're looking for.</p>
-			<div class="mt-6">
+			<h3 class="mt-3 text-sm font-medium text-gray-900">No items found</h3>
+			<p class="mt-1 text-xs text-gray-500">Try adjusting your filters or search terms.</p>
+			<div class="mt-4">
 				<button
 					onclick={clearFilters}
-					class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-pink-600 hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500"
+					class="inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700"
 				>
-					Clear all filters
+					Clear filters
 				</button>
 			</div>
 		</div>
@@ -825,60 +769,47 @@
 
 	<!-- Pagination -->
 	{#if !isLoading && totalPages > 1}
-		<div class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-lg">
-			<div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-				<div>
-					<p class="text-sm text-gray-700">
-						Page <span class="font-medium">{currentPage}</span>
-						of
-						<span class="font-medium">{totalPages}</span>
-					</p>
-				</div>
-				<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-					<button
-						onclick={() => goToPage(currentPage - 1)}
-						disabled={currentPage === 1}
-						class="relative inline-flex items-center px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-						aria-label="Previous page"
-					>
-						<span class="sr-only">Previous</span>
-						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-						</svg>
-					</button>
+		<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
+			<p class="text-xs text-gray-600">
+				Page <span class="font-semibold">{currentPage}</span> of <span class="font-semibold">{totalPages}</span>
+			</p>
+			<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+				<button
+					onclick={() => goToPage(currentPage - 1)}
+					disabled={currentPage === 1}
+					class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+					aria-label="Previous page"
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+					</svg>
+				</button>
 
-					{#each Array(totalPages) as _, i}
-						{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalPages}
-							<button
-								onclick={() => goToPage(i + 1)}
-								class={`relative inline-flex items-center px-4 py-2 text-sm font-medium ring-1 ring-inset ring-gray-300 transition-colors ${
-									i + 1 === currentPage
-										? 'z-10 bg-pink-600 text-white ring-pink-600'
-										: 'bg-white text-gray-900 hover:bg-gray-50'
-								}`}
-								aria-label={`Go to page ${i + 1}`}
-								aria-current={i + 1 === currentPage ? 'page' : undefined}
-							>
-								{i + 1}
-							</button>
-						{:else if Math.abs(i + 1 - currentPage) === 2}
-							<span class="relative inline-flex items-center px-4 py-2 text-gray-500">...</span>
-						{/if}
-					{/each}
+				{#each Array(totalPages) as _, i}
+					{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalPages}
+						<button
+							onclick={() => goToPage(i + 1)}
+							class="relative inline-flex items-center px-3 py-2 text-xs font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
+							aria-current={i + 1 === currentPage ? 'page' : undefined}
+						>
+							{i + 1}
+						</button>
+					{:else if Math.abs(i + 1 - currentPage) === 2}
+						<span class="relative inline-flex items-center px-3 py-2 text-xs text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
+					{/if}
+				{/each}
 
-					<button
-						onclick={() => goToPage(currentPage + 1)}
-						disabled={currentPage === totalPages}
-						class="relative inline-flex items-center px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-						aria-label="Next page"
-					>
-						<span class="sr-only">Next</span>
-						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-						</svg>
-					</button>
-				</nav>
-			</div>
+				<button
+					onclick={() => goToPage(currentPage + 1)}
+					disabled={currentPage === totalPages}
+					class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+					aria-label="Next page"
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+					</svg>
+				</button>
+			</nav>
 		</div>
 	{/if}
 </div>

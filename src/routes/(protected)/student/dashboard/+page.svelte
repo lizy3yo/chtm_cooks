@@ -338,12 +338,12 @@
 <div class="space-y-6">
 
 	<!-- ── Header ─────────────────────────────────────────────────────────── -->
-	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-		<div>
-			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">
+	<div class="flex items-start justify-between gap-3">
+		<div class="min-w-0">
+			<h1 class="text-xl font-bold text-gray-900 sm:text-2xl lg:text-3xl">
 				{greeting}, {$user?.firstName}
 			</h1>
-			<p class="mt-1 text-sm text-gray-500">
+			<p class="mt-0.5 text-xs text-gray-500 sm:text-sm">
 				{#if $user?.yearLevel && $user?.block}
 					{$user.yearLevel} · Block {$user.block}
 				{:else}
@@ -351,21 +351,19 @@
 				{/if}
 			</p>
 		</div>
-		<div class="flex items-center gap-2">
-			<a
-				href="/student/request"
-				class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 transition-colors"
-			>
-				<ClipboardList size={15} />
-				New Request
-			</a>
-		</div>
+		<a
+			href="/student/request"
+			class="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-pink-700 transition-colors sm:px-4 sm:text-sm"
+		>
+			<ClipboardList size={13} />
+			New Request
+		</a>
 	</div>
 
 	{#if loading}
 		<!-- ── Skeleton ────────────────────────────────────────────────────── -->
 		<div class="space-y-6" aria-busy="true">
-			<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+			<div class="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
 				{#each Array(4) as _}
 					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-3">
 						<Skeleton class="h-3.5 w-28" />
@@ -398,10 +396,11 @@
 			{@const trust = trustTierConfig(performanceStats.trustScore.tier)}
 			{@const score = performanceStats.trustScore.score}
 			<!-- ── Trust Score Hero ───────────────────────────────────────── -->
-			<div class="rounded-xl border {trust.border} {trust.bg} p-6 shadow-sm">
-				<div class="flex flex-col gap-5 sm:flex-row sm:items-start">
-					<div class="flex flex-col items-center gap-2 sm:min-w-[120px]">
-						<div class="relative flex h-28 w-28 items-center justify-center">
+			<div class="rounded-xl border {trust.border} {trust.bg} p-4 shadow-sm sm:p-6">
+				<div class="flex items-start gap-4">
+					<!-- Gauge — smaller on mobile -->
+					<div class="flex shrink-0 flex-col items-center gap-1.5">
+						<div class="relative flex h-20 w-20 items-center justify-center sm:h-28 sm:w-28">
 							<svg viewBox="0 0 120 120" class="h-full w-full -rotate-90">
 								<circle cx="60" cy="60" r="50" fill="none" stroke="#d1d5db" stroke-width="10" />
 								<circle
@@ -418,46 +417,47 @@
 								/>
 							</svg>
 							<div class="absolute inset-0 flex flex-col items-center justify-center">
-								<p class="text-4xl font-bold {trust.text}">{score}</p>
-								<p class="text-xs text-gray-500">/ 100</p>
+								<p class="text-2xl font-bold {trust.text} sm:text-4xl">{score}</p>
+								<p class="text-[10px] text-gray-500 sm:text-xs">/ 100</p>
 							</div>
 						</div>
-						<span class="inline-flex items-center gap-1 rounded-full border px-3 py-0.5 text-sm font-medium {trustTierBadgeClass(performanceStats.trustScore.tier)}">
-							<ShieldCheck class="h-3.5 w-3.5" />
+						<span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium {trustTierBadgeClass(performanceStats.trustScore.tier)}">
+							<ShieldCheck class="h-3 w-3" />
 							{trust.label}
 						</span>
 					</div>
 
-					<div class="flex-1 space-y-2">
-						<h2 class="text-3xl font-semibold {trust.text}">Trust Score</h2>
-						<p class="text-sm text-gray-600">{trust.description}</p>
+					<!-- Text content -->
+					<div class="min-w-0 flex-1 space-y-1.5">
+						<h2 class="text-lg font-semibold {trust.text} sm:text-2xl">Trust Score</h2>
+						<p class="text-xs text-gray-600 sm:text-sm">{trust.description}</p>
 
 						<div class="pt-1">
-							<div class="mb-1 flex justify-between text-sm text-gray-400">
+							<div class="mb-1 flex justify-between text-xs text-gray-400">
 								<span>0 - Critical</span>
 								<span>100 - Excellent</span>
 							</div>
-							<div class="h-3 w-full overflow-hidden rounded-full bg-gray-200">
-								<div class="h-3 rounded-full {trust.ring}" style="width: {score}%"></div>
+							<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+								<div class="h-2 rounded-full {trust.ring}" style="width: {score}%"></div>
 							</div>
 						</div>
 
-						<div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
-							<span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-red-500"></span>Critical &lt;40</span>
-							<span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-orange-500"></span>Poor 40-59</span>
-							<span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-amber-500"></span>Fair 60-74</span>
-							<span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-pink-500"></span>Good 75-89</span>
-							<span><span class="mr-1 inline-block h-2 w-2 rounded-full bg-emerald-500"></span>Excellent 90+</span>
+						<div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
+							<span><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500"></span>Critical &lt;40</span>
+							<span><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-orange-500"></span>Poor 40-59</span>
+							<span><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-500"></span>Fair 60-74</span>
+							<span><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-pink-500"></span>Good 75-89</span>
+							<span><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Excellent 90+</span>
 						</div>
 
 						<button
 							onclick={() => (showScoreBreakdown = !showScoreBreakdown)}
-							class="inline-flex items-center gap-1.5 text-base font-semibold {trust.text} hover:underline"
+							class="inline-flex items-center gap-1 text-sm font-semibold {trust.text} hover:underline"
 						>
 							{#if showScoreBreakdown}
-								<ChevronUp class="h-4 w-4" />Hide score breakdown
+								<ChevronUp class="h-3.5 w-3.5" />Hide breakdown
 							{:else}
-								<ChevronDown class="h-4 w-4" />View score breakdown
+								<ChevronDown class="h-3.5 w-3.5" />View breakdown
 							{/if}
 						</button>
 
@@ -494,42 +494,42 @@
 		{/if}
 
 		<!-- ── KPI cards ───────────────────────────────────────────────────── -->
-		<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+		<div class="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
 
-			<div class="rounded-xl border border-violet-200 bg-violet-50 p-5 shadow-sm">
-				<div class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-violet-700">
-					<Package size={14} />
+			<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 shadow-sm sm:p-4">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-700">
+					<Package size={12} />
 					<span>Active Loans</span>
 				</div>
-				<p class="mt-3 text-4xl font-bold text-violet-700">{metrics.activeLoans}</p>
-				<p class="mt-1 text-sm text-violet-500">Borrowed or returning</p>
+				<p class="mt-2 text-3xl font-bold text-violet-700 sm:text-4xl">{metrics.activeLoans}</p>
+				<p class="mt-0.5 text-xs text-violet-500">Borrowed or returning</p>
 			</div>
 
-			<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
-				<div class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-emerald-700">
-					<CheckCircle2 size={14} />
+			<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 shadow-sm sm:p-4">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+					<CheckCircle2 size={12} />
 					<span>Completed</span>
 				</div>
-				<p class="mt-3 text-4xl font-bold text-emerald-700">{metrics.returnedCount}</p>
-				<p class="mt-1 text-sm text-emerald-500">Successfully returned</p>
+				<p class="mt-2 text-3xl font-bold text-emerald-700 sm:text-4xl">{metrics.returnedCount}</p>
+				<p class="mt-0.5 text-xs text-emerald-500">Successfully returned</p>
 			</div>
 
-			<div class="rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-				<div class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-amber-700">
-					<Clock size={14} />
+			<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 shadow-sm sm:p-4">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-700">
+					<Clock size={12} />
 					<span>Pending</span>
 				</div>
-				<p class="mt-3 text-4xl font-bold text-amber-700">{metrics.pendingCount}</p>
-				<p class="mt-1 text-sm text-amber-500">Awaiting action</p>
+				<p class="mt-2 text-3xl font-bold text-amber-700 sm:text-4xl">{metrics.pendingCount}</p>
+				<p class="mt-0.5 text-xs text-amber-500">Awaiting action</p>
 			</div>
 
-			<div class="rounded-xl border {metrics.overdueCount > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'} p-5 shadow-sm">
-				<div class="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide {metrics.overdueCount > 0 ? 'text-red-700' : 'text-gray-600'}">
-					<TriangleAlert size={14} />
+			<div class="rounded-xl border {metrics.overdueCount > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'} p-3 shadow-sm sm:p-4">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {metrics.overdueCount > 0 ? 'text-red-700' : 'text-gray-600'}">
+					<TriangleAlert size={12} />
 					<span>Overdue</span>
 				</div>
-				<p class="mt-3 text-4xl font-bold {metrics.overdueCount > 0 ? 'text-red-700' : 'text-gray-700'}">{metrics.overdueCount}</p>
-				<p class="mt-1 text-sm {metrics.overdueCount > 0 ? 'text-red-500' : 'text-gray-500'}">Past return date</p>
+				<p class="mt-2 text-3xl font-bold {metrics.overdueCount > 0 ? 'text-red-700' : 'text-gray-700'} sm:text-4xl">{metrics.overdueCount}</p>
+				<p class="mt-0.5 text-xs {metrics.overdueCount > 0 ? 'text-red-500' : 'text-gray-500'}">Past return date</p>
 			</div>
 		</div>
 
@@ -686,7 +686,7 @@
 							<p class="mt-2 text-sm text-gray-500">No active loans</p>
 						</div>
 					{:else}
-						<ul class="h-[252px] divide-y divide-gray-50 overflow-y-auto">
+						<ul class="max-h-64 divide-y divide-gray-50 overflow-y-auto lg:h-[252px]">
 							{#each activeRequests as req}
 								{@const Icon = statusIcon(req.status)}
 								{@const badge = req.daysUntilDue !== null ? dueBadge(req.daysUntilDue) : null}
@@ -752,7 +752,7 @@
 							<p class="mt-2 text-sm text-gray-500">No pending requests</p>
 						</div>
 					{:else}
-						<ul class="h-[252px] divide-y divide-gray-50 overflow-y-auto">
+						<ul class="max-h-64 divide-y divide-gray-50 overflow-y-auto lg:h-[252px]">
 							{#each pendingRequests as req}
 								{@const Icon = statusIcon(req.status)}
 								<li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
@@ -815,7 +815,7 @@
 			</div>
 
 			<!-- RIGHT sidebar ─────────────────────────────────────────────── -->
-			<div class="space-y-6">
+			<div class="space-y-6 lg:sticky lg:top-6 lg:self-start">
 
 				<!-- Notifications -->
 				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
@@ -835,7 +835,7 @@
 							<p class="mt-2 text-xs text-gray-400">No notifications at the moment</p>
 						</div>
 					{:else}
-						<ul class="h-[212px] divide-y divide-gray-50 overflow-y-auto">
+						<ul class="max-h-56 divide-y divide-gray-50 overflow-y-auto lg:h-[212px]">
 							{#each dueSoon as req}
 								{@const badge = dueBadge(req.daysUntilDue!)}
 								<li class="px-5 py-3.5">

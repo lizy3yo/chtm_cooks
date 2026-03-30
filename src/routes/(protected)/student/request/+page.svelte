@@ -337,55 +337,51 @@
 	<!-- Request Form -->
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 		<!-- Main Form -->
-		<div class="lg:col-span-2 space-y-6">
+		<div class="lg:col-span-2 space-y-4">
 			<!-- Selected Items -->
-			<div class="rounded-lg bg-white p-6 shadow">
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
 				<div class="flex items-center justify-between mb-4">
-					<h2 class="text-lg font-semibold text-gray-900">Selected Items</h2>
+					<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Selected Items</h2>
 					<button
 						onclick={() => showItemSelector = !showItemSelector}
-						class="inline-flex items-center rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500"
+						class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-pink-700"
 					>
-						<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
 						</svg>
 						Add Item
 					</button>
 				</div>
-				
+
 				{#if errors.items}
-					<div class="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">
-						{errors.items}
-					</div>
+					<div class="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{errors.items}</div>
 				{/if}
-				
+
 				{#if showItemSelector}
-					<div class="mb-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4">
-						<h3 class="text-sm font-medium text-gray-900 mb-3">Select Equipment</h3>
+					<div class="mb-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-3">
+						<h3 class="mb-2 text-sm font-medium text-gray-900">Select Equipment</h3>
 						{#if isLoadingEquipment}
-							<p class="text-sm text-gray-500">Loading equipment...</p>
+							<p class="text-sm text-gray-500">Loading equipment…</p>
 						{:else if availableEquipment.length === 0}
 							<p class="text-sm text-gray-500">No available equipment found.</p>
 						{:else}
-							<div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+							<div class="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto sm:grid-cols-2">
 								{#each availableEquipment as item}
 									<button
 										onclick={() => addItemToCart(item)}
 										disabled={selectedItems.find((i) => i.id === item.id) !== undefined}
-										class="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 text-left hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+										class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2.5 text-left hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
 									>
 										{#if item.picture}
-											<img src={item.picture} alt={item.name} class="h-10 w-10 rounded object-cover" loading="lazy" />
+											<img src={item.picture} alt={item.name} class="h-9 w-9 shrink-0 rounded object-cover" loading="lazy" />
 										{:else}
-											<div class="h-10 w-10 overflow-hidden rounded">
+											<div class="h-9 w-9 shrink-0 overflow-hidden rounded">
 												<ItemImagePlaceholder size="sm" />
 											</div>
 										{/if}
-										<div class="flex-1">
-											<p class="text-sm font-medium text-gray-900">{item.name}</p>
-											<p class="text-xs text-gray-500">{item.code} • {item.category}</p>
-											<p class="text-xs text-gray-500">{item.specification}</p>
-											<p class="text-xs text-gray-500">{item.status} • {item.available} available</p>
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-medium text-gray-900">{item.name}</p>
+											<p class="truncate text-xs text-gray-500">{item.category} · {item.available} avail.</p>
 										</div>
 									</button>
 								{/each}
@@ -393,62 +389,57 @@
 						{/if}
 					</div>
 				{/if}
-				
+
 				{#if selectedItems.length > 0}
 					<div class="space-y-2">
 						{#each selectedItems as item}
-							<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-3">
-								<div class="flex items-center gap-3">
+							<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+								<div class="flex items-start gap-3">
 									{#if item.picture}
-										<img src={item.picture} alt={item.name} class="h-10 w-10 rounded object-cover" loading="lazy" />
+										<img src={item.picture} alt={item.name} class="h-9 w-9 shrink-0 rounded object-cover" loading="lazy" />
 									{:else}
-										<div class="h-10 w-10 overflow-hidden rounded">
+										<div class="h-9 w-9 shrink-0 overflow-hidden rounded">
 											<ItemImagePlaceholder size="sm" />
 										</div>
 									{/if}
-									<div>
-										<p class="text-sm font-medium text-gray-900">{item.name}</p>
-										<p class="text-xs text-gray-500">{item.code} • {item.category}</p>
-										<p class="text-xs text-gray-500">{item.specification}</p>
-										<p class="text-xs text-gray-500">{item.status} • {item.available} available{item.location ? ` • ${item.location}` : ''}</p>
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-medium text-gray-900">{item.name}</p>
+										<p class="truncate text-xs text-gray-500">{item.category} · {item.available} available</p>
 									</div>
-								</div>
-								<div class="flex items-center gap-3">
-									<input
-										type="number"
-										min="1"
-										max={item.available}
-										value={item.requestedQuantity}
-										onchange={(e) => updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
-										class="w-20 rounded-lg border border-gray-300 px-2 py-1 text-sm"
-									/>
-									<button
-										onclick={() => removeItemFromCart(item.id)}
-										class="text-red-600 hover:text-red-800"
-									>
-										<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-										</svg>
-									</button>
+									<div class="flex shrink-0 items-center gap-2">
+										<input
+											type="number"
+											min="1"
+											max={item.available}
+											value={item.requestedQuantity}
+											onchange={(e) => updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
+											class="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+										/>
+										<button onclick={() => removeItemFromCart(item.id)} class="text-red-500 hover:text-red-700">
+											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+											</svg>
+										</button>
+									</div>
 								</div>
 							</div>
 						{/each}
 					</div>
 				{:else}
-					<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center">
-						<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center">
+						<svg class="mx-auto h-10 w-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
 						</svg>
 						<p class="mt-2 text-sm text-gray-500">No items selected</p>
-						<p class="text-xs text-gray-400">Click "Add Item" to select equipment</p>
+						<p class="text-xs text-gray-400">Tap "Add Item" to select equipment</p>
 					</div>
 				{/if}
 			</div>
-			
+
 			<!-- Borrow Period -->
-			<div class="rounded-lg bg-white p-6 shadow">
-				<h2 class="text-lg font-semibold text-gray-900 mb-4">Borrow Period</h2>
-				<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Borrow Period</h2>
+				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
 					<div>
 						<label for="borrowDate" class="block text-sm font-medium text-gray-700 mb-1">
 							Borrow Date <span class="text-red-500">*</span>
@@ -487,8 +478,8 @@
 			</div>
 			
 			<!-- Purpose -->
-			<div class="rounded-lg bg-white p-6 shadow">
-				<h2 class="text-lg font-semibold text-gray-900 mb-4">Purpose</h2>
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Purpose</h2>
 				<div class="space-y-4">
 					<div>
 						<label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">
@@ -523,86 +514,86 @@
 			</div>
 			
 			<!-- Additional Notes -->
-			<div class="rounded-lg bg-white p-6 shadow">
-				<h2 class="text-lg font-semibold text-gray-900 mb-4">Additional Information</h2>
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Additional Information</h2>
 				<div>
 					<label for="notes" class="block text-sm font-medium text-gray-700 mb-1">
-						Notes / Special Instructions <span class="text-gray-400">(Optional)</span>
+						Notes <span class="text-gray-400 font-normal">(Optional)</span>
 					</label>
 					<textarea
 						id="notes"
 						bind:value={notes}
 						rows="3"
-						placeholder="Any special instructions or notes for the custodian..."
+						placeholder="Any special instructions for the custodian…"
 						class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
 					></textarea>
 				</div>
 			</div>
 		</div>
-		
+
 		<!-- Summary Sidebar -->
 		<div class="lg:col-span-1">
-			<div class="sticky top-6 space-y-6">
+			<div class="space-y-4 lg:sticky lg:top-20">
 				<!-- Request Summary -->
-				<div class="rounded-lg bg-white p-6 shadow">
-					<h2 class="text-lg font-semibold text-gray-900 mb-4">Request Summary</h2>
-					<div class="space-y-3 text-sm">
+				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Summary</h2>
+					<div class="space-y-2 text-sm">
 						<div class="flex justify-between">
-							<span class="text-gray-600">Items:</span>
+							<span class="text-gray-500">Items</span>
 							<span class="font-medium text-gray-900">{selectedItems.length}</span>
 						</div>
 						<div class="flex justify-between">
-							<span class="text-gray-600">Borrow Date:</span>
-							<span class="font-medium text-gray-900">{borrowDate || '-'}</span>
+							<span class="text-gray-500">Borrow</span>
+							<span class="font-medium text-gray-900">{borrowDate || '—'}</span>
 						</div>
 						<div class="flex justify-between">
-							<span class="text-gray-600">Return Date:</span>
-							<span class="font-medium text-gray-900">{returnDate || '-'}</span>
+							<span class="text-gray-500">Return</span>
+							<span class="font-medium text-gray-900">{returnDate || '—'}</span>
 						</div>
 						<div class="flex justify-between">
-							<span class="text-gray-600">Duration:</span>
+							<span class="text-gray-500">Duration</span>
 							<span class="font-medium text-gray-900">
 								{#if borrowDate && returnDate}
 									{Math.ceil((new Date(returnDate).getTime() - new Date(borrowDate).getTime()) / (1000 * 60 * 60 * 24))} days
 								{:else}
-									-
+									—
 								{/if}
 							</span>
 						</div>
 					</div>
 				</div>
-				
+
 				<!-- Terms and Conditions -->
-				<div class="rounded-lg bg-white p-6 shadow">
-					<h2 class="text-lg font-semibold text-gray-900 mb-4">Terms & Conditions</h2>
-					<div class="space-y-3 text-sm text-gray-600">
-						<div class="flex items-start gap-2">
-							<svg class="h-5 w-5 flex-shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Terms & Conditions</h2>
+					<ul class="space-y-2 text-sm text-gray-600">
+						<li class="flex items-start gap-2">
+							<svg class="mt-0.5 h-4 w-4 shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
 							</svg>
-							<p>I am responsible for any damage to the equipment</p>
-						</div>
-						<div class="flex items-start gap-2">
-							<svg class="h-5 w-5 flex-shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							I am responsible for any damage
+						</li>
+						<li class="flex items-start gap-2">
+							<svg class="mt-0.5 h-4 w-4 shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
 							</svg>
-							<p>I will return the equipment on time</p>
-						</div>
-						<div class="flex items-start gap-2">
-							<svg class="h-5 w-5 flex-shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							I will return equipment on time
+						</li>
+						<li class="flex items-start gap-2">
+							<svg class="mt-0.5 h-4 w-4 shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
 							</svg>
-							<p>Late returns may incur penalties</p>
-						</div>
-						<div class="flex items-start gap-2">
-							<svg class="h-5 w-5 flex-shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							Late returns may incur penalties
+						</li>
+						<li class="flex items-start gap-2">
+							<svg class="mt-0.5 h-4 w-4 shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
 							</svg>
-							<p>Equipment must be used for educational purposes only</p>
-						</div>
-					</div>
-					
-					<div class="mt-4 pt-4 border-t border-gray-200">
+							Educational use only
+						</li>
+					</ul>
+
+					<div class="mt-4 border-t border-gray-200 pt-4">
 						<label class="flex items-start gap-3 cursor-pointer">
 							<input
 								type="checkbox"

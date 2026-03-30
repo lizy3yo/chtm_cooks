@@ -51,7 +51,7 @@
 
 <!-- Backdrop -->
 <div
-	class="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-sm"
+	class="fixed inset-0 z-[9998] min-h-[100dvh] w-screen bg-black/50 backdrop-blur-sm"
 	transition:fade={{ duration: 200 }}
 	onclick={dialog.onCancel}
 	aria-hidden="true"
@@ -63,14 +63,14 @@
 	aria-modal="true"
 	aria-labelledby="dialog-title"
 	aria-describedby="dialog-description"
-	class="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-	transition:scale={{ duration: 200, start: 0.95, easing: quintOut }}
+	class="fixed inset-0 z-[9999] flex min-h-[100dvh] w-screen items-center justify-center p-4"
 >
 	<div
-		class="w-full max-w-md rounded-lg bg-white shadow-xl ring-1 ring-black ring-opacity-5"
+		class="w-full max-w-sm rounded-xl bg-white shadow-xl ring-1 ring-black ring-opacity-5 sm:max-w-md"
 		onclick={(e) => e.stopPropagation()}
+		transition:scale={{ duration: 200, start: 0.95, easing: quintOut }}
 	>
-		<div class="p-6">
+		<div class="p-5 sm:p-6">
 			<div class="flex items-start">
 				<!-- Icon -->
 				<div class="flex-shrink-0">
@@ -99,18 +99,18 @@
 			</div>
 			
 			<!-- Actions -->
-			<div class="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+			<div class="mt-6 flex items-center justify-end gap-3">
 				<button
 					type="button"
 					onclick={dialog.onCancel}
-					class="inline-flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 sm:w-auto"
+					class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"
 				>
 					{dialog.cancelText}
 				</button>
 				<button
 					type="button"
 					onclick={dialog.onConfirm}
-					class="inline-flex w-full justify-center rounded-lg px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 sm:w-auto {config.confirmButton}"
+					class="rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 {config.confirmButton}"
 				>
 					{dialog.confirmText}
 				</button>

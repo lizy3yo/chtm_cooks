@@ -614,52 +614,40 @@
 					<button onclick={clearFilters} class="mt-4 text-sm font-medium text-pink-600 hover:text-pink-700">Clear filters</button>
 				</div>
 			{:else}
-				<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
 					{#each filteredItems as item}
-						<div class="group overflow-hidden rounded-lg bg-white shadow transition-all hover:shadow-lg">
-							<div class="aspect-square overflow-hidden bg-gray-100">
+						<div class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
+							<!-- Image — 4:3 ratio -->
+							<div class="relative aspect-[4/3] overflow-hidden bg-gray-100">
 								{#if item.picture}
-									<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
+									<img src={item.picture} alt={item.name} class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
 								{:else}
-									<ItemImagePlaceholder size="xl" />
+									<ItemImagePlaceholder size="lg" />
 								{/if}
+								<span class="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight {getAvailabilityColor(item.status)}">
+									{item.status === 'In Stock' ? 'In Stock' : item.status === 'Out of Stock' ? 'Out' : item.status}
+								</span>
 							</div>
-							<div class="p-4">
-								<div class="flex items-start justify-between gap-2">
-									<h3 class="text-sm font-semibold leading-tight text-gray-900">{item.name}</h3>
-									<span class="inline-flex shrink-0 rounded-full px-2 py-1 text-xs font-semibold {getAvailabilityColor(item.status)}">
-										{item.status}
-									</span>
-								</div>
-								{#if item.description || item.specification}
-									<p class="mt-2 line-clamp-2 text-sm text-gray-600">{item.description || item.specification}</p>
-								{/if}
 
-								<!-- Stock Indicator -->
-								<div class="mt-3 rounded-lg bg-gray-50 p-3">
-									<p class="text-xs font-medium text-gray-700">Inventory</p>
-									<div class="mt-1 flex items-baseline gap-1">
-										<span class="text-sm font-semibold text-gray-900">{item.quantity}</span>
-										<span class="text-xs text-gray-500">units total</span>
-										{#if item.minStock != null && item.quantity <= item.minStock}
-											<span class="ml-auto inline-flex rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">Below Min</span>
-										{/if}
-									</div>
-								</div>
+							<!-- Content -->
+							<div class="flex flex-1 flex-col p-2">
+								<h3 class="line-clamp-2 text-xs font-semibold leading-snug text-gray-900 sm:text-sm">{item.name}</h3>
 
-								<div class="mt-3 flex flex-wrap items-center gap-2">
-									<span class="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
+								<div class="mt-1.5 flex flex-wrap items-center gap-1">
+									<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">
 										{getCategoryName(item.categoryId)}
 									</span>
-									<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {getConditionColor(item.condition)}">
+									<span class="rounded px-1 py-0.5 text-[10px] font-semibold {getConditionColor(item.condition)}">
 										{item.condition}
 									</span>
 								</div>
 
-								<div class="mt-4">
+								<p class="mt-1 text-[10px] text-gray-400">Qty: {item.quantity}</p>
+
+								<div class="mt-auto pt-2">
 									<button
 										onclick={() => openDetailModal(item)}
-										class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1"
+										class="w-full rounded-md border border-gray-300 bg-white py-1.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50 sm:text-xs"
 									>
 										View Details
 									</button>

@@ -14,12 +14,12 @@
 	let { children }: Props = $props();
 </script>
 
-<div class="flex min-h-screen bg-white">
+<div class="flex min-h-screen overflow-x-hidden bg-white">
 	<StudentSidebar />
 
 	<!-- Main Content — offset top for the fixed top nav bar -->
-	<main class="flex-1 bg-white transition-all duration-300 {$sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}">
-		<div class="mx-auto max-w-7xl px-4 pt-20 pb-6 sm:px-6 lg:px-8">
+	<main class="min-w-0 flex-1 bg-white transition-all duration-300 {$sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}">
+		<div class="mx-auto max-w-7xl px-4 pt-[30px] pb-6 sm:px-6 lg:px-8">
 			{@render children()}
 		</div>
 	</main>
