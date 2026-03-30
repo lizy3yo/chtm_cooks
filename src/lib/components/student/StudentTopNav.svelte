@@ -5,8 +5,10 @@
 	import { authStore, user } from '$lib/stores/auth';
 	import { themeStore } from '$lib/stores/theme';
 	import { toastStore } from '$lib/stores/toast';
+	import { sidebarCollapsed } from '$lib/stores/student';
 	import { Moon, Sun, HelpCircle, Bell, ChevronDown, LogOut, User, Settings, History, CalendarDays } from 'lucide-svelte';
 	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
+	import logo from '$lib/assets/CHTM_LOGO.png';
 
 	// Only render on student routes — prevents flash on other pages during navigation
 	const isStudentRoute = $derived($page.url.pathname.startsWith('/student'));
@@ -68,25 +70,38 @@
 
 {#if isStudentRoute}
 <header
-	class="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 shadow-sm sm:px-6"
+	class="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 shadow-sm transition-all duration-300 sm:px-6
+		{$sidebarCollapsed ? 'lg:pl-24' : 'lg:pl-[19rem]'}"
 >
-	<!-- Left: date on mobile only -->
-	<div class="flex items-center gap-1.5 text-gray-500 sm:hidden">
+	<!-- Left: branding on mobile/tablet, hidden on desktop (sidebar takes over) -->
+	<div class="flex items-center gap-3 lg:hidden">
+		<!-- Logo + wordmark — always visible -->
+		<div class="flex items-center gap-2">
+			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white shadow-md">
+				<img src={logo} alt="CHTM Logo" class="h-5 w-5 object-contain" />
+			</div>
+			<div class="leading-tight">
+				<p class="text-xs font-bold text-gray-900">Student Portal</p>
+				<p class="text-[10px] text-gray-400">CHTM-Cooks</p>
+			</div>
+		</div>
+
+		<!-- Divider + date — tablet only (sm to lg) -->
+		<div class="hidden items-center gap-1.5 text-gray-500 sm:flex">
+			<div class="mr-1.5 h-6 w-px bg-gray-200"></div>
+			<CalendarDays size={15} strokeWidth={1.75} class="shrink-0" />
+			<span class="text-sm">{formattedDateTime}</span>
+		</div>
+	</div>
+
+	<!-- Date — desktop only (lg+), branding is in the sidebar -->
+	<div class="hidden items-center gap-1.5 text-gray-500 lg:flex">
 		<CalendarDays size={15} strokeWidth={1.75} class="shrink-0" />
-		<span class="text-sm">{formattedDateMobile}</span>
+		<span class="text-sm">{formattedDateTime}</span>
 	</div>
 
 	<!-- Right: all controls -->
 	<div class="ml-auto flex items-center gap-0.5">
-
-		<!-- Date (sm+ only) -->
-		<div class="hidden items-center gap-1.5 text-gray-500 sm:flex">
-			<CalendarDays size={15} strokeWidth={1.75} class="shrink-0" />
-			<span class="text-sm">{formattedDateTime}</span>
-		</div>
-
-		<!-- Divider after date -->
-		<div class="mx-2 hidden h-6 w-px bg-gray-200 sm:block"></div>
 
 		<!-- Dark mode toggle -->
 		<button
