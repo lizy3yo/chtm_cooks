@@ -414,10 +414,55 @@
 				</button>
 			</div>
 
-			<div class="px-5 pb-6">
+			<div class="px-5 pb-6 space-y-3">
+
+				<!-- Video is ALWAYS rendered so ZXing can find it — overlays handle other states -->
+				<div class="relative overflow-hidden rounded-2xl bg-black {scannerStatus === 'success' ? 'hidden' : ''}">
+					<!-- svelte-ignore a11y_media_has_caption -->
+					<video
+						id={VIDEO_ID}
+						autoplay
+						playsinline
+						muted
+						class="w-full rounded-2xl"
+						style="max-height: 280px; object-fit: cover;"
+					></video>
+
+					<!-- Loading overlay -->
+					{#if scannerStatus === 'loading'}
+						<div class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 rounded-2xl">
+							<div class="h-10 w-10 animate-spin rounded-full border-4 border-gray-400 border-t-pink-500"></div>
+							<p class="text-sm text-white/80">{scannerMsg || 'Starting camera…'}</p>
+						</div>
+					{/if}
+
+					<!-- Error overlay -->
+					{#if scannerStatus === 'error'}
+						<div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 rounded-2xl px-4">
+							<div class="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
+								<X size={22} class="text-red-400" />
+							</div>
+							<p class="text-center text-xs text-white/70">{scannerMsg}</p>
+						</div>
+					{/if}
+
+					<!-- Scanning frame overlay -->
+					{#if scannerStatus === 'scanning'}
+						<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+							<div class="relative h-52 w-52">
+								<span class="absolute left-0 top-0 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-pink-400"></span>
+								<span class="absolute right-0 top-0 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-pink-400"></span>
+								<span class="absolute bottom-0 left-0 h-8 w-8 rounded-bl-lg border-b-4 border-l-4 border-pink-400"></span>
+								<span class="absolute bottom-0 right-0 h-8 w-8 rounded-br-lg border-b-4 border-r-4 border-pink-400"></span>
+								<span class="absolute inset-x-2 h-0.5 animate-[scan_2s_ease-in-out_infinite] bg-pink-400/80 shadow-[0_0_8px_2px_rgba(236,72,153,0.5)]"></span>
+							</div>
+						</div>
+					{/if}
+				</div>
+
+				<!-- Success state -->
 				{#if scannerStatus === 'success' && scannerResult}
-					<!-- Success -->
-					<div class="flex flex-col items-center gap-4 py-4">
+					<div class="flex flex-col items-center gap-4 py-2">
 						<div class="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
 							<CheckCircle2 size={32} class="text-emerald-600" />
 						</div>
@@ -438,77 +483,36 @@
 							</button>
 						</div>
 					</div>
+				{/if}
 
-				{:else if scannerStatus === 'loading'}
-					<!-- Loading -->
-					<div class="flex flex-col items-center gap-3 py-10">
-						<div class="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-pink-600"></div>
-						<p class="text-sm text-gray-500">{scannerMsg || 'Starting camera…'}</p>
-					</div>
+				<!-- Camera selector -->
+				{#if cameras.length > 1 && scannerStatus !== 'success'}
+					<select
+						value={selectedCameraId}
+						onchange={(e) => switchCamera((e.target as HTMLSelectElement).value)}
+						class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 focus:border-pink-400 focus:outline-none focus:ring-1 focus:ring-pink-400"
+					>
+						{#each cameras as cam, i}
+							<option value={cam.deviceId}>{cam.label || `Camera ${i + 1}`}</option>
+						{/each}
+					</select>
+				{/if}
 
-				{:else if scannerStatus === 'error'}
-					<!-- Error — show file fallback -->
-					<div class="flex flex-col items-center gap-4 py-4">
-						<div class="flex h-14 w-14 items-center justify-center rounded-full bg-red-100">
-							<X size={24} class="text-red-500" />
-						</div>
-						<p class="text-center text-sm text-gray-600">{scannerMsg}</p>
-						<!-- File-based fallback: works on all devices -->
-						<label class="w-full cursor-pointer rounded-xl bg-pink-600 py-3 text-center text-sm font-semibold text-white hover:bg-pink-700 transition-colors">
-							📷 Upload QR Photo
-							<input
-								type="file"
-								accept="image/*"
-								capture="environment"
-								class="hidden"
-								onchange={handleFileInput}
-							/>
-						</label>
-						<button onclick={rescan} class="w-full rounded-xl border border-gray-200 py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-							Try Camera Again
-						</button>
-					</div>
-
-				{:else}
-					<!-- Camera selector (shown when multiple cameras available) -->
-					{#if cameras.length > 1}
-						<div class="mb-3">
-							<select
-								value={selectedCameraId}
-								onchange={(e) => switchCamera((e.target as HTMLSelectElement).value)}
-								class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 focus:border-pink-400 focus:outline-none focus:ring-1 focus:ring-pink-400"
-							>
-								{#each cameras as cam, i}
-									<option value={cam.deviceId}>{cam.label || `Camera ${i + 1}`}</option>
-								{/each}
-							</select>
-						</div>
-					{/if}
-					<!-- Live camera viewfinder -->
-					<div class="relative overflow-hidden rounded-2xl bg-black">
-						<!-- svelte-ignore a11y_media_has_caption -->
-						<video
-							id={VIDEO_ID}
-							autoplay
-							playsinline
-							muted
-							class="w-full rounded-2xl"
-							style="max-height: 300px; object-fit: cover;"
-						></video>
-						<!-- Corner bracket overlay -->
-						<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-							<div class="relative h-52 w-52">
-								<span class="absolute left-0 top-0 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-pink-400"></span>
-								<span class="absolute right-0 top-0 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-pink-400"></span>
-								<span class="absolute bottom-0 left-0 h-8 w-8 rounded-bl-lg border-b-4 border-l-4 border-pink-400"></span>
-								<span class="absolute bottom-0 right-0 h-8 w-8 rounded-br-lg border-b-4 border-r-4 border-pink-400"></span>
-								<span class="absolute inset-x-2 h-0.5 animate-[scan_2s_ease-in-out_infinite] bg-pink-400/80 shadow-[0_0_8px_2px_rgba(236,72,153,0.5)]"></span>
-							</div>
-						</div>
-					</div>
-					<p class="mt-3 text-center text-xs text-gray-400">Align the QR code within the frame — it detects automatically</p>
-					<!-- File fallback always available -->
-					<label class="mt-3 flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 py-2.5 text-xs font-medium text-gray-500 hover:border-pink-400 hover:text-pink-600 transition-colors">
+				<!-- Status hint / file fallback -->
+				{#if scannerStatus === 'scanning'}
+					<p class="text-center text-xs text-gray-400">Align the QR code within the frame — detects automatically</p>
+				{/if}
+				{#if scannerStatus === 'error'}
+					<label class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-pink-600 py-3 text-sm font-semibold text-white hover:bg-pink-700 transition-colors">
+						📷 Upload QR Photo
+						<input type="file" accept="image/*" capture="environment" class="hidden" onchange={handleFileInput} />
+					</label>
+					<button onclick={rescan} class="w-full rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+						Try Camera Again
+					</button>
+				{/if}
+				{#if scannerStatus === 'scanning'}
+					<label class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 py-2.5 text-xs font-medium text-gray-500 hover:border-pink-400 hover:text-pink-600 transition-colors">
 						<ScanLine size={14} /> Or upload a QR photo
 						<input type="file" accept="image/*" capture="environment" class="hidden" onchange={handleFileInput} />
 					</label>
