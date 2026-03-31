@@ -1557,19 +1557,24 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 	<title>Inventory Management - CHTM Cooks</title>
 </svelte:head>
 
-<div class="space-y-6">
+<div class="w-full min-w-0 space-y-4">
 	<!-- Header -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<div>
-			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Inventory Management</h1>
+	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+		<div class="min-w-0">
+			<h1 class="text-2xl font-bold text-gray-900">Inventory Management</h1>
 			<p class="mt-1 text-sm text-gray-500">Manage kitchen laboratory inventory and stock levels</p>
 		</div>
 
 		<!-- Item Details Modal -->
 		{#if selectedItem}
-			<div class="fixed inset-0 z-50 flex items-center justify-center">
+			<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
 				<div class="fixed inset-0 bg-black/40" aria-hidden="true" onclick={closeModal}></div>
-				<div class="relative z-50 w-full max-w-3xl rounded-lg bg-white p-6 shadow-lg">
+				<div class="relative z-50 w-full rounded-t-2xl bg-white shadow-xl sm:max-w-3xl sm:rounded-2xl">
+					<!-- drag handle on mobile -->
+					<div class="flex justify-center pt-3 sm:hidden">
+						<div class="h-1 w-10 rounded-full bg-gray-300"></div>
+					</div>
+					<div class="p-4 sm:p-6">
 					<div class="flex items-start justify-between">
 						<h2 class="text-lg font-semibold text-gray-900">{selectedItem.name}</h2>
 						<div class="relative">
@@ -1648,6 +1653,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 					</div>
 
 				</div>
+				</div>
 			</div>
 		{/if}
 
@@ -1674,26 +1680,28 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 			</div>
 		{/if}
 
-		<div class="flex gap-3">
+		<div class="flex flex-wrap gap-2">
 			<button 
 				onclick={openImportModal}
-				class="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+				class="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:px-4"
 				disabled={loading}
 			>
-				<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
 				</svg>
-				Import Items
+				<span class="hidden sm:inline">Import Items</span>
+				<span class="sm:hidden">Import</span>
 			</button>
 			<button 
 				onclick={openAddItemModal}
-				class="inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500"
+				class="inline-flex items-center rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 sm:px-4"
 				disabled={loading}
 			>
-				<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
 				</svg>
-				Add New Item
+				<span class="hidden sm:inline">Add New Item</span>
+				<span class="sm:hidden">Add Item</span>
 			</button>
 		</div>
 	</div>
@@ -1704,103 +1712,93 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 	{:else}
 	
 	<!-- Stats Overview -->
-	<div class="grid grid-cols-1 gap-5 sm:grid-cols-4">
-		<div class="rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-			<dt class="truncate text-sm font-medium text-gray-500">Active Items</dt>
-			<dd class="mt-1 text-3xl font-semibold text-gray-900">{activeItems.length}</dd>
+	<div class="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
+		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
+			<dt class="truncate text-xs font-medium text-gray-500">Active Items</dt>
+			<dd class="mt-1 text-2xl font-semibold text-gray-900">{activeItems.length}</dd>
 		</div>
-		<div class="rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-			<dt class="truncate text-sm font-medium text-gray-500">Categories</dt>
-			<dd class="mt-1 text-3xl font-semibold text-gray-900">{categories.length}</dd>
+		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
+			<dt class="truncate text-xs font-medium text-gray-500">Categories</dt>
+			<dd class="mt-1 text-2xl font-semibold text-gray-900">{categories.length}</dd>
 		</div>
-		<div class="rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-			<dt class="truncate text-sm font-medium text-gray-500">Low Stock</dt>
-			<dd class="mt-1 text-3xl font-semibold text-red-600">{lowStockItems.length}</dd>
+		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
+			<dt class="truncate text-xs font-medium text-gray-500">Low Stock</dt>
+			<dd class="mt-1 text-2xl font-semibold text-red-600">{lowStockItems.length}</dd>
 		</div>
-		<div class="rounded-lg bg-white px-4 py-5 shadow sm:p-6">
-			<dt class="truncate text-sm font-medium text-gray-500">Total Quantity</dt>
-			<dd class="mt-1 text-3xl font-semibold text-gray-900">{activeItems.reduce((sum, item) => sum + item.quantity, 0)}</dd>
+		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
+			<dt class="truncate text-xs font-medium text-gray-500">Total Qty</dt>
+			<dd class="mt-1 text-2xl font-semibold text-gray-900">{activeItems.reduce((sum, item) => sum + item.quantity, 0)}</dd>
 		</div>
 	</div>
 	
 	<!-- Tabs Navigation -->
-	<div class="border-b border-gray-200 bg-white shadow-sm">
-		<nav class="-mb-px flex overflow-x-auto" aria-label="Tabs">
+	<div class="border-b border-gray-200 bg-white">
+		<nav class="-mb-px flex" aria-label="Inventory tabs">
 			<button
 				onclick={() => switchTab('all-items')}
-				class="whitespace-nowrap border-b-2 px-6 py-4 text-sm font-medium transition-colors {activeTab === 'all-items'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:text-sm
+					{activeTab === 'all-items' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
-				<div class="flex items-center">
-					<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
-					</svg>
-						All Items
-						<span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{selectedCategory ? filteredItems.length : activeItems.length}</span>
-				</div>
+				Items
+				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'all-items' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+					{selectedCategory ? filteredItems.length : activeItems.length}
+				</span>
 			</button>
-			
+
 			<button
 				onclick={() => switchTab('categories')}
-				class="whitespace-nowrap border-b-2 px-6 py-4 text-sm font-medium transition-colors {activeTab === 'categories'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:text-sm
+					{activeTab === 'categories' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
-				<div class="flex items-center">
-					<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-					</svg>
-					Categories
-					<span class="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">{categories.length}</span>
-				</div>
+				Categories
+				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'categories' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+					{categories.length}
+				</span>
 			</button>
-			
+
 			<button
 				onclick={() => switchTab('low-stock')}
-				class="whitespace-nowrap border-b-2 px-6 py-4 text-sm font-medium transition-colors {activeTab === 'low-stock'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:text-sm
+					{activeTab === 'low-stock' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
-				<div class="flex items-center">
-					<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-					</svg>
-					Low Stock
-					<span class="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">{lowStockItems.length}</span>
-				</div>
+				Low Stock
+				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'low-stock' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}">
+					{lowStockItems.length}
+				</span>
 			</button>
-			
 		</nav>
 	</div>
 	
 	<!-- Tab Content -->
-	<div class="rounded-lg bg-white shadow">
+	<div class="overflow-hidden rounded-b-lg bg-white shadow">
 		{#if activeTab === 'all-items'}
 			<!-- All Items View -->
-			<div class="p-6">
-				<div class="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+			<div class="p-4 sm:p-6">
+				<div class="mb-4 flex flex-col gap-3">
 					{#if selectedCategory}
-						<div class="mb-2 flex items-center gap-3">
+						<div class="flex items-center gap-2">
 							<span class="inline-flex items-center rounded-full bg-pink-100 px-3 py-1 text-sm font-medium text-pink-800">Showing: {selectedCategory.name}</span>
 							<button onclick={clearCategoryFilter} class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50">Clear</button>
 						</div>
 					{/if}
-					<div class="relative flex-1">
-						<input
-							type="text"
-							placeholder="Search items..."
-							bind:value={query}
-							class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-						/>
-						<svg class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-						</svg>
+					<!-- Search + Sort row -->
+					<div class="flex gap-2">
+						<div class="relative flex-1">
+							<input
+								type="text"
+								placeholder="Search items..."
+								bind:value={query}
+								class="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+							/>
+							<svg class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+							</svg>
+						</div>
+						<select bind:value={sortOrder} class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
+							<option value="az">A – Z</option>
+							<option value="za">Z – A</option>
+						</select>
 					</div>
-					<select bind:value={sortOrder} class="rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
-						<option value="az">A - Z</option>
-						<option value="za">Z - A</option>
-					</select>
 				</div>
 				
 				{#if displayItems.length === 0}
@@ -1831,25 +1829,57 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 						{/if}
 					</div>
 				{:else}
-					<div class="overflow-x-auto max-h-[48rem]">
+					<!-- Mobile card list — hidden on sm+ -->
+					<div class="divide-y divide-gray-100 sm:hidden">
+						{#each displayItems as item, i}
+							<button
+								class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+								onclick={() => openModal(item)}
+							>
+								<div class="flex items-center gap-3">
+									<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
+										{(currentPage - 1) * PAGE_SIZE + i + 1}
+									</span>
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+										<p class="truncate text-xs text-gray-500">{item.specification || item.category}</p>
+										<div class="mt-1 flex flex-wrap items-center gap-1">
+											<span class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">{item.category}</span>
+											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+												<span class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">{item.status}</span>
+											{:else}
+												<span class="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">{item.status}</span>
+											{/if}
+											<span class="text-[10px] text-gray-400">Qty: {item.quantity} · EOM: {item.eomCount}</span>
+										</div>
+									</div>
+									<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+									</svg>
+								</div>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Desktop table — hidden on mobile -->
+					<div class="hidden overflow-x-auto sm:block">
 						<table class="min-w-full divide-y divide-gray-200">
 							<thead class="bg-gray-50">
 								<tr>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Name</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Specification</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tools / Equipment</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Count</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">EOM Count</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Variance</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-									<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Condition</th>
-
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item Name</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Specification</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tools / Equipment</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Current Count</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">EOM Count</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Variance</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Condition</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-200 bg-white">
 								{#each displayItems as item, i}
-									<tr class="hover:bg-gray-50 cursor-pointer" onclick={() => openModal(item)}>
+									<tr class="cursor-pointer hover:bg-gray-50" onclick={() => openModal(item)}>
 										<td class="whitespace-nowrap px-6 py-4">
 											<div class="flex items-center gap-3">
 												<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700">{(currentPage - 1) * PAGE_SIZE + i + 1}</span>
@@ -1867,16 +1897,12 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 										<td class="whitespace-nowrap px-6 py-4">
 											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
 												<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
-													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-														<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-													</svg>
+													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
 													{item.status}
 												</span>
 											{:else}
 												<span class="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-semibold text-pink-800">
-													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-														<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-													</svg>
+													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
 													{item.status}
 												</span>
 											{/if}
@@ -1884,7 +1910,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 										<td class="whitespace-nowrap px-6 py-4">
 											<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {item.condition === 'Good' ? 'bg-pink-100 text-pink-800' : 'bg-yellow-100 text-yellow-800'}">{item.condition}</span>
 										</td>
-
 									</tr>
 								{/each}
 							</tbody>
@@ -1942,15 +1967,15 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 			
 		{:else if activeTab === 'categories'}
 			<!-- Categories View -->
-			<div class="p-6">
-				<div class="mb-6 flex justify-between items-center">
-					<h3 class="text-lg font-semibold text-gray-900">Item Categories</h3>
+			<div class="p-4 sm:p-6">
+				<div class="mb-4 flex items-center justify-between gap-3">
+					<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Item Categories</h3>
 					<button 
 						onclick={() => showCategoryModal = true}
-						class="inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+						class="inline-flex shrink-0 items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 sm:px-4 sm:py-2 sm:text-sm"
 						disabled={loading}
 					>
-						<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
 						</svg>
 						Add Category
@@ -1975,23 +2000,23 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 						</button>
 					</div>
 				{:else}
-					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 						{#each categories as category}
-						<div onclick={() => openCategory(category)} class="relative rounded-lg border-2 border-gray-200 p-6 transition-all hover:border-emerald-500 hover:shadow-md cursor-pointer">
-							<div class="flex items-center justify-between">
-								<div class="flex-1">
-									<h4 class="text-lg font-semibold text-gray-900">{category.name}</h4>
-									<p class="mt-1 text-sm text-gray-500">{category.itemCount} items</p>
+						<div onclick={() => openCategory(category)} class="relative cursor-pointer rounded-lg border border-gray-200 p-3 transition-all hover:border-emerald-500 hover:shadow-md sm:p-4">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0 flex-1">
+									<h4 class="truncate text-sm font-semibold text-gray-900 sm:text-base">{category.name}</h4>
+									<p class="mt-0.5 text-xs text-gray-500">{category.itemCount} items</p>
 									{#if category.description}
-										<p class="mt-1 text-xs text-gray-400">{category.description}</p>
+										<p class="mt-0.5 truncate text-xs text-gray-400">{category.description}</p>
 									{/if}
 								</div>
-								<div class="ml-4 flex items-center gap-3">
+								<div class="flex shrink-0 items-center gap-2">
 									{#if category.picture}
-										<img src={category.picture} alt={category.name} class="h-12 w-12 rounded-full object-cover" />
+										<img src={category.picture} alt={category.name} class="h-9 w-9 rounded-full object-cover sm:h-10 sm:w-10" />
 									{:else}
-										<span class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 text-gray-600">
-											<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<span class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
+											<svg class="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
 											</svg>
 										</span>
@@ -2226,30 +2251,30 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 						<p class="mt-2 text-sm text-gray-500">No items require immediate restocking.</p>
 					</div>
 				{:else}
-					<div class="space-y-4">
+					<div class="space-y-3">
 						{#each lowStockItems as item}
-							<div class="rounded-lg border-2 border-red-200 bg-red-50 p-4">
-								<div class="flex items-center justify-between">
-									<div class="flex items-center space-x-4">
-										<div class="flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-											<svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<div class="rounded-xl border border-red-200 bg-red-50 p-4">
+								<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+									<div class="flex items-center gap-3">
+										<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
+											<svg class="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
 											</svg>
 										</div>
 										<div>
-											<h4 class="font-semibold text-gray-900">{item.name}</h4>
-											<p class="text-sm text-gray-600">Category: {item.category}</p>
+											<h4 class="text-sm font-semibold text-gray-900">{item.name}</h4>
+											<p class="text-xs text-gray-500">{item.category}</p>
 										</div>
 									</div>
-									<div class="text-right">
-										<div class="text-sm text-gray-600">Current: <span class="font-semibold text-red-600">{item.quantity}</span></div>
+									<div class="flex items-center justify-between gap-3 sm:justify-end">
+										<span class="text-sm text-gray-600">Qty: <span class="font-semibold text-red-600">{item.quantity}</span></span>
+										<button
+											onclick={() => editItem(item)}
+											class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 sm:px-4 sm:py-2 sm:text-sm"
+										>
+											Update Stock
+										</button>
 									</div>
-									<button 
-										onclick={() => editItem(item)}
-										class="ml-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-									>
-										Update Stock
-									</button>
 								</div>
 							</div>
 						{/each}

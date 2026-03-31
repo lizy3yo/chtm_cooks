@@ -3,12 +3,15 @@
 	import { authStore, user } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
 	import type { Snippet } from 'svelte';
+	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
 	
 	interface Props {
 		children: Snippet;
 	}
 	
 	let { children }: Props = $props();
+	
+	let signOutOpen = $state(false);
 	
 	const navItems = [
 		{ name: 'Dashboard', href: '/admin/dashboard', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
@@ -63,7 +66,7 @@
 				</div>
 			{/if}
 			<button
-				onclick={handleLogout}
+				onclick={() => (signOutOpen = true)}
 				class="flex w-full items-center justify-center rounded-lg bg-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-300"
 			>
 				<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -81,3 +84,9 @@
 		</div>
 	</main>
 </div>
+
+<SignOutModal
+	open={signOutOpen}
+	onconfirm={handleLogout}
+	oncancel={() => (signOutOpen = false)}
+/>

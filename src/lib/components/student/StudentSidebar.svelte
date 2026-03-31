@@ -6,6 +6,7 @@
 	import { toastStore } from '$lib/stores/toast';
 	import { sidebarCollapsed } from '$lib/stores/student';
 	import logo from '$lib/assets/CHTM_LOGO.png';
+	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
 	
 	interface NavItem {
 		name: string;
@@ -19,17 +20,21 @@
 
 	let isMobileMenuOpen = $state(false);
 	let isProfileDropdownOpen = $state(false);
+	let signOutOpen = $state(false);
 
 	// Show the mobile top nav only on student routes
-	const showTopNav = derived(page, $page => typeof window !== 'undefined' && $page.url.pathname.startsWith('/student'));
+	const showTopNav = derived(page, $page => $page.url.pathname.startsWith('/student'));
 
 	// Apply body padding only when the mobile top nav is visible
 	onMount(() => {
 		const unsub = showTopNav.subscribe(val => {
 			if (val) document.body.style.paddingTop = '3.5rem';
-			else if (document.body.style.paddingTop === '3.5rem') document.body.style.paddingTop = '';
+			else document.body.style.paddingTop = '';
 		});
-		return unsub;
+		return () => {
+			unsub();
+			document.body.style.paddingTop = '';
+		};
 	});
 	
 	function toggleCollapse() {
@@ -210,3 +215,9 @@
 		</nav>
 	</div>
 </aside>
+
+<SignOutModal
+	open={signOutOpen}
+	onconfirm={handleLogout}
+	oncancel={() => (signOutOpen = false)}
+/>

@@ -5,13 +5,13 @@
 	import { authStore, user } from '$lib/stores/auth';
 	import { themeStore } from '$lib/stores/theme';
 	import { toastStore } from '$lib/stores/toast';
-	import { sidebarCollapsed } from '$lib/stores/student';
-	import { Moon, Sun, HelpCircle, Bell, ChevronDown, LogOut, User, Settings, History, CalendarDays } from 'lucide-svelte';
+	import { sidebarCollapsed, mobileSidebarOpen } from '$lib/stores/custodian';
+	import { Moon, Sun, HelpCircle, Bell, ChevronDown, LogOut, User, Settings, CalendarDays } from 'lucide-svelte';
 	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
 	import logo from '$lib/assets/CHTM_LOGO.png';
 
-	// Only render on student routes — prevents flash on other pages during navigation
-	const isStudentRoute = $derived($page.url.pathname.startsWith('/student'));
+	// Only render on custodian routes
+	const isCustodianRoute = $derived($page.url.pathname.startsWith('/custodian'));
 
 	let profileOpen = $state(false);
 	let notifOpen   = $state(false);
@@ -23,8 +23,14 @@
 
 	onMount(() => {
 		ticker = setInterval(() => { now = new Date(); }, 1000);
+		// Apply top padding for mobile nav
+		document.body.style.paddingTop = '4rem';
+		return () => { document.body.style.paddingTop = ''; };
 	});
-	onDestroy(() => clearInterval(ticker));
+	onDestroy(() => {
+		clearInterval(ticker);
+		document.body.style.paddingTop = '';
+	});
 
 	const formattedDateTime = $derived(
 		now.toLocaleString('en-US', {
@@ -35,14 +41,6 @@
 			hour:    'numeric',
 			minute:  '2-digit',
 			hour12:  true
-		})
-	);
-
-	const formattedDateMobile = $derived(
-		now.toLocaleString('en-US', {
-			month: 'short',
-			day:   'numeric',
-			year:  'numeric'
 		})
 	);
 	// ─────────────────────────────────────────────────────────────────────────
@@ -68,39 +66,40 @@
 
 <svelte:window onclick={handleWindowClick} />
 
-{#if isStudentRoute}
+{#if isCustodianRoute}
 <header
 	class="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 shadow-sm transition-all duration-300 sm:px-6
 		{$sidebarCollapsed ? 'lg:pl-24' : 'lg:pl-[19rem]'}"
 >
 	<!-- Left: branding on mobile/tablet, hidden on desktop (sidebar takes over) -->
-	<div class="flex items-center gap-3 lg:hidden">
-		<!-- Logo + wordmark — always visible -->
-		<div class="flex items-center gap-2">
+	<div class="flex items-center gap-2">
+
+		<!-- Branding — mobile/tablet only -->
+		<div class="flex items-center gap-2 lg:hidden">
 			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white shadow-md">
 				<img src={logo} alt="CHTM Logo" class="h-5 w-5 object-contain" />
 			</div>
 			<div class="leading-tight">
-				<p class="text-xs font-bold text-gray-900">Student Portal</p>
+				<p class="text-xs font-bold text-gray-900">Custodian</p>
 				<p class="text-[10px] text-gray-400">CHTM-Cooks</p>
 			</div>
 		</div>
 
 		<!-- Divider + date — tablet only (sm to lg) -->
-		<div class="hidden items-center gap-1.5 text-gray-500 sm:flex">
-			<div class="mr-1.5 h-6 w-px bg-gray-200"></div>
+		<div class="hidden items-center gap-1.5 text-gray-500 sm:flex lg:hidden">
+			<div class="ml-1 mr-1.5 h-6 w-px bg-gray-200"></div>
+			<CalendarDays size={15} strokeWidth={1.75} class="shrink-0" />
+			<span class="text-sm">{formattedDateTime}</span>
+		</div>
+
+		<!-- Date — desktop only (lg+) -->
+		<div class="hidden items-center gap-1.5 text-gray-500 lg:flex">
 			<CalendarDays size={15} strokeWidth={1.75} class="shrink-0" />
 			<span class="text-sm">{formattedDateTime}</span>
 		</div>
 	</div>
 
-	<!-- Date — desktop only (lg+), branding is in the sidebar -->
-	<div class="hidden items-center gap-1.5 text-gray-500 lg:flex">
-		<CalendarDays size={15} strokeWidth={1.75} class="shrink-0" />
-		<span class="text-sm">{formattedDateTime}</span>
-	</div>
-
-	<!-- Right: all controls -->
+	<!-- Right: controls -->
 	<div class="ml-auto flex items-center gap-0.5">
 
 		<!-- Dark mode toggle -->
@@ -119,7 +118,7 @@
 
 		<!-- Help & Support -->
 		<a
-			href="/student/account/help"
+			href="/custodian/account/help"
 			class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all duration-200 hover:bg-pink-50 hover:text-pink-600"
 			aria-label="Help and support"
 			title="Help & Support"
@@ -148,7 +147,7 @@
 				>
 					<div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
 						<p class="text-sm font-semibold text-gray-900">Notifications</p>
-						<a href="/student/account/notifications" onclick={() => notifOpen = false} class="text-xs font-medium text-pink-600 hover:text-pink-700">View all</a>
+						<a href="/custodian/notifications" onclick={() => notifOpen = false} class="text-xs font-medium text-pink-600 hover:text-pink-700">View all</a>
 					</div>
 					<div class="py-8 text-center">
 						<Bell size={28} class="mx-auto mb-2 text-gray-300" />
@@ -160,6 +159,7 @@
 
 		<!-- Divider before avatar -->
 		<div class="mx-2 h-6 w-px bg-gray-200"></div>
+
 		{#if $user}
 			<div class="relative" data-topnav-dropdown>
 				<button
@@ -190,14 +190,11 @@
 							<p class="truncate text-sm font-semibold text-gray-900">{$user.firstName} {$user.lastName}</p>
 							<p class="truncate text-xs text-gray-500">{$user.email}</p>
 						</div>
-						<a href="/student/account/profile"  onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
+						<a href="/custodian/account/profile" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
 							<User size={15} class="text-gray-400" /> Profile
 						</a>
-						<a href="/student/account/settings" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
+						<a href="/custodian/account/settings" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
 							<Settings size={15} class="text-gray-400" /> Settings
-						</a>
-						<a href="/student/account/history"  onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
-							<History size={15} class="text-gray-400" /> History
 						</a>
 						<div class="my-1 border-t border-gray-100"></div>
 						<button onclick={() => { profileOpen = false; signOutOpen = true; }} role="menuitem" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50">
