@@ -29,7 +29,7 @@
 	let deletedPage = $state(1);
 	let deletedLimit = $state(50);
 	let deletedSearch = $state('');
-	
+
 	// Filters for activity logs
 	let filterAction = $state('');
 	let filterEntityType = $state('');
@@ -69,7 +69,6 @@
 			activityTotal = response.total;
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to load activity logs');
-			console.error('Error loading activity logs:', err);
 		} finally {
 			loading = false;
 		}
@@ -88,7 +87,6 @@
 			archivedTotal = response.total;
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to load archived items');
-			console.error('Error loading archived items:', err);
 		} finally {
 			loading = false;
 		}
@@ -107,7 +105,6 @@
 			deletedTotal = response.total;
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to load deleted items');
-			console.error('Error loading deleted items:', err);
 		} finally {
 			loading = false;
 		}
