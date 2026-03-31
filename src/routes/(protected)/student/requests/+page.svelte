@@ -6,6 +6,7 @@ import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import Skeleton from '$lib/components/ui/Skeleton.svelte';
 import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+import QRCode from 'qrcode';
 import {
 	ClipboardList, Clock, Activity, PackageOpen,
 	CheckCircle2, X, Search, RotateCcw,
@@ -21,6 +22,7 @@ let searchQuery = $state('');
 let sortBy = $state('newest');
 let showDetailModal = $state(false);
 let selectedRequest = $state<any>(null);
+let qrDataUrl = $state<string | null>(null);
 let dateFilter = $state({ from: '', to: '' });
 let requests = $state<any[]>([]);
 let loading = $state(true);
@@ -359,11 +361,20 @@ readyForPickup: requests.filter(r => r.status === 'ready').length
 function openDetailModal(request: any) {
 selectedRequest = request;
 showDetailModal = true;
+qrDataUrl = null;
+// Generate QR code containing the raw request ID for custodian scanning
+QRCode.toDataURL(request.rawId, {
+	width: 240,
+	margin: 2,
+	color: { dark: '#111827', light: '#ffffff' },
+	errorCorrectionLevel: 'H'
+}).then(url => { qrDataUrl = url; }).catch(() => {});
 }
 
 function closeDetailModal() {
 showDetailModal = false;
 selectedRequest = null;
+qrDataUrl = null;
 }
 
 function getReadyPickupMessage(): string {
@@ -850,7 +861,33 @@ return timeline;
 							{getStatusLabel(selectedRequest.status)}
 							</span>
 						</div>
-						
+
+						<!-- QR Code — shown for statuses where custodian scanning applies -->
+						{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(selectedRequest.status)}
+							<div class="flex flex-col items-center rounded-2xl border border-gray-100 bg-gray-50 px-6 py-6">
+								<p class="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">Scan to Process</p>
+								{#if qrDataUrl}
+									<div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-gray-100">
+										<img src={qrDataUrl} alt="Request QR Code" class="h-48 w-48 rounded-lg" />
+									</div>
+								{:else}
+									<div class="flex h-48 w-48 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+										<div class="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-600"></div>
+									</div>
+								{/if}
+								<p class="mt-4 font-mono text-base font-bold tracking-widest text-gray-900">{selectedRequest.id}</p>
+								<p class="mt-1 text-xs text-gray-400">
+									{#if selectedRequest.status === 'approved'}
+										Show this to the custodian to mark your request ready for pickup.
+									{:else if selectedRequest.status === 'ready'}
+										Show this to the custodian to confirm your pickup.
+									{:else}
+										Show this to the custodian when returning your items.
+									{/if}
+								</p>
+							</div>
+						{/if}
+
 						<!-- Requested Items -->
 						<div>
 							<h4 class="text-sm font-medium text-gray-700 mb-3">Requested Items</h4>
