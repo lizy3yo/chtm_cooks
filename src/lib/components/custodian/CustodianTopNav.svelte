@@ -6,7 +6,7 @@
 	import { themeStore } from '$lib/stores/theme';
 	import { toastStore } from '$lib/stores/toast';
 	import { sidebarCollapsed, mobileSidebarOpen } from '$lib/stores/custodian';
-	import { Moon, Sun, HelpCircle, Bell, ChevronDown, LogOut, User, Settings, CalendarDays } from 'lucide-svelte';
+	import { Moon, Sun, HelpCircle, Bell, ChevronDown, LogOut, User, Settings, CalendarDays, History } from 'lucide-svelte';
 	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
 	import logo from '$lib/assets/CHTM_LOGO.png';
 
@@ -195,6 +195,9 @@
 						</a>
 						<a href="/custodian/account/settings" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
 							<Settings size={15} class="text-gray-400" /> Settings
+						</a>
+						<a href="/custodian/history" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
+							<History size={15} class="text-gray-400" /> History
 						</a>
 						<div class="my-1 border-t border-gray-100"></div>
 						<button onclick={() => { profileOpen = false; signOutOpen = true; }} role="menuitem" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50">
