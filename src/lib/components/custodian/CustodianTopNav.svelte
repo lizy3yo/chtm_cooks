@@ -23,9 +23,9 @@
 	let scannerStatus = $state<'idle' | 'scanning' | 'success' | 'error' | 'loading'>('idle');
 	let scannerMsg    = $state('');
 	let scannerResult = $state<{ id: string; code: string; studentName: string; status: string } | null>(null);
-	let videoEl       = $state<HTMLVideoElement | null>(null);
 	let cameras       = $state<{ deviceId: string; label: string }[]>([]);
 	let selectedCameraId = $state<string>('');
+	const VIDEO_ID = 'custodian-scanner-video';
 
 	// ZXing reader instance
 	let zxingReader: any = null;
@@ -63,16 +63,22 @@
 			zxingReader = null;
 		}
 		scannerStatus = 'loading';
+		// Wait for the video element to be in the DOM
+		let el: HTMLVideoElement | null = null;
+		for (let i = 0; i < 20; i++) {
+			el = document.getElementById(VIDEO_ID) as HTMLVideoElement | null;
+			if (el) break;
+			await new Promise(r => setTimeout(r, 50));
+		}
+		if (!el) { scannerStatus = 'error'; scannerMsg = 'Scanner failed to initialise. Please try again.'; return; }
 		try {
 			const { BrowserQRCodeReader } = await import('@zxing/browser');
 			zxingReader = new BrowserQRCodeReader(undefined, {
 				delayBetweenScanAttempts: 150,
 				delayBetweenScanSuccess: 500
 			});
-			if (!videoEl) { scannerStatus = 'error'; scannerMsg = 'Video element not ready.'; return; }
 			scannerStatus = 'scanning';
-			// decodeFromVideoDevice streams continuously and calls the callback on each result
-			await zxingReader.decodeFromVideoDevice(deviceId || undefined, videoEl, async (result: any, err: any) => {
+			await zxingReader.decodeFromVideoDevice(deviceId || undefined, el, async (result: any) => {
 				if (result && scannerStatus === 'scanning') {
 					await handleScannedValue(result.getText());
 				}
@@ -125,7 +131,8 @@
 
 	function stopZxing() {
 		if (zxingReader) { try { zxingReader.reset(); } catch {} zxingReader = null; }
-		if (videoEl) { videoEl.srcObject = null; }
+		const el = document.getElementById(VIDEO_ID) as HTMLVideoElement | null;
+		if (el) { el.srcObject = null; }
 	}
 
 	async function closeScanner() {
@@ -481,7 +488,7 @@
 					<div class="relative overflow-hidden rounded-2xl bg-black">
 						<!-- svelte-ignore a11y_media_has_caption -->
 						<video
-							bind:this={videoEl}
+							id={VIDEO_ID}
 							autoplay
 							playsinline
 							muted
