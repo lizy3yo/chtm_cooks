@@ -13,7 +13,7 @@
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
-	type Tab = 'borrow' | 'inventory' | 'financial' | 'risk';
+	type Tab = 'borrow' | 'inventory' | 'conditions' | 'risk';
 
 	let activeTab = $state<Tab>('borrow');
 	let period = $state<AnalyticsPeriod>('month');
@@ -68,6 +68,16 @@
 		Damaged: 'bg-red-500'
 	};
 
+	const conditionOrder = ['Excellent', 'Good', 'Fair', 'Poor', 'Damaged'] as const;
+
+	const conditionMeta: Record<string, { label: string; bar: string; badge: string }> = {
+		Excellent: { label: 'Excellent', bar: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-800' },
+		Good:      { label: 'Good',      bar: 'bg-green-400',   badge: 'bg-green-100 text-green-800'   },
+		Fair:      { label: 'Fair',      bar: 'bg-yellow-400',  badge: 'bg-yellow-100 text-yellow-800' },
+		Poor:      { label: 'Poor',      bar: 'bg-orange-400',  badge: 'bg-orange-100 text-orange-800' },
+		Damaged:   { label: 'Damaged',   bar: 'bg-red-500',     badge: 'bg-red-100 text-red-800'       }
+	};
+
 	// ── KPI derived values ────────────────────────────────────────────────────
 
 	const totalRequests = $derived(
@@ -93,6 +103,31 @@
 	const heatmapMax = $derived(
 		Math.max(1, ...(report?.borrowRequests.peakHeatmap.map((p) => p.count) ?? [1]))
 	);
+
+	// ── Condition overview derived values ─────────────────────────────────────
+
+	const totalConditionItems = $derived(
+		report?.inventory.conditionDistribution.reduce((s, c) => s + c.count, 0) ?? 0
+	);
+
+	const needsAttention = $derived(
+		report?.inventory.conditionDistribution
+			.filter((c) => c.condition === 'Poor' || c.condition === 'Damaged')
+			.reduce((s, c) => s + c.count, 0) ?? 0
+	);
+
+	// ── Item Conditions tab derived values ────────────────────────────────────
+
+	const conditionItemRows = $derived(
+		report?.inventory.eomVariance ?? []
+	);
+
+	const conditionSummary = $derived({
+		good:    conditionItemRows.filter(i => i.condition === 'Good' || i.condition === 'Excellent').length,
+		fair:    conditionItemRows.filter(i => i.condition === 'Fair').length,
+		poor:    conditionItemRows.filter(i => i.condition === 'Poor').length,
+		damaged: conditionItemRows.filter(i => i.condition === 'Damaged').length
+	});
 
 	// Donation totals grouped by month (computed, not in template)
 	const donationByMonth = $derived.by(() => {
@@ -146,6 +181,30 @@
 		if (score >= 90) return 'High';
 		if (score >= 70) return 'Medium';
 		return 'Low';
+	}
+
+	// ── Item condition badge helpers ──────────────────────────────────────────
+
+	function conditionBadge(condition: string): string {
+		switch (condition) {
+			case 'Excellent': return 'bg-emerald-100 text-emerald-800';
+			case 'Good':      return 'bg-green-100 text-green-800';
+			case 'Fair':      return 'bg-yellow-100 text-yellow-800';
+			case 'Poor':      return 'bg-orange-100 text-orange-800';
+			case 'Damaged':   return 'bg-red-100 text-red-800';
+			default:          return 'bg-gray-100 text-gray-600';
+		}
+	}
+
+	function conditionDot(condition: string): string {
+		switch (condition) {
+			case 'Excellent': return 'bg-emerald-500';
+			case 'Good':      return 'bg-green-400';
+			case 'Fair':      return 'bg-yellow-400';
+			case 'Poor':      return 'bg-orange-400';
+			case 'Damaged':   return 'bg-red-500';
+			default:          return 'bg-gray-400';
+		}
 	}
 
 	// ── Initials helper ───────────────────────────────────────────────────────
@@ -213,7 +272,7 @@
 		<div>
 			<h1 class="text-3xl font-bold text-gray-900">Reports & Analytics</h1>
 			<p class="mt-1 text-sm text-gray-500">
-				Operational insights across borrowing, inventory, financials, and student risk.
+				Operational insights across borrowing, inventory, and student risk.
 				{#if lastRefreshed}
 					<span class="ml-1 text-gray-400">
 						Last updated {lastRefreshed.toLocaleTimeString()}
@@ -294,7 +353,7 @@
 				{#each [
 					{ key: 'borrow', label: 'Borrow Operations' },
 					{ key: 'inventory', label: 'Inventory Utilization' },
-					{ key: 'financial', label: 'Financial Overview' },
+					{ key: 'conditions', label: 'Item Conditions' },
 					{ key: 'risk', label: 'Student Risk' }
 				] as tab}
 					<button
@@ -497,6 +556,70 @@
 			{#if activeTab === 'inventory'}
 				<div class="space-y-8">
 
+					<!-- Item Condition Overview -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Item Condition Overview</h3>
+
+						<!-- KPI strip -->
+						<div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+							{#each conditionOrder as cond}
+								{@const item = report.inventory.conditionDistribution.find(c => c.condition === cond)}
+								{@const count = item?.count ?? 0}
+								{@const meta = conditionMeta[cond]}
+								<div class="rounded-xl border border-gray-100 bg-gray-50 p-4 text-center">
+									<p class="text-2xl font-bold text-gray-900">{count}</p>
+									<span class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium {meta.badge}">{meta.label}</span>
+								</div>
+							{/each}
+						</div>
+
+						<!-- Distribution bar -->
+						{#if totalConditionItems > 0}
+							<div class="mb-2 flex h-3 w-full overflow-hidden rounded-full bg-gray-100">
+								{#each conditionOrder as cond}
+									{@const item = report.inventory.conditionDistribution.find(c => c.condition === cond)}
+									{@const pct = item ? Math.round((item.count / totalConditionItems) * 100) : 0}
+									{#if pct > 0}
+										<div
+											class="{conditionMeta[cond].bar} transition-all"
+											style="width:{pct}%"
+											title="{cond}: {item?.count} ({pct}%)"
+										></div>
+									{/if}
+								{/each}
+							</div>
+							<div class="mb-6 flex flex-wrap gap-3">
+								{#each conditionOrder as cond}
+									{@const item = report.inventory.conditionDistribution.find(c => c.condition === cond)}
+									{@const pct = item && totalConditionItems > 0 ? Math.round((item.count / totalConditionItems) * 100) : 0}
+									<div class="flex items-center gap-1.5">
+										<div class="h-2.5 w-2.5 rounded-full {conditionMeta[cond].bar}"></div>
+										<span class="text-xs text-gray-500">{cond} {pct}%</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
+
+						<!-- Needs-attention callout -->
+						{#if needsAttention > 0}
+							<div class="flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+								<svg class="mt-0.5 h-4 w-4 shrink-0 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+								</svg>
+								<p class="text-sm text-orange-800">
+									<span class="font-semibold">{needsAttention} item{needsAttention !== 1 ? 's' : ''}</span> in Poor or Damaged condition require immediate attention.
+								</p>
+							</div>
+						{:else if totalConditionItems > 0}
+							<div class="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+								<svg class="h-4 w-4 shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+								</svg>
+								<p class="text-sm font-medium text-emerald-800">All items are in acceptable condition.</p>
+							</div>
+						{/if}
+					</section>
+
 					<!-- Most borrowed items -->
 					<section>
 						<h3 class="mb-4 text-base font-semibold text-gray-900">Most Borrowed Items</h3>
@@ -654,187 +777,120 @@
 						{/if}
 					</section>
 
-					<!-- Condition distribution + Stock alerts side by side -->
-					<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-						<!-- Condition distribution -->
-						<section>
-							<h3 class="mb-4 text-base font-semibold text-gray-900">Condition Distribution</h3>
-							{#if report.inventory.conditionDistribution.length >= 0}
-								{@const totalItems = report.inventory.conditionDistribution.reduce((s, c) => s + c.count, 0)}
-								<div class="space-y-3">
-									{#each ['Excellent','Good','Fair','Poor','Damaged'] as cond}
-										{@const item = report.inventory.conditionDistribution.find((c) => c.condition === cond)}
-										{@const count = item?.count ?? 0}
-										{@const pct = totalItems > 0 ? Math.round((count / totalItems) * 100) : 0}
-										<div class="flex items-center gap-3">
-											<span class="w-16 shrink-0 text-xs text-gray-600">{cond}</span>
-											<div class="flex-1 h-2 rounded-full bg-gray-100">
-												<div class="h-2 rounded-full {conditionColors[cond] ?? 'bg-gray-400'} transition-all" style="width:{pct}%"></div>
-											</div>
-											<span class="w-12 text-right text-xs text-gray-500">{count} ({pct}%)</span>
+					<!-- Stock Alerts -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Stock Alerts</h3>
+						{#if report.inventory.stockAlerts.length === 0}
+							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
+								<p class="text-sm text-emerald-600 font-medium">All items adequately stocked</p>
+							</div>
+						{:else}
+							<div class="space-y-2">
+								{#each report.inventory.stockAlerts as alert}
+									<div class="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
+										<div>
+											<p class="text-sm font-medium text-gray-900">{alert.name}</p>
+											<p class="text-xs text-gray-400">{alert.category}</p>
 										</div>
-									{/each}
-								</div>
-							{/if}
-						</section>
-
-						<!-- Stock alerts -->
-						<section>
-							<h3 class="mb-4 text-base font-semibold text-gray-900">Stock Alerts</h3>
-							{#if report.inventory.stockAlerts.length === 0}
-								<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
-									<p class="text-sm text-emerald-600 font-medium">All items adequately stocked</p>
-								</div>
-							{:else}
-								<div class="space-y-2">
-									{#each report.inventory.stockAlerts as alert}
-										<div class="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-											<div>
-												<p class="text-sm font-medium text-gray-900">{alert.name}</p>
-												<p class="text-xs text-gray-400">{alert.category}</p>
-											</div>
-											<div class="flex items-center gap-2">
-												<span class="text-sm font-semibold text-gray-700">Qty: {alert.quantity}</span>
-												<span class="rounded-full px-2 py-0.5 text-xs font-semibold {alert.status === 'Out of Stock' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
-													{alert.status}
-												</span>
-											</div>
+										<div class="flex items-center gap-2">
+											<span class="text-sm font-semibold text-gray-700">Qty: {alert.quantity}</span>
+											<span class="rounded-full px-2 py-0.5 text-xs font-semibold {alert.status === 'Out of Stock' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
+												{alert.status}
+											</span>
 										</div>
-									{/each}
-								</div>
-							{/if}
-						</section>
-					</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
 				</div>
 			{/if}
 
-			<!-- ══ FINANCIAL OVERVIEW TAB ══════════════════════════════════════ -->
-			{#if activeTab === 'financial'}
+			<!-- ══ ITEM CONDITIONS TAB ════════════════════════════════════════ -->
+			{#if activeTab === 'conditions'}
 				<div class="space-y-8">
 
-					<!-- Summary KPIs -->
+					<!-- Summary KPI strip -->
 					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Financial Summary</h3>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Condition Summary</h3>
 						<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-							<div class="rounded-xl border border-gray-100 bg-amber-50 p-4">
-								<p class="text-xs font-medium text-gray-500">Outstanding</p>
-								<p class="mt-1 text-xl font-bold text-amber-600">₱{report.financial.summary.totalOutstanding.toLocaleString()}</p>
-								<p class="mt-0.5 text-xs text-gray-400">{report.financial.summary.pendingCount} obligations</p>
+							<div class="rounded-xl border border-gray-100 bg-green-50 p-5">
+								<p class="text-xs font-medium text-gray-500">Good / Excellent</p>
+								<p class="mt-1 text-3xl font-bold text-green-600">{conditionSummary.good}</p>
+								<p class="mt-0.5 text-xs text-gray-400">Ready to use</p>
 							</div>
-							<div class="rounded-xl border border-gray-100 bg-emerald-50 p-4">
-								<p class="text-xs font-medium text-gray-500">Collected</p>
-								<p class="mt-1 text-xl font-bold text-emerald-600">₱{report.financial.summary.totalCollected.toLocaleString()}</p>
-								<p class="mt-0.5 text-xs text-gray-400">All time</p>
+							<div class="rounded-xl border border-gray-100 bg-yellow-50 p-5">
+								<p class="text-xs font-medium text-gray-500">Fair</p>
+								<p class="mt-1 text-3xl font-bold text-yellow-600">{conditionSummary.fair}</p>
+								<p class="mt-0.5 text-xs text-gray-400">Monitor closely</p>
 							</div>
-							<div class="rounded-xl border border-gray-100 bg-blue-50 p-4">
-								<p class="text-xs font-medium text-gray-500">Avg Resolution</p>
-								<p class="mt-1 text-xl font-bold text-blue-600">{report.financial.avgResolutionDays > 0 ? `${report.financial.avgResolutionDays}d` : '—'}</p>
-								<p class="mt-0.5 text-xs text-gray-400">Incident → resolved</p>
+							<div class="rounded-xl border border-gray-100 bg-orange-50 p-5">
+								<p class="text-xs font-medium text-gray-500">Poor</p>
+								<p class="mt-1 text-3xl font-bold text-orange-600">{conditionSummary.poor}</p>
+								<p class="mt-0.5 text-xs text-gray-400">Needs attention</p>
 							</div>
-							<div class="rounded-xl border border-gray-100 bg-pink-50 p-4">
-								<p class="text-xs font-medium text-gray-500">Total Obligations</p>
-								<p class="mt-1 text-xl font-bold text-pink-600">{report.financial.summary.totalObligations}</p>
-								<p class="mt-0.5 text-xs text-gray-400">All time</p>
+							<div class="rounded-xl border border-gray-100 bg-red-50 p-5">
+								<p class="text-xs font-medium text-gray-500">Damaged</p>
+								<p class="mt-1 text-3xl font-bold text-red-600">{conditionSummary.damaged}</p>
+								<p class="mt-0.5 text-xs text-gray-400">Out of service</p>
 							</div>
 						</div>
 					</section>
 
-					<!-- Outstanding vs Collected bar + Resolution breakdown side by side -->
-					<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-						<!-- Resolution breakdown -->
-						<section>
-							<h3 class="mb-4 text-base font-semibold text-gray-900">Resolution Breakdown</h3>
-							{#if report.financial.resolutionBreakdown.length === 0}
-								<p class="text-sm text-gray-400">No resolved obligations yet.</p>
-							{:else}
-								{@const totalResolved = report.financial.resolutionBreakdown.reduce((s, r) => s + r.count, 0)}
-								<div class="space-y-3">
-									{#each report.financial.resolutionBreakdown as item}
-										{@const pct = totalResolved > 0 ? Math.round((item.count / totalResolved) * 100) : 0}
-										{@const colors: Record<string, string> = { payment: 'bg-emerald-500', replacement: 'bg-cyan-500', waiver: 'bg-slate-400' }}
-										{@const labels: Record<string, string> = { payment: 'Cash Payment', replacement: 'Item Replaced', waiver: 'Waived' }}
-										<div class="flex items-center gap-3">
-											<span class="w-24 shrink-0 text-xs text-gray-600">{labels[item.type] ?? item.type}</span>
-											<div class="flex-1 h-2.5 rounded-full bg-gray-100">
-												<div class="h-2.5 rounded-full {colors[item.type] ?? 'bg-gray-400'}" style="width:{pct}%"></div>
-											</div>
-											<span class="w-20 text-right text-xs text-gray-500">{item.count} ({pct}%)</span>
-										</div>
-									{/each}
-								</div>
-							{/if}
-						</section>
-
-						<!-- Obligations by category -->
-						<section>
-							<h3 class="mb-4 text-base font-semibold text-gray-900">Obligations by Category</h3>
-							{#if report.financial.obligationsByCategory.length === 0}
-								<p class="text-sm text-gray-400">No obligation data.</p>
-							{:else}
-								{@const maxObl = Math.max(...report.financial.obligationsByCategory.map((o) => o.count), 1)}
-								<div class="space-y-3">
-									{#each report.financial.obligationsByCategory as cat}
-										<div>
-											<div class="flex items-center justify-between mb-1">
-												<span class="text-sm text-gray-700">{cat.category}</span>
-												<span class="text-xs text-gray-500">{cat.count} · ₱{cat.pendingAmount.toLocaleString()} pending</span>
-											</div>
-											<div class="h-2 w-full rounded-full bg-gray-100">
-												<div class="h-2 rounded-full bg-pink-400" style="width:{barWidth(cat.count, maxObl)}"></div>
-											</div>
-										</div>
-									{/each}
-								</div>
-							{/if}
-						</section>
-					</div>
-
-					<!-- Monthly revenue -->
+					<!-- Per-item condition table -->
 					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Monthly Revenue from Replacements</h3>
-						{#if report.financial.monthlyRevenue.length === 0}
-							<p class="text-sm text-gray-400">No revenue data for the last 6 months.</p>
-						{:else}
-							{@const maxRev = Math.max(...report.financial.monthlyRevenue.map((m) => m.collected), 1)}
-							<div class="overflow-x-auto">
-								<div class="flex min-w-max items-end gap-2 h-36 pb-6">
-									{#each report.financial.monthlyRevenue as m}
-										<div class="flex flex-col items-center gap-1 group" style="min-width:48px">
-											<span class="text-xs text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">₱{m.collected.toLocaleString()}</span>
-											<div
-												class="w-8 rounded-t bg-emerald-400 hover:bg-emerald-600 transition-colors cursor-default"
-												style="height:{Math.max(4, Math.round((m.collected / maxRev) * 100))}px"
-												title="{MONTH_NAMES[m.month - 1]} {m.year}: ₱{m.collected.toLocaleString()}"
-											></div>
-											<span class="text-xs text-gray-400">{MONTH_NAMES[m.month - 1]}</span>
-										</div>
-									{/each}
-								</div>
+						<div class="mb-4 flex items-center justify-between">
+							<h3 class="text-base font-semibold text-gray-900">Item Condition Tracking</h3>
+							{#if conditionSummary.poor + conditionSummary.damaged > 0}
+								<span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
+									<span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+									{conditionSummary.poor + conditionSummary.damaged} item{conditionSummary.poor + conditionSummary.damaged !== 1 ? 's' : ''} require attention
+								</span>
+							{/if}
+						</div>
+
+						{#if conditionItemRows.length === 0}
+							<div class="rounded-lg border-2 border-dashed border-gray-200 py-12 text-center">
+								<svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+								</svg>
+								<p class="text-sm text-gray-400">No inventory data available for this period.</p>
 							</div>
-						{/if}
-					</section>
-
-					<!-- Donation totals -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Donation Totals (Last 6 Months)</h3>
-						{#if report.financial.donationTotals.length === 0}
-							<p class="text-sm text-gray-400">No donation data for the last 6 months.</p>
 						{:else}
 							<div class="overflow-x-auto rounded-lg border border-gray-200">
 								<table class="min-w-full divide-y divide-gray-200">
 									<thead class="bg-gray-50">
 										<tr>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Month</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Cash Donations</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item Donations</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Qty in Stock</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">EOM Count</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Variance</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Condition</th>
 										</tr>
 									</thead>
 									<tbody class="divide-y divide-gray-200 bg-white">
-										{#each donationByMonth as val}
-											<tr class="hover:bg-gray-50">
-												<td class="px-4 py-3 text-sm font-medium text-gray-900">{MONTH_NAMES[parseInt(val.month) - 1]} {val.year}</td>
-												<td class="px-4 py-3 text-sm text-emerald-700 font-medium">₱{val.cash.toLocaleString()} <span class="text-gray-400 font-normal">({val.cashCount})</span></td>
-												<td class="px-4 py-3 text-sm text-blue-700">{val.itemCount} items</td>
+										{#each conditionItemRows as item}
+											<tr class="hover:bg-gray-50 {item.condition === 'Damaged' || item.condition === 'Poor' ? 'bg-red-50/30' : ''}">
+												<td class="px-4 py-3">
+													<div class="flex items-center gap-2">
+														<span class="h-2 w-2 shrink-0 rounded-full {conditionDot(item.condition)}"></span>
+														<span class="text-sm font-medium text-gray-900">{item.name}</span>
+													</div>
+												</td>
+												<td class="px-4 py-3 text-sm text-gray-500">{item.category}</td>
+												<td class="px-4 py-3 text-sm text-gray-700">{item.quantity}</td>
+												<td class="px-4 py-3 text-sm text-gray-700">{item.eomCount}</td>
+												<td class="px-4 py-3">
+													<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {item.variance < 0 ? 'bg-red-100 text-red-800' : item.variance > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}">
+														{item.variance > 0 ? '+' : ''}{item.variance}
+													</span>
+												</td>
+												<td class="px-4 py-3">
+													<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {conditionBadge(item.condition)}">
+														{item.condition}
+													</span>
+												</td>
 											</tr>
 										{/each}
 									</tbody>
@@ -842,6 +898,84 @@
 							</div>
 						{/if}
 					</section>
+
+					<!-- Condition distribution bar (reused from inventory tab) -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Fleet Condition Distribution</h3>
+						{#if totalConditionItems === 0}
+							<p class="text-sm text-gray-400">No condition data available.</p>
+						{:else}
+							<div class="mb-2 flex h-4 w-full overflow-hidden rounded-full bg-gray-100">
+								{#each conditionOrder as cond}
+									{@const entry = report.inventory.conditionDistribution.find(c => c.condition === cond)}
+									{@const pct = entry ? Math.round((entry.count / totalConditionItems) * 100) : 0}
+									{#if pct > 0}
+										<div
+											class="{conditionMeta[cond].bar} transition-all"
+											style="width:{pct}%"
+											title="{cond}: {entry?.count} ({pct}%)"
+										></div>
+									{/if}
+								{/each}
+							</div>
+							<div class="mt-3 flex flex-wrap gap-4">
+								{#each conditionOrder as cond}
+									{@const entry = report.inventory.conditionDistribution.find(c => c.condition === cond)}
+									{@const count = entry?.count ?? 0}
+									{@const pct = totalConditionItems > 0 ? Math.round((count / totalConditionItems) * 100) : 0}
+									<div class="flex items-center gap-2">
+										<div class="h-3 w-3 rounded-full {conditionMeta[cond].bar}"></div>
+										<span class="text-sm text-gray-600">{cond}</span>
+										<span class="text-sm font-semibold text-gray-900">{count}</span>
+										<span class="text-xs text-gray-400">({pct}%)</span>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					<!-- Items with highest incident rate (damage/missing) -->
+					<section>
+						<h3 class="mb-1 text-base font-semibold text-gray-900">Highest Incident Rate</h3>
+						<p class="mb-4 text-xs text-gray-400">Items with the most damage or missing reports this period.</p>
+						{#if report.inventory.damageRateItems.length === 0}
+							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
+								<p class="text-sm text-emerald-600 font-medium">No incidents recorded this period.</p>
+							</div>
+						{:else}
+							{@const maxRate = Math.max(...report.inventory.damageRateItems.map(i => i.incidentRate), 1)}
+							<div class="space-y-3">
+								{#each report.inventory.damageRateItems as item}
+									<div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+										<div class="flex items-center justify-between mb-2">
+											<div>
+												<p class="text-sm font-medium text-gray-900">{item.name}</p>
+												<p class="text-xs text-gray-400">{item.category} · {item.totalInspected} inspected</p>
+											</div>
+											<div class="flex items-center gap-2 shrink-0">
+												{#if item.damaged > 0}
+													<span class="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">{item.damaged} damaged</span>
+												{/if}
+												{#if item.missing > 0}
+													<span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">{item.missing} missing</span>
+												{/if}
+												<span class="rounded-full px-2.5 py-0.5 text-xs font-bold {item.incidentRate >= 50 ? 'bg-red-100 text-red-800' : item.incidentRate >= 25 ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}">
+													{item.incidentRate}%
+												</span>
+											</div>
+										</div>
+										<div class="h-1.5 w-full rounded-full bg-gray-200">
+											<div
+												class="h-1.5 rounded-full transition-all {item.incidentRate >= 50 ? 'bg-red-500' : item.incidentRate >= 25 ? 'bg-orange-400' : 'bg-yellow-400'}"
+												style="width:{barWidth(item.incidentRate, maxRate)}"
+											></div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+
 				</div>
 			{/if}
 
