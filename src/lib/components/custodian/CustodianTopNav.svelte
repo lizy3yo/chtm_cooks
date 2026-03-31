@@ -10,6 +10,7 @@
 	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
 	import logo from '$lib/assets/CHTM_LOGO.png';
 	import { borrowRequestsAPI } from '$lib/api/borrowRequests';
+	import QrScanner from '$lib/components/custodian/QrScanner.svelte';
 
 	// Only render on custodian routes
 	const isCustodianRoute = $derived($page.url.pathname.startsWith('/custodian'));
@@ -18,143 +19,40 @@
 	let notifOpen   = $state(false);
 	let signOutOpen = $state(false);
 
-	// ── QR Scanner (ZXing — industry standard, same engine as Google Lens) ───
+	// ── QR Scanner ────────────────────────────────────────────────────────────
 	let scannerOpen   = $state(false);
-	let scannerStatus = $state<'idle' | 'scanning' | 'success' | 'error' | 'loading'>('idle');
-	let scannerMsg    = $state('');
 	let scannerResult = $state<{ id: string; code: string; studentName: string; status: string } | null>(null);
-	let cameras       = $state<{ deviceId: string; label: string }[]>([]);
-	let selectedCameraId = $state<string>('');
-	const VIDEO_ID = 'custodian-scanner-video';
+	let lookingUp     = $state(false);
 
-	// ZXing reader instance
-	let zxingReader: any = null;
-
-	async function openScanner() {
-		scannerOpen      = true;
-		scannerStatus    = 'loading';
-		scannerResult    = null;
-		scannerMsg       = '';
-		cameras          = [];
-		selectedCameraId = '';
-		await new Promise(r => setTimeout(r, 100));
-		await initZxing();
+	function openScanner() {
+		scannerOpen   = true;
+		scannerResult = null;
 	}
 
-	async function initZxing() {
-		try {
-			const { BrowserQRCodeReader, BrowserCodeReader } = await import('@zxing/browser');
-			// Enumerate devices
-			const devices = await BrowserCodeReader.listVideoInputDevices();
-			cameras = devices.map(d => ({ deviceId: d.deviceId, label: d.label || `Camera ${cameras.length + 1}` }));
-			// Prefer rear/environment/phone camera
-			const preferred = cameras.find(c => /back|rear|environment|phone/i.test(c.label));
-			selectedCameraId = preferred?.deviceId ?? cameras[cameras.length - 1]?.deviceId ?? '';
-			await startZxing(selectedCameraId);
-		} catch (err: any) {
-			scannerStatus = 'error';
-			scannerMsg = 'Camera access denied. Use the photo upload below instead.';
-		}
-	}
-
-	async function startZxing(deviceId: string) {
-		if (zxingReader) {
-			try { zxingReader.reset(); } catch {}
-			zxingReader = null;
-		}
-		scannerStatus = 'loading';
-		// Wait for the video element to be in the DOM
-		let el: HTMLVideoElement | null = null;
-		for (let i = 0; i < 20; i++) {
-			el = document.getElementById(VIDEO_ID) as HTMLVideoElement | null;
-			if (el) break;
-			await new Promise(r => setTimeout(r, 50));
-		}
-		if (!el) { scannerStatus = 'error'; scannerMsg = 'Scanner failed to initialise. Please try again.'; return; }
-		try {
-			const { BrowserQRCodeReader } = await import('@zxing/browser');
-			zxingReader = new BrowserQRCodeReader(undefined, {
-				delayBetweenScanAttempts: 150,
-				delayBetweenScanSuccess: 500
-			});
-			scannerStatus = 'scanning';
-			await zxingReader.decodeFromVideoDevice(deviceId || undefined, el, async (result: any) => {
-				if (result && scannerStatus === 'scanning') {
-					await handleScannedValue(result.getText());
-				}
-			});
-		} catch {
-			scannerStatus = 'error';
-			scannerMsg = 'Could not start camera. Use the photo upload below instead.';
-		}
-	}
-
-	async function switchCamera(deviceId: string) {
-		selectedCameraId = deviceId;
-		await startZxing(deviceId);
-	}
-
-	async function handleScannedValue(rawId: string) {
-		if (zxingReader) { try { zxingReader.reset(); } catch {} zxingReader = null; }
-		scannerStatus = 'loading';
-		scannerMsg    = 'Looking up request…';
+	async function handleScanResult(rawId: string) {
+		lookingUp = true;
 		try {
 			const res = await borrowRequestsAPI.getById(rawId);
 			const studentName = res.student?.fullName ?? `Student ${res.studentId.slice(-6).toUpperCase()}`;
 			scannerResult = { id: rawId, code: `REQ-${rawId.slice(-6).toUpperCase()}`, studentName, status: res.status };
-			scannerStatus = 'success';
-			scannerMsg    = '';
 		} catch {
-			scannerStatus = 'error';
-			scannerMsg    = 'QR code not recognised as a valid request. Try again.';
+			toastStore.error('QR code not recognised as a valid request.', 'Scan Error');
+		} finally {
+			lookingUp = false;
 		}
 	}
 
-	// File-based fallback — works on all devices including iOS
-	async function handleFileInput(e: Event) {
-		const file = (e.target as HTMLInputElement).files?.[0];
-		if (!file) return;
-		scannerStatus = 'loading';
-		scannerMsg    = 'Reading QR code…';
-		try {
-			const { BrowserQRCodeReader } = await import('@zxing/browser');
-			const reader = new BrowserQRCodeReader();
-			const url = URL.createObjectURL(file);
-			const result = await reader.decodeFromImageUrl(url);
-			URL.revokeObjectURL(url);
-			await handleScannedValue(result.getText());
-		} catch {
-			scannerStatus = 'error';
-			scannerMsg    = 'No QR code found in the image. Try again.';
-		}
-	}
-
-	function stopZxing() {
-		if (zxingReader) { try { zxingReader.reset(); } catch {} zxingReader = null; }
-		const el = document.getElementById(VIDEO_ID) as HTMLVideoElement | null;
-		if (el) { el.srcObject = null; }
-	}
-
-	async function closeScanner() {
-		stopZxing();
+	function closeScanner() {
 		scannerOpen   = false;
-		scannerStatus = 'idle';
 		scannerResult = null;
-		scannerMsg    = '';
+		lookingUp     = false;
 	}
 
 	function goToRequest() {
 		if (!scannerResult) return;
+		const id = scannerResult.id;
 		closeScanner();
-		goto(`/custodian/requests?scan=${scannerResult.id}`);
-	}
-
-	async function rescan() {
-		scannerResult = null;
-		scannerMsg    = '';
-		scannerStatus = 'loading';
-		await new Promise(r => setTimeout(r, 60));
-		await startZxing(selectedCameraId);
+		goto(`/custodian/requests?scan=${id}`);
 	}
 
 	function statusLabel(s: string): string {
@@ -194,7 +92,6 @@
 	onDestroy(() => {
 		clearInterval(ticker);
 		document.body.style.paddingTop = '';
-		stopZxing();
 	});
 
 	const formattedDateTime = $derived(
@@ -414,55 +311,16 @@
 				</button>
 			</div>
 
-			<div class="px-5 pb-6 space-y-3">
-
-				<!-- Video is ALWAYS rendered so ZXing can find it — overlays handle other states -->
-				<div class="relative overflow-hidden rounded-2xl bg-black {scannerStatus === 'success' ? 'hidden' : ''}">
-					<!-- svelte-ignore a11y_media_has_caption -->
-					<video
-						id={VIDEO_ID}
-						autoplay
-						playsinline
-						muted
-						class="w-full rounded-2xl"
-						style="max-height: 280px; object-fit: cover;"
-					></video>
-
-					<!-- Loading overlay -->
-					{#if scannerStatus === 'loading'}
-						<div class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 rounded-2xl">
-							<div class="h-10 w-10 animate-spin rounded-full border-4 border-gray-400 border-t-pink-500"></div>
-							<p class="text-sm text-white/80">{scannerMsg || 'Starting camera…'}</p>
-						</div>
-					{/if}
-
-					<!-- Error overlay -->
-					{#if scannerStatus === 'error'}
-						<div class="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80 rounded-2xl px-4">
-							<div class="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
-								<X size={22} class="text-red-400" />
-							</div>
-							<p class="text-center text-xs text-white/70">{scannerMsg}</p>
-						</div>
-					{/if}
-
-					<!-- Scanning frame overlay -->
-					{#if scannerStatus === 'scanning'}
-						<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-							<div class="relative h-52 w-52">
-								<span class="absolute left-0 top-0 h-8 w-8 rounded-tl-lg border-l-4 border-t-4 border-pink-400"></span>
-								<span class="absolute right-0 top-0 h-8 w-8 rounded-tr-lg border-r-4 border-t-4 border-pink-400"></span>
-								<span class="absolute bottom-0 left-0 h-8 w-8 rounded-bl-lg border-b-4 border-l-4 border-pink-400"></span>
-								<span class="absolute bottom-0 right-0 h-8 w-8 rounded-br-lg border-b-4 border-r-4 border-pink-400"></span>
-								<span class="absolute inset-x-2 h-0.5 animate-[scan_2s_ease-in-out_infinite] bg-pink-400/80 shadow-[0_0_8px_2px_rgba(236,72,153,0.5)]"></span>
-							</div>
-						</div>
-					{/if}
-				</div>
-
-				<!-- Success state -->
-				{#if scannerStatus === 'success' && scannerResult}
-					<div class="flex flex-col items-center gap-4 py-2">
+			<div class="px-5 pb-6">
+				{#if lookingUp}
+					<!-- Looking up request -->
+					<div class="flex flex-col items-center gap-3 py-10">
+						<div class="h-10 w-10 animate-spin rounded-full border-4 border-gray-200 border-t-pink-600"></div>
+						<p class="text-sm text-gray-500">Looking up request…</p>
+					</div>
+				{:else if scannerResult}
+					<!-- Success -->
+					<div class="flex flex-col items-center gap-4 py-4">
 						<div class="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
 							<CheckCircle2 size={32} class="text-emerald-600" />
 						</div>
@@ -475,7 +333,7 @@
 							</span>
 						</div>
 						<div class="flex w-full gap-3">
-							<button onclick={rescan} class="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+							<button onclick={() => { scannerResult = null; }} class="flex-1 rounded-xl border border-gray-200 bg-white py-3 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
 								Scan Again
 							</button>
 							<button onclick={goToRequest} class="flex-1 rounded-xl bg-pink-600 py-3 text-sm font-semibold text-white hover:bg-pink-700 transition-colors">
@@ -483,39 +341,9 @@
 							</button>
 						</div>
 					</div>
-				{/if}
-
-				<!-- Camera selector -->
-				{#if cameras.length > 1 && scannerStatus !== 'success'}
-					<select
-						value={selectedCameraId}
-						onchange={(e) => switchCamera((e.target as HTMLSelectElement).value)}
-						class="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-700 focus:border-pink-400 focus:outline-none focus:ring-1 focus:ring-pink-400"
-					>
-						{#each cameras as cam, i}
-							<option value={cam.deviceId}>{cam.label || `Camera ${i + 1}`}</option>
-						{/each}
-					</select>
-				{/if}
-
-				<!-- Status hint / file fallback -->
-				{#if scannerStatus === 'scanning'}
-					<p class="text-center text-xs text-gray-400">Align the QR code within the frame — detects automatically</p>
-				{/if}
-				{#if scannerStatus === 'error'}
-					<label class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-pink-600 py-3 text-sm font-semibold text-white hover:bg-pink-700 transition-colors">
-						📷 Upload QR Photo
-						<input type="file" accept="image/*" capture="environment" class="hidden" onchange={handleFileInput} />
-					</label>
-					<button onclick={rescan} class="w-full rounded-xl border border-gray-200 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-						Try Camera Again
-					</button>
-				{/if}
-				{#if scannerStatus === 'scanning'}
-					<label class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 py-2.5 text-xs font-medium text-gray-500 hover:border-pink-400 hover:text-pink-600 transition-colors">
-						<ScanLine size={14} /> Or upload a QR photo
-						<input type="file" accept="image/*" capture="environment" class="hidden" onchange={handleFileInput} />
-					</label>
+				{:else}
+					<!-- Scanner component -->
+					<QrScanner onResult={handleScanResult} onClose={closeScanner} />
 				{/if}
 			</div>
 		</div>
