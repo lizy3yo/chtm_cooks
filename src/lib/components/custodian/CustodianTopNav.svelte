@@ -18,142 +18,118 @@
 	let notifOpen   = $state(false);
 	let signOutOpen = $state(false);
 
-	// ── QR Scanner ────────────────────────────────────────────────────────────
+	// ── QR Scanner (ZXing — industry standard, same engine as Google Lens) ───
 	let scannerOpen   = $state(false);
 	let scannerStatus = $state<'idle' | 'scanning' | 'success' | 'error' | 'loading'>('idle');
 	let scannerMsg    = $state('');
 	let scannerResult = $state<{ id: string; code: string; studentName: string; status: string } | null>(null);
 	let videoEl       = $state<HTMLVideoElement | null>(null);
-	let stream: MediaStream | null = null;
-	let rafId: number | null = null;
-	let fileInput: HTMLInputElement | null = null;
-
-	// Camera device list
-	let cameras = $state<MediaDeviceInfo[]>([]);
+	let cameras       = $state<{ deviceId: string; label: string }[]>([]);
 	let selectedCameraId = $state<string>('');
 
-	// Check if BarcodeDetector is available (Chrome/Edge/Android)
-	const hasBarcodeDetector = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+	// ZXing reader instance
+	let zxingReader: any = null;
 
 	async function openScanner() {
-		scannerOpen   = true;
-		scannerStatus = 'idle';
-		scannerResult = null;
-		scannerMsg    = '';
-		cameras = [];
+		scannerOpen      = true;
+		scannerStatus    = 'loading';
+		scannerResult    = null;
+		scannerMsg       = '';
+		cameras          = [];
 		selectedCameraId = '';
-		await new Promise(r => setTimeout(r, 80));
-		// Enumerate cameras first (requires a brief getUserMedia to unlock device labels)
-		try {
-			const probe = await navigator.mediaDevices.getUserMedia({ video: true });
-			probe.getTracks().forEach(t => t.stop());
-		} catch {}
-		const devices = await navigator.mediaDevices.enumerateDevices();
-		cameras = devices.filter(d => d.kind === 'videoinput');
-		// Default: prefer environment-facing or last device (usually rear/virtual)
-		const env = cameras.find(c => /back|rear|environment|phone/i.test(c.label));
-		selectedCameraId = env?.deviceId ?? cameras[cameras.length - 1]?.deviceId ?? '';
-		startLiveCamera();
+		await new Promise(r => setTimeout(r, 100));
+		await initZxing();
 	}
 
-	async function startLiveCamera(deviceId?: string) {
-		stopStream();
-		scannerStatus = 'loading';
-		const id = deviceId ?? selectedCameraId;
+	async function initZxing() {
 		try {
-			const constraints: MediaStreamConstraints = id
-				? { video: { deviceId: { exact: id }, width: { ideal: 1280 }, height: { ideal: 720 } } }
-				: { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } };
-			stream = await navigator.mediaDevices.getUserMedia(constraints);
-			if (!videoEl) { stopStream(); return; }
-			videoEl.srcObject = stream;
-			await videoEl.play();
+			const { BrowserQRCodeReader, BrowserCodeReader } = await import('@zxing/browser');
+			// Enumerate devices
+			const devices = await BrowserCodeReader.listVideoInputDevices();
+			cameras = devices.map(d => ({ deviceId: d.deviceId, label: d.label || `Camera ${cameras.length + 1}` }));
+			// Prefer rear/environment/phone camera
+			const preferred = cameras.find(c => /back|rear|environment|phone/i.test(c.label));
+			selectedCameraId = preferred?.deviceId ?? cameras[cameras.length - 1]?.deviceId ?? '';
+			await startZxing(selectedCameraId);
+		} catch (err: any) {
+			scannerStatus = 'error';
+			scannerMsg = 'Camera access denied. Use the photo upload below instead.';
+		}
+	}
+
+	async function startZxing(deviceId: string) {
+		if (zxingReader) {
+			try { zxingReader.reset(); } catch {}
+			zxingReader = null;
+		}
+		scannerStatus = 'loading';
+		try {
+			const { BrowserQRCodeReader } = await import('@zxing/browser');
+			zxingReader = new BrowserQRCodeReader(undefined, {
+				delayBetweenScanAttempts: 150,
+				delayBetweenScanSuccess: 500
+			});
+			if (!videoEl) { scannerStatus = 'error'; scannerMsg = 'Video element not ready.'; return; }
 			scannerStatus = 'scanning';
-			if (hasBarcodeDetector) startBarcodeDetection();
+			// decodeFromVideoDevice streams continuously and calls the callback on each result
+			await zxingReader.decodeFromVideoDevice(deviceId || undefined, videoEl, async (result: any, err: any) => {
+				if (result && scannerStatus === 'scanning') {
+					await handleScannedValue(result.getText());
+				}
+			});
 		} catch {
 			scannerStatus = 'error';
-			scannerMsg = 'Camera unavailable. Use the button below to scan from a photo instead.';
+			scannerMsg = 'Could not start camera. Use the photo upload below instead.';
 		}
 	}
 
 	async function switchCamera(deviceId: string) {
 		selectedCameraId = deviceId;
-		await startLiveCamera(deviceId);
-	}
-
-	function startBarcodeDetection() {
-		if (!videoEl) return;
-		// @ts-ignore — BarcodeDetector not in TS lib yet
-		const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-		async function detect() {
-			if (!videoEl || scannerStatus !== 'scanning') return;
-			try {
-				const codes = await detector.detect(videoEl);
-				if (codes.length > 0) {
-					await handleScannedValue(codes[0].rawValue);
-					return;
-				}
-			} catch {}
-			rafId = requestAnimationFrame(detect);
-		}
-		rafId = requestAnimationFrame(detect);
+		await startZxing(deviceId);
 	}
 
 	async function handleScannedValue(rawId: string) {
-		stopStream();
+		if (zxingReader) { try { zxingReader.reset(); } catch {} zxingReader = null; }
 		scannerStatus = 'loading';
-		scannerMsg = 'Looking up request…';
+		scannerMsg    = 'Looking up request…';
 		try {
 			const res = await borrowRequestsAPI.getById(rawId);
 			const studentName = res.student?.fullName ?? `Student ${res.studentId.slice(-6).toUpperCase()}`;
 			scannerResult = { id: rawId, code: `REQ-${rawId.slice(-6).toUpperCase()}`, studentName, status: res.status };
 			scannerStatus = 'success';
-			scannerMsg = '';
+			scannerMsg    = '';
 		} catch {
 			scannerStatus = 'error';
-			scannerMsg = 'QR code not recognised as a valid request. Try again.';
+			scannerMsg    = 'QR code not recognised as a valid request. Try again.';
 		}
 	}
 
-	// File-based fallback (iOS Safari, Firefox, or when camera is denied)
+	// File-based fallback — works on all devices including iOS
 	async function handleFileInput(e: Event) {
 		const file = (e.target as HTMLInputElement).files?.[0];
 		if (!file) return;
 		scannerStatus = 'loading';
-		scannerMsg = 'Reading QR code…';
+		scannerMsg    = 'Reading QR code…';
 		try {
-			const bitmap = await createImageBitmap(file);
-			if (hasBarcodeDetector) {
-				// @ts-ignore
-				const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-				const codes = await detector.detect(bitmap);
-				if (codes.length > 0) { await handleScannedValue(codes[0].rawValue); return; }
-			}
-			// Fallback: use jsQR via dynamic import
-			const { default: jsQR } = await import('jsqr');
-			const canvas = document.createElement('canvas');
-			canvas.width = bitmap.width; canvas.height = bitmap.height;
-			const ctx = canvas.getContext('2d')!;
-			ctx.drawImage(bitmap, 0, 0);
-			const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-			const result = jsQR(imageData.data, bitmap.width, bitmap.height);
-			if (result) { await handleScannedValue(result.data); return; }
-			scannerStatus = 'error';
-			scannerMsg = 'No QR code found in the image. Try again.';
+			const { BrowserQRCodeReader } = await import('@zxing/browser');
+			const reader = new BrowserQRCodeReader();
+			const url = URL.createObjectURL(file);
+			const result = await reader.decodeFromImageUrl(url);
+			URL.revokeObjectURL(url);
+			await handleScannedValue(result.getText());
 		} catch {
 			scannerStatus = 'error';
-			scannerMsg = 'Could not read the image. Try again.';
+			scannerMsg    = 'No QR code found in the image. Try again.';
 		}
 	}
 
-	function stopStream() {
-		if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null; }
-		if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+	function stopZxing() {
+		if (zxingReader) { try { zxingReader.reset(); } catch {} zxingReader = null; }
 		if (videoEl) { videoEl.srcObject = null; }
 	}
 
 	async function closeScanner() {
-		stopStream();
+		stopZxing();
 		scannerOpen   = false;
 		scannerStatus = 'idle';
 		scannerResult = null;
@@ -169,8 +145,9 @@
 	async function rescan() {
 		scannerResult = null;
 		scannerMsg    = '';
+		scannerStatus = 'loading';
 		await new Promise(r => setTimeout(r, 60));
-		startLiveCamera(selectedCameraId || undefined);
+		await startZxing(selectedCameraId);
 	}
 
 	function statusLabel(s: string): string {
@@ -210,7 +187,7 @@
 	onDestroy(() => {
 		clearInterval(ticker);
 		document.body.style.paddingTop = '';
-		stopStream();
+		stopZxing();
 	});
 
 	const formattedDateTime = $derived(
