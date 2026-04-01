@@ -1,13 +1,38 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { navigating } from '$app/stores';
 	import { authStore, isAuthenticated } from '$lib/stores/auth';
+	import { loadingStore } from '$lib/stores/loading';
 	import ShortcutKeyModal from '$lib/components/auth/ShortcutKeyModal.svelte';
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
+	import LoadingBar from '$lib/components/ui/LoadingBar.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
 
 	let { children } = $props();
+	let isLoading = $state(false);
+	
+	// Subscribe to loading store
+	$effect(() => {
+		const unsubscribe = loadingStore.subscribe(value => {
+			isLoading = value;
+		});
+		return unsubscribe;
+	});
+	
+	// Automatically show loading bar during page navigation
+	$effect(() => {
+		if ($navigating) {
+			isLoading = true;
+		} else {
+			// Small delay to ensure smooth transition
+			const timer = setTimeout(() => {
+				isLoading = false;
+			}, 100);
+			return () => clearTimeout(timer);
+		}
+	});
 	
 	// Modal state
 	let showStaffModal = $state(false);
@@ -99,6 +124,9 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta name="description" content="CHTM Cooks - Student and Staff Portal" />
 </svelte:head>
+
+<!-- Global Loading Bar -->
+<LoadingBar bind:show={isLoading} />
 
 {@render children()}
 

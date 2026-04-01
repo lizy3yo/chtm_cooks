@@ -919,8 +919,8 @@ return timeline;
 											{@const x1 = (stepWidth * (idx + 0.5))}
 											{@const x2 = (stepWidth * (idx + 1.5))}
 											{@const y = 20}
-											{@const prevStep = idx > 0 ? getApprovalTimeline(selectedRequest)[idx - 1] : null}
-											{@const isLineCompleted = prevStep && prevStep.status === 'completed'}
+											{@const currentStep = step}
+											{@const isCurrentCompleted = currentStep.status === 'completed'}
 											
 											{#if !isLastStep}
 												<line 
@@ -928,7 +928,7 @@ return timeline;
 													y1="{y}" 
 													x2="{x2}%" 
 													y2="{y}" 
-													stroke="{isLineCompleted ? '#ec4899' : '#e5e7eb'}" 
+													stroke="{isCurrentCompleted ? '#ec4899' : '#e5e7eb'}" 
 													stroke-width="2" 
 													stroke-linecap="round"
 												/>
