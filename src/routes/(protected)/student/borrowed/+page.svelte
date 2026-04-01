@@ -11,7 +11,7 @@
 	import { toastStore } from '$lib/stores/toast';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
-	import { ClipboardX } from 'lucide-svelte';
+	import { ClipboardX, Package, AlertCircle, Clock, AlertTriangle } from 'lucide-svelte';
 
 	type LoanFilter = 'all' | 'overdue' | 'due-soon' | 'on-track' | 'return-initiated' | 'unresolved';
 	type LoanSort = 'urgent' | 'due-date' | 'latest-borrowed';
@@ -498,28 +498,64 @@
 	<title>My Borrowed Items - Student Portal</title>
 </svelte:head>
 
-<div class="space-y-4">
+<div class="space-y-6">
 	<div>
-		<h1 class="text-xl font-bold text-gray-900 sm:text-2xl">My Borrowed Items</h1>
-		<p class="mt-0.5 text-sm text-gray-500">Track your active equipment loans</p>
+		<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">My Borrowed Items</h1>
+		<p class="mt-1 text-sm text-gray-500">Track your active equipment loans</p>
 	</div>
 
-	<div class="grid grid-cols-2 gap-2 xl:grid-cols-4 lg:gap-3">
-		<div class="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100">
-			<p class="text-xs font-medium text-gray-500">Active Loans</p>
-			<p class="mt-1.5 text-2xl font-bold text-gray-900">{metrics.totalActive}</p>
+	<!-- Statistics Cards -->
+	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Loans</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{metrics.totalActive}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+					<Package size={18} class="text-blue-600 sm:hidden" />
+					<Package size={24} class="hidden text-blue-600 sm:block" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100">
-			<p class="text-xs font-medium text-gray-500">Overdue</p>
-			<p class="mt-1.5 text-2xl font-bold text-red-600">{metrics.overdue}</p>
+
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue</p>
+					<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">{metrics.overdue}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
+					<AlertCircle size={18} class="text-red-600 sm:hidden" />
+					<AlertCircle size={24} class="hidden text-red-600 sm:block" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100">
-			<p class="text-xs font-medium text-gray-500">Due Soon (48h)</p>
-			<p class="mt-1.5 text-2xl font-bold text-amber-600">{metrics.dueSoon}</p>
+
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Due Soon (48h)</p>
+					<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">{metrics.dueSoon}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
+					<Clock size={18} class="text-amber-600 sm:hidden" />
+					<Clock size={24} class="hidden text-amber-600 sm:block" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100">
-			<p class="text-xs font-medium text-gray-500">Unresolved Cases</p>
-			<p class="mt-1.5 text-2xl font-bold text-rose-700">{metrics.unresolved}</p>
+
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Unresolved Cases</p>
+					<p class="mt-1 text-2xl font-semibold text-rose-600 sm:mt-2 sm:text-3xl">{metrics.unresolved}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-rose-100 sm:h-12 sm:w-12">
+					<AlertTriangle size={18} class="text-rose-600 sm:hidden" />
+					<AlertTriangle size={24} class="hidden text-rose-600 sm:block" />
+				</div>
+			</div>
 		</div>
 	</div>
 
