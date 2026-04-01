@@ -13,7 +13,7 @@ import {
 	Plus, ClipboardX, CalendarDays, FileText,
 	UserCircle, Info, CornerDownLeft,
 	Check, CircleX, PackageCheck, CircleAlert,
-	FileCheck, CheckCheck, Truck, Home
+	FileCheck, CheckCheck, Truck, Home, QrCode
 } from 'lucide-svelte';
 
 type StudentTab = 'my-request' | 'instructor-approved' | 'active' | 'history';
@@ -24,6 +24,7 @@ let sortBy = $state('newest');
 let showDetailModal = $state(false);
 let selectedRequest = $state<any>(null);
 let qrDataUrl = $state<string | null>(null);
+let showQrModal = $state(false);
 let dateFilter = $state({ from: '', to: '' });
 let requests = $state<any[]>([]);
 let loading = $state(true);
@@ -672,8 +673,9 @@ return timeline;
 				<!-- Card Body -->
 				<div class="p-4 sm:p-5">
 
-					<!-- Header: ID · Status · Date -->
-					<div class="flex flex-col gap-1">
+					<!-- Header: ID · Status · Date + QR Icon -->
+					<div class="flex items-start justify-between gap-3 mb-3">
+						<div class="flex flex-col gap-1 flex-1 min-w-0">
 						<div class="flex flex-wrap items-center gap-2">
 							<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
 							<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusColor(request.status)}">
@@ -684,6 +686,26 @@ return timeline;
 						<time class="text-[11px] text-gray-400">
 							{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
 						</time>
+						</div>
+						{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(request.status)}
+							<button
+								onclick={() => {
+									selectedRequest = request;
+									qrDataUrl = null;
+									QRCode.toDataURL(request.rawId, {
+										width: 240,
+										margin: 2,
+										color: { dark: '#111827', light: '#ffffff' },
+										errorCorrectionLevel: 'H'
+									}).then(url => { qrDataUrl = url; }).catch(() => {});
+									showQrModal = true;
+								}}
+								class="shrink-0 rounded-lg p-2 text-pink-500 transition-colors hover:bg-pink-50 hover:text-pink-600 active:bg-pink-100"
+								title="View QR Code"
+							>
+								<QrCode size={20} strokeWidth={2} />
+							</button>
+						{/if}
 					</div>
 
 					<!-- Equipment Chips -->
@@ -853,12 +875,25 @@ return timeline;
 								</div>
 							</div>
 						</div>
-						<button 
-							onclick={closeDetailModal} 
-							class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-						>
-							<X size={20} />
-						</button>
+						<div class="flex items-center gap-2 shrink-0">
+							{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(selectedRequest.status)}
+								<button 
+									onclick={() => showQrModal = true}
+									class="rounded-lg p-2 text-gray-600 transition-colors hover:bg-pink-50 hover:text-pink-600 active:bg-pink-100"
+									title="View QR Code"
+								>
+									<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+									</svg>
+								</button>
+							{/if}
+							<button 
+								onclick={closeDetailModal} 
+								class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+							>
+								<X size={20} />
+							</button>
+						</div>
 					</div>
 				</div>
 				
@@ -879,34 +914,6 @@ return timeline;
 								</div>
 							</div>
 						</div>
-
-						<!-- QR Code Section -->
-						{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(selectedRequest.status)}
-							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50 to-white p-6">
-								<p class="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">Scan to Process</p>
-								<div class="flex flex-col items-center">
-									{#if qrDataUrl}
-										<div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
-											<img src={qrDataUrl} alt="Request QR Code" class="h-40 w-40 rounded-lg" />
-										</div>
-									{:else}
-										<div class="flex h-40 w-40 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
-											<div class="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-pink-600"></div>
-										</div>
-									{/if}
-									<p class="mt-4 font-mono text-base font-bold tracking-widest text-gray-900">{selectedRequest.id}</p>
-									<p class="mt-2 text-center text-xs text-gray-500">
-										{#if selectedRequest.status === 'approved'}
-											Show this to the custodian to mark your request ready for pickup.
-										{:else if selectedRequest.status === 'ready'}
-											Show this to the custodian to confirm your pickup.
-										{:else}
-											Show this to the custodian when returning your items.
-										{/if}
-									</p>
-								</div>
-							</div>
-						{/if}
 
 						<!-- Requested Items -->
 						<div>
@@ -1125,6 +1132,96 @@ return timeline;
 							{/if}
 						</div>
 					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- QR Code Modal -->
+{#if showQrModal && selectedRequest && qrDataUrl}
+	<div class="fixed inset-0 z-50 overflow-y-auto">
+		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={() => showQrModal = false}></div>
+		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
+			<div class="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 animate-scaleIn overflow-hidden">
+				
+				<!-- Header -->
+				<div class="relative border-b border-gray-100 bg-gradient-to-br from-pink-50 via-white to-purple-50 px-5 py-5 sm:px-6 sm:py-6">
+					<div>
+						<div class="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 shadow-sm ring-1 ring-gray-100">
+							<QrCode size={16} class="text-pink-600" strokeWidth={2.5} />
+							<span class="text-sm font-semibold text-gray-700">QR Code</span>
+						</div>
+						<h3 class="mt-3 text-lg sm:text-xl font-bold text-gray-900">Scan to Process</h3>
+						<p class="mt-1 text-xs sm:text-sm text-gray-600">Present this code to the custodian</p>
+					</div>
+				</div>
+				
+				<!-- Content -->
+				<div class="px-5 py-6 sm:px-6 sm:py-8 max-h-[70vh] overflow-y-auto">
+					<div class="flex flex-col items-center space-y-5 sm:space-y-6">
+						<!-- QR Code with decorative frame -->
+						<div class="relative">
+							<!-- Decorative corners -->
+							<div class="absolute -left-2 -top-2 h-5 w-5 sm:h-6 sm:w-6 border-l-3 border-t-3 border-pink-500 rounded-tl-lg"></div>
+							<div class="absolute -right-2 -top-2 h-5 w-5 sm:h-6 sm:w-6 border-r-3 border-t-3 border-pink-500 rounded-tr-lg"></div>
+							<div class="absolute -left-2 -bottom-2 h-5 w-5 sm:h-6 sm:w-6 border-l-3 border-b-3 border-pink-500 rounded-bl-lg"></div>
+							<div class="absolute -right-2 -bottom-2 h-5 w-5 sm:h-6 sm:w-6 border-r-3 border-b-3 border-pink-500 rounded-br-lg"></div>
+							
+							<!-- QR Code -->
+							<div class="rounded-2xl bg-white p-4 sm:p-6 shadow-lg ring-1 ring-gray-100">
+								<img src={qrDataUrl} alt="Request QR Code" class="h-48 w-48 sm:h-56 sm:w-56" />
+							</div>
+						</div>
+						
+						<!-- Request ID Badge -->
+						<div class="w-full rounded-xl bg-gradient-to-br from-gray-50 to-gray-100/50 p-3 sm:p-4 text-center ring-1 ring-gray-200/50">
+							<p class="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-gray-500 mb-1 sm:mb-1.5">Request ID</p>
+							<p class="font-mono text-xl sm:text-2xl font-bold tracking-wider text-gray-900">{selectedRequest.id}</p>
+						</div>
+						
+						<!-- Status Badge -->
+						<div class="inline-flex items-center gap-2 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 {getStatusColor(selectedRequest.status)} ring-1 ring-black/5">
+							<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={14} class="sm:hidden" />
+							<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={16} class="hidden sm:block" />
+							<span class="text-xs sm:text-sm font-semibold">{getStatusLabel(selectedRequest.status)}</span>
+						</div>
+						
+						<!-- Instructions Card -->
+						<div class="w-full rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/30 p-3 sm:p-4">
+							<div class="flex gap-2.5 sm:gap-3">
+								<div class="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-blue-500">
+									<Info size={14} class="text-white sm:hidden" />
+									<Info size={16} class="text-white hidden sm:block" />
+								</div>
+								<div class="flex-1 min-w-0">
+									<p class="text-xs sm:text-sm font-medium text-blue-900 leading-relaxed">
+										{#if selectedRequest.status === 'approved'}
+											Show this QR code to the custodian to mark your request ready for pickup.
+										{:else if selectedRequest.status === 'ready'}
+											Show this QR code to the custodian to confirm your pickup.
+										{:else if selectedRequest.status === 'picked-up'}
+											Show this QR code to the custodian when returning your items.
+										{:else if selectedRequest.status === 'pending-return'}
+											Show this QR code to the custodian to complete your return.
+										{:else}
+											Show this QR code to the custodian to process your request.
+										{/if}
+									</p>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+				
+				<!-- Footer -->
+				<div class="border-t border-gray-100 bg-gradient-to-br from-gray-50 to-white px-5 py-4 sm:px-6 sm:py-5 safe-area-bottom">
+					<button
+						onclick={() => showQrModal = false}
+						class="w-full rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-gray-800 hover:to-gray-700 active:scale-[0.98]"
+					>
+						Close
+					</button>
 				</div>
 			</div>
 		</div>
