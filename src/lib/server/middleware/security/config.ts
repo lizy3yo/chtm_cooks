@@ -112,7 +112,7 @@ const permissionsPolicyConfig: PermissionsPolicyConfig = {
 	'ambient-light-sensor': [], // Disable ambient light sensor
 	gyroscope: [], // Disable gyroscope
 	magnetometer: [], // Disable magnetometer
-	camera: [], // Disable camera (enable if needed: ['self'])
+	camera: ['self'], // Allow camera for same-origin (required for QR scanner)
 	microphone: [], // Disable microphone (enable if needed: ['self'])
 	geolocation: [], // Disable geolocation (enable if needed: ['self'])
 	usb: [], // Disable USB
