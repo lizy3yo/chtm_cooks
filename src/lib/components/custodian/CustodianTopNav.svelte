@@ -52,7 +52,7 @@
 		if (!scannerResult) return;
 		const id = scannerResult.id;
 		closeScanner();
-		goto(`/custodian/requests?scan=${id}`);
+		goto(`/custodian/requests?requestId=${id}`);
 	}
 
 	function statusLabel(s: string): string {
