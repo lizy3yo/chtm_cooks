@@ -20,6 +20,8 @@
 	let errorMsg = $state('');
 	let cameras = $state<MediaDeviceInfo[]>([]);
 	let selectedDeviceId = $state('');
+	let scanSession = 0;
+	let jsQrLoader: Promise<typeof import('jsqr')> | null = null;
 
 	onMount(async () => {
 		await startCamera();
@@ -31,64 +33,148 @@
 
 	async function startCamera(deviceId?: string) {
 		stop();
+		scanSession += 1;
 		scanning = true;
 		errorMsg = '';
 
 		try {
-			// First call to unlock device labels
-			if (cameras.length === 0) {
-				try {
-					const probe = await navigator.mediaDevices.getUserMedia({ video: true });
-					probe.getTracks().forEach(t => t.stop());
-				} catch {}
-				const all = await navigator.mediaDevices.enumerateDevices();
-				cameras = all.filter(d => d.kind === 'videoinput');
-				const rear = cameras.find(c => /back|rear|environment|phone/i.test(c.label));
-				selectedDeviceId = deviceId ?? rear?.deviceId ?? cameras[cameras.length - 1]?.deviceId ?? '';
-			} else {
-				selectedDeviceId = deviceId ?? selectedDeviceId;
+			if (!window.isSecureContext) {
+				throw new Error('SECURE_CONTEXT_REQUIRED');
 			}
 
-			const constraints: MediaStreamConstraints = selectedDeviceId
-				? { video: { deviceId: { exact: selectedDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } } }
-				: { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } };
+			if (!navigator.mediaDevices?.getUserMedia) {
+				throw new Error('MEDIA_DEVICES_UNAVAILABLE');
+			}
 
-			stream = await navigator.mediaDevices.getUserMedia(constraints);
+			if (cameras.length === 0) {
+				const all = await navigator.mediaDevices.enumerateDevices();
+				cameras = all.filter((d) => d.kind === 'videoinput');
+			}
+
+			const rear = cameras.find((c) => /back|rear|environment|phone/i.test(c.label));
+			selectedDeviceId = deviceId ?? selectedDeviceId ?? rear?.deviceId ?? cameras[cameras.length - 1]?.deviceId ?? '';
+
+			const cameraAttempts: MediaStreamConstraints[] = [];
+			if (selectedDeviceId) {
+				cameraAttempts.push({
+					video: {
+						deviceId: { exact: selectedDeviceId },
+						width: { ideal: 1280 },
+						height: { ideal: 720 }
+					}
+				});
+			}
+			cameraAttempts.push({
+				video: {
+					facingMode: { ideal: 'environment' },
+					width: { ideal: 1280 },
+					height: { ideal: 720 }
+				}
+			});
+			cameraAttempts.push({ video: true });
+
+			let lastError: unknown = null;
+			for (const constraints of cameraAttempts) {
+				try {
+					stream = await navigator.mediaDevices.getUserMedia(constraints);
+					break;
+				} catch (err) {
+					lastError = err;
+				}
+			}
+
+			if (!stream) {
+				throw lastError ?? new Error('CAMERA_START_FAILED');
+			}
+
+			const all = await navigator.mediaDevices.enumerateDevices();
+			cameras = all.filter((d) => d.kind === 'videoinput');
+			if (!selectedDeviceId && cameras.length > 0) {
+				const bestRear = cameras.find((c) => /back|rear|environment|phone/i.test(c.label));
+				selectedDeviceId = bestRear?.deviceId ?? cameras[cameras.length - 1]?.deviceId ?? '';
+			}
+
 			if (!videoEl) return;
 			videoEl.srcObject = stream;
 			await videoEl.play();
-			tick();
-		} catch {
+			await tick(scanSession);
+		} catch (err) {
 			scanning = false;
-			errorMsg = 'Camera unavailable. Use "Upload QR" below.';
+			errorMsg = getCameraErrorMessage(err);
 		}
 	}
 
-	function tick() {
+	async function tick(session: number) {
 		if (!videoEl || !canvasEl || !scanning) return;
+		const jsQR = await getJsQrDecoder();
+		if (!jsQR) {
+			scanning = false;
+			errorMsg = 'Unable to load QR scanner. Use the photo upload instead.';
+			return;
+		}
+
 		const ctx = canvasEl.getContext('2d', { willReadFrequently: true });
 		if (!ctx) return;
 
-		async function frame() {
-			if (!videoEl || !canvasEl || !scanning) return;
+		function frame() {
+			if (!videoEl || !canvasEl || !scanning || session !== scanSession) return;
 			if (videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
 				canvasEl.width  = videoEl.videoWidth;
 				canvasEl.height = videoEl.videoHeight;
 				ctx!.drawImage(videoEl, 0, 0);
-				try {
-					const { default: jsQR } = await import('jsqr');
-					const data = ctx!.getImageData(0, 0, canvasEl.width, canvasEl.height);
-					const result = jsQR(data.data, data.width, data.height, { inversionAttempts: 'dontInvert' });
-					if (result?.data) {
-						stop();
-						onResult(result.data);
-						return;
-					}
-				} catch {}
+				const data = ctx!.getImageData(0, 0, canvasEl.width, canvasEl.height);
+				const result = jsQR(data.data, data.width, data.height, { inversionAttempts: 'dontInvert' });
+				if (result?.data) {
+					stop();
+					onResult(result.data);
+					return;
+				}
 			}
 			rafId = requestAnimationFrame(frame);
 		}
 		rafId = requestAnimationFrame(frame);
+	}
+
+	async function getJsQrDecoder() {
+		if (!jsQrLoader) {
+			jsQrLoader = import('jsqr');
+		}
+
+		try {
+			const mod = await jsQrLoader;
+			return mod.default;
+		} catch {
+			jsQrLoader = null;
+			return null;
+		}
+	}
+
+	function getCameraErrorMessage(error: unknown): string {
+		if (error instanceof DOMException) {
+			if (error.name === 'NotAllowedError' || error.name === 'SecurityError') {
+				return 'Camera permission was denied or blocked. Enable camera access in browser/site settings, then try again.';
+			}
+			if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+				return 'No camera was detected on this device.';
+			}
+			if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+				return 'Camera is busy in another app. Close other camera apps and try again.';
+			}
+			if (error.name === 'OverconstrainedError') {
+				return 'Selected camera is not available. Try switching camera or using upload.';
+			}
+		}
+
+		if (error instanceof Error) {
+			if (error.message === 'SECURE_CONTEXT_REQUIRED') {
+				return 'Camera requires a secure connection (HTTPS).';
+			}
+			if (error.message === 'MEDIA_DEVICES_UNAVAILABLE') {
+				return 'This browser does not support camera access.';
+			}
+		}
+
+		return 'Could not start camera. Use the photo upload instead.';
 	}
 
 	function stop() {
@@ -104,7 +190,11 @@
 		(e.target as HTMLInputElement).value = '';
 		errorMsg = '';
 		try {
-			const { default: jsQR } = await import('jsqr');
+			const jsQR = await getJsQrDecoder();
+			if (!jsQR) {
+				errorMsg = 'Unable to load QR scanner. Please try again.';
+				return;
+			}
 			const bitmap = await createImageBitmap(file);
 			const canvas = document.createElement('canvas');
 			canvas.width = bitmap.width; canvas.height = bitmap.height;
