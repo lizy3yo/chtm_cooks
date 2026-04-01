@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import { page } from '$app/stores';
 import { borrowRequestsAPI,
 type BorrowRequestItem,
 type BorrowRequestRealtimeEvent,
@@ -28,6 +29,7 @@ let openActionMenuFor = $state<string | null>(null);
 let itemPictureCache = $state<Map<string, string>>(new Map());
 let liveSyncActive = $state(false);
 let inspectionItems = $state<BorrowRequestItem[]>([]);
+let handledScanToken = $state('');
 
 let refreshInFlight = false;
 let pendingRefresh = false;
@@ -287,11 +289,59 @@ requests = response.requests
 .filter((record) => record.status !== 'pending_instructor')
 .map(mapRequest);
 await backfillItemPictures();
+	await maybeOpenScannedRequestFromUrl();
 	syncSelectedRequestWithLatestData();
 } catch (error) {
 console.error('Failed to load custodian requests', error);
 requests = [];
 }
+}
+
+async function maybeOpenScannedRequestFromUrl(): Promise<void> {
+	const scanId =
+		$page.url.searchParams.get('requestId')?.trim() ??
+		$page.url.searchParams.get('scan')?.trim() ??
+		'';
+
+	if (!scanId) {
+		handledScanToken = '';
+		return;
+	}
+
+	if (handledScanToken === scanId) return;
+
+	try {
+		let target = requests.find((request) => request.rawId === scanId) ?? null;
+
+		if (!target) {
+			const record = await borrowRequestsAPI.getById(scanId);
+			target = mapRequest(record);
+		}
+
+		if (!target) {
+			toastStore.error('Scanned request could not be found.', 'QR Scan');
+			return;
+		}
+
+		activeTab = target.status;
+		openDetailModal(target);
+	} catch {
+		toastStore.error('Scanned request could not be found.', 'QR Scan');
+	} finally {
+		handledScanToken = scanId;
+		clearScanQueryFromUrl();
+	}
+}
+
+function clearScanQueryFromUrl(): void {
+	const url = new URL(window.location.href);
+	if (!url.searchParams.has('requestId') && !url.searchParams.has('scan')) return;
+
+	url.searchParams.delete('requestId');
+	url.searchParams.delete('scan');
+	const search = url.searchParams.toString();
+	const next = `${url.pathname}${search ? `?${search}` : ''}${url.hash}`;
+	window.history.replaceState(window.history.state, '', next);
 }
 
 function buildInspectionItems(request: any): BorrowRequestItem[] {
