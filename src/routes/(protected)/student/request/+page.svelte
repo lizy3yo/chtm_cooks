@@ -326,9 +326,9 @@
 			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Request Equipment</h1>
 			<p class="mt-1 text-sm text-gray-500">Submit a new equipment borrow request</p>
 		</div>
-		<a href="/student/catalog" class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500">
-			<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+		<a href="/student/catalog" class="inline-flex items-center gap-1.5 rounded-full bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-pink-700 hover:shadow-md">
+			<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
 			</svg>
 			Browse Catalog
 		</a>
