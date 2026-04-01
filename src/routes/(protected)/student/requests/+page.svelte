@@ -858,123 +858,67 @@ return timeline;
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
 		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal}></div>
-		<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
-			<div class="relative w-full rounded-t-3xl bg-white shadow-2xl ring-1 ring-black/5 sm:max-w-2xl sm:rounded-2xl animate-scaleIn">
+		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
+			<div class="relative w-full max-w-3xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden">
 				
-				<!-- Header with gradient accent -->
-				<div class="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white px-4 py-5 sm:px-6 sm:py-6">
-					<div class="flex items-start justify-between gap-4">
-						<div class="min-w-0 flex-1">
-							<div class="flex items-center gap-3">
-								<div class="flex h-10 w-10 items-center justify-center rounded-full bg-pink-100">
-									<svelte:component this={ClipboardList} size={20} class="text-pink-600" />
-								</div>
-								<div>
-									<h3 class="text-lg font-semibold text-gray-900">Request Details</h3>
-									<p class="mt-0.5 font-mono text-sm font-medium text-pink-600">{selectedRequest.id}</p>
+				<!-- Header -->
+				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8 sm:py-6">
+					<div class="flex items-start justify-between gap-3">
+						<div class="flex items-start gap-3 min-w-0 flex-1">
+							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+								<ClipboardList size={20} class="text-white sm:hidden" strokeWidth={2.5} />
+								<ClipboardList size={24} class="text-white hidden sm:block" strokeWidth={2.5} />
+							</div>
+							<div class="min-w-0 flex-1">
+								<h2 class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Request Details</h2>
+								<p class="mt-0.5 font-mono text-xs sm:text-sm font-semibold text-pink-600">{selectedRequest.id}</p>
+								<div class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 {getStatusColor(selectedRequest.status)} shadow-sm ring-1 ring-black/5">
+									<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={12} strokeWidth={2.5} class="sm:hidden" />
+									<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={14} strokeWidth={2.5} class="hidden sm:block" />
+									<span class="text-[10px] sm:text-xs font-bold">{getStatusLabel(selectedRequest.status)}</span>
 								</div>
 							</div>
 						</div>
-						<div class="flex items-center gap-2 shrink-0">
+						<div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
 							{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(selectedRequest.status)}
 								<button 
 									onclick={() => showQrModal = true}
-									class="rounded-lg p-2 text-gray-600 transition-colors hover:bg-pink-50 hover:text-pink-600 active:bg-pink-100"
+									class="rounded-xl p-2 sm:p-2.5 text-pink-600 transition-all hover:bg-pink-50 active:scale-95"
 									title="View QR Code"
 								>
-									<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-									</svg>
+									<QrCode size={18} strokeWidth={2} class="sm:hidden" />
+									<QrCode size={22} strokeWidth={2} class="hidden sm:block" />
 								</button>
 							{/if}
 							<button 
 								onclick={closeDetailModal} 
-								class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+								class="rounded-xl p-2 sm:p-2.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
 							>
-								<X size={20} />
+								<X size={18} class="sm:hidden" />
+								<X size={22} class="hidden sm:block" />
 							</button>
 						</div>
 					</div>
 				</div>
 				
 				<!-- Content -->
-				<div class="max-h-[65vh] overflow-y-auto px-4 py-6 sm:px-6">
-					<div class="space-y-6">
-						
-						<!-- Status Section -->
-						<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50 to-white p-4">
-							<p class="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">Current Status</p>
-							<div class="flex items-center gap-3">
-								<div class="flex h-12 w-12 items-center justify-center rounded-full {getStatusColor(selectedRequest.status)}">
-									<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={20} />
-								</div>
-								<div>
-									<p class="font-semibold text-gray-900">{getStatusLabel(selectedRequest.status)}</p>
-									<p class="text-xs text-gray-500">Last updated {new Date(selectedRequest.requestDate).toLocaleDateString()}</p>
-								</div>
-							</div>
-						</div>
-
-						<!-- Requested Items -->
-						<div>
-							<p class="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">Requested Items</p>
-							<div class="space-y-2">
-								{#each selectedRequest.items as item}
-									{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-									<div class="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3 transition-colors hover:bg-gray-100">
-										{#if pic}
-											<img src={pic} alt={item.name} class="h-10 w-10 rounded-md object-cover shrink-0" />
-										{:else}
-											<div class="h-10 w-10 shrink-0 overflow-hidden rounded-md">
-												<ItemImagePlaceholder size="sm" />
-											</div>
-										{/if}
-										<span class="text-sm font-medium text-gray-900">{item.name}</span>
-									</div>
-								{/each}
-							</div>
-						</div>
-
-						<!-- Request Information Grid -->
-						<div>
-							<p class="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">Request Information</p>
-							<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-								<div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
-									<p class="text-xs font-medium text-gray-500">Request Date</p>
-									<p class="mt-2 font-semibold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-								</div>
-								<div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
-									<p class="text-xs font-medium text-gray-500">Borrow Period</p>
-									<p class="mt-2 font-semibold text-gray-900">
-										{new Date(selectedRequest.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(selectedRequest.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-									</p>
-								</div>
-								<div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
-									<p class="text-xs font-medium text-gray-500">Purpose</p>
-									<p class="mt-2 font-semibold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
-								</div>
-								<div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
-									<p class="text-xs font-medium text-gray-500">Instructor</p>
-									<p class="mt-2 font-semibold text-gray-900">{selectedRequest.instructor}</p>
-								</div>
-							</div>
-						</div>
+				<div class="max-h-[70vh] overflow-y-auto px-4 py-5 sm:px-8 sm:py-8">
+					<div class="space-y-6 sm:space-y-8">
 						
 						<!-- Approval Timeline -->
 						<div>
-							<p class="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">Approval Timeline</p>
-							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50 to-white p-6">
+							<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 sm:p-5">
 								<!-- Timeline Container -->
 								<div class="relative">
 									<!-- SVG Background for connector lines -->
-									<svg class="absolute inset-0 w-full h-24 pointer-events-none" style="z-index: 0;">
+									<svg class="absolute inset-0 w-full h-16 pointer-events-none" style="z-index: 0;">
 										{#each getApprovalTimeline(selectedRequest) as step, idx}
 											{@const stepCount = getApprovalTimeline(selectedRequest).length}
 											{@const isLastStep = idx === stepCount - 1}
 											{@const stepWidth = 100 / stepCount}
 											{@const x1 = (stepWidth * (idx + 0.5))}
 											{@const x2 = (stepWidth * (idx + 1.5))}
-											{@const y = 32}
+											{@const y = 20}
 											{@const prevStep = idx > 0 ? getApprovalTimeline(selectedRequest)[idx - 1] : null}
 											{@const isLineCompleted = prevStep && prevStep.status === 'completed'}
 											
@@ -985,7 +929,7 @@ return timeline;
 													x2="{x2}%" 
 													y2="{y}" 
 													stroke="{isLineCompleted ? '#ec4899' : '#e5e7eb'}" 
-													stroke-width="3" 
+													stroke-width="2" 
 													stroke-linecap="round"
 												/>
 											{/if}
@@ -993,7 +937,7 @@ return timeline;
 									</svg>
 									
 									<!-- Timeline steps -->
-									<div class="relative flex items-start justify-between gap-2 sm:gap-0" style="z-index: 1;">
+									<div class="relative flex items-start justify-between gap-1 sm:gap-2" style="z-index: 1;">
 										{#each getApprovalTimeline(selectedRequest) as step, idx}
 											{@const isCompleted = step.status === 'completed'}
 											{@const isPending = step.status === 'pending'}
@@ -1002,43 +946,51 @@ return timeline;
 											
 											<div class="flex flex-col items-center flex-1">
 												<!-- Icon Circle -->
-												<div class="relative mb-4 flex items-center justify-center">
-													<div class="flex h-16 w-16 items-center justify-center rounded-full border-3 bg-white {
+												<div class="relative mb-2 flex items-center justify-center">
+													<div class="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full border-2 bg-white {
 														isCompleted ? 'border-pink-600' :
 														isCancelled ? 'border-slate-400' :
 														isRejected ? 'border-red-600' :
 														'border-gray-300'
 													}">
 														{#if step.step === 'Request Submitted'}
-															<svelte:component this={FileCheck} size={28} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+															<svelte:component this={FileCheck} size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+															<svelte:component this={FileCheck} size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
 														{:else if step.step === 'Instructor Approved' || step.step === 'Instructor Review'}
-															<svelte:component this={CheckCheck} size={28} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+															<svelte:component this={CheckCheck} size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+															<svelte:component this={CheckCheck} size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
 														{:else if step.step === 'Custodian Approved' || step.step === 'Custodian Approval'}
-															<svelte:component this={PackageCheck} size={28} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+															<svelte:component this={PackageCheck} size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+															<svelte:component this={PackageCheck} size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
 														{:else if step.step === 'Awaiting Pickup' || step.step === 'Pickup Confirmed'}
-															<svelte:component this={Truck} size={28} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+															<svelte:component this={Truck} size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+															<svelte:component this={Truck} size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
 														{:else if step.step === 'Awaiting Return' || step.step === 'Returned'}
-															<svelte:component this={Home} size={28} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+															<svelte:component this={Home} size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+															<svelte:component this={Home} size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
 														{:else if step.step === 'Request Cancelled'}
-															<svelte:component this={CircleX} size={28} class="text-slate-400" />
+															<svelte:component this={CircleX} size={18} class="text-slate-400 sm:hidden" />
+															<svelte:component this={CircleX} size={20} class="text-slate-400 hidden sm:block" />
 														{:else if step.step === 'Request Rejected'}
-															<svelte:component this={CircleX} size={28} class="text-red-600" />
+															<svelte:component this={CircleX} size={18} class="text-red-600 sm:hidden" />
+															<svelte:component this={CircleX} size={20} class="text-red-600 hidden sm:block" />
 														{:else}
-															<svelte:component this={Clock} size={28} class="text-gray-400 animate-pulse" />
+															<svelte:component this={Clock} size={18} class="text-gray-400 animate-pulse sm:hidden" />
+															<svelte:component this={Clock} size={20} class="text-gray-400 animate-pulse hidden sm:block" />
 														{/if}
 													</div>
 												</div>
 												
 												<!-- Step Label -->
 												<div class="text-center min-w-0">
-													<p class="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{step.step}</p>
-													<p class="text-xs text-gray-500 mt-1 line-clamp-1">{step.by}</p>
-													<p class="text-xs font-medium {
+													<p class="text-[10px] sm:text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{step.step}</p>
+													<p class="text-[9px] sm:text-xs text-gray-500 mt-0.5 line-clamp-1">{step.by}</p>
+													<p class="text-[9px] sm:text-xs font-medium {
 														isCompleted ? 'text-pink-600' :
 														isCancelled ? 'text-slate-500' :
 														isRejected ? 'text-red-600' :
 														'text-gray-400'
-													} mt-1.5">
+													} mt-0.5">
 														{#if step.date}
 															{new Date(step.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
 														{:else}
@@ -1052,37 +1004,104 @@ return timeline;
 								</div>
 								
 								<!-- Status Legend -->
-								<div class="mt-6 pt-4 border-t border-gray-200 flex flex-wrap gap-4 justify-center text-xs">
-									<div class="flex items-center gap-2">
-										<div class="h-2.5 w-2.5 rounded-full bg-pink-600"></div>
+								<div class="mt-4 pt-3 border-t border-gray-200 flex flex-wrap gap-3 justify-center text-[10px] sm:text-xs">
+									<div class="flex items-center gap-1.5">
+										<div class="h-2 w-2 rounded-full bg-pink-600"></div>
 										<span class="text-gray-600">Completed</span>
 									</div>
-									<div class="flex items-center gap-2">
-										<div class="h-2.5 w-2.5 rounded-full bg-gray-300"></div>
+									<div class="flex items-center gap-1.5">
+										<div class="h-2 w-2 rounded-full bg-gray-300"></div>
 										<span class="text-gray-600">Pending</span>
 									</div>
-									<div class="flex items-center gap-2">
-										<div class="h-2.5 w-2.5 rounded-full bg-red-600"></div>
+									<div class="flex items-center gap-1.5">
+										<div class="h-2 w-2 rounded-full bg-red-600"></div>
 										<span class="text-gray-600">Rejected</span>
 									</div>
-									<div class="flex items-center gap-2">
-										<div class="h-2.5 w-2.5 rounded-full bg-slate-400"></div>
+									<div class="flex items-center gap-1.5">
+										<div class="h-2 w-2 rounded-full bg-slate-400"></div>
 										<span class="text-gray-600">Cancelled</span>
 									</div>
 								</div>
 							</div>
 						</div>
+
+						<!-- Request Information -->
+						<div>
+							<h3 class="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-gray-900">
+								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
+								Request Information
+							</h3>
+							<div class="grid grid-cols-2 gap-3 sm:gap-4">
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<CalendarDays size={14} class="text-pink-500 sm:hidden" />
+										<CalendarDays size={16} class="text-pink-500 hidden sm:block" />
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Request Date</p>
+									</div>
+									<p class="text-sm sm:text-base font-bold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+								</div>
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<CalendarDays size={14} class="text-pink-500 sm:hidden" />
+										<CalendarDays size={16} class="text-pink-500 hidden sm:block" />
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Borrow Period</p>
+									</div>
+									<p class="text-sm sm:text-base font-bold text-gray-900">
+										{new Date(selectedRequest.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(selectedRequest.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+									</p>
+								</div>
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<FileText size={14} class="text-pink-500 sm:hidden" />
+										<FileText size={16} class="text-pink-500 hidden sm:block" />
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Purpose</p>
+									</div>
+									<p class="text-sm sm:text-base font-bold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
+								</div>
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<UserCircle size={14} class="text-pink-500 sm:hidden" />
+										<UserCircle size={16} class="text-pink-500 hidden sm:block" />
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Instructor</p>
+									</div>
+									<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.instructor}</p>
+								</div>
+							</div>
+						</div>
+
+						<!-- Requested Items -->
+						<div>
+							<h3 class="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-gray-900">
+								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
+								Requested Items
+							</h3>
+							<div class="grid gap-3 sm:grid-cols-2">
+								{#each selectedRequest.items as item}
+									{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+									<div class="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-all hover:border-pink-200 hover:shadow-md">
+										{#if pic}
+											<img src={pic} alt={item.name} class="h-12 w-12 rounded-lg object-cover shrink-0 ring-1 ring-gray-100" />
+										{:else}
+											<div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100">
+												<ItemImagePlaceholder size="sm" />
+											</div>
+										{/if}
+										<span class="text-sm font-semibold text-gray-900 group-hover:text-pink-600 transition-colors">{item.name}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
 						
 						<!-- Rejection Reason -->
 						{#if selectedRequest.status === 'rejected' && selectedRequest.rejectionReason}
-							<div class="rounded-xl border border-red-200 bg-red-50 p-4">
+							<div class="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100/50 p-5">
 								<div class="flex gap-3">
-									<svg class="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-									</svg>
+									<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500">
+										<CircleAlert size={20} class="text-white" />
+									</div>
 									<div class="flex-1 min-w-0">
-										<p class="font-semibold text-red-800">Rejection Reason</p>
-										<p class="mt-1 text-sm text-red-700">{selectedRequest.rejectionReason}</p>
+										<p class="text-sm font-bold text-red-900">Rejection Reason</p>
+										<p class="mt-1.5 text-sm text-red-800 leading-relaxed">{selectedRequest.rejectionReason}</p>
 									</div>
 								</div>
 							</div>
@@ -1091,46 +1110,41 @@ return timeline;
 				</div>
 				
 				<!-- Footer -->
-				<div class="border-t border-gray-100 bg-gradient-to-r from-gray-50 to-white px-4 py-4 sm:px-6 sm:py-5">
-					<div class="flex flex-wrap items-center justify-between gap-3">
-						<button
-							onclick={closeDetailModal}
-							class="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
-						>
-							Close
-						</button>
+				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-3 sm:px-8 sm:py-5 safe-area-bottom">
+					<div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3">
+						{#if selectedRequest.status === 'pending'}
+							<button
+								onclick={() => requestCancelConfirmation(selectedRequest)}
+								disabled={loadingCancel === selectedRequest.rawId}
+								class="rounded-xl bg-gradient-to-r from-red-600 to-red-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-red-700 hover:to-red-800 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+							>
+								{#if loadingCancel === selectedRequest.rawId}
+									<svg class="h-4 w-4 inline-block animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+									Cancelling…
+								{:else}
+									Cancel Request
+								{/if}
+							</button>
+						{/if}
 						
-						<div class="flex flex-wrap gap-2">
-							{#if selectedRequest.status === 'pending'}
-								<button
-									onclick={() => requestCancelConfirmation(selectedRequest)}
-									disabled={loadingCancel === selectedRequest.rawId}
-									class="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed active:bg-red-800"
-								>
-									{#if loadingCancel === selectedRequest.rawId}
-										<svg class="h-4 w-4 inline-block animate-spin mr-2" fill="none" viewBox="0 0 24 24">
-											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-										</svg>
-										Cancelling…
-									{:else}
-										Cancel Request
-									{/if}
-								</button>
-							{/if}
-							
-							{#if selectedRequest.status === 'ready'}
-								<div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
-									{getReadyPickupMessage()}
+						{#if selectedRequest.status === 'ready'}
+							<div class="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50 px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm font-medium text-blue-900">
+								<div class="flex items-center gap-2">
+									<Info size={14} class="shrink-0 sm:hidden" />
+									<Info size={16} class="shrink-0 hidden sm:block" />
+									<span>{getReadyPickupMessage()}</span>
 								</div>
-							{/if}
-							
-							{#if selectedRequest.status === 'rejected'}
-								<button class="rounded-lg bg-pink-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-pink-700 active:bg-pink-800">
-									Appeal Request
-								</button>
-							{/if}
-						</div>
+							</div>
+						{/if}
+						
+						{#if selectedRequest.status === 'rejected'}
+							<button class="rounded-xl bg-gradient-to-r from-pink-600 to-pink-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98]">
+								Appeal Request
+							</button>
+						{/if}
 					</div>
 				</div>
 			</div>
