@@ -862,46 +862,48 @@ return timeline;
 			<div class="relative w-full max-w-3xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden">
 				
 				<!-- Header -->
-				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm px-5 py-4 sm:px-8 sm:py-6">
-					<div class="flex items-start justify-between gap-4">
-						<div class="flex items-center gap-4 min-w-0 flex-1">
-							<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
-								<ClipboardList size={24} class="text-white" strokeWidth={2.5} />
+				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8 sm:py-6">
+					<div class="flex items-start justify-between gap-3">
+						<div class="flex items-start gap-3 min-w-0 flex-1">
+							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+								<ClipboardList size={20} class="text-white sm:hidden" strokeWidth={2.5} />
+								<ClipboardList size={24} class="text-white hidden sm:block" strokeWidth={2.5} />
 							</div>
 							<div class="min-w-0 flex-1">
-								<div class="flex flex-wrap items-center gap-3">
-									<h2 class="text-xl sm:text-2xl font-bold text-gray-900">Request Details</h2>
-									<div class="inline-flex items-center gap-2 rounded-full px-3 py-1.5 {getStatusColor(selectedRequest.status)} shadow-sm ring-1 ring-black/5">
-										<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={14} strokeWidth={2.5} />
-										<span class="text-xs font-bold">{getStatusLabel(selectedRequest.status)}</span>
-									</div>
+								<h2 class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Request Details</h2>
+								<p class="mt-0.5 font-mono text-xs sm:text-sm font-semibold text-pink-600">{selectedRequest.id}</p>
+								<div class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 {getStatusColor(selectedRequest.status)} shadow-sm ring-1 ring-black/5">
+									<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={12} strokeWidth={2.5} class="sm:hidden" />
+									<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={14} strokeWidth={2.5} class="hidden sm:block" />
+									<span class="text-[10px] sm:text-xs font-bold">{getStatusLabel(selectedRequest.status)}</span>
 								</div>
-								<p class="mt-0.5 font-mono text-sm font-semibold text-pink-600">{selectedRequest.id}</p>
 							</div>
 						</div>
-						<div class="flex items-center gap-2 shrink-0">
+						<div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
 							{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(selectedRequest.status)}
 								<button 
 									onclick={() => showQrModal = true}
-									class="rounded-xl p-2.5 text-pink-600 transition-all hover:bg-pink-50 active:scale-95"
+									class="rounded-xl p-2 sm:p-2.5 text-pink-600 transition-all hover:bg-pink-50 active:scale-95"
 									title="View QR Code"
 								>
-									<QrCode size={22} strokeWidth={2} />
+									<QrCode size={18} strokeWidth={2} class="sm:hidden" />
+									<QrCode size={22} strokeWidth={2} class="hidden sm:block" />
 								</button>
 							{/if}
 							<button 
 								onclick={closeDetailModal} 
-								class="rounded-xl p-2.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+								class="rounded-xl p-2 sm:p-2.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
 							>
-								<X size={22} />
+								<X size={18} class="sm:hidden" />
+								<X size={22} class="hidden sm:block" />
 							</button>
 						</div>
 					</div>
 				</div>
 				
 				<!-- Content -->
-				<div class="max-h-[70vh] overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
-					<div class="space-y-8">
+				<div class="max-h-[70vh] overflow-y-auto px-4 py-5 sm:px-8 sm:py-8">
+					<div class="space-y-6 sm:space-y-8">
 						
 						<!-- Approval Timeline -->
 						<div>
@@ -1029,36 +1031,40 @@ return timeline;
 								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
 								Request Information
 							</h3>
-							<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md">
-									<div class="flex items-center gap-2 mb-2">
-										<CalendarDays size={16} class="text-pink-500" />
-										<p class="text-xs font-bold uppercase tracking-wider text-gray-500">Request Date</p>
+							<div class="grid grid-cols-2 gap-3 sm:gap-4">
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<CalendarDays size={14} class="text-pink-500 sm:hidden" />
+										<CalendarDays size={16} class="text-pink-500 hidden sm:block" />
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Request Date</p>
 									</div>
-									<p class="text-base font-bold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+									<p class="text-sm sm:text-base font-bold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md">
-									<div class="flex items-center gap-2 mb-2">
-										<CalendarDays size={16} class="text-pink-500" />
-										<p class="text-xs font-bold uppercase tracking-wider text-gray-500">Borrow Period</p>
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<CalendarDays size={14} class="text-pink-500 sm:hidden" />
+										<CalendarDays size={16} class="text-pink-500 hidden sm:block" />
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Borrow Period</p>
 									</div>
-									<p class="text-base font-bold text-gray-900">
+									<p class="text-sm sm:text-base font-bold text-gray-900">
 										{new Date(selectedRequest.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(selectedRequest.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
 									</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md">
-									<div class="flex items-center gap-2 mb-2">
-										<FileText size={16} class="text-pink-500" />
-										<p class="text-xs font-bold uppercase tracking-wider text-gray-500">Purpose</p>
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<FileText size={14} class="text-pink-500 sm:hidden" />
+										<FileText size={16} class="text-pink-500 hidden sm:block" />
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Purpose</p>
 									</div>
-									<p class="text-base font-bold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
+									<p class="text-sm sm:text-base font-bold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md">
-									<div class="flex items-center gap-2 mb-2">
-										<UserCircle size={16} class="text-pink-500" />
-										<p class="text-xs font-bold uppercase tracking-wider text-gray-500">Instructor</p>
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<UserCircle size={14} class="text-pink-500 sm:hidden" />
+										<UserCircle size={16} class="text-pink-500 hidden sm:block" />
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Instructor</p>
 									</div>
-									<p class="text-base font-bold text-gray-900">{selectedRequest.instructor}</p>
+									<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.instructor}</p>
 								</div>
 							</div>
 						</div>
@@ -1104,13 +1110,13 @@ return timeline;
 				</div>
 				
 				<!-- Footer -->
-				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-5 py-4 sm:px-8 sm:py-5">
-					<div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-3">
+				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-3 sm:px-8 sm:py-5 safe-area-bottom">
+					<div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3">
 						{#if selectedRequest.status === 'pending'}
 							<button
 								onclick={() => requestCancelConfirmation(selectedRequest)}
 								disabled={loadingCancel === selectedRequest.rawId}
-								class="rounded-xl bg-gradient-to-r from-red-600 to-red-700 px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-red-700 hover:to-red-800 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+								class="rounded-xl bg-gradient-to-r from-red-600 to-red-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-red-700 hover:to-red-800 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
 							>
 								{#if loadingCancel === selectedRequest.rawId}
 									<svg class="h-4 w-4 inline-block animate-spin mr-2" fill="none" viewBox="0 0 24 24">
@@ -1125,16 +1131,17 @@ return timeline;
 						{/if}
 						
 						{#if selectedRequest.status === 'ready'}
-							<div class="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50 px-5 py-3 text-sm font-medium text-blue-900">
+							<div class="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50 px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm font-medium text-blue-900">
 								<div class="flex items-center gap-2">
-									<Info size={16} class="shrink-0" />
+									<Info size={14} class="shrink-0 sm:hidden" />
+									<Info size={16} class="shrink-0 hidden sm:block" />
 									<span>{getReadyPickupMessage()}</span>
 								</div>
 							</div>
 						{/if}
 						
 						{#if selectedRequest.status === 'rejected'}
-							<button class="rounded-xl bg-gradient-to-r from-pink-600 to-pink-700 px-6 py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98]">
+							<button class="rounded-xl bg-gradient-to-r from-pink-600 to-pink-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98]">
 								Appeal Request
 							</button>
 						{/if}
