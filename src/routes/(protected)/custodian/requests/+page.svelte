@@ -1,5 +1,6 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import { goto } from '$app/navigation';
 import { page } from '$app/stores';
 import { borrowRequestsAPI,
 type BorrowRequestItem,
@@ -334,15 +335,35 @@ async function maybeOpenScannedRequestFromUrl(): Promise<void> {
 }
 
 function clearScanQueryFromUrl(): void {
-	const url = new URL(window.location.href);
+	const url = new URL($page.url.href);
 	if (!url.searchParams.has('requestId') && !url.searchParams.has('scan')) return;
 
 	url.searchParams.delete('requestId');
 	url.searchParams.delete('scan');
 	const search = url.searchParams.toString();
 	const next = `${url.pathname}${search ? `?${search}` : ''}${url.hash}`;
-	window.history.replaceState(window.history.state, '', next);
+	void goto(next, {
+		replaceState: true,
+		noScroll: true,
+		keepFocus: true
+	});
 }
+
+$effect(() => {
+	const scanId =
+		$page.url.searchParams.get('requestId')?.trim() ??
+		$page.url.searchParams.get('scan')?.trim() ??
+		'';
+
+	if (!scanId) {
+		handledScanToken = '';
+		return;
+	}
+
+	if (handledScanToken === scanId) return;
+
+	void maybeOpenScannedRequestFromUrl();
+});
 
 function buildInspectionItems(request: any): BorrowRequestItem[] {
 	const requestItemById = new Map<string, any>();
