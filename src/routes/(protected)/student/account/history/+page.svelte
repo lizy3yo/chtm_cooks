@@ -2,6 +2,7 @@
 import { onMount, onDestroy } from 'svelte';
 import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
 import { toastStore } from '$lib/stores/toast';
+import { loadingStore } from '$lib/stores/loading';
 
 let history: BorrowRequestRecord[] = [];
 let total = 0;
@@ -23,6 +24,7 @@ const statusOptions = [
 async function loadHistory() {
 	try {
 		loading = true;
+		loadingStore.start();
 		// Map the selected status (UI-level) to the raw statuses the API expects.
 		// - When filtering for `cancelled`, include raw `cancelled` and raw `rejected` (some cancellations are stored as `rejected` with a cancel reason).
 		// - When filtering for `rejected`, request only raw `rejected` and later exclude cancelled-by-student results client-side.

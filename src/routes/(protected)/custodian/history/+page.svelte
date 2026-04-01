@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
+	import { loadingStore } from '$lib/stores/loading';
 	import { inventoryHistoryAPI, archivedItemsAPI, deletedItemsAPI } from '$lib/api/inventoryHistory';
 	import type { InventoryHistoryEntry, DeletedItem } from '$lib/api/inventoryHistory';
 
@@ -57,6 +58,7 @@
 	async function loadActivityLogs() {
 		try {
 			loading = true;
+			loadingStore.start();
 			const response = await inventoryHistoryAPI.getHistory({
 				action: filterAction || undefined,
 				entityType: filterEntityType as any || undefined,
@@ -71,6 +73,7 @@
 			toastStore.error(err.message || 'Failed to load activity logs');
 		} finally {
 			loading = false;
+			loadingStore.stop();
 		}
 	}
 
@@ -78,6 +81,7 @@
 	async function loadArchivedItems() {
 		try {
 			loading = true;
+			loadingStore.start();
 			const response = await archivedItemsAPI.getArchived({
 				search: archivedSearch || undefined,
 				page: archivedPage,
@@ -89,6 +93,7 @@
 			toastStore.error(err.message || 'Failed to load archived items');
 		} finally {
 			loading = false;
+			loadingStore.stop();
 		}
 	}
 
@@ -96,6 +101,7 @@
 	async function loadDeletedItems() {
 		try {
 			loading = true;
+			loadingStore.start();
 			const response = await deletedItemsAPI.getDeleted({
 				search: deletedSearch || undefined,
 				page: deletedPage,
@@ -107,6 +113,7 @@
 			toastStore.error(err.message || 'Failed to load deleted items');
 		} finally {
 			loading = false;
+			loadingStore.stop();
 		}
 	}
 
