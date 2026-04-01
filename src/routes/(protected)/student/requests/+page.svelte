@@ -12,7 +12,8 @@ import {
 	CheckCircle2, X, Search, RotateCcw,
 	Plus, ClipboardX, CalendarDays, FileText,
 	UserCircle, Info, CornerDownLeft,
-	Check, CircleX, PackageCheck, CircleAlert
+	Check, CircleX, PackageCheck, CircleAlert,
+	FileCheck, CheckCheck, Truck, Home
 } from 'lucide-svelte';
 
 type StudentTab = 'my-request' | 'instructor-approved' | 'active' | 'history';
@@ -834,69 +835,88 @@ return timeline;
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick={closeDetailModal}></div>
+		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal}></div>
 		<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
-			<div class="relative w-full rounded-t-2xl bg-white/95 shadow-xl ring-1 ring-black/5 backdrop-blur-sm sm:max-w-3xl sm:rounded-lg">
-				<!-- Header -->
-				<div class="border-b border-gray-200 bg-gray-50 px-4 py-4 sm:px-6">
-					<div class="flex items-center justify-between">
-						<div>
-							<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Request Details</h3>
-							<p class="mt-0.5 text-sm text-gray-500">{selectedRequest.id}</p>
+			<div class="relative w-full rounded-t-3xl bg-white shadow-2xl ring-1 ring-black/5 sm:max-w-2xl sm:rounded-2xl animate-scaleIn">
+				
+				<!-- Header with gradient accent -->
+				<div class="border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white px-4 py-5 sm:px-6 sm:py-6">
+					<div class="flex items-start justify-between gap-4">
+						<div class="min-w-0 flex-1">
+							<div class="flex items-center gap-3">
+								<div class="flex h-10 w-10 items-center justify-center rounded-full bg-pink-100">
+									<svelte:component this={ClipboardList} size={20} class="text-pink-600" />
+								</div>
+								<div>
+									<h3 class="text-lg font-semibold text-gray-900">Request Details</h3>
+									<p class="mt-0.5 font-mono text-sm font-medium text-pink-600">{selectedRequest.id}</p>
+								</div>
+							</div>
 						</div>
-						<button onclick={closeDetailModal} class="rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600">
+						<button 
+							onclick={closeDetailModal} 
+							class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+						>
 							<X size={20} />
 						</button>
 					</div>
 				</div>
 				
 				<!-- Content -->
-				<div class="max-h-[65vh] overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+				<div class="max-h-[65vh] overflow-y-auto px-4 py-6 sm:px-6">
 					<div class="space-y-6">
-						<!-- Status Badge -->
-						<div>
-							<h4 class="text-sm font-medium text-gray-700 mb-3">Current Status</h4>
-						<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold {getStatusColor(selectedRequest.status)}">
-							<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={16} />
-							{getStatusLabel(selectedRequest.status)}
-							</span>
+						
+						<!-- Status Section -->
+						<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50 to-white p-4">
+							<p class="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">Current Status</p>
+							<div class="flex items-center gap-3">
+								<div class="flex h-12 w-12 items-center justify-center rounded-full {getStatusColor(selectedRequest.status)}">
+									<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={20} />
+								</div>
+								<div>
+									<p class="font-semibold text-gray-900">{getStatusLabel(selectedRequest.status)}</p>
+									<p class="text-xs text-gray-500">Last updated {new Date(selectedRequest.requestDate).toLocaleDateString()}</p>
+								</div>
+							</div>
 						</div>
 
-						<!-- QR Code — shown for statuses where custodian scanning applies -->
+						<!-- QR Code Section -->
 						{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(selectedRequest.status)}
-							<div class="flex flex-col items-center rounded-2xl border border-gray-100 bg-gray-50 px-6 py-6">
-								<p class="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-400">Scan to Process</p>
-								{#if qrDataUrl}
-									<div class="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-gray-100">
-										<img src={qrDataUrl} alt="Request QR Code" class="h-48 w-48 rounded-lg" />
-									</div>
-								{:else}
-									<div class="flex h-48 w-48 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
-										<div class="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-gray-600"></div>
-									</div>
-								{/if}
-								<p class="mt-4 font-mono text-base font-bold tracking-widest text-gray-900">{selectedRequest.id}</p>
-								<p class="mt-1 text-xs text-gray-400">
-									{#if selectedRequest.status === 'approved'}
-										Show this to the custodian to mark your request ready for pickup.
-									{:else if selectedRequest.status === 'ready'}
-										Show this to the custodian to confirm your pickup.
+							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50 to-white p-6">
+								<p class="mb-4 text-xs font-semibold uppercase tracking-widest text-gray-500">Scan to Process</p>
+								<div class="flex flex-col items-center">
+									{#if qrDataUrl}
+										<div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100">
+											<img src={qrDataUrl} alt="Request QR Code" class="h-40 w-40 rounded-lg" />
+										</div>
 									{:else}
-										Show this to the custodian when returning your items.
+										<div class="flex h-40 w-40 items-center justify-center rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+											<div class="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-pink-600"></div>
+										</div>
 									{/if}
-								</p>
+									<p class="mt-4 font-mono text-base font-bold tracking-widest text-gray-900">{selectedRequest.id}</p>
+									<p class="mt-2 text-center text-xs text-gray-500">
+										{#if selectedRequest.status === 'approved'}
+											Show this to the custodian to mark your request ready for pickup.
+										{:else if selectedRequest.status === 'ready'}
+											Show this to the custodian to confirm your pickup.
+										{:else}
+											Show this to the custodian when returning your items.
+										{/if}
+									</p>
+								</div>
 							</div>
 						{/if}
 
 						<!-- Requested Items -->
 						<div>
-							<h4 class="text-sm font-medium text-gray-700 mb-3">Requested Items</h4>
+							<p class="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">Requested Items</p>
 							<div class="space-y-2">
 								{#each selectedRequest.items as item}
-								{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-								<div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
-									{#if pic}
-										<img src={pic} alt={item.name} class="h-10 w-10 rounded-md object-cover shrink-0" />
+									{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+									<div class="flex items-center gap-3 rounded-lg border border-gray-100 bg-gray-50 p-3 transition-colors hover:bg-gray-100">
+										{#if pic}
+											<img src={pic} alt={item.name} class="h-10 w-10 rounded-md object-cover shrink-0" />
 										{:else}
 											<div class="h-10 w-10 shrink-0 overflow-hidden rounded-md">
 												<ItemImagePlaceholder size="sm" />
@@ -908,103 +928,154 @@ return timeline;
 							</div>
 						</div>
 
-						<!-- Request Information -->
+						<!-- Request Information Grid -->
 						<div>
-							<h4 class="text-sm font-medium text-gray-700 mb-3">Request Information</h4>
-							<div class="grid grid-cols-1 gap-4 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:grid-cols-2">
-								<div>
+							<p class="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">Request Information</p>
+							<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+								<div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
 									<p class="text-xs font-medium text-gray-500">Request Date</p>
-									<p class="mt-2 text-sm font-medium text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString()}</p>
+									<p class="mt-2 font-semibold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
 								</div>
-								<div>
+								<div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
 									<p class="text-xs font-medium text-gray-500">Borrow Period</p>
-									<p class="mt-2 text-sm font-medium text-gray-900">
-										{new Date(selectedRequest.borrowDate).toLocaleDateString()} - {new Date(selectedRequest.returnDate).toLocaleDateString()}
+									<p class="mt-2 font-semibold text-gray-900">
+										{new Date(selectedRequest.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(selectedRequest.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
 									</p>
 								</div>
-								<div>
+								<div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
 									<p class="text-xs font-medium text-gray-500">Purpose</p>
-									<p class="mt-2 text-sm font-medium text-gray-900">{selectedRequest.purpose}</p>
+									<p class="mt-2 font-semibold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
 								</div>
-								<div>
+								<div class="rounded-lg border border-gray-100 bg-gray-50 p-4">
 									<p class="text-xs font-medium text-gray-500">Instructor</p>
-									<p class="mt-2 text-sm font-medium text-gray-900">{selectedRequest.instructor}</p>
+									<p class="mt-2 font-semibold text-gray-900">{selectedRequest.instructor}</p>
 								</div>
 							</div>
 						</div>
 						
 						<!-- Approval Timeline -->
 						<div>
-							<h4 class="text-sm font-medium text-gray-700 mb-3">Approval Timeline</h4>
-							<div class="flow-root">
-								<ul class="-mb-8">
-									{#each getApprovalTimeline(selectedRequest) as step, idx}
-										<li>
-											<div class="relative pb-8">
-												{#if idx !== getApprovalTimeline(selectedRequest).length - 1}
-													<span class="absolute left-4 top-4 -ml-px h-full w-0.5 {step.status === 'completed' ? 'bg-pink-600' : 'bg-gray-300'}" aria-hidden="true"></span>
-												{/if}
-												<div class="relative flex space-x-3">
-													<div>
-														<span class="flex h-8 w-8 items-center justify-center rounded-full {
-															step.status === 'completed' ? 'bg-pink-600' :
-															step.status === 'cancelled' ? 'bg-slate-500' :
-															step.status === 'rejected' ? 'bg-red-600' :
-															'bg-gray-300'
-														}">
-															{#if step.status === 'completed'}
-																<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-																</svg>
-															{:else if step.status === 'cancelled'}
-																<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-																</svg>
-															{:else if step.status === 'rejected'}
-																<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-																</svg>
-															{:else}
-																<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-																</svg>
-															{/if}
-														</span>
-													</div>
-													<div class="flex min-w-0 flex-1 justify-between space-x-4 pt-1.5">
-														<div>
-															<p class="text-sm font-medium text-gray-900">{step.step}</p>
-															<p class="text-xs text-gray-500">{step.by}</p>
-														</div>
-														<div class="whitespace-nowrap text-right text-xs text-gray-500">
-															{#if step.date}
-																{new Date(step.date).toLocaleDateString()}
-															{:else}
-																Pending
-															{/if}
-														</div>
+							<p class="mb-3 text-xs font-semibold uppercase tracking-widest text-gray-500">Approval Timeline</p>
+							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-gray-50 to-white p-6">
+								<!-- Timeline Container -->
+								<div class="relative">
+									<!-- SVG Background for connector lines -->
+									<svg class="absolute inset-0 w-full h-24 pointer-events-none" style="z-index: 0;">
+										{#each getApprovalTimeline(selectedRequest) as step, idx}
+											{@const stepCount = getApprovalTimeline(selectedRequest).length}
+											{@const isLastStep = idx === stepCount - 1}
+											{@const stepWidth = 100 / stepCount}
+											{@const x1 = (stepWidth * (idx + 0.5))}
+											{@const x2 = (stepWidth * (idx + 1.5))}
+											{@const y = 32}
+											{@const prevStep = idx > 0 ? getApprovalTimeline(selectedRequest)[idx - 1] : null}
+											{@const isLineCompleted = prevStep && prevStep.status === 'completed'}
+											
+											{#if !isLastStep}
+												<line 
+													x1="{x1}%" 
+													y1="{y}" 
+													x2="{x2}%" 
+													y2="{y}" 
+													stroke="{isLineCompleted ? '#ec4899' : '#e5e7eb'}" 
+													stroke-width="3" 
+													stroke-linecap="round"
+												/>
+											{/if}
+										{/each}
+									</svg>
+									
+									<!-- Timeline steps -->
+									<div class="relative flex items-start justify-between gap-2 sm:gap-0" style="z-index: 1;">
+										{#each getApprovalTimeline(selectedRequest) as step, idx}
+											{@const isCompleted = step.status === 'completed'}
+											{@const isPending = step.status === 'pending'}
+											{@const isCancelled = step.status === 'cancelled'}
+											{@const isRejected = step.status === 'rejected'}
+											
+											<div class="flex flex-col items-center flex-1">
+												<!-- Icon Circle -->
+												<div class="relative mb-4 flex items-center justify-center">
+													<div class="flex h-16 w-16 items-center justify-center rounded-full border-3 bg-white {
+														isCompleted ? 'border-pink-600' :
+														isCancelled ? 'border-slate-400' :
+														isRejected ? 'border-red-600' :
+														'border-gray-300'
+													}">
+														{#if step.step === 'Request Submitted'}
+															<svelte:component this={FileCheck} size={28} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+														{:else if step.step === 'Instructor Approved' || step.step === 'Instructor Review'}
+															<svelte:component this={CheckCheck} size={28} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+														{:else if step.step === 'Custodian Approved' || step.step === 'Custodian Approval'}
+															<svelte:component this={PackageCheck} size={28} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+														{:else if step.step === 'Awaiting Pickup' || step.step === 'Pickup Confirmed'}
+															<svelte:component this={Truck} size={28} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+														{:else if step.step === 'Awaiting Return' || step.step === 'Returned'}
+															<svelte:component this={Home} size={28} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+														{:else if step.step === 'Request Cancelled'}
+															<svelte:component this={CircleX} size={28} class="text-slate-400" />
+														{:else if step.step === 'Request Rejected'}
+															<svelte:component this={CircleX} size={28} class="text-red-600" />
+														{:else}
+															<svelte:component this={Clock} size={28} class="text-gray-400 animate-pulse" />
+														{/if}
 													</div>
 												</div>
+												
+												<!-- Step Label -->
+												<div class="text-center min-w-0">
+													<p class="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{step.step}</p>
+													<p class="text-xs text-gray-500 mt-1 line-clamp-1">{step.by}</p>
+													<p class="text-xs font-medium {
+														isCompleted ? 'text-pink-600' :
+														isCancelled ? 'text-slate-500' :
+														isRejected ? 'text-red-600' :
+														'text-gray-400'
+													} mt-1.5">
+														{#if step.date}
+															{new Date(step.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+														{:else}
+															Pending
+														{/if}
+													</p>
+												</div>
 											</div>
-										</li>
-									{/each}
-								</ul>
+										{/each}
+									</div>
+								</div>
+								
+								<!-- Status Legend -->
+								<div class="mt-6 pt-4 border-t border-gray-200 flex flex-wrap gap-4 justify-center text-xs">
+									<div class="flex items-center gap-2">
+										<div class="h-2.5 w-2.5 rounded-full bg-pink-600"></div>
+										<span class="text-gray-600">Completed</span>
+									</div>
+									<div class="flex items-center gap-2">
+										<div class="h-2.5 w-2.5 rounded-full bg-gray-300"></div>
+										<span class="text-gray-600">Pending</span>
+									</div>
+									<div class="flex items-center gap-2">
+										<div class="h-2.5 w-2.5 rounded-full bg-red-600"></div>
+										<span class="text-gray-600">Rejected</span>
+									</div>
+									<div class="flex items-center gap-2">
+										<div class="h-2.5 w-2.5 rounded-full bg-slate-400"></div>
+										<span class="text-gray-600">Cancelled</span>
+									</div>
+								</div>
 							</div>
 						</div>
 						
 						<!-- Rejection Reason -->
 						{#if selectedRequest.status === 'rejected' && selectedRequest.rejectionReason}
-							<div>
-								<h4 class="text-sm font-medium text-gray-700 mb-3">Rejection Reason</h4>
-								<div class="rounded-lg bg-red-50 border border-red-200 p-4">
-									<div class="flex gap-3">
-										<svg class="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-										</svg>
-										<div class="flex-1 min-w-0">
-											<p class="text-sm font-medium text-red-800">Reason</p>
-											<p class="mt-0.5 text-sm text-red-700">{selectedRequest.rejectionReason}</p>
-										</div>
+							<div class="rounded-xl border border-red-200 bg-red-50 p-4">
+								<div class="flex gap-3">
+									<svg class="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+									</svg>
+									<div class="flex-1 min-w-0">
+										<p class="font-semibold text-red-800">Rejection Reason</p>
+										<p class="mt-1 text-sm text-red-700">{selectedRequest.rejectionReason}</p>
 									</div>
 								</div>
 							</div>
@@ -1013,46 +1084,49 @@ return timeline;
 				</div>
 				
 				<!-- Footer -->
-				<div class="border-t border-gray-200 bg-gray-50 px-4 py-3 sm:px-6 sm:py-4">
-					<div class="flex flex-wrap justify-end gap-2">
+				<div class="border-t border-gray-100 bg-gradient-to-r from-gray-50 to-white px-4 py-4 sm:px-6 sm:py-5">
+					<div class="flex flex-wrap items-center justify-between gap-3">
 						<button
 							onclick={closeDetailModal}
-							class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+							class="rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 active:bg-gray-100"
 						>
 							Close
 						</button>
-						{#if selectedRequest.status === 'pending'}
-							<button
-								onclick={() => requestCancelConfirmation(selectedRequest)}
-								disabled={loadingCancel === selectedRequest.rawId}
-								class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-							>
-								{#if loadingCancel === selectedRequest.rawId}
-									<svg class="h-4 w-4 inline-block animate-spin mr-2" fill="none" viewBox="0 0 24 24">
-										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-									</svg>
-									Cancelling…
-								{:else}
-									Cancel Request
-								{/if}
-							</button>
-						{/if}
-						{#if selectedRequest.status === 'ready'}
-							<div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-800">
-								{getReadyPickupMessage()}
-							</div>
-						{/if}
-						{#if selectedRequest.status === 'rejected'}
-							<button class="rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
-								Appeal Request
-							</button>
-						{/if}
+						
+						<div class="flex flex-wrap gap-2">
+							{#if selectedRequest.status === 'pending'}
+								<button
+									onclick={() => requestCancelConfirmation(selectedRequest)}
+									disabled={loadingCancel === selectedRequest.rawId}
+									class="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed active:bg-red-800"
+								>
+									{#if loadingCancel === selectedRequest.rawId}
+										<svg class="h-4 w-4 inline-block animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+										Cancelling…
+									{:else}
+										Cancel Request
+									{/if}
+								</button>
+							{/if}
+							
+							{#if selectedRequest.status === 'ready'}
+								<div class="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm text-blue-800">
+									{getReadyPickupMessage()}
+								</div>
+							{/if}
+							
+							{#if selectedRequest.status === 'rejected'}
+								<button class="rounded-lg bg-pink-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-pink-700 active:bg-pink-800">
+									Appeal Request
+								</button>
+							{/if}
+						</div>
 					</div>
 				</div>
 			</div>
 		</div>
 	</div>
 {/if}
-
-
