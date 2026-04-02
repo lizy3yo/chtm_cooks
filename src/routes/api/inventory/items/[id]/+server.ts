@@ -48,6 +48,7 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		description: item.description,
 		status: item.status,
 		isConstant: item.isConstant,
+		maxQuantityPerRequest: item.maxQuantityPerRequest,
 		archived: item.archived,
 		createdAt: item.createdAt,
 		updatedAt: item.updatedAt
@@ -194,6 +195,15 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 		if (body.isConstant !== undefined) {
 			updateFields.isConstant = body.isConstant;
+		}
+		if (body.maxQuantityPerRequest !== undefined) {
+			// Only set maxQuantityPerRequest if the item is constant
+			// If not constant or value is null/undefined, explicitly unset it
+			if (body.isConstant !== false && body.maxQuantityPerRequest) {
+				updateFields.maxQuantityPerRequest = Math.max(1, Math.floor(body.maxQuantityPerRequest));
+			} else {
+				updateFields.maxQuantityPerRequest = undefined;
+			}
 		}
 
 		// Recalculate status if quantity changed

@@ -40,7 +40,8 @@
 		eomCount: 0,
 		condition: 'Good',
 		location: '',
-		isConstant: false
+		isConstant: false,
+		maxQuantityPerRequest: undefined as number | undefined
 	});
 
 	// Editing mode
@@ -369,7 +370,10 @@ $effect(() => {
 				eomCount: newItem.eomCount,
 				condition: newItem.condition,
 				location: newItem.location,
-				isConstant: newItem.isConstant
+				isConstant: newItem.isConstant,
+				maxQuantityPerRequest: newItem.isConstant && newItem.maxQuantityPerRequest 
+					? Number(newItem.maxQuantityPerRequest) 
+					: undefined
 			};
 
 			let savedItem;
@@ -434,7 +438,8 @@ $effect(() => {
 			eomCount: 0,
 			condition: 'Good',
 			location: '',
-			isConstant: false
+			isConstant: false,
+			maxQuantityPerRequest: undefined
 		};
 		editingItemId = null;
 	}
@@ -453,7 +458,8 @@ $effect(() => {
 			eomCount: item.eomCount,
 			condition: item.condition,
 			location: item.location || '',
-			isConstant: item.isConstant || false
+			isConstant: item.isConstant || false,
+			maxQuantityPerRequest: item.maxQuantityPerRequest
 		};
 		editingItemId = item.id;
 		showAddItemModal = true;
@@ -2389,6 +2395,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Specification</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Current Count</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Max Per Request</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
 								</tr>
@@ -2413,6 +2420,18 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 										</td>
 										<td class="px-6 py-4 text-sm text-gray-700">{item.specification}</td>
 										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.quantity}</td>
+										<td class="whitespace-nowrap px-6 py-4">
+											{#if item.maxQuantityPerRequest}
+												<span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-800">
+													<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+													</svg>
+													{item.maxQuantityPerRequest}
+												</span>
+											{:else}
+												<span class="text-xs text-gray-400">No limit</span>
+											{/if}
+										</td>
 										<td class="whitespace-nowrap px-6 py-4">
 											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
 												<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
@@ -2617,11 +2636,31 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 								<div class="flex-1">
 									<span class="text-sm font-medium text-gray-900">Mark as Constant Item</span>
 									<p class="mt-0.5 text-xs text-gray-600">
-										Constant items always appear on student request forms regardless of availability status. 
-										This is useful for frequently requested equipment that should always be visible to students.
+										Constant items always appear on student request forms.
 									</p>
 								</div>
 							</label>
+							
+							{#if newItem.isConstant}
+								<div class="mt-3 border-t border-emerald-200 pt-3">
+									<label for="maxQuantityPerRequest" class="block text-sm font-medium text-gray-900 mb-1">
+										Maximum Quantity Per Request
+										<span class="text-xs font-normal text-gray-500">(Optional)</span>
+									</label>
+									<input
+										type="number"
+										id="maxQuantityPerRequest"
+										bind:value={newItem.maxQuantityPerRequest}
+										min="1"
+										step="1"
+										placeholder="e.g., 5 (leave empty for unlimited)"
+										class="block w-full rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+									/>
+									<p class="mt-1 text-xs text-gray-600">
+										Set the maximum quantity students can request per transaction. Leave empty for unlimited requests.
+									</p>
+								</div>
+							{/if}
 						</div>
 
 						<!-- Image Upload -->

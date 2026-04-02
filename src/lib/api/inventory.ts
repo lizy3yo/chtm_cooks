@@ -17,6 +17,7 @@ export interface InventoryItem {
 	status: string;
 	archived: boolean;
 	isConstant?: boolean; // Items that always appear on student request forms
+	maxQuantityPerRequest?: number; // Maximum quantity allowed per request for constant items
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -44,6 +45,7 @@ export interface CreateItemRequest {
 	condition: string;
 	location?: string;
 	isConstant?: boolean;
+	maxQuantityPerRequest?: number;
 }
 
 export interface UpdateItemRequest extends Partial<CreateItemRequest> {

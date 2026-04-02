@@ -22,6 +22,7 @@
 		status: string;
 		location?: string;
 		isConstant?: boolean;
+		maxQuantityPerRequest?: number;
 	}
 
 	interface SelectedRequestItem extends RequestItemOption {
@@ -136,7 +137,8 @@
 				specification: item.specification || 'No specification provided',
 				status: item.status,
 				location: item.location,
-				isConstant: item.isConstant || false
+				isConstant: item.isConstant || false,
+				maxQuantityPerRequest: item.maxQuantityPerRequest
 			}));
 
 			// Filter constant items (always show, even if quantity is 0)
@@ -323,9 +325,31 @@
 				return { ...item, requestedQuantity: 1 };
 			}
 
+			// Determine the effective maximum: either maxQuantityPerRequest or available quantity
+			const effectiveMax = item.maxQuantityPerRequest 
+				? Math.min(item.maxQuantityPerRequest, item.available)
+				: item.available;
+
+			const newQuantity = Math.max(1, Math.min(effectiveMax, parsed));
+			
+			// Show feedback if user tried to exceed limit
+			if (parsed > effectiveMax) {
+				if (item.maxQuantityPerRequest && item.maxQuantityPerRequest < item.available) {
+					toastStore.info(
+						`Maximum ${item.maxQuantityPerRequest} ${item.maxQuantityPerRequest === 1 ? 'unit' : 'units'} of "${item.name}" allowed per request`,
+						'Request Limit'
+					);
+				} else {
+					toastStore.info(
+						`Only ${item.available} ${item.available === 1 ? 'unit' : 'units'} of "${item.name}" available`,
+						'Stock Limit'
+					);
+				}
+			}
+
 			return {
 				...item,
-				requestedQuantity: Math.max(1, Math.min(item.available, parsed))
+				requestedQuantity: newQuantity
 			};
 		});
 
@@ -403,17 +427,25 @@
 			errors.items = `The following items are out of stock and must be removed: ${itemNames}`;
 		}
 
+		// Validate quantities including maxQuantityPerRequest limits
 		if (
 			selectedItems.some(
-				(item) =>
-					item.available > 0 && (
+				(item) => {
+					if (item.available === 0) return false; // Already checked above
+					
+					const effectiveMax = item.maxQuantityPerRequest 
+						? Math.min(item.maxQuantityPerRequest, item.available)
+						: item.available;
+					
+					return (
 						!Number.isInteger(item.requestedQuantity) ||
 						item.requestedQuantity <= 0 ||
-						item.requestedQuantity > item.available
-					)
+						item.requestedQuantity > effectiveMax
+					);
+				}
 			)
 		) {
-			errors.items = 'Each selected item must have a valid quantity within available stock';
+			errors.items = 'Each selected item must have a valid quantity within available stock and request limits';
 		}
 
 		if (!borrowDate) {
@@ -705,7 +737,7 @@
 													<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
 														<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
 													</svg>
-													Frequent
+													Constant
 												</span>
 											{/if}
 										</div>
@@ -718,18 +750,78 @@
 												<span class="font-medium">Currently out of stock - Remove to continue</span>
 											</div>
 										{/if}
+										{#if item.maxQuantityPerRequest && item.available > 0}
+											<div class="mt-1 flex items-center justify-between gap-2 text-xs">
+												<div class="flex items-center gap-1 text-purple-700">
+													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+														<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+													</svg>
+													<span>Max {item.maxQuantityPerRequest} per request</span>
+												</div>
+												<!-- Progress indicator -->
+												<div class="flex items-center gap-1">
+													<div class="h-1.5 w-16 rounded-full bg-gray-200 overflow-hidden">
+														<div 
+															class="h-full rounded-full transition-all duration-300 {item.requestedQuantity >= item.maxQuantityPerRequest ? 'bg-purple-600' : 'bg-emerald-500'}"
+															style="width: {Math.min(100, (item.requestedQuantity / item.maxQuantityPerRequest) * 100)}%"
+														></div>
+													</div>
+													<span class="text-[10px] font-semibold {item.requestedQuantity >= item.maxQuantityPerRequest ? 'text-purple-700' : 'text-gray-600'}">
+														{item.requestedQuantity}/{item.maxQuantityPerRequest}
+													</span>
+												</div>
+											</div>
+										{/if}
 									</div>
 									<div class="flex shrink-0 items-center gap-2">
 										{#if item.available > 0}
-											<input
-												type="number"
-												min="1"
-												max={item.available}
-												value={item.requestedQuantity}
-												onchange={(e) => updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
-												class="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm"
-												disabled={item.isConstant}
-											/>
+											<div class="flex items-center gap-1">
+												<!-- Decrement Button -->
+												<button
+													type="button"
+													onclick={() => {
+														const newQty = Math.max(1, item.requestedQuantity - 1);
+														updateItemQuantity(item.id, String(newQty));
+													}}
+													disabled={item.requestedQuantity <= 1}
+													class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+													title="Decrease quantity"
+												>
+													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
+													</svg>
+												</button>
+												
+												<!-- Quantity Input -->
+												<div class="relative">
+													<input
+														type="number"
+														min="1"
+														max={item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available}
+														value={item.requestedQuantity}
+														onchange={(e) => updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
+														class="w-16 rounded-lg border {item.isConstant ? 'border-emerald-300 bg-emerald-50' : 'border-gray-300 bg-white'} px-2 py-1.5 text-sm text-center font-medium focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
+														title={item.maxQuantityPerRequest ? `Maximum ${item.maxQuantityPerRequest} per request` : `Maximum ${item.available} available`}
+													/>
+												</div>
+												
+												<!-- Increment Button -->
+												<button
+													type="button"
+													onclick={() => {
+														const maxQty = item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available;
+														const newQty = Math.min(maxQty, item.requestedQuantity + 1);
+														updateItemQuantity(item.id, String(newQty));
+													}}
+													disabled={item.requestedQuantity >= (item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available)}
+													class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+													title="Increase quantity"
+												>
+													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+													</svg>
+												</button>
+											</div>
 										{:else}
 											<div class="w-16 rounded-lg border border-amber-300 bg-amber-100 px-2 py-1 text-center text-sm text-amber-700 font-medium">
 												N/A
