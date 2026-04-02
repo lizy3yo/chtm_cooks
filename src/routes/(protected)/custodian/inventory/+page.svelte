@@ -15,6 +15,7 @@
 	import { inventoryStore } from '$lib/stores/inventory';
 	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+	import { Package, FolderTree, AlertTriangle, Star } from 'lucide-svelte';
 	
 	type Tab = 'all-items' | 'constant-items' | 'categories' | 'low-stock';
 	
@@ -1620,7 +1621,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 	<!-- Header -->
 	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 		<div class="min-w-0">
-			<h1 class="text-2xl font-bold text-gray-900">Inventory Management</h1>
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Inventory Management</h1>
 			<p class="mt-1 text-sm text-gray-500">Manage kitchen laboratory inventory and stock levels</p>
 		</div>
 
@@ -1784,22 +1785,54 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 	{:else}
 	
 	<!-- Stats Overview -->
-	<div class="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
-		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
-			<dt class="truncate text-xs font-medium text-gray-500">Active Items</dt>
-			<dd class="mt-1 text-2xl font-semibold text-gray-900">{activeItems.length}</dd>
+	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Items</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{activeItems.length}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+					<Package size={18} class="text-blue-600 sm:hidden" />
+					<Package size={24} class="hidden text-blue-600 sm:block" />
+				</div>
+			</div>
 		</div>
-		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
-			<dt class="truncate text-xs font-medium text-gray-500">Categories</dt>
-			<dd class="mt-1 text-2xl font-semibold text-gray-900">{categories.length}</dd>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Categories</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{categories.length}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
+					<FolderTree size={18} class="text-purple-600 sm:hidden" />
+					<FolderTree size={24} class="hidden text-purple-600 sm:block" />
+				</div>
+			</div>
 		</div>
-		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
-			<dt class="truncate text-xs font-medium text-gray-500">Low Stock</dt>
-			<dd class="mt-1 text-2xl font-semibold text-red-600">{lowStockItems.length}</dd>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Low Stock</p>
+					<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">{lowStockItems.length}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
+					<AlertTriangle size={18} class="text-red-600 sm:hidden" />
+					<AlertTriangle size={24} class="hidden text-red-600 sm:block" />
+				</div>
+			</div>
 		</div>
-		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
-			<dt class="truncate text-xs font-medium text-gray-500">Total Qty</dt>
-			<dd class="mt-1 text-2xl font-semibold text-gray-900">{activeItems.reduce((sum, item) => sum + item.quantity, 0)}</dd>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Constant Items</p>
+					<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">{constantItems.length}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
+					<Star size={18} class="text-amber-600 sm:hidden" />
+					<Star size={24} class="hidden text-amber-600 sm:block" />
+				</div>
+			</div>
 		</div>
 	</div>
 	

@@ -131,15 +131,15 @@
 
 	// Donation totals grouped by month (computed, not in template)
 	const donationByMonth = $derived.by(() => {
-		const map = new Map<string, { year: string; month: string; cash: number; cashCount: number; itemCount: number }>();
+		const map = new Map<string, { year: string; month: string; itemCount: number; totalQuantity: number }>();
 		for (const d of report?.financial.donationTotals ?? []) {
 			const key = `${d.year}-${String(d.month).padStart(2, '0')}`;
-			const existing = map.get(key) ?? { year: String(d.year), month: String(d.month).padStart(2, '0'), cash: 0, cashCount: 0, itemCount: 0 };
-			if (d.type === 'cash') {
-				map.set(key, { ...existing, cash: existing.cash + d.totalAmount, cashCount: existing.cashCount + d.count });
-			} else {
-				map.set(key, { ...existing, itemCount: existing.itemCount + d.count });
-			}
+			const existing = map.get(key) ?? { year: String(d.year), month: String(d.month).padStart(2, '0'), itemCount: 0, totalQuantity: 0 };
+			map.set(key, { 
+				...existing, 
+				itemCount: existing.itemCount + d.count,
+				totalQuantity: existing.totalQuantity + d.totalQuantity
+			});
 		}
 		return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
 	});
