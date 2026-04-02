@@ -46,6 +46,8 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		location: item.location,
 		description: item.description,
 		status: item.status,
+		isConstant: item.isConstant,
+		maxQuantityPerRequest: item.maxQuantityPerRequest,
 		archived: item.archived,
 		createdAt: item.createdAt,
 		updatedAt: item.updatedAt
@@ -245,6 +247,10 @@ export const POST: RequestHandler = async (event) => {
 			condition,
 			location,
 			status,
+			isConstant: body.isConstant || false,
+			maxQuantityPerRequest: body.isConstant && body.maxQuantityPerRequest 
+				? Math.max(1, Math.floor(body.maxQuantityPerRequest))
+				: undefined,
 			archived: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),

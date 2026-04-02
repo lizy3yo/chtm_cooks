@@ -6,6 +6,7 @@
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
+	import { Package, AlertCircle, CheckCircle2, TrendingUp } from 'lucide-svelte';
 
 	let activeTab = $state<'donations' | 'replacements' | 'history'>('replacements');
 	let replacementsFilter = $state<'all' | 'pending' | 'paid' | 'replaced' | 'waived'>('all');
@@ -492,79 +493,80 @@
 	}
 </script>
 
-<div class="p-6">
+<div class="space-y-6">
 	<!-- Header -->
-	<div class="mb-6">
-		<h1 class="text-3xl font-bold text-gray-900">Resource Management</h1>
-		<p class="text-gray-600 mt-1">Track item donations, accountability obligations, and resolution records</p>
+	<div>
+		<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Resource Management</h1>
+		<p class="mt-1 text-sm text-gray-500">Track item donations, accountability obligations, and resolution records</p>
 	</div>
 
 	<!-- Stats Overview -->
-	<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 		{#if isLoading}
 			{#each Array(4) as _}
-				<div class="bg-white rounded-lg shadow p-6 space-y-3">
-					<Skeleton class="h-3.5 w-32" />
-					<Skeleton class="h-8 w-24" />
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0 space-y-2">
+							<Skeleton class="h-3.5 w-32" />
+							<Skeleton class="h-8 w-24" />
+						</div>
+						<Skeleton class="h-9 w-9 rounded-full sm:h-12 sm:w-12" />
+					</div>
 				</div>
 			{/each}
 		{:else}
-		<div class="bg-white rounded-lg shadow p-6">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Total Donated Items</p>
-					<p class="text-2xl font-bold text-pink-600">{totalDonatedItems.toLocaleString()}</p>
-					<p class="text-xs text-gray-500 mt-1">{uniqueItemTypes} item type{uniqueItemTypes !== 1 ? 's' : ''}</p>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Donated Items</p>
+					<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">{totalDonatedItems.toLocaleString()}</p>
+					<p class="text-xs text-gray-500 mt-0.5">{uniqueItemTypes} type{uniqueItemTypes !== 1 ? 's' : ''}</p>
 				</div>
-				<div class="bg-pink-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-					</svg>
-				</div>
-			</div>
-		</div>
-
-		<div class="bg-white rounded-lg shadow p-6">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Pending Obligations</p>
-					<p class="text-2xl font-bold text-orange-600">{obligationCounts.pending}</p>
-					<p class="text-xs text-gray-500 mt-1">Awaiting resolution</p>
-				</div>
-				<div class="bg-orange-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-					</svg>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+					<Package size={18} class="text-pink-600 sm:hidden" />
+					<Package size={24} class="hidden text-pink-600 sm:block" />
 				</div>
 			</div>
 		</div>
 
-		<div class="bg-white rounded-lg shadow p-6">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Resolved Obligations</p>
-					<p class="text-2xl font-bold text-pink-600">{obligationCounts.paid + obligationCounts.replaced + obligationCounts.waived}</p>
-					<p class="text-xs text-gray-500 mt-1">Paid, replaced, or waived</p>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
+					<p class="mt-1 text-2xl font-semibold text-orange-600 sm:mt-2 sm:text-3xl">{obligationCounts.pending}</p>
+					<p class="text-xs text-gray-500 mt-0.5">Awaiting resolution</p>
 				</div>
-				<div class="bg-pink-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-					</svg>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 sm:h-12 sm:w-12">
+					<AlertCircle size={18} class="text-orange-600 sm:hidden" />
+					<AlertCircle size={24} class="hidden text-orange-600 sm:block" />
 				</div>
 			</div>
 		</div>
 
-		<div class="bg-white rounded-lg shadow p-6">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Recent Activity</p>
-					<p class="text-2xl font-bold text-blue-600">{recentActivityCount + recentDonationsCount}</p>
-					<p class="text-xs text-gray-500 mt-1">Last 7 days</p>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Resolved</p>
+					<p class="mt-1 text-2xl font-semibold text-green-600 sm:mt-2 sm:text-3xl">{obligationCounts.paid + obligationCounts.replaced + obligationCounts.waived}</p>
+					<p class="text-xs text-gray-500 mt-0.5">Paid/replaced/waived</p>
 				</div>
-				<div class="bg-blue-100 p-3 rounded-full">
-					<svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-					</svg>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 sm:h-12 sm:w-12">
+					<CheckCircle2 size={18} class="text-green-600 sm:hidden" />
+					<CheckCircle2 size={24} class="hidden text-green-600 sm:block" />
+				</div>
+			</div>
+		</div>
+
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Recent Activity</p>
+					<p class="mt-1 text-2xl font-semibold text-blue-600 sm:mt-2 sm:text-3xl">{recentActivityCount + recentDonationsCount}</p>
+					<p class="text-xs text-gray-500 mt-0.5">Last 7 days</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+					<TrendingUp size={18} class="text-blue-600 sm:hidden" />
+					<TrendingUp size={24} class="hidden text-blue-600 sm:block" />
 				</div>
 			</div>
 		</div>
@@ -572,7 +574,7 @@
 	</div>
 
 	<!-- Tabs Navigation -->
-	<div class="bg-white rounded-lg shadow mb-6">
+	<div class="bg-white rounded-lg shadow">
 		<div class="border-b border-gray-200">
 			<nav class="flex -mb-px overflow-x-auto" aria-label="Tabs">
 				<button

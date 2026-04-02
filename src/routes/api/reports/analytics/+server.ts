@@ -18,9 +18,10 @@ import { getUserFromToken } from '$lib/server/middleware/auth/verify';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { cacheService } from '$lib/server/cache';
 import { logger } from '$lib/server/utils/logger';
+import { parallelAggregations, ANALYTICS_AGGREGATION_OPTIONS } from '$lib/server/utils/queryOptimizer';
 
 const ANALYTICS_CACHE_TAG = 'reports-analytics';
-const CACHE_TTL = 120; // 2 minutes
+const CACHE_TTL = 180; // 3 minutes - increased for better performance
 
 const ALLOWED_ROLES = new Set(['custodian', 'superadmin']);
 
@@ -81,75 +82,112 @@ export const GET: RequestHandler = async (event) => {
 		const inventory = db.collection('inventory_items');
 
 		const now = new Date();
+		
+		const queryStartTime = Date.now();
 
-		// ── 1. Borrow Request Operations ─────────────────────────────────────
+		// ── 1. Borrow Request Operations (Parallel Execution) ────────────────
 
-		// Total requests over time (grouped by day)
-		const requestsOverTime = await borrowRequests.aggregate([
-			{ $match: { createdAt: { $gte: start, $lte: end } } },
-			{
-				$group: {
-					_id: {
-						year: { $year: '$createdAt' },
-						month: { $month: '$createdAt' },
-						day: { $dayOfMonth: '$createdAt' }
+		// Execute borrow request queries in parallel for better performance
+		const borrowRequestData = await parallelAggregations<{
+			requestsOverTime: any[];
+			statusBreakdown: any[];
+			turnaroundPipeline: any[];
+			peakHeatmap: any[];
+		}>({
+			requestsOverTime: {
+				name: 'requestsOverTime',
+				promise: borrowRequests.aggregate([
+					{ $match: { createdAt: { $gte: start, $lte: end } } },
+					{
+						$group: {
+							_id: {
+								year: { $year: '$createdAt' },
+								month: { $month: '$createdAt' },
+								day: { $dayOfMonth: '$createdAt' }
+							},
+							count: { $sum: 1 }
+						}
 					},
-					count: { $sum: 1 }
-				}
+					{ $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
+					{ $limit: 366 }
+				], ANALYTICS_AGGREGATION_OPTIONS).toArray()
 			},
-			{ $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } }
-		]).toArray();
-
-		// Status breakdown
-		const statusBreakdown = await borrowRequests.aggregate([
-			{ $match: { createdAt: { $gte: start, $lte: end } } },
-			{ $group: { _id: '$status', count: { $sum: 1 } } }
-		]).toArray();
-
-		// Average turnaround times (ms → hours)
-		const turnaroundPipeline = await borrowRequests.aggregate([
-			{
-				$match: {
-					createdAt: { $gte: start, $lte: end },
-					returnedAt: { $exists: true }
-				}
+			statusBreakdown: {
+				name: 'statusBreakdown',
+				promise: borrowRequests.aggregate([
+					{ $match: { createdAt: { $gte: start, $lte: end } } },
+					{ $group: { _id: '$status', count: { $sum: 1 } } }
+				], ANALYTICS_AGGREGATION_OPTIONS).toArray()
 			},
-			{
-				$project: {
-					approvalTime: {
-						$cond: [
-							{ $and: [{ $ifNull: ['$approvedAt', false] }, { $ifNull: ['$createdAt', false] }] },
-							{ $divide: [{ $subtract: ['$approvedAt', '$createdAt'] }, 3600000] },
-							null
-						]
+			turnaroundPipeline: {
+				name: 'turnaroundPipeline',
+				promise: borrowRequests.aggregate([
+					{
+						$match: {
+							createdAt: { $gte: start, $lte: end },
+							returnedAt: { $exists: true }
+						}
 					},
-					releaseTime: {
-						$cond: [
-							{ $and: [{ $ifNull: ['$releasedAt', false] }, { $ifNull: ['$approvedAt', false] }] },
-							{ $divide: [{ $subtract: ['$releasedAt', '$approvedAt'] }, 3600000] },
-							null
-						]
+					{
+						$project: {
+							approvalTime: {
+								$cond: [
+									{ $and: [{ $ifNull: ['$approvedAt', false] }, { $ifNull: ['$createdAt', false] }] },
+									{ $divide: [{ $subtract: ['$approvedAt', '$createdAt'] }, 3600000] },
+									null
+								]
+							},
+							releaseTime: {
+								$cond: [
+									{ $and: [{ $ifNull: ['$releasedAt', false] }, { $ifNull: ['$approvedAt', false] }] },
+									{ $divide: [{ $subtract: ['$releasedAt', '$approvedAt'] }, 3600000] },
+									null
+								]
+							},
+							returnTime: {
+								$cond: [
+									{ $and: [{ $ifNull: ['$returnedAt', false] }, { $ifNull: ['$releasedAt', false] }] },
+									{ $divide: [{ $subtract: ['$returnedAt', '$releasedAt'] }, 3600000] },
+									null
+								]
+							}
+						}
 					},
-					returnTime: {
-						$cond: [
-							{ $and: [{ $ifNull: ['$returnedAt', false] }, { $ifNull: ['$releasedAt', false] }] },
-							{ $divide: [{ $subtract: ['$returnedAt', '$releasedAt'] }, 3600000] },
-							null
-						]
+					{
+						$group: {
+							_id: null,
+							avgApprovalHours: { $avg: '$approvalTime' },
+							avgReleaseHours: { $avg: '$releaseTime' },
+							avgReturnHours: { $avg: '$returnTime' }
+						}
 					}
-				}
+				], ANALYTICS_AGGREGATION_OPTIONS).toArray()
 			},
-			{
-				$group: {
-					_id: null,
-					avgApprovalHours: { $avg: '$approvalTime' },
-					avgReleaseHours: { $avg: '$releaseTime' },
-					avgReturnHours: { $avg: '$returnTime' }
-				}
+			peakHeatmap: {
+				name: 'peakHeatmap',
+				promise: borrowRequests.aggregate([
+					{ $match: { createdAt: { $gte: start, $lte: end } } },
+					{
+						$group: {
+							_id: {
+								dayOfWeek: { $dayOfWeek: '$createdAt' },
+								hour: { $hour: '$createdAt' }
+							},
+							count: { $sum: 1 }
+						}
+					},
+					{ $sort: { '_id.dayOfWeek': 1, '_id.hour': 1 } },
+					{ $limit: 168 }
+				], ANALYTICS_AGGREGATION_OPTIONS).toArray()
 			}
-		]).toArray();
+		});
 
-		// Overdue returns
+		const requestsOverTime = borrowRequestData.requestsOverTime;
+		const statusBreakdown = borrowRequestData.statusBreakdown;
+		const turnaroundPipeline = borrowRequestData.turnaroundPipeline;
+		const peakHeatmap = borrowRequestData.peakHeatmap;
+
+		// Overdue returns (separate queries due to different match criteria)
 		const overdueCount = await borrowRequests.countDocuments({
 			status: 'borrowed',
 			returnDate: { $lt: now }
@@ -185,22 +223,7 @@ export const GET: RequestHandler = async (event) => {
 			},
 			{ $sort: { daysOverdue: -1 } },
 			{ $limit: 20 }
-		]).toArray();
-
-		// Peak borrowing heatmap (day of week × hour)
-		const peakHeatmap = await borrowRequests.aggregate([
-			{ $match: { createdAt: { $gte: start, $lte: end } } },
-			{
-				$group: {
-					_id: {
-						dayOfWeek: { $dayOfWeek: '$createdAt' }, // 1=Sun … 7=Sat
-						hour: { $hour: '$createdAt' }
-					},
-					count: { $sum: 1 }
-				}
-			},
-			{ $sort: { '_id.dayOfWeek': 1, '_id.hour': 1 } }
-		]).toArray();
+		], ANALYTICS_AGGREGATION_OPTIONS).toArray();
 
 		// ── 2. Inventory Utilization ──────────────────────────────────────────
 
@@ -219,7 +242,7 @@ export const GET: RequestHandler = async (event) => {
 			},
 			{ $sort: { totalBorrows: -1 } },
 			{ $limit: 10 }
-		]).toArray();
+		], { allowDiskUse: true }).toArray();
 
 		// Items currently out (status = borrowed)
 		const itemsCurrentlyOut = await borrowRequests.aggregate([
@@ -233,6 +256,8 @@ export const GET: RequestHandler = async (event) => {
 					quantityOut: { $sum: '$items.quantity' }
 				}
 			},
+			{ $sort: { quantityOut: -1 } },
+			{ $limit: 20 },
 			{
 				$lookup: {
 					from: 'inventory_items',
@@ -251,10 +276,8 @@ export const GET: RequestHandler = async (event) => {
 					totalStock: { $ifNull: ['$inventoryDoc.quantity', 0] },
 					condition: { $ifNull: ['$inventoryDoc.condition', 'Unknown'] }
 				}
-			},
-			{ $sort: { quantityOut: -1 } },
-			{ $limit: 20 }
-		]).toArray();
+			}
+		], { allowDiskUse: true }).toArray();
 
 		// Items with highest damage/missing rate
 		const damageRateItems = await borrowRequests.aggregate([
@@ -288,7 +311,7 @@ export const GET: RequestHandler = async (event) => {
 			{ $match: { totalInspected: { $gte: 2 } } },
 			{ $sort: { incidentRate: -1 } },
 			{ $limit: 10 }
-		]).toArray();
+		], { allowDiskUse: true }).toArray();
 
 		// EOM variance (quantity vs eomCount)
 		const eomVariance = await inventory.aggregate([
@@ -445,7 +468,8 @@ export const GET: RequestHandler = async (event) => {
 					totalQuantity: { $sum: { $ifNull: ['$quantity', 0] } }
 				}
 			},
-			{ $sort: { '_id.year': 1, '_id.month': 1 } }
+			{ $sort: { '_id.year': 1, '_id.month': 1 } },
+			{ $limit: 100 } // Limit results for performance
 		]).toArray();
 
 		// ── 4. Student Trust / Risk ───────────────────────────────────────────
@@ -659,22 +683,22 @@ export const GET: RequestHandler = async (event) => {
 				generatedAt: now.toISOString()
 			},
 			borrowRequests: {
-				requestsOverTime: requestsOverTime.map((r) => ({
+				requestsOverTime: requestsOverTime.map((r: any) => ({
 					date: `${r._id.year}-${String(r._id.month).padStart(2, '0')}-${String(r._id.day).padStart(2, '0')}`,
 					count: r.count
 				})),
-				statusBreakdown: statusBreakdown.map((s) => ({ status: s._id, count: s.count })),
+				statusBreakdown: statusBreakdown.map((s: any) => ({ status: s._id, count: s.count })),
 				turnaround: {
 					avgApprovalHours: Math.round((turnaround.avgApprovalHours ?? 0) * 10) / 10,
 					avgReleaseHours: Math.round((turnaround.avgReleaseHours ?? 0) * 10) / 10,
 					avgReturnHours: Math.round((turnaround.avgReturnHours ?? 0) * 10) / 10
 				},
 				overdueCount,
-				overdueRequests: overdueRequests.map((r) => ({
+				overdueRequests: overdueRequests.map((r: any) => ({
 					...r,
 					daysOverdue: Math.round(r.daysOverdue * 10) / 10
 				})),
-				peakHeatmap: peakHeatmap.map((p) => ({
+				peakHeatmap: peakHeatmap.map((p: any) => ({
 					dayOfWeek: p._id.dayOfWeek,
 					hour: p._id.hour,
 					count: p.count
@@ -749,6 +773,13 @@ export const GET: RequestHandler = async (event) => {
 		await cacheService.set(cacheKey, response, {
 			ttl: CACHE_TTL,
 			tags: [ANALYTICS_CACHE_TAG]
+		});
+
+		const totalDuration = Date.now() - queryStartTime;
+		logger.info('reports-analytics', 'Analytics report generated', {
+			period,
+			duration: totalDuration,
+			cacheKey
 		});
 
 		return json(response);

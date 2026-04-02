@@ -188,7 +188,7 @@ interface CacheEntry {
 	expiresAt: number;
 }
 
-const CLIENT_CACHE_TTL_MS = 90_000; // 90 s
+const CLIENT_CACHE_TTL_MS = 180_000; // 3 minutes - aligned with server cache
 const cache = new Map<string, CacheEntry>();
 
 function getCached(key: string): AnalyticsReport | null {
@@ -233,18 +233,39 @@ export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<
 	if (to) params.set('to', to);
 	if (forceRefresh) params.set('_t', String(Date.now()));
 
-	const res = await fetch(`/api/reports/analytics?${params}`, {
-		credentials: 'include'
-	});
+	// Retry logic for transient failures
+	let lastError: Error | null = null;
+	const maxRetries = 2;
+	
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		try {
+			const res = await fetch(`/api/reports/analytics?${params}`, {
+				credentials: 'include',
+				signal: AbortSignal.timeout(45000) // 45 second timeout
+			});
 
-	if (!res.ok) {
-		const body = await res.json().catch(() => ({})) as { error?: string };
-		throw new Error(body.error ?? `Analytics request failed: ${res.status}`);
+			if (!res.ok) {
+				const body = await res.json().catch(() => ({})) as { error?: string };
+				throw new Error(body.error ?? `Analytics request failed: ${res.status}`);
+			}
+
+			const data = (await res.json()) as AnalyticsReport;
+			setCached(cacheKey, data);
+			return data;
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error(String(error));
+			
+			// Don't retry on client errors (4xx) or last attempt
+			if (attempt === maxRetries || (error instanceof Error && error.message.includes('4'))) {
+				break;
+			}
+			
+			// Wait before retry (exponential backoff)
+			await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
+		}
 	}
 
-	const data = (await res.json()) as AnalyticsReport;
-	setCached(cacheKey, data);
-	return data;
+	throw lastError ?? new Error('Analytics request failed');
 }
 
 // ── SSE subscription ──────────────────────────────────────────────────────────

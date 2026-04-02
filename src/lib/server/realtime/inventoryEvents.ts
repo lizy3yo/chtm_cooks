@@ -78,20 +78,31 @@ export function publishInventoryChange(
 	const broker = getBrokerState();
 	const notified = new Set<Listener>();
 
+	console.log('[SSE-BROKER] ===== PUBLISHING EVENT =====');
+	console.log('[SSE-BROKER] Channels:', channels);
+	console.log('[SSE-BROKER] Event:', JSON.stringify(event, null, 2));
+	console.log('[SSE-BROKER] Active listeners:', broker.listeners.size);
+
 	for (const channel of channels) {
 		const set = broker.listeners.get(channel);
+		console.log(`[SSE-BROKER] Channel "${channel}" has ${set?.size || 0} listeners`);
 		if (!set) continue;
 		for (const listener of set) {
 			if (!notified.has(listener)) {
 				notified.add(listener);
 				try {
 					listener(event);
-				} catch {
+					console.log('[SSE-BROKER] ✓ Event sent to listener');
+				} catch (error) {
+					console.error('[SSE-BROKER] ✗ Listener error:', error);
 					// A crashing listener must not bring down other subscribers.
 				}
 			}
 		}
 	}
+	
+	console.log('[SSE-BROKER] Total listeners notified:', notified.size);
+	console.log('[SSE-BROKER] ============================');
 }
 
 /** The single broadcast channel used for all inventory events. */

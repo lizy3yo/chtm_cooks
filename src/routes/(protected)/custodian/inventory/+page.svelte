@@ -15,8 +15,9 @@
 	import { inventoryStore } from '$lib/stores/inventory';
 	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+	import { Package, FolderTree, AlertTriangle, Star } from 'lucide-svelte';
 	
-	type Tab = 'all-items' | 'categories' | 'low-stock';
+	type Tab = 'all-items' | 'constant-items' | 'categories' | 'low-stock';
 	
 	let activeTab = $state<Tab>('all-items');
 	let showAddItemModal = $state(false);
@@ -39,7 +40,9 @@
 		quantity: 0,
 		eomCount: 0,
 		condition: 'Good',
-		location: ''
+		location: '',
+		isConstant: false,
+		maxQuantityPerRequest: undefined as number | undefined
 	});
 
 	// Editing mode
@@ -215,6 +218,7 @@
 	
 	const activeItems = $derived(items.filter(item => !item.archived));
 	const lowStockItems = $derived(activeItems.filter(item => item.status === 'Low Stock' || item.status === 'Out of Stock'));
+	const constantItems = $derived(activeItems.filter(item => item.isConstant === true));
 	
 	function switchTab(tab: Tab) {
 		activeTab = tab;
@@ -366,7 +370,11 @@ $effect(() => {
 				quantity: newItem.quantity,
 				eomCount: newItem.eomCount,
 				condition: newItem.condition,
-				location: newItem.location
+				location: newItem.location,
+				isConstant: newItem.isConstant,
+				maxQuantityPerRequest: newItem.isConstant && newItem.maxQuantityPerRequest 
+					? Number(newItem.maxQuantityPerRequest) 
+					: undefined
 			};
 
 			let savedItem;
@@ -430,7 +438,9 @@ $effect(() => {
 			quantity: 0,
 			eomCount: 0,
 			condition: 'Good',
-			location: ''
+			location: '',
+			isConstant: false,
+			maxQuantityPerRequest: undefined
 		};
 		editingItemId = null;
 	}
@@ -448,7 +458,9 @@ $effect(() => {
 			quantity: item.quantity,
 			eomCount: item.eomCount,
 			condition: item.condition,
-			location: item.location || ''
+			location: item.location || '',
+			isConstant: item.isConstant || false,
+			maxQuantityPerRequest: item.maxQuantityPerRequest
 		};
 		editingItemId = item.id;
 		showAddItemModal = true;
@@ -463,6 +475,54 @@ $effect(() => {
 		console.log('Items in this category:', items.filter(item => 
 			!item.archived && item.category?.toLowerCase().trim() === category.name?.toLowerCase().trim()
 		).map(i => i.name));
+	}
+
+	async function toggleConstantStatus(item: InventoryItem) {
+		const newStatus = !item.isConstant;
+		
+		// Confirm action with user
+		const confirmed = await confirmStore.confirm({
+			type: newStatus ? 'info' : 'warning',
+			title: newStatus ? 'Mark as Constant Item' : 'Remove from Constant Items',
+			message: newStatus
+				? `Mark "${item.name}" as a constant item? It will always appear on student request forms regardless of availability.`
+				: `Remove "${item.name}" from constant items? Students will need to manually add it to their requests.`,
+			confirmText: newStatus ? 'Mark as Constant' : 'Remove',
+			cancelText: 'Cancel'
+		});
+
+		if (!confirmed) {
+			return;
+		}
+
+		try {
+			loading = true;
+			const updatedItem = await inventoryItemsAPI.update(item.id, { isConstant: newStatus });
+
+			// Optimistic update: Update item in local array
+			const itemIndex = items.findIndex(i => i.id === item.id);
+			if (itemIndex !== -1) {
+				items[itemIndex] = updatedItem;
+			}
+
+			// Update store with current arrays
+			inventoryStore.setItems(items);
+
+			toastStore.success(
+				newStatus 
+					? `"${item.name}" is now a constant item and will always appear on student request forms` 
+					: `"${item.name}" removed from constant items`,
+				'Constant Item Updated'
+			);
+		} catch (err: any) {
+			toastStore.error(
+				err.message || 'Failed to update constant status',
+				'Update Failed'
+			);
+			console.error('Error updating constant status:', err);
+		} finally {
+			loading = false;
+		}
 	}
 
 	function clearCategoryFilter() {
@@ -1561,7 +1621,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 	<!-- Header -->
 	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 		<div class="min-w-0">
-			<h1 class="text-2xl font-bold text-gray-900">Inventory Management</h1>
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Inventory Management</h1>
 			<p class="mt-1 text-sm text-gray-500">Manage kitchen laboratory inventory and stock levels</p>
 		</div>
 
@@ -1584,7 +1644,20 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 							</button>
 
 							{#if showMenu}
-								<div class="absolute right-0 mt-2 w-40 rounded-md bg-white border shadow-lg z-50" role="menu" aria-label="Item menu">
+								<div class="absolute right-0 mt-2 w-48 rounded-md bg-white border shadow-lg z-50" role="menu" aria-label="Item menu">
+									<button class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2" role="menuitem" onclick={() => { toggleConstantStatus(selectedItem); toggleMenu(); }}>
+										{#if selectedItem.isConstant}
+											<svg class="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+											</svg>
+											Remove Constant
+										{:else}
+											<svg class="h-4 w-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+											</svg>
+											Mark as Constant
+										{/if}
+									</button>
 									<button class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" role="menuitem" onclick={() => { editItem(selectedItem); toggleMenu(); }}>Edit</button>
 									<button class="w-full text-left px-4 py-2 text-sm text-yellow-700 hover:bg-yellow-50" role="menuitem" onclick={() => { archiveItem(selectedItem); toggleMenu(); }}>Archive</button>
 									<button class="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50" role="menuitem" onclick={() => { deleteItem(selectedItem); toggleMenu(); }}>Delete</button>
@@ -1708,26 +1781,58 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 
 	<!-- Global Skeleton Loading State -->
 	{#if loading}
-		<InventorySkeletonLoader view={activeTab === 'categories' ? 'categories' : activeTab === 'low-stock' ? 'low-stock' : 'all-items'} />
+		<InventorySkeletonLoader view={activeTab === 'categories' ? 'categories' : activeTab === 'low-stock' ? 'low-stock' : activeTab === 'constant-items' ? 'all-items' : 'all-items'} />
 	{:else}
 	
 	<!-- Stats Overview -->
-	<div class="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-5">
-		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
-			<dt class="truncate text-xs font-medium text-gray-500">Active Items</dt>
-			<dd class="mt-1 text-2xl font-semibold text-gray-900">{activeItems.length}</dd>
+	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Items</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{activeItems.length}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+					<Package size={18} class="text-blue-600 sm:hidden" />
+					<Package size={24} class="hidden text-blue-600 sm:block" />
+				</div>
+			</div>
 		</div>
-		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
-			<dt class="truncate text-xs font-medium text-gray-500">Categories</dt>
-			<dd class="mt-1 text-2xl font-semibold text-gray-900">{categories.length}</dd>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Categories</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{categories.length}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
+					<FolderTree size={18} class="text-purple-600 sm:hidden" />
+					<FolderTree size={24} class="hidden text-purple-600 sm:block" />
+				</div>
+			</div>
 		</div>
-		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
-			<dt class="truncate text-xs font-medium text-gray-500">Low Stock</dt>
-			<dd class="mt-1 text-2xl font-semibold text-red-600">{lowStockItems.length}</dd>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Low Stock</p>
+					<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">{lowStockItems.length}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
+					<AlertTriangle size={18} class="text-red-600 sm:hidden" />
+					<AlertTriangle size={24} class="hidden text-red-600 sm:block" />
+				</div>
+			</div>
 		</div>
-		<div class="overflow-hidden rounded-xl border border-gray-100 bg-white px-4 py-4 shadow-sm">
-			<dt class="truncate text-xs font-medium text-gray-500">Total Qty</dt>
-			<dd class="mt-1 text-2xl font-semibold text-gray-900">{activeItems.reduce((sum, item) => sum + item.quantity, 0)}</dd>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Constant Items</p>
+					<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">{constantItems.length}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
+					<Star size={18} class="text-amber-600 sm:hidden" />
+					<Star size={24} class="hidden text-amber-600 sm:block" />
+				</div>
+			</div>
 		</div>
 	</div>
 	
@@ -1742,6 +1847,17 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				Items
 				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'all-items' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
 					{selectedCategory ? filteredItems.length : activeItems.length}
+				</span>
+			</button>
+
+			<button
+				onclick={() => switchTab('constant-items')}
+				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:text-sm
+					{activeTab === 'constant-items' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+			>
+				Constant
+				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'constant-items' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-600'}">
+					{constantItems.length}
 				</span>
 			</button>
 
@@ -1844,6 +1960,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 										<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
 										<p class="truncate text-xs text-gray-500">{item.specification || item.category}</p>
 										<div class="mt-1 flex flex-wrap items-center gap-1">
+											{#if item.isConstant}
+												<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Constant</span>
+											{/if}
 											<span class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">{item.category}</span>
 											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
 												<span class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">{item.status}</span>
@@ -1895,17 +2014,24 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.eomCount}</td>
 										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{item.variance}</td>
 										<td class="whitespace-nowrap px-6 py-4">
-											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-												<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
-													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-													{item.status}
-												</span>
-											{:else}
-												<span class="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-semibold text-pink-800">
-													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-													{item.status}
-												</span>
-											{/if}
+											<div class="flex items-center gap-1.5">
+												{#if item.isConstant}
+													<span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
+														<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+														Constant
+													</span>
+												{:else if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+													<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
+														<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+														{item.status}
+													</span>
+												{:else}
+													<span class="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-semibold text-pink-800">
+														<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+														{item.status}
+													</span>
+												{/if}
+											</div>
 										</td>
 										<td class="whitespace-nowrap px-6 py-4">
 											<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {item.condition === 'Good' ? 'bg-pink-100 text-pink-800' : 'bg-yellow-100 text-yellow-800'}">{item.condition}</span>
@@ -2234,6 +2360,154 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 			</div>
 		{/if}
 
+		{:else if activeTab === 'constant-items'}
+			<!-- Constant Items View -->
+			<div class="p-4 sm:p-6">
+				<div class="mb-4">
+					<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Constant Items</h3>
+					<p class="mt-1 text-sm text-gray-500">Items that always appear on student request forms regardless of availability</p>
+				</div>
+				
+				{#if constantItems.length === 0}
+					<div class="py-12 text-center">
+						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+						</svg>
+						<h3 class="mt-4 text-lg font-medium text-gray-900">No constant items configured</h3>
+						<p class="mt-2 text-sm text-gray-500">Mark items as constant from the Items tab to have them always appear on student request forms.</p>
+						<button 
+							onclick={() => switchTab('all-items')}
+							class="mt-4 inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+						>
+							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+							</svg>
+							Go to Items
+						</button>
+					</div>
+				{:else}
+					<!-- Mobile card list -->
+					<div class="divide-y divide-gray-100 sm:hidden">
+						{#each constantItems as item, i}
+							<div class="px-4 py-3">
+								<div class="flex items-center gap-3">
+									{#if item.picture}
+										<img src={item.picture} alt={item.name} class="h-12 w-12 shrink-0 rounded object-cover" loading="lazy" />
+									{:else}
+										<div class="h-12 w-12 shrink-0 overflow-hidden rounded bg-gray-100">
+											<ItemImagePlaceholder size="sm" />
+										</div>
+									{/if}
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+										<p class="truncate text-xs text-gray-500">{item.specification || item.category}</p>
+										<div class="mt-1 flex flex-wrap items-center gap-1">
+											<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Constant</span>
+											<span class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">{item.category}</span>
+											<span class="text-[10px] text-gray-400">Qty: {item.quantity}</span>
+										</div>
+									</div>
+									<button
+										onclick={() => toggleConstantStatus(item)}
+										class="shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+										title="Remove from constant items"
+									>
+										Remove
+									</button>
+								</div>
+							</div>
+						{/each}
+					</div>
+
+					<!-- Desktop table -->
+					<div class="hidden overflow-x-auto sm:block">
+						<table class="min-w-full divide-y divide-gray-200">
+							<thead class="bg-gray-50">
+								<tr>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item Name</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Specification</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Current Count</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Max Per Request</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-200 bg-white">
+								{#each constantItems as item, i}
+									<tr class="hover:bg-gray-50">
+										<td class="whitespace-nowrap px-6 py-4">
+											<div class="flex items-center gap-3">
+												{#if item.picture}
+													<img src={item.picture} alt={item.name} class="h-9 w-9 shrink-0 rounded object-cover" loading="lazy" />
+												{:else}
+													<div class="h-9 w-9 shrink-0 overflow-hidden rounded bg-gray-100">
+														<ItemImagePlaceholder size="sm" />
+													</div>
+												{/if}
+												<div class="text-sm font-medium text-gray-900">{item.name}</div>
+											</div>
+										</td>
+										<td class="whitespace-nowrap px-6 py-4">
+											<span class="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
+										</td>
+										<td class="px-6 py-4 text-sm text-gray-700">{item.specification}</td>
+										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.quantity}</td>
+										<td class="whitespace-nowrap px-6 py-4">
+											{#if item.maxQuantityPerRequest}
+												<span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-800">
+													<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+													</svg>
+													{item.maxQuantityPerRequest}
+												</span>
+											{:else}
+												<span class="text-xs text-gray-400">No limit</span>
+											{/if}
+										</td>
+										<td class="whitespace-nowrap px-6 py-4">
+											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+												<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
+													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+													{item.status}
+												</span>
+											{:else}
+												<span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
+													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+													Constant
+												</span>
+											{/if}
+										</td>
+										<td class="whitespace-nowrap px-6 py-4 text-sm">
+											<div class="flex items-center gap-2">
+												<button
+													onclick={() => editItem(item)}
+													class="text-pink-600 hover:text-pink-800"
+													title="Edit item"
+												>
+													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+													</svg>
+												</button>
+												<button
+													onclick={() => toggleConstantStatus(item)}
+													class="text-gray-600 hover:text-gray-800"
+													title="Remove from constant items"
+												>
+													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+													</svg>
+												</button>
+											</div>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			</div>
+
 		{:else if activeTab === 'low-stock'}
 			<!-- Low Stock View -->
 			<div class="p-6">
@@ -2382,6 +2656,44 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 								<label for="modalLocation" class="block text-sm font-medium text-gray-700">Storage Location</label>
 								<input type="text" id="modalLocation" bind:value={newItem.location} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="e.g., Cabinet A, Shelf 2" />
 							</div>
+						</div>
+
+						<!-- Constant Item Checkbox -->
+						<div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+							<label class="flex items-start gap-3 cursor-pointer">
+								<input
+									type="checkbox"
+									bind:checked={newItem.isConstant}
+									class="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+								/>
+								<div class="flex-1">
+									<span class="text-sm font-medium text-gray-900">Mark as Constant Item</span>
+									<p class="mt-0.5 text-xs text-gray-600">
+										Constant items always appear on student request forms.
+									</p>
+								</div>
+							</label>
+							
+							{#if newItem.isConstant}
+								<div class="mt-3 border-t border-emerald-200 pt-3">
+									<label for="maxQuantityPerRequest" class="block text-sm font-medium text-gray-900 mb-1">
+										Maximum Quantity Per Request
+										<span class="text-xs font-normal text-gray-500">(Optional)</span>
+									</label>
+									<input
+										type="number"
+										id="maxQuantityPerRequest"
+										bind:value={newItem.maxQuantityPerRequest}
+										min="1"
+										step="1"
+										placeholder="e.g., 5 (leave empty for unlimited)"
+										class="block w-full rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+									/>
+									<p class="mt-1 text-xs text-gray-600">
+										Set the maximum quantity students can request per transaction. Leave empty for unlimited requests.
+									</p>
+								</div>
+							{/if}
 						</div>
 
 						<!-- Image Upload -->

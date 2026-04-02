@@ -100,6 +100,15 @@ export async function createInventoryItemsIndexes() {
 			// Index for filtering by condition
 			{ key: { condition: 1, archived: 1 }, name: 'idx_condition_archived' },
 			
+			// Index for constant items (frequently requested items)
+			{ key: { isConstant: 1, archived: 1 }, name: 'idx_isconstant_archived' },
+			
+			// Compound index for constant items catalog queries
+			{ 
+				key: { isConstant: 1, archived: 1, status: 1 }, 
+				name: 'idx_constant_catalog'
+			},
+			
 			// Compound index for common catalog queries
 			{ 
 				key: { archived: 1, status: 1, categoryId: 1, name: 1 }, 

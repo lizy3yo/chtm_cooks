@@ -43,23 +43,28 @@ export const GET: RequestHandler = async (event) => {
 
 			const send = (eventName: string, payload: unknown) => {
 				try {
-					controller.enqueue(
-						encode(`event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`)
-					);
-				} catch {
+					const message = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
+					console.log(`[SSE-STREAM] Sending to client (${user.email}):`, eventName, JSON.stringify(payload));
+					controller.enqueue(encode(message));
+				} catch (error) {
+					console.error('[SSE-STREAM] Failed to send event:', error);
 					// Stream already closed.
 				}
 			};
+
+			console.log(`[SSE-STREAM] New connection from ${user.email} (${user.role})`);
 
 			// Acknowledge connection immediately.
 			send('connected', { channel: INVENTORY_CHANNEL, ts: new Date().toISOString() });
 
 			// Forward broker events to this SSE client.
 			const onEvent = (brokerEvent: InventoryRealtimeEvent) => {
+				console.log(`[SSE-STREAM] Forwarding event to ${user.email}:`, brokerEvent);
 				send('inventory_change', brokerEvent);
 			};
 
 			const unsubscribe = subscribeToInventoryChannel(INVENTORY_CHANNEL, onEvent);
+			console.log(`[SSE-STREAM] Subscribed ${user.email} to ${INVENTORY_CHANNEL}`);
 
 			// Keepalive heartbeat.
 			const heartbeat = setInterval(() => {
@@ -68,6 +73,7 @@ export const GET: RequestHandler = async (event) => {
 
 			// Cleanup on client disconnect.
 			event.request.signal.addEventListener('abort', () => {
+				console.log(`[SSE-STREAM] Client disconnected: ${user.email}`);
 				clearInterval(heartbeat);
 				unsubscribe();
 				try {

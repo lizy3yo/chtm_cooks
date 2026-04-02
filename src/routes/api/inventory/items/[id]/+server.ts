@@ -47,6 +47,8 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		location: item.location,
 		description: item.description,
 		status: item.status,
+		isConstant: item.isConstant,
+		maxQuantityPerRequest: item.maxQuantityPerRequest,
 		archived: item.archived,
 		createdAt: item.createdAt,
 		updatedAt: item.updatedAt
@@ -191,6 +193,18 @@ export const PATCH: RequestHandler = async (event) => {
 		if (body.archived !== undefined) {
 			updateFields.archived = body.archived;
 		}
+		if (body.isConstant !== undefined) {
+			updateFields.isConstant = body.isConstant;
+		}
+		if (body.maxQuantityPerRequest !== undefined) {
+			// Only set maxQuantityPerRequest if the item is constant
+			// If not constant or value is null/undefined, explicitly unset it
+			if (body.isConstant !== false && body.maxQuantityPerRequest) {
+				updateFields.maxQuantityPerRequest = Math.max(1, Math.floor(body.maxQuantityPerRequest));
+			} else {
+				updateFields.maxQuantityPerRequest = undefined;
+			}
+		}
 
 		// Recalculate status if quantity changed
 		const newQuantity = updateFields.quantity ?? currentItem.quantity;
@@ -270,17 +284,22 @@ export const PATCH: RequestHandler = async (event) => {
 		});
 
 		// Invalidate inventory cache (use tag-based invalidation — deletePattern is a no-op on Upstash)
-		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog']);
+		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant']);
 		await cacheService.deletePattern('inventory:archived:*');
 		await cacheService.deletePattern('inventory:history:*');
 
-		publishInventoryChange([INVENTORY_CHANNEL], {
-			action: action === InventoryAction.ARCHIVED ? 'item_archived' : action === InventoryAction.RESTORED ? 'item_restored' : 'item_updated',
-			entityType: 'item',
+		const sseAction = action === InventoryAction.ARCHIVED ? 'item_archived' : action === InventoryAction.RESTORED ? 'item_restored' : 'item_updated';
+		const sseEvent = {
+			action: sseAction,
+			entityType: 'item' as const,
 			entityId: result._id!.toString(),
 			entityName: result.name,
 			occurredAt: new Date().toISOString()
-		});
+		};
+		
+		console.log('[PATCH-ITEM] Publishing SSE event:', JSON.stringify(sseEvent, null, 2));
+		publishInventoryChange([INVENTORY_CHANNEL], sseEvent);
+		console.log('[PATCH-ITEM] SSE event published successfully');
 
 		return json(toItemResponse(result));
 
