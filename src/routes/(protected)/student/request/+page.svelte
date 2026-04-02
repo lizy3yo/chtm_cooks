@@ -37,6 +37,38 @@
 	let sseConnected = $state(false);
 	let sseReconnecting = $state(false);
 	
+	// Search and filter state
+	let searchQuery = $state('');
+	let selectedCategoryFilter = $state<string>('all');
+	let sortBy = $state<'name' | 'category' | 'availability'>('name');
+
+	// Click outside handler to close dropdown
+	function handleClickOutside(event: MouseEvent) {
+		if (showItemSelector) {
+			const target = event.target as HTMLElement;
+			// Check if click is outside the dropdown
+			if (!target.closest('.search-dropdown-container')) {
+				showItemSelector = false;
+			}
+		}
+	}
+
+	// Keyboard handler for Escape key
+	function handleKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape' && showItemSelector) {
+			showItemSelector = false;
+		}
+	}
+
+	onMount(() => {
+		document.addEventListener('click', handleClickOutside);
+		document.addEventListener('keydown', handleKeydown);
+		return () => {
+			document.removeEventListener('click', handleClickOutside);
+			document.removeEventListener('keydown', handleKeydown);
+		};
+	});
+	
 	// Event deduplication and debouncing
 	let updateDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastNotificationTime = $state<number>(0);
@@ -100,6 +132,49 @@
 		if (normalized.includes('processor')) return '🔧';
 		return '📦';
 	}
+
+	// Get unique categories from available equipment
+	const categories = $derived(() => {
+		const allItems = [...availableEquipment, ...constantItems];
+		const categorySet = new Set(allItems.map(item => item.category));
+		return Array.from(categorySet).sort();
+	});
+
+	// Filter and sort equipment based on search and filters
+	const filteredEquipment = $derived(() => {
+		let items = [...availableEquipment];
+		
+		// Apply search filter
+		if (searchQuery.trim()) {
+			const query = searchQuery.toLowerCase();
+			items = items.filter(item => 
+				item.name.toLowerCase().includes(query) ||
+				item.category.toLowerCase().includes(query) ||
+				item.specification.toLowerCase().includes(query)
+			);
+		}
+		
+		// Apply category filter
+		if (selectedCategoryFilter !== 'all') {
+			items = items.filter(item => item.category === selectedCategoryFilter);
+		}
+		
+		// Apply sorting
+		items.sort((a, b) => {
+			switch (sortBy) {
+				case 'name':
+					return a.name.localeCompare(b.name);
+				case 'category':
+					return a.category.localeCompare(b.category) || a.name.localeCompare(b.name);
+				case 'availability':
+					return b.available - a.available;
+				default:
+					return 0;
+			}
+		});
+		
+		return items;
+	});
 
 	function formatTimeTo12Hour(time24: string): string {
 		if (!time24) return '—';
@@ -306,7 +381,9 @@
 
 		syncSelectedItemsFromCart();
 		errors.items = '';
-		showItemSelector = false;
+		
+		// Optional: Show success feedback
+		toastStore.success(`"${item.name}" added to your request`, 'Item Added');
 	}
 
 	function removeItemFromCart(itemId: string) {
@@ -651,14 +728,19 @@
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div>
 			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Request Equipment</h1>
-			<p class="mt-1 text-sm text-gray-500">Submit a new equipment borrow request</p>
+			<p class="mt-1 text-sm text-gray-500">Search, select, and submit your equipment borrow request</p>
 		</div>
-		<a href="/student/catalog" class="inline-flex items-center gap-1.5 rounded-full bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-pink-700 hover:shadow-md">
-			<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
-			</svg>
-			Browse Catalog
-		</a>
+		<div class="flex items-center gap-3">
+			<a 
+				href="/student/catalog" 
+				class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+			>
+				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+				</svg>
+				View Catalog
+			</a>
+		</div>
 	</div>
 	
 	<!-- Request Form -->
@@ -667,191 +749,365 @@
 		<div class="lg:col-span-2 space-y-4">
 			<!-- Selected Items -->
 			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-				<div class="flex items-center justify-between mb-4">
-					<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Selected Items</h2>
-					<button
-						onclick={() => showItemSelector = !showItemSelector}
-						class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-pink-700"
-					>
-						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-						</svg>
-						Add Item
-					</button>
+				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<div>
+						<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Selected Items</h2>
+						<p class="mt-0.5 text-xs text-gray-500">
+							{selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'} selected
+						</p>
+					</div>
+					
+					<!-- Search Button -->
+					<div class="relative search-dropdown-container w-full sm:w-auto">
+						<button
+							onclick={() => {
+								showItemSelector = !showItemSelector;
+								if (showItemSelector) {
+									searchQuery = '';
+									selectedCategoryFilter = 'all';
+									sortBy = 'name';
+									// Focus search input after a brief delay
+									setTimeout(() => {
+										document.getElementById('equipment-search')?.focus();
+									}, 100);
+								}
+							}}
+							class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-pink-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 sm:w-auto"
+						>
+							<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+							</svg>
+							Search Equipment
+						</button>
+						
+						<!-- Search Dropdown -->
+						{#if showItemSelector}
+							<div class="absolute left-0 right-0 top-full z-50 mt-2 w-full animate-slide-in sm:left-auto sm:right-0 sm:w-[600px] sm:max-w-[calc(100vw-2rem)]">
+								<div class="rounded-xl border border-gray-200 bg-white shadow-2xl">
+									<!-- Search Input -->
+									<div class="border-b border-gray-200 p-4">
+										<div class="relative">
+											<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+												<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+												</svg>
+											</div>
+											<input
+												id="equipment-search"
+												type="text"
+												bind:value={searchQuery}
+												placeholder="Search equipment by name, category, or specification..."
+												class="block w-full rounded-lg border-2 border-gray-200 bg-white py-3 pl-11 pr-12 text-sm placeholder-gray-400 transition-all focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10"
+											/>
+											{#if searchQuery}
+												<button
+													onclick={() => searchQuery = ''}
+													class="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-600"
+												>
+													<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+													</svg>
+												</button>
+											{/if}
+										</div>
+										
+										<!-- Filters Row -->
+										<div class="mt-3 flex flex-wrap items-center gap-2">
+											<select
+												bind:value={selectedCategoryFilter}
+												class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-all hover:border-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20"
+											>
+												<option value="all">All Categories</option>
+												{#each categories() as category}
+													<option value={category}>{category}</option>
+												{/each}
+											</select>
+											
+											<select
+												bind:value={sortBy}
+												class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-all hover:border-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20"
+											>
+												<option value="name">Name (A-Z)</option>
+												<option value="category">Category</option>
+												<option value="availability">Availability</option>
+											</select>
+											
+											<span class="ml-auto text-xs text-gray-500">
+												{filteredEquipment().length} {filteredEquipment().length === 1 ? 'result' : 'results'}
+											</span>
+										</div>
+									</div>
+									
+									<!-- Results List -->
+									<div class="max-h-[400px] overflow-y-auto">
+										{#if isLoadingEquipment}
+											<div class="flex items-center justify-center py-8">
+												<div class="text-center">
+													<div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-pink-600 border-r-transparent"></div>
+													<p class="mt-2 text-sm text-gray-500">Loading equipment…</p>
+												</div>
+											</div>
+										{:else if filteredEquipment().length === 0}
+											<div class="py-8 text-center">
+												<svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+												</svg>
+												<p class="mt-2 text-sm font-medium text-gray-900">No equipment found</p>
+												<p class="text-xs text-gray-500">Try adjusting your search or filters</p>
+											</div>
+										{:else}
+											<div class="divide-y divide-gray-100">
+												{#each filteredEquipment() as item}
+													{@const isSelected = selectedItems.find((i) => i.id === item.id) !== undefined}
+													<button
+														onclick={() => addItemToCart(item)}
+														disabled={isSelected}
+														class="group flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-white"
+													>
+														<!-- Item Image -->
+														{#if item.picture}
+															<img 
+																src={item.picture} 
+																alt={item.name} 
+																class="h-14 w-14 shrink-0 rounded-lg object-cover ring-1 ring-gray-200" 
+																loading="lazy" 
+															/>
+														{:else}
+															<div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-200">
+																<ItemImagePlaceholder size="sm" />
+															</div>
+														{/if}
+														
+														<!-- Item Details -->
+														<div class="min-w-0 flex-1">
+															<div class="flex items-center gap-2">
+																<p class="truncate text-sm font-semibold text-gray-900 group-hover:text-pink-600">
+																	{item.name}
+																</p>
+																{#if isSelected}
+																	<span class="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+																		<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+																			<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+																		</svg>
+																		Added
+																	</span>
+																{/if}
+															</div>
+															<p class="text-xs text-gray-500 mt-0.5">{item.category}</p>
+															<div class="mt-1.5 flex items-center gap-2">
+																<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold {item.available > 5 ? 'bg-emerald-100 text-emerald-700' : item.available > 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}">
+																	{item.available} available
+																</span>
+																{#if item.maxQuantityPerRequest}
+																	<span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">
+																		Max {item.maxQuantityPerRequest}
+																	</span>
+																{/if}
+															</div>
+														</div>
+														
+														<!-- Add Icon -->
+														{#if !isSelected}
+															<div class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
+																<div class="flex h-8 w-8 items-center justify-center rounded-full bg-pink-600 text-white">
+																	<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+																	</svg>
+																</div>
+															</div>
+														{/if}
+													</button>
+												{/each}
+											</div>
+										{/if}
+									</div>
+									
+									<!-- Footer -->
+									<div class="border-t border-gray-200 bg-gray-50 px-4 py-3">
+										<div class="flex items-center justify-between text-xs text-gray-500">
+											<span>Click an item to add it to your request</span>
+											<button
+												onclick={() => showItemSelector = false}
+												class="font-medium text-pink-600 hover:text-pink-700"
+											>
+												Close
+											</button>
+										</div>
+									</div>
+								</div>
+							</div>
+						{/if}
+					</div>
 				</div>
 
 				{#if errors.items}
 					<div class="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{errors.items}</div>
 				{/if}
 
-				{#if showItemSelector}
-					<div class="mb-4 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-3">
-						<h3 class="mb-2 text-sm font-medium text-gray-900">Select Equipment</h3>
-						{#if isLoadingEquipment}
-							<p class="text-sm text-gray-500">Loading equipment…</p>
-						{:else if availableEquipment.length === 0}
-							<p class="text-sm text-gray-500">No available equipment found.</p>
-						{:else}
-							<div class="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto sm:grid-cols-2">
-								{#each availableEquipment as item}
-									<button
-										onclick={() => addItemToCart(item)}
-										disabled={selectedItems.find((i) => i.id === item.id) !== undefined}
-										class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white p-2.5 text-left hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-									>
-										{#if item.picture}
-											<img src={item.picture} alt={item.name} class="h-9 w-9 shrink-0 rounded object-cover" loading="lazy" />
-										{:else}
-											<div class="h-9 w-9 shrink-0 overflow-hidden rounded">
-												<ItemImagePlaceholder size="sm" />
-											</div>
-										{/if}
-										<div class="min-w-0 flex-1">
-											<p class="truncate text-sm font-medium text-gray-900">{item.name}</p>
-											<p class="truncate text-xs text-gray-500">{item.category} · {item.available} avail.</p>
-										</div>
-									</button>
-								{/each}
-							</div>
-						{/if}
-					</div>
-				{/if}
 
 				{#if selectedItems.length > 0}
 					<div class="space-y-2">
 						{#each selectedItems as item}
-							<div class="rounded-lg border {item.available === 0 ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50'} p-3">
-								<div class="flex items-start gap-3">
+							<div class="group rounded-lg border {item.available === 0 ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'} p-2.5 transition-all hover:shadow-md">
+								<div class="flex items-start gap-2.5">
 									{#if item.picture}
-										<img src={item.picture} alt={item.name} class="h-9 w-9 shrink-0 rounded object-cover {item.available === 0 ? 'opacity-50' : ''}" loading="lazy" />
+										<img src={item.picture} alt={item.name} class="h-14 w-14 shrink-0 rounded-md object-cover ring-1 ring-gray-100 {item.available === 0 ? 'opacity-50' : ''}" loading="lazy" />
 									{:else}
-										<div class="h-9 w-9 shrink-0 overflow-hidden rounded {item.available === 0 ? 'opacity-50' : ''}">
+										<div class="h-14 w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-gray-100 {item.available === 0 ? 'opacity-50' : ''}">
 											<ItemImagePlaceholder size="sm" />
 										</div>
 									{/if}
 									<div class="min-w-0 flex-1">
-										<div class="flex items-start gap-2">
-											<p class="truncate text-sm font-medium {item.available === 0 ? 'text-gray-500' : 'text-gray-900'}">{item.name}</p>
-											{#if item.isConstant}
-												<span class="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-													<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-														<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-													</svg>
-													Constant
-												</span>
-											{/if}
-										</div>
-										<p class="truncate text-xs {item.available === 0 ? 'text-gray-400' : 'text-gray-500'}">{item.category} · {item.available} available</p>
-										{#if item.available === 0}
-											<div class="mt-1 flex items-center gap-1 text-xs text-amber-700">
-												<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
-													<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-												</svg>
-												<span class="font-medium">Currently out of stock - Remove to continue</span>
-											</div>
-										{/if}
-										{#if item.maxQuantityPerRequest && item.available > 0}
-											<div class="mt-1 flex items-center justify-between gap-2 text-xs">
-												<div class="flex items-center gap-1 text-purple-700">
-													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
-														<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-													</svg>
-													<span>Max {item.maxQuantityPerRequest} per request</span>
+										<div class="flex items-start justify-between gap-2">
+											<div class="flex-1">
+												<div class="flex items-center gap-1.5 flex-wrap">
+													<h3 class="text-xs font-semibold {item.available === 0 ? 'text-gray-500' : 'text-gray-900'}">{item.name}</h3>
+													{#if item.isConstant}
+														<span class="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-emerald-100 to-teal-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+															<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
+																<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+															</svg>
+															CONSTANT
+														</span>
+													{/if}
 												</div>
-												<!-- Progress indicator -->
-												<div class="flex items-center gap-1">
-													<div class="h-1.5 w-16 rounded-full bg-gray-200 overflow-hidden">
-														<div 
-															class="h-full rounded-full transition-all duration-300 {item.requestedQuantity >= item.maxQuantityPerRequest ? 'bg-purple-600' : 'bg-emerald-500'}"
-															style="width: {Math.min(100, (item.requestedQuantity / item.maxQuantityPerRequest) * 100)}%"
-														></div>
-													</div>
-													<span class="text-[10px] font-semibold {item.requestedQuantity >= item.maxQuantityPerRequest ? 'text-purple-700' : 'text-gray-600'}">
-														{item.requestedQuantity}/{item.maxQuantityPerRequest}
+												<div class="mt-0.5 flex items-center gap-1.5 text-[11px]">
+													<span class="inline-flex items-center gap-0.5 text-gray-500">
+														<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+														</svg>
+														{item.category}
+													</span>
+													<span class="text-gray-300">•</span>
+													<span class="inline-flex items-center gap-0.5 {item.available === 0 ? 'text-amber-600 font-medium' : item.available > 5 ? 'text-emerald-600' : 'text-amber-600'}">
+														<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+															<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+														</svg>
+														{item.available} available
 													</span>
 												</div>
+												{#if item.available === 0}
+													<div class="mt-1 flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-1 text-[11px] font-medium text-amber-800">
+														<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+															<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+														</svg>
+														<span>Out of stock - Remove to continue</span>
+													</div>
+												{/if}
+												{#if item.maxQuantityPerRequest && item.available > 0}
+													<div class="mt-1 flex items-center justify-between gap-2">
+														<div class="flex items-center gap-1 text-[11px] text-purple-700">
+															<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+																<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+															</svg>
+															<span class="font-medium">Max {item.maxQuantityPerRequest}</span>
+														</div>
+														<!-- Progress Bar -->
+														<div class="flex items-center gap-1.5">
+															<div class="h-1 w-16 rounded-full bg-gray-200 overflow-hidden">
+																<div 
+																	class="h-full rounded-full transition-all duration-300 {item.requestedQuantity >= item.maxQuantityPerRequest ? 'bg-gradient-to-r from-purple-500 to-purple-600' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}"
+																	style="width: {Math.min(100, (item.requestedQuantity / item.maxQuantityPerRequest) * 100)}%"
+																></div>
+															</div>
+															<span class="text-[10px] font-bold {item.requestedQuantity >= item.maxQuantityPerRequest ? 'text-purple-700' : 'text-gray-600'}">
+																{item.requestedQuantity}/{item.maxQuantityPerRequest}
+															</span>
+														</div>
+													</div>
+												{/if}
 											</div>
-										{/if}
-									</div>
-									<div class="flex shrink-0 items-center gap-2">
-										{#if item.available > 0}
-											<div class="flex items-center gap-1">
-												<!-- Decrement Button -->
-												<button
-													type="button"
-													onclick={() => {
-														const newQty = Math.max(1, item.requestedQuantity - 1);
-														updateItemQuantity(item.id, String(newQty));
-													}}
-													disabled={item.requestedQuantity <= 1}
-													class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
-													title="Decrease quantity"
-												>
-													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"/>
-													</svg>
-												</button>
-												
-												<!-- Quantity Input -->
-												<div class="relative">
-													<input
-														type="number"
-														min="1"
-														max={item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available}
-														value={item.requestedQuantity}
-														onchange={(e) => updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
-														class="w-16 rounded-lg border {item.isConstant ? 'border-emerald-300 bg-emerald-50' : 'border-gray-300 bg-white'} px-2 py-1.5 text-sm text-center font-medium focus:border-pink-500 focus:ring-1 focus:ring-pink-500"
-														title={item.maxQuantityPerRequest ? `Maximum ${item.maxQuantityPerRequest} per request` : `Maximum ${item.available} available`}
-													/>
+										</div>
+										
+										<!-- Quantity Controls -->
+										<div class="mt-2 flex items-center justify-between">
+											{#if item.available > 0}
+												<div class="flex items-center gap-1">
+													<!-- Decrement -->
+													<button
+														type="button"
+														onclick={() => {
+															const newQty = Math.max(1, item.requestedQuantity - 1);
+															updateItemQuantity(item.id, String(newQty));
+														}}
+														disabled={item.requestedQuantity <= 1}
+														class="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition-all hover:border-pink-500 hover:bg-pink-50 hover:text-pink-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:bg-white disabled:hover:text-gray-700"
+														title="Decrease quantity"
+													>
+														<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4"/>
+														</svg>
+													</button>
+													
+													<!-- Quantity Display -->
+													<div class="relative">
+														<input
+															type="number"
+															min="1"
+															max={item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available}
+															value={item.requestedQuantity}
+															onchange={(e) => updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
+															class="w-14 rounded-md border {item.isConstant ? 'border-emerald-300 bg-emerald-50 text-emerald-900' : 'border-gray-300 bg-white text-gray-900'} px-1.5 py-1 text-center text-xs font-bold focus:border-pink-500 focus:ring-1 focus:ring-pink-500/20"
+															title={item.maxQuantityPerRequest ? `Maximum ${item.maxQuantityPerRequest} per request` : `Maximum ${item.available} available`}
+														/>
+													</div>
+													
+													<!-- Increment -->
+													<button
+														type="button"
+														onclick={() => {
+															const maxQty = item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available;
+															const newQty = Math.min(maxQty, item.requestedQuantity + 1);
+															updateItemQuantity(item.id, String(newQty));
+														}}
+														disabled={item.requestedQuantity >= (item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available)}
+														class="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition-all hover:border-pink-500 hover:bg-pink-50 hover:text-pink-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:bg-white disabled:hover:text-gray-700"
+														title="Increase quantity"
+													>
+														<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+														</svg>
+													</button>
 												</div>
-												
-												<!-- Increment Button -->
-												<button
-													type="button"
-													onclick={() => {
-														const maxQty = item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available;
-														const newQty = Math.min(maxQty, item.requestedQuantity + 1);
-														updateItemQuantity(item.id, String(newQty));
-													}}
-													disabled={item.requestedQuantity >= (item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available)}
-													class="flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
-													title="Increase quantity"
+											{:else}
+												<div class="rounded-md border border-amber-300 bg-amber-100 px-2 py-1 text-center text-[11px] font-bold text-amber-700">
+													Not Available
+												</div>
+											{/if}
+											
+											<!-- Remove Button -->
+											{#if !item.isConstant}
+												<button 
+													onclick={() => removeItemFromCart(item.id)} 
+													class="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-all hover:border-red-300 hover:bg-red-100 hover:text-red-700"
+													title="Remove item"
 												>
-													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
 													</svg>
 												</button>
-											</div>
-										{:else}
-											<div class="w-16 rounded-lg border border-amber-300 bg-amber-100 px-2 py-1 text-center text-sm text-amber-700 font-medium">
-												N/A
-											</div>
-										{/if}
-										{#if !item.isConstant}
-											<button 
-												onclick={() => removeItemFromCart(item.id)} 
-												class="text-red-500 hover:text-red-700"
-												title="Remove item"
-											>
-												<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-												</svg>
-											</button>
-										{:else}
-											<div class="w-4 h-4"></div>
-										{/if}
+											{:else}
+												<div class="flex h-7 w-7 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600" title="Constant item (cannot be removed)">
+													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+														<path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+													</svg>
+												</div>
+											{/if}
+										</div>
 									</div>
 								</div>
 							</div>
 						{/each}
 					</div>
 				{:else}
-					<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center">
-						<svg class="mx-auto h-10 w-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-						</svg>
-						<p class="mt-2 text-sm text-gray-500">No items selected</p>
-						<p class="text-xs text-gray-400">Tap "Add Item" to select equipment</p>
+					<div class="rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 p-8 text-center">
+						<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm">
+							<svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+							</svg>
+						</div>
+						<h3 class="mt-4 text-sm font-semibold text-gray-900">No items selected yet</h3>
+						<p class="mt-1 text-xs text-gray-500">Click "Browse Equipment" above to add items to your request</p>
 					</div>
 				{/if}
 			</div>
