@@ -91,6 +91,19 @@ if (Number.isNaN(date.getTime())) return undefined;
 return date.toLocaleString();
 }
 
+function formatDateTimeShort(value: string): string {
+const date = new Date(value);
+if (Number.isNaN(date.getTime())) return value;
+return date.toLocaleString('en-US', { 
+	month: 'short', 
+	day: 'numeric', 
+	year: 'numeric',
+	hour: 'numeric',
+	minute: '2-digit',
+	hour12: true
+});
+}
+
 function mapRequest(record: BorrowRequestRecord): any {
 const status = toUiStatus(record.status, record.rejectReason);
 const studentName = record.student?.fullName || `Student ${record.studentId.slice(-6).toUpperCase()}`;
@@ -948,10 +961,18 @@ return { text: '', color: 'text-gray-500' };
 							<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10m-11 9h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"/>
 							</svg>
-							<span>
-								{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-								-
-								{new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+							<span class="flex flex-col sm:flex-row sm:gap-1">
+								<span class="font-medium">Borrow:</span>
+								<span>{formatDateTimeShort(request.borrowDate)}</span>
+							</span>
+						</div>
+						<div class="flex items-center gap-1.5 text-xs text-gray-500">
+							<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+							</svg>
+							<span class="flex flex-col sm:flex-row sm:gap-1">
+								<span class="font-medium">Return:</span>
+								<span>{formatDateTimeShort(request.returnDate)}</span>
 							</span>
 						</div>
 						<div class="flex min-w-0 items-center gap-1.5 text-xs text-gray-500">
@@ -978,7 +999,7 @@ return { text: '', color: 'text-gray-500' };
 									{request.daysOverdue} {request.daysOverdue === 1 ? 'day' : 'days'} overdue
 								</p>
 								<p class="mt-0.5 text-xs text-red-700">
-									Due {new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+									Due {formatDateTimeShort(request.returnDate)}
 								</p>
 							</div>
 						</div>
@@ -1211,8 +1232,31 @@ return { text: '', color: 'text-gray-500' };
 							<h4 class="mb-3 text-sm font-medium text-gray-700">Request Details</h4>
 							<div class="space-y-3 rounded-xl border border-white/70 bg-white/55 p-4 backdrop-blur-sm">
 								<div>
-									<p class="text-xs font-medium text-gray-500">Borrow Period</p>
-									<p class="mt-1 text-sm">{new Date(selectedRequest.borrowDate).toLocaleDateString()} - {new Date(selectedRequest.returnDate).toLocaleDateString()}</p>
+									<p class="text-xs font-medium text-gray-500">Borrow Date & Time</p>
+									<p class="mt-1 text-sm">{formatDateTimeShort(selectedRequest.borrowDate)}</p>
+								</div>
+								<div>
+									<p class="text-xs font-medium text-gray-500">Return Date & Time</p>
+									<p class="mt-1 text-sm">{formatDateTimeShort(selectedRequest.returnDate)}</p>
+								</div>
+								<div>
+									<p class="text-xs font-medium text-gray-500">Duration</p>
+									<p class="mt-1 text-sm">
+										{(() => {
+											const borrow = new Date(selectedRequest.borrowDate);
+											const returnDt = new Date(selectedRequest.returnDate);
+											const hours = Math.round((returnDt.getTime() - borrow.getTime()) / (1000 * 60 * 60));
+											const days = Math.floor(hours / 24);
+											const remainingHours = hours % 24;
+											if (days > 0 && remainingHours > 0) {
+												return `${days} day${days !== 1 ? 's' : ''} ${remainingHours} hour${remainingHours !== 1 ? 's' : ''}`;
+											} else if (days > 0) {
+												return `${days} day${days !== 1 ? 's' : ''}`;
+											} else {
+												return `${remainingHours} hour${remainingHours !== 1 ? 's' : ''}`;
+											}
+										})()}
+									</p>
 								</div>
 								<div>
 									<p class="text-xs font-medium text-gray-500">Purpose</p>

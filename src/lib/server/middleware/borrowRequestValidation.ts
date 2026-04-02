@@ -1,14 +1,24 @@
 /**
  * Borrow Request Validation Middleware
  * 
- * Industry-standard validation for borrow request operations
+ * Industry-standard validation for equipment borrow request operations.
+ * 
+ * Business Rules:
+ * - Same-day return policy: All equipment must be returned on the same day
+ * - Minimum borrow duration: 1 hour
+ * - Maximum borrow duration: 12 hours per day
+ * - Maximum items per request: 10
+ * - Maximum advance booking: 90 days
+ * 
  * Implements:
- * - Input sanitization
- * - Business rule validation
- * - Security checks
- * - Data integrity enforcement
+ * - Input sanitization and validation
+ * - Business rule enforcement
+ * - Security checks and authorization
+ * - Data integrity validation
+ * - ISO 8601 datetime handling
  * 
  * @module borrowRequestValidation
+ * @version 2.0.0
  */
 
 import { json } from '@sveltejs/kit';
@@ -41,9 +51,31 @@ const ITEM_CONSTRAINTS = {
 const DATE_CONSTRAINTS = {
 	MIN_BORROW_DAYS_AHEAD: 0, // Can borrow same day
 	MAX_BORROW_DAYS_AHEAD: 90, // Max 3 months in advance
-	MIN_BORROW_DURATION: 1, // At least 1 day
-	MAX_BORROW_DURATION: 30 // Max 30 days
+	MIN_BORROW_DURATION_HOURS: 1, // Minimum 1 hour
+	MAX_BORROW_DURATION_HOURS: 12, // Maximum 12 hours (same-day return policy)
+	SAME_DAY_RETURN_REQUIRED: true // Equipment must be returned same day
 };
+
+/**
+ * Calculate duration between two datetimes
+ * @returns Duration in hours (rounded to 2 decimal places)
+ */
+export function calculateDurationHours(borrowDate: Date, returnDate: Date): number {
+	const durationMs = returnDate.getTime() - borrowDate.getTime();
+	const durationHours = durationMs / (1000 * 60 * 60);
+	return Math.round(durationHours * 100) / 100; // Round to 2 decimal places
+}
+
+/**
+ * Check if two dates are on the same calendar day
+ */
+export function isSameDay(date1: Date, date2: Date): boolean {
+	return (
+		date1.getFullYear() === date2.getFullYear() &&
+		date1.getMonth() === date2.getMonth() &&
+		date1.getDate() === date2.getDate()
+	);
+}
 
 /**
  * Purpose validation constraints
@@ -207,85 +239,104 @@ export function validatePurpose(purpose: unknown): ValidationResult {
 }
 
 /**
- * Validate borrow and return dates
+ * Validate borrow and return dates with time (same-day return policy)
+ * 
+ * Business Rules:
+ * - Equipment must be returned on the same day it's borrowed
+ * - Minimum borrow duration: 1 hour
+ * - Maximum borrow duration: 12 hours (within same day)
+ * - Borrow datetime cannot be in the past
+ * - Return time must be after borrow time on the same day
  */
 export function validateDates(borrowDate: unknown, returnDate: unknown): ValidationResult {
-	// Parse dates
+	// Parse dates with time
 	const borrow = typeof borrowDate === 'string' ? new Date(borrowDate) : null;
 	const returns = typeof returnDate === 'string' ? new Date(returnDate) : null;
 
 	if (!borrow || Number.isNaN(borrow.getTime())) {
 		return {
 			valid: false,
-			error: 'Invalid borrow date format'
+			error: 'Invalid borrow date format. Expected ISO 8601 datetime (YYYY-MM-DDTHH:MM)'
 		};
 	}
 
 	if (!returns || Number.isNaN(returns.getTime())) {
 		return {
 			valid: false,
-			error: 'Invalid return date format'
+			error: 'Invalid return date format. Expected ISO 8601 datetime (YYYY-MM-DDTHH:MM)'
 		};
 	}
 
-	// Normalize to start of day
 	const now = new Date();
-	now.setHours(0, 0, 0, 0);
 	
-	const borrowDay = new Date(borrow);
-	borrowDay.setHours(0, 0, 0, 0);
-	
-	const returnDay = new Date(returns);
-	returnDay.setHours(0, 0, 0, 0);
-
-	// Check borrow date is not too far in the past
-	const daysBeforeBorrow = Math.floor((borrowDay.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-	
-	if (daysBeforeBorrow < -1) { // Allow 1 day grace for timezone issues
+	// Check borrow datetime is not in the past (with 5 minute grace for clock differences)
+	const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+	if (borrow < fiveMinutesAgo) {
 		return {
 			valid: false,
-			error: 'Borrow date cannot be in the past'
+			error: 'Borrow date and time cannot be in the past'
 		};
 	}
 
 	// Check borrow date is not too far in advance
-	if (daysBeforeBorrow > DATE_CONSTRAINTS.MAX_BORROW_DAYS_AHEAD) {
+	const maxAdvanceDate = new Date(now.getTime() + DATE_CONSTRAINTS.MAX_BORROW_DAYS_AHEAD * 24 * 60 * 60 * 1000);
+	if (borrow > maxAdvanceDate) {
 		return {
 			valid: false,
-			error: `Cannot borrow more than ${DATE_CONSTRAINTS.MAX_BORROW_DAYS_AHEAD} days in advance`
+			error: `Cannot schedule equipment borrow more than ${DATE_CONSTRAINTS.MAX_BORROW_DAYS_AHEAD} days in advance`
 		};
 	}
 
-	// Check return date is after borrow date
-	if (returnDay <= borrowDay) {
+	// Enforce same-day return policy
+	if (DATE_CONSTRAINTS.SAME_DAY_RETURN_REQUIRED && !isSameDay(borrow, returns)) {
 		return {
 			valid: false,
-			error: 'Return date must be after borrow date'
+			error: 'Equipment must be returned on the same day. Same-day return policy is enforced.'
 		};
 	}
 
-	// Check duration
-	const duration = Math.floor((returnDay.getTime() - borrowDay.getTime()) / (1000 * 60 * 60 * 24));
+	// Check return datetime is after borrow datetime
+	if (returns <= borrow) {
+		return {
+			valid: false,
+			error: 'Return time must be after borrow time'
+		};
+	}
+
+	// Calculate and validate duration
+	const durationHours = calculateDurationHours(borrow, returns);
 	
-	if (duration < DATE_CONSTRAINTS.MIN_BORROW_DURATION) {
+	// Validate minimum duration
+	if (durationHours < DATE_CONSTRAINTS.MIN_BORROW_DURATION_HOURS) {
 		return {
 			valid: false,
-			error: `Minimum borrow duration is ${DATE_CONSTRAINTS.MIN_BORROW_DURATION} day(s)`
+			error: `Minimum borrow duration is ${DATE_CONSTRAINTS.MIN_BORROW_DURATION_HOURS} hour(s)`
 		};
 	}
 
-	if (duration > DATE_CONSTRAINTS.MAX_BORROW_DURATION) {
+	// Validate maximum duration
+	if (durationHours > DATE_CONSTRAINTS.MAX_BORROW_DURATION_HOURS) {
 		return {
 			valid: false,
-			error: `Maximum borrow duration is ${DATE_CONSTRAINTS.MAX_BORROW_DURATION} days`
+			error: `Maximum borrow duration is ${DATE_CONSTRAINTS.MAX_BORROW_DURATION_HOURS} hours per day`
+		};
+	}
+
+	// Validate return time doesn't exceed end of day (23:59)
+	const returnHour = returns.getHours();
+	const returnMinute = returns.getMinutes();
+	if (returnHour > 23 || (returnHour === 23 && returnMinute > 59)) {
+		return {
+			valid: false,
+			error: 'Return time must be within the same day (before midnight)'
 		};
 	}
 
 	return {
 		valid: true,
 		sanitized: {
-			borrowDate: borrowDay.toISOString(),
-			returnDate: returnDay.toISOString()
+			borrowDate: borrow.toISOString(),
+			returnDate: returns.toISOString()
 		}
 	};
 }

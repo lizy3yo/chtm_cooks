@@ -36,9 +36,35 @@
 	let purpose = $state('lab-exercise');
 	let purposeDetails = $state('');
 	let borrowDate = $state('');
-	let returnDate = $state('');
+	let borrowTime = $state('08:00');
+	let returnTime = $state('17:00');
 	let notes = $state('');
 	let acknowledgeTerms = $state(false);
+
+	// Auto-update return time to ensure it's after borrow time
+	$effect(() => {
+		if (borrowDate && borrowTime && returnTime) {
+			const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
+			const [returnHour, returnMinute] = returnTime.split(':').map(Number);
+			
+			const borrowMinutes = borrowHour * 60 + borrowMinute;
+			const returnMinutes = returnHour * 60 + returnMinute;
+			
+			// If return time is not at least 1 hour after borrow time, auto-adjust
+			if (returnMinutes <= borrowMinutes + 60) {
+				let newHour = borrowHour + 1;
+				let newMinute = borrowMinute;
+				
+				// Handle hour overflow
+				if (newHour >= 24) {
+					newHour = 23;
+					newMinute = 59;
+				}
+				
+				returnTime = `${String(newHour).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}`;
+			}
+		}
+	});
 
 	// Validation
 	let errors = $state<Record<string, string>>({});
@@ -53,22 +79,6 @@
 	// Get today's date in YYYY-MM-DD format
 	const today = new Date().toISOString().split('T')[0];
 
-	// Calculate max return date (7 days from borrow date)
-	const maxReturnDate = $derived(() => {
-		if (!borrowDate) return '';
-		const borrow = new Date(borrowDate);
-		borrow.setDate(borrow.getDate() + 7);
-		return borrow.toISOString().split('T')[0];
-	});
-	
-	// Calculate min return date (1 day after borrow date)
-	const minReturnDate = $derived(() => {
-		if (!borrowDate) return '';
-		const borrow = new Date(borrowDate);
-		borrow.setDate(borrow.getDate() + 1);
-		return borrow.toISOString().split('T')[0];
-	});
-
 	function inferItemIcon(itemName: string): string {
 		const normalized = itemName.toLowerCase();
 		if (normalized.includes('knife')) return '🔪';
@@ -77,6 +87,14 @@
 		if (normalized.includes('mixer')) return '🎛️';
 		if (normalized.includes('processor')) return '🔧';
 		return '📦';
+	}
+
+	function formatTimeTo12Hour(time24: string): string {
+		if (!time24) return '—';
+		const [hours, minutes] = time24.split(':').map(Number);
+		const period = hours >= 12 ? 'PM' : 'AM';
+		const hours12 = hours % 12 || 12;
+		return `${hours12}:${String(minutes).padStart(2, '0')} ${period}`;
 	}
 
 	function buildItemCode(item: CatalogItem): string {
@@ -230,12 +248,27 @@
 			errors.borrowDate = 'Borrow date cannot be in the past';
 		}
 
-		if (!returnDate) {
-			errors.returnDate = 'Return date is required';
-		} else if (returnDate <= borrowDate) {
-			errors.returnDate = 'Return date must be after borrow date';
-		} else if (returnDate > maxReturnDate()) {
-			errors.returnDate = 'Maximum borrow period is 7 days';
+		if (!borrowTime) {
+			errors.borrowTime = 'Borrow time is required';
+		}
+
+		if (!returnTime) {
+			errors.returnTime = 'Return time is required';
+		}
+
+		// Validate that return time is after borrow time (same day)
+		if (borrowDate && borrowTime && returnTime) {
+			const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
+			const [returnHour, returnMinute] = returnTime.split(':').map(Number);
+			
+			const borrowMinutes = borrowHour * 60 + borrowMinute;
+			const returnMinutes = returnHour * 60 + returnMinute;
+			
+			if (returnMinutes <= borrowMinutes) {
+				errors.returnTime = 'Return time must be after borrow time';
+			} else if (returnMinutes - borrowMinutes < 60) {
+				errors.returnTime = 'Minimum borrow duration is 1 hour';
+			}
 		}
 
 		if (!purposeDetails.trim()) {
@@ -268,8 +301,8 @@
 					quantity: item.requestedQuantity
 				})),
 				purpose: buildPurposeText(),
-				borrowDate,
-				returnDate
+				borrowDate: `${borrowDate}T${borrowTime}`,
+				returnDate: `${borrowDate}T${returnTime}`
 			});
 
 			requestCartStore.clear();
@@ -289,7 +322,8 @@
 		purpose = 'lab-exercise';
 		purposeDetails = '';
 		borrowDate = '';
-		returnDate = '';
+		borrowTime = '08:00';
+		returnTime = '17:00';
 		notes = '';
 		acknowledgeTerms = false;
 		errors = {};
@@ -439,8 +473,10 @@
 			<!-- Borrow Period -->
 			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
 				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Borrow Period</h2>
-				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-					<div>
+				<p class="mb-4 text-sm text-gray-600">Equipment must be returned on the same day</p>
+				<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+					<!-- Borrow Date -->
+					<div class="sm:col-span-3">
 						<label for="borrowDate" class="block text-sm font-medium text-gray-700 mb-1">
 							Borrow Date <span class="text-red-500">*</span>
 						</label>
@@ -455,24 +491,68 @@
 							<p class="mt-1 text-xs text-red-600">{errors.borrowDate}</p>
 						{/if}
 					</div>
+
+					<!-- Borrow Time -->
 					<div>
-						<label for="returnDate" class="block text-sm font-medium text-gray-700 mb-1">
-							Return Date <span class="text-red-500">*</span>
+						<label for="borrowTime" class="block text-sm font-medium text-gray-700 mb-1">
+							Pickup Time <span class="text-red-500">*</span>
 						</label>
 						<input
-							type="date"
-							id="returnDate"
-							bind:value={returnDate}
-							min={minReturnDate()}
-							max={maxReturnDate()}
-							disabled={!borrowDate}
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 disabled:bg-gray-100 disabled:cursor-not-allowed {errors.returnDate ? 'border-red-500' : ''}"
+							type="time"
+							id="borrowTime"
+							bind:value={borrowTime}
+							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime ? 'border-red-500' : ''}"
 						/>
-						{#if errors.returnDate}
-							<p class="mt-1 text-xs text-red-600">{errors.returnDate}</p>
-						{:else if borrowDate}
-							<p class="mt-1 text-xs text-gray-500">Maximum 7 days borrow period</p>
+						{#if errors.borrowTime}
+							<p class="mt-1 text-xs text-red-600">{errors.borrowTime}</p>
+						{:else}
+							<p class="mt-1 text-xs text-gray-500">When you'll pick up</p>
 						{/if}
+					</div>
+
+					<!-- Return Time -->
+					<div>
+						<label for="returnTime" class="block text-sm font-medium text-gray-700 mb-1">
+							Return Time <span class="text-red-500">*</span>
+						</label>
+						<input
+							type="time"
+							id="returnTime"
+							bind:value={returnTime}
+							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime ? 'border-red-500' : ''}"
+						/>
+						{#if errors.returnTime}
+							<p class="mt-1 text-xs text-red-600">{errors.returnTime}</p>
+						{:else}
+							<p class="mt-1 text-xs text-gray-500">When you'll return</p>
+						{/if}
+					</div>
+
+					<!-- Duration Display -->
+					<div>
+						<label class="block text-sm font-medium text-gray-700 mb-1">
+							Duration
+						</label>
+						<div class="flex h-10 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+							{#if borrowTime && returnTime}
+								{(() => {
+									const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
+									const [returnHour, returnMinute] = returnTime.split(':').map(Number);
+									const borrowMinutes = borrowHour * 60 + borrowMinute;
+									const returnMinutes = returnHour * 60 + returnMinute;
+									const diffMinutes = returnMinutes - borrowMinutes;
+									const hours = Math.floor(diffMinutes / 60);
+									const minutes = diffMinutes % 60;
+									if (diffMinutes <= 0) return '—';
+									if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+									if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+									return `${minutes} min`;
+								})()}
+							{:else}
+								—
+							{/if}
+						</div>
+						<p class="mt-1 text-xs text-gray-500">Same-day return</p>
 					</div>
 				</div>
 			</div>
@@ -543,18 +623,34 @@
 							<span class="font-medium text-gray-900">{selectedItems.length}</span>
 						</div>
 						<div class="flex justify-between">
-							<span class="text-gray-500">Borrow</span>
+							<span class="text-gray-500">Date</span>
 							<span class="font-medium text-gray-900">{borrowDate || '—'}</span>
 						</div>
 						<div class="flex justify-between">
-							<span class="text-gray-500">Return</span>
-							<span class="font-medium text-gray-900">{returnDate || '—'}</span>
+							<span class="text-gray-500">Pickup</span>
+							<span class="font-medium text-gray-900">{formatTimeTo12Hour(borrowTime)}</span>
 						</div>
 						<div class="flex justify-between">
+							<span class="text-gray-500">Return</span>
+							<span class="font-medium text-gray-900">{formatTimeTo12Hour(returnTime)}</span>
+						</div>
+						<div class="flex justify-between border-t border-gray-200 pt-2">
 							<span class="text-gray-500">Duration</span>
 							<span class="font-medium text-gray-900">
-								{#if borrowDate && returnDate}
-									{Math.ceil((new Date(returnDate).getTime() - new Date(borrowDate).getTime()) / (1000 * 60 * 60 * 24))} days
+								{#if borrowTime && returnTime}
+									{(() => {
+										const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
+										const [returnHour, returnMinute] = returnTime.split(':').map(Number);
+										const borrowMinutes = borrowHour * 60 + borrowMinute;
+										const returnMinutes = returnHour * 60 + returnMinute;
+										const diffMinutes = returnMinutes - borrowMinutes;
+										const hours = Math.floor(diffMinutes / 60);
+										const minutes = diffMinutes % 60;
+										if (diffMinutes <= 0) return '—';
+										if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+										if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+										return `${minutes} min`;
+									})()}
 								{:else}
 									—
 								{/if}
