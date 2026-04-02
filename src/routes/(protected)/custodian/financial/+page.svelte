@@ -493,11 +493,11 @@
 	}
 </script>
 
-<div class="p-6">
+<div class="space-y-6">
 	<!-- Header -->
-	<div class="mb-6">
+	<div>
 		<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Resource Management</h1>
-		<p class="text-gray-600 mt-1">Track item donations, accountability obligations, and resolution records</p>
+		<p class="mt-1 text-sm text-gray-500">Track item donations, accountability obligations, and resolution records</p>
 	</div>
 
 	<!-- Stats Overview -->
@@ -574,7 +574,7 @@
 	</div>
 
 	<!-- Tabs Navigation -->
-	<div class="bg-white rounded-lg shadow mt-6">
+	<div class="bg-white rounded-lg shadow">
 		<div class="border-b border-gray-200">
 			<nav class="flex -mb-px overflow-x-auto" aria-label="Tabs">
 				<button

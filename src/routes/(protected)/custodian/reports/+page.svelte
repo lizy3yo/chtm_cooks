@@ -10,6 +10,7 @@
 	} from '$lib/api/analyticsReports';
 	import { toastStore } from '$lib/stores/toast';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
+	import { FileText, AlertCircle, DollarSign, PackageX } from 'lucide-svelte';
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
@@ -265,12 +266,12 @@
 	});
 </script>
 
-<div class="p-6 space-y-6">
+<div class="space-y-6">
 
 	<!-- ── Header ──────────────────────────────────────────────────────────── -->
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 		<div>
-			<h1 class="text-3xl font-bold text-gray-900">Reports & Analytics</h1>
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Reports & Analytics</h1>
 			<p class="mt-1 text-sm text-gray-500">
 				Operational insights across borrowing, inventory, and student risk.
 				{#if lastRefreshed}
@@ -307,41 +308,78 @@
 	</div>
 
 	<!-- ── KPI Cards ───────────────────────────────────────────────────────── -->
-	<div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 		{#if isLoading}
 			{#each Array(4) as _}
-				<div class="rounded-lg bg-white p-5 shadow space-y-3">
-					<Skeleton class="h-3.5 w-28" />
-					<Skeleton class="h-8 w-20" />
-					<Skeleton class="h-3 w-16" />
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0 space-y-2">
+							<Skeleton class="h-3.5 w-28" />
+							<Skeleton class="h-8 w-20" />
+							<Skeleton class="h-3 w-16" />
+						</div>
+						<Skeleton class="h-9 w-9 rounded-full sm:h-12 sm:w-12" />
+					</div>
 				</div>
 			{/each}
 		{:else}
-			<div class="rounded-lg bg-white p-5 shadow">
-				<p class="text-sm font-medium text-gray-500">Total Requests</p>
-				<p class="mt-1 text-3xl font-bold text-pink-600">{totalRequests.toLocaleString()}</p>
-				<p class="mt-1 text-xs text-gray-400">This {period}</p>
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Requests</p>
+						<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">{totalRequests.toLocaleString()}</p>
+						<p class="text-xs text-gray-500 mt-0.5">This {period}</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+						<FileText size={18} class="text-pink-600 sm:hidden" />
+						<FileText size={24} class="hidden text-pink-600 sm:block" />
+					</div>
+				</div>
 			</div>
-			<div class="rounded-lg bg-white p-5 shadow">
-				<p class="text-sm font-medium text-gray-500">Overdue Returns</p>
-				<p class="mt-1 text-3xl font-bold {(report?.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">
-					{report?.borrowRequests.overdueCount ?? 0}
-				</p>
-				<p class="mt-1 text-xs text-gray-400">Currently active</p>
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue Returns</p>
+						<p class="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl {(report?.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">
+							{report?.borrowRequests.overdueCount ?? 0}
+						</p>
+						<p class="text-xs text-gray-500 mt-0.5">Currently active</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {(report?.borrowRequests.overdueCount ?? 0) > 0 ? 'bg-red-100' : 'bg-emerald-100'} sm:h-12 sm:w-12">
+						<AlertCircle size={18} class="{(report?.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'} sm:hidden" />
+						<AlertCircle size={24} class="hidden {(report?.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'} sm:block" />
+					</div>
+				</div>
 			</div>
-			<div class="rounded-lg bg-white p-5 shadow">
-				<p class="text-sm font-medium text-gray-500">Outstanding Obligations</p>
-				<p class="mt-1 text-3xl font-bold text-amber-600">
-					₱{(report?.financial.summary.totalOutstanding ?? 0).toLocaleString()}
-				</p>
-				<p class="mt-1 text-xs text-gray-400">{report?.financial.summary.pendingCount ?? 0} pending</p>
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Outstanding</p>
+						<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
+							₱{(report?.financial.summary.totalOutstanding ?? 0).toLocaleString()}
+						</p>
+						<p class="text-xs text-gray-500 mt-0.5">{report?.financial.summary.pendingCount ?? 0} pending</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
+						<DollarSign size={18} class="text-amber-600 sm:hidden" />
+						<DollarSign size={24} class="hidden text-amber-600 sm:block" />
+					</div>
+				</div>
 			</div>
-			<div class="rounded-lg bg-white p-5 shadow">
-				<p class="text-sm font-medium text-gray-500">Stock Alerts</p>
-				<p class="mt-1 text-3xl font-bold {(report?.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'}">
-					{report?.inventory.stockAlerts.length ?? 0}
-				</p>
-				<p class="mt-1 text-xs text-gray-400">Low / out of stock</p>
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Stock Alerts</p>
+						<p class="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl {(report?.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'}">
+							{report?.inventory.stockAlerts.length ?? 0}
+						</p>
+						<p class="text-xs text-gray-500 mt-0.5">Low / out of stock</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {(report?.inventory.stockAlerts.length ?? 0) > 0 ? 'bg-orange-100' : 'bg-emerald-100'} sm:h-12 sm:w-12">
+						<PackageX size={18} class="{(report?.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'} sm:hidden" />
+						<PackageX size={24} class="hidden {(report?.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'} sm:block" />
+					</div>
+				</div>
 			</div>
 		{/if}
 	</div>
