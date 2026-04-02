@@ -29,6 +29,7 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		location: item.location,
 		description: item.description,
 		status: item.status,
+		isConstant: item.isConstant,
 		archived: item.archived,
 		createdAt: item.createdAt,
 		updatedAt: item.updatedAt

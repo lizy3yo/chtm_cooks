@@ -16,6 +16,7 @@ export interface InventoryItem {
 	description?: string;
 	status: string;
 	archived: boolean;
+	isConstant?: boolean; // Items that always appear on student request forms
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -42,6 +43,7 @@ export interface CreateItemRequest {
 	eomCount?: number;
 	condition: string;
 	location?: string;
+	isConstant?: boolean;
 }
 
 export interface UpdateItemRequest extends Partial<CreateItemRequest> {
@@ -227,6 +229,65 @@ export async function uploadInventoryImage(file: File): Promise<{ success: boole
 	return handleResponse(response);
 }
 
+// ─── Constant Items API ───────────────────────────────────────────────────────
+
+export interface ConstantItemsResponse {
+	items: InventoryItem[];
+	total: number;
+	meta: {
+		cached: boolean;
+		timestamp: string;
+	};
+}
+
+export interface BulkUpdateConstantRequest {
+	itemIds: string[];
+	isConstant: boolean;
+}
+
+export interface BulkUpdateConstantResponse {
+	success: boolean;
+	message: string;
+	items: InventoryItem[];
+	updatedCount: number;
+}
+
+/**
+ * Constant Items API
+ * For managing frequently requested items
+ */
+export const constantItemsAPI = {
+	/**
+	 * Get all constant items
+	 */
+	async getAll(): Promise<ConstantItemsResponse> {
+		const response = await fetch('/api/inventory/constant', getFetchOptions('GET'));
+		return handleResponse(response);
+	},
+
+	/**
+	 * Bulk update constant status for items
+	 */
+	async bulkUpdate(data: BulkUpdateConstantRequest): Promise<BulkUpdateConstantResponse> {
+		const response = await fetch('/api/inventory/constant', getFetchOptions('PATCH', data));
+		return handleResponse(response);
+	},
+
+	/**
+	 * Set item as constant
+	 */
+	async setConstant(itemId: string): Promise<InventoryItem> {
+		return inventoryItemsAPI.update(itemId, { isConstant: true });
+	},
+
+	/**
+	 * Remove item from constant
+	 */
+	async removeConstant(itemId: string): Promise<InventoryItem> {
+		return inventoryItemsAPI.update(itemId, { isConstant: false });
+	}
+};
+
 // ─── Inventory Real-Time ──────────────────────────────────────────────────────
 
 export type InventoryRealtimeAction =
@@ -250,12 +311,36 @@ export interface InventoryRealtimeEvent {
 /**
  * Subscribe to real-time inventory change events via Server-Sent Events.
  * Returns an unsubscribe function that closes the connection.
+ * 
+ * @param callback - Function to call when inventory changes
+ * @param options - Optional configuration
+ * @param options.onConnect - Called when SSE connection is established
+ * @param options.onDisconnect - Called when SSE connection is lost
+ * @param options.onError - Called when an error occurs
  */
 export function subscribeToInventoryChanges(
-	callback: (event: InventoryRealtimeEvent) => void
+	callback: (event: InventoryRealtimeEvent) => void,
+	options?: {
+		onConnect?: () => void;
+		onDisconnect?: () => void;
+		onError?: (error: Event) => void;
+	}
 ): () => void {
 	if (!browser) return () => {};
+	
 	const source = new EventSource('/api/inventory/stream');
+	
+	// Handle connection opened
+	source.addEventListener('open', () => {
+		options?.onConnect?.();
+	});
+	
+	// Handle connected event from server
+	source.addEventListener('connected', () => {
+		options?.onConnect?.();
+	});
+	
+	// Handle inventory change events
 	source.addEventListener('inventory_change', (e: MessageEvent) => {
 		try {
 			callback(JSON.parse(e.data) as InventoryRealtimeEvent);
@@ -263,5 +348,16 @@ export function subscribeToInventoryChanges(
 			// ignore malformed events
 		}
 	});
-	return () => source.close();
+	
+	// Handle errors
+	source.addEventListener('error', (e) => {
+		options?.onError?.(e);
+		// EventSource will automatically reconnect
+	});
+	
+	// Cleanup function
+	return () => {
+		options?.onDisconnect?.();
+		source.close();
+	};
 }

@@ -46,6 +46,7 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		location: item.location,
 		description: item.description,
 		status: item.status,
+		isConstant: item.isConstant,
 		archived: item.archived,
 		createdAt: item.createdAt,
 		updatedAt: item.updatedAt
@@ -245,6 +246,7 @@ export const POST: RequestHandler = async (event) => {
 			condition,
 			location,
 			status,
+			isConstant: body.isConstant || false,
 			archived: false,
 			createdAt: new Date(),
 			updatedAt: new Date(),

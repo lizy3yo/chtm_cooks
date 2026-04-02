@@ -30,6 +30,7 @@ export interface InventoryItem {
 	description?: string;
 	status: ItemStatus;
 	unitPrice?: number; // Price per unit for financial tracking
+	isConstant?: boolean; // Items that always appear on student request forms
 	archived: boolean;
 	createdAt: Date;
 	updatedAt: Date;
@@ -53,6 +54,7 @@ export interface InventoryItemResponse {
 	description?: string;
 	status: ItemStatus;
 	unitPrice?: number;
+	isConstant?: boolean;
 	archived: boolean;
 	createdAt: Date;
 	updatedAt: Date;
@@ -71,6 +73,7 @@ export interface CreateInventoryItemRequest {
 	location?: string;
 	unitPrice?: number;
 	description?: string;
+	isConstant?: boolean;
 }
 
 export interface UpdateInventoryItemRequest extends Partial<CreateInventoryItemRequest> {

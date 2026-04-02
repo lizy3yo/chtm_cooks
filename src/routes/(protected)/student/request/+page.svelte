@@ -4,6 +4,7 @@
 	import { page } from '$app/stores';
 	import { get } from 'svelte/store';
 	import { catalogAPI, type CatalogItem } from '$lib/api/catalog';
+	import { subscribeToInventoryChanges, type InventoryRealtimeEvent } from '$lib/api/inventory';
 	import { borrowRequestsAPI } from '$lib/api/borrowRequests';
 	import { requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
@@ -20,6 +21,7 @@
 		specification: string;
 		status: string;
 		location?: string;
+		isConstant?: boolean;
 	}
 
 	interface SelectedRequestItem extends RequestItemOption {
@@ -29,7 +31,16 @@
 	let isLoadingEquipment = $state(false);
 	let isSubmitting = $state(false);
 	let availableEquipment = $state<RequestItemOption[]>([]);
+	let constantItems = $state<RequestItemOption[]>([]);
 	let showItemSelector = $state(false);
+	let sseConnected = $state(false);
+	let sseReconnecting = $state(false);
+	
+	// Event deduplication and debouncing
+	let updateDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+	let lastNotificationTime = $state<number>(0);
+	const UPDATE_DEBOUNCE_MS = 1000; // 1 second debounce
+	const NOTIFICATION_COOLDOWN_MS = 2000; // 2 seconds between notifications
 
 	// Form fields
 	let selectedItems = $state<SelectedRequestItem[]>([]);
@@ -101,7 +112,7 @@
 		return item.id.slice(-6).toUpperCase();
 	}
 
-	async function loadAvailableEquipment(): Promise<void> {
+	async function loadAvailableEquipment(options?: { forceRefresh?: boolean }): Promise<void> {
 		isLoadingEquipment = true;
 		try {
 			const response = await catalogAPI.getCatalog({
@@ -109,28 +120,179 @@
 				sortBy: 'name',
 				page: 1,
 				limit: 300
+			}, {
+				forceRefresh: options?.forceRefresh ?? false
 			});
 
-			availableEquipment = response.items
-				.filter((item) => item.quantity > 0)
-				.map((item) => ({
-					id: item.id,
-					name: item.name,
-					code: buildItemCode(item),
-					image: inferItemIcon(item.name),
-					picture: item.picture,
-					category: item.category || 'Uncategorized',
-					available: item.quantity,
-					specification: item.specification || 'No specification provided',
-					status: item.status,
-					location: item.location
-				}));
+			// Separate constant items from regular items
+			const allItems = response.items.map((item) => ({
+				id: item.id,
+				name: item.name,
+				code: buildItemCode(item),
+				image: inferItemIcon(item.name),
+				picture: item.picture,
+				category: item.category || 'Uncategorized',
+				available: item.quantity,
+				specification: item.specification || 'No specification provided',
+				status: item.status,
+				location: item.location,
+				isConstant: item.isConstant || false
+			}));
+
+			// Filter constant items (always show, even if quantity is 0)
+			constantItems = allItems.filter((item) => item.isConstant === true);
+
+			// Filter available equipment (quantity > 0, excluding constant items to avoid duplication)
+			availableEquipment = allItems.filter((item) => item.available > 0 && !item.isConstant);
 		} catch (error) {
 			console.error('Failed to load requestable equipment', error);
 			toastStore.error('Unable to load available equipment right now', 'Load Error');
 		} finally {
 			isLoadingEquipment = false;
 		}
+	}
+
+	/**
+	 * Show notification with cooldown to prevent spam
+	 * Industry-standard notification throttling
+	 */
+	function showUpdateNotification(message: string) {
+		const now = Date.now();
+		
+		// Check if we're within cooldown period
+		if (now - lastNotificationTime < NOTIFICATION_COOLDOWN_MS) {
+			return; // Skip notification during cooldown
+		}
+		
+		// Update last notification time
+		lastNotificationTime = now;
+		
+		// Show notification
+		toastStore.info(message, 'Inventory Updated');
+	}
+
+	/**
+	 * Handle inventory update with debouncing and deduplication
+	 * Industry-standard approach to prevent duplicate notifications
+	 */
+	async function handleInventoryUpdate(event: InventoryRealtimeEvent) {
+		console.log('[UPDATE] ===== PROCESSING UPDATE =====');
+		console.log('[UPDATE] Event:', JSON.stringify(event, null, 2));
+		
+		// Debounce: Clear existing timer and set new one
+		if (updateDebounceTimer) {
+			console.log('[UPDATE] ⏱️ Clearing existing debounce timer');
+			clearTimeout(updateDebounceTimer);
+		}
+
+		console.log('[UPDATE] ⏱️ Setting debounce timer for', UPDATE_DEBOUNCE_MS, 'ms');
+		updateDebounceTimer = setTimeout(async () => {
+			console.log('[UPDATE] 🔄 Debounce timer fired, processing update...');
+
+			// Ensure SSE-triggered refresh bypasses short-lived browser cache.
+			catalogAPI.invalidateCatalogCache();
+			
+			// Store current selected items before reload
+			const currentSelectedIds = selectedItems.map(item => item.id);
+			const currentQuantities = new Map(
+				selectedItems.map(item => [item.id, item.requestedQuantity])
+			);
+			console.log('[UPDATE] 📋 Current selected IDs:', currentSelectedIds);
+			
+			// Store previous constant item IDs for comparison
+			const previousConstantIds = new Set(constantItems.map(item => item.id));
+			console.log('[UPDATE] 📌 Previous constant IDs:', Array.from(previousConstantIds));
+			
+			// Reload equipment data (this updates constantItems and availableEquipment)
+			console.log('[UPDATE] 🔃 Reloading equipment data...');
+			await loadAvailableEquipment({ forceRefresh: true });
+			console.log('[UPDATE] ✅ Equipment data reloaded');
+			
+			// Get new constant item IDs
+			const newConstantIds = new Set(constantItems.map(item => item.id));
+			console.log('[UPDATE] 📌 New constant IDs:', Array.from(newConstantIds));
+			
+			// Identify items that were removed from constant status
+			const removedConstantIds = new Set(
+				[...previousConstantIds].filter(id => !newConstantIds.has(id))
+			);
+			console.log('[UPDATE] ➖ Removed constant IDs:', Array.from(removedConstantIds));
+			
+			// Identify items that were added to constant status
+			const addedConstantIds = new Set(
+				[...newConstantIds].filter(id => !previousConstantIds.has(id))
+			);
+			console.log('[UPDATE] ➕ Added constant IDs:', Array.from(addedConstantIds));
+			
+			// Re-sync cart with new data
+			console.log('[UPDATE] 🛒 Clearing cart...');
+			requestCartStore.clear();
+			
+			// Re-add all current constant items
+			console.log('[UPDATE] 🛒 Re-adding', constantItems.length, 'constant items...');
+			for (const item of constantItems) {
+				requestCartStore.addItem({
+					itemId: item.id,
+					name: item.name,
+					maxQuantity: Math.max(1, item.available)
+				});
+				console.log('[UPDATE]   ✓ Added constant item:', item.name, '(ID:', item.id, ')');
+			}
+			
+			// Re-add previously selected non-constant items (excluding removed constant items)
+			const allItems = [...availableEquipment, ...constantItems];
+			console.log('[UPDATE] 🛒 Re-adding previously selected non-constant items...');
+			console.log('[UPDATE] 🛒 All items count:', allItems.length, '(available:', availableEquipment.length, ', constant:', constantItems.length, ')');
+			
+			for (const itemId of currentSelectedIds) {
+				// Skip if this item was removed from constant status
+				if (removedConstantIds.has(itemId)) {
+					console.log('[UPDATE]   ⊘ Skipping removed constant item:', itemId);
+					continue;
+				}
+				
+				const item = allItems.find(i => i.id === itemId);
+				
+				// Only re-add if item exists and is not already added as constant
+				if (item && !item.isConstant) {
+					const previousQty = currentQuantities.get(itemId) || 1;
+					requestCartStore.addItem({
+						itemId: item.id,
+						name: item.name,
+						maxQuantity: item.available
+					});
+					// Restore previous quantity if still valid
+					if (previousQty <= item.available) {
+						requestCartStore.setQuantity(itemId, previousQty);
+					}
+					console.log('[UPDATE]   ✓ Re-added non-constant item:', item.name, '(ID:', itemId, ', isConstant:', item.isConstant, ')');
+				} else if (item && item.isConstant) {
+					console.log('[UPDATE]   ⊘ Skipping (already added as constant):', item.name, '(ID:', itemId, ')');
+				} else {
+					console.log('[UPDATE]   ⊘ Item not found in allItems:', itemId);
+				}
+			}
+			
+			// Sync selected items
+			console.log('[UPDATE] 🔄 Syncing selected items from cart...');
+			syncSelectedItemsFromCart();
+			console.log('[UPDATE] ✅ Cart synced, selected items count:', selectedItems.length);
+			
+			// Show single, appropriate notification with cooldown
+			if (addedConstantIds.size > 0 && removedConstantIds.size > 0) {
+				showUpdateNotification('Frequently requested items updated');
+			} else if (addedConstantIds.size > 0) {
+				showUpdateNotification('New frequently requested items added');
+			} else if (removedConstantIds.size > 0) {
+				showUpdateNotification('Frequently requested items removed');
+			} else {
+				showUpdateNotification('Equipment availability updated');
+			}
+			
+			// Reset debounce timer
+			updateDebounceTimer = null;
+			console.log('[UPDATE] ===== UPDATE COMPLETE =====');
+		}, UPDATE_DEBOUNCE_MS);
 	}
 
 	function addItemToCart(item: RequestItemOption) {
@@ -180,7 +342,10 @@
 			return;
 		}
 
-		const equipmentById = new Map(availableEquipment.map((item) => [item.id, item]));
+		// Combine both available equipment and constant items for lookup
+		const allEquipment = [...availableEquipment, ...constantItems];
+		const equipmentById = new Map(allEquipment.map((item) => [item.id, item]));
+		
 		selectedItems = cartEntries
 			.map((entry) => {
 				const equipment = equipmentById.get(entry.itemId);
@@ -231,12 +396,21 @@
 			errors.items = 'Please select at least one item';
 		}
 
+		// Check for out-of-stock items
+		const outOfStockItems = selectedItems.filter(item => item.available === 0);
+		if (outOfStockItems.length > 0) {
+			const itemNames = outOfStockItems.map(i => i.name).join(', ');
+			errors.items = `The following items are out of stock and must be removed: ${itemNames}`;
+		}
+
 		if (
 			selectedItems.some(
 				(item) =>
-					!Number.isInteger(item.requestedQuantity) ||
-					item.requestedQuantity <= 0 ||
-					item.requestedQuantity > item.available
+					item.available > 0 && (
+						!Number.isInteger(item.requestedQuantity) ||
+						item.requestedQuantity <= 0 ||
+						item.requestedQuantity > item.available
+					)
 			)
 		) {
 			errors.items = 'Each selected item must have a valid quantity within available stock';
@@ -331,12 +505,39 @@
 	}
 
 	onMount(async () => {
+		console.log('[MOUNT] Component mounted, loading equipment...');
 		await loadAvailableEquipment();
-		syncSelectedItemsFromCart();
+		
+		console.log('[MOUNT] Equipment loaded, constant items:', constantItems.length);
+		
+		// Auto-add constant items to cart (including out of stock ones for visibility)
+		if (constantItems.length > 0) {
+			for (const item of constantItems) {
+				// Check if already in cart
+				const cartItems = get(requestCartItems);
+				const alreadyInCart = cartItems.some(cartItem => cartItem.itemId === item.id);
+				
+				// Add ALL constant items (even out of stock) for visibility
+				// Students will see them but won't be able to request if quantity is 0
+				if (!alreadyInCart) {
+					requestCartStore.addItem({
+						itemId: item.id,
+						name: item.name,
+						maxQuantity: Math.max(1, item.available) // Use 1 as minimum for display
+					});
+				}
+			}
+			
+			// Sync after adding all constant items
+			syncSelectedItemsFromCart();
+		}
 
+		// Handle preselected item from URL
 		const itemId = get(page).url.searchParams.get('itemId');
 		if (itemId) {
-			const preselectedItem = availableEquipment.find((item) => item.id === itemId);
+			// Check both available equipment and constant items
+			const allItems = [...availableEquipment, ...constantItems];
+			const preselectedItem = allItems.find((item) => item.id === itemId);
 			if (preselectedItem) {
 				requestCartStore.addItem({
 					itemId: preselectedItem.id,
@@ -346,6 +547,66 @@
 				syncSelectedItemsFromCart();
 			}
 		}
+
+		console.log('[MOUNT] Setting up SSE subscription...');
+		
+		// Subscribe to real-time inventory updates via SSE
+		const unsubscribe = subscribeToInventoryChanges(
+			async (event) => {
+				console.log('[SSE] ===== EVENT RECEIVED =====');
+				console.log('[SSE] Action:', event.action);
+				console.log('[SSE] Entity Type:', event.entityType);
+				console.log('[SSE] Entity ID:', event.entityId);
+				console.log('[SSE] Entity Name:', event.entityName);
+				console.log('[SSE] Occurred At:', event.occurredAt);
+				console.log('[SSE] Full Event:', JSON.stringify(event, null, 2));
+				console.log('[SSE] ============================');
+				
+				// Handle ALL inventory item events (created, updated, archived, restored, deleted)
+				// This includes when items are marked/unmarked as constant
+				const supportedActions = new Set([
+					'item_created',
+					'item_updated',
+					'item_archived',
+					'item_restored',
+					'item_deleted'
+				]);
+
+				if (event.entityType === 'item' && supportedActions.has(event.action)) {
+					console.log('[SSE] ✅ Item event detected, processing update...');
+					await handleInventoryUpdate(event);
+				} else {
+					console.log('[SSE] ⊘ Non-item event, ignoring');
+				}
+			},
+			{
+				onConnect: () => {
+					console.log('[SSE] ✅ Connected successfully to inventory stream');
+					sseConnected = true;
+					sseReconnecting = false;
+				},
+				onDisconnect: () => {
+					console.log('[SSE] ❌ Disconnected from inventory stream');
+					sseConnected = false;
+				},
+				onError: (error) => {
+					console.error('[SSE] ⚠️ Connection error:', error);
+					sseConnected = false;
+					sseReconnecting = true;
+				}
+			}
+		);
+
+		console.log('[MOUNT] SSE subscription set up complete');
+
+		return () => {
+			console.log('[MOUNT] Component unmounting, cleaning up...');
+			// Cleanup: Clear any pending debounce timers
+			if (updateDebounceTimer) {
+				clearTimeout(updateDebounceTimer);
+			}
+			unsubscribe();
+		};
 	});
 </script>
 
@@ -427,33 +688,66 @@
 				{#if selectedItems.length > 0}
 					<div class="space-y-2">
 						{#each selectedItems as item}
-							<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+							<div class="rounded-lg border {item.available === 0 ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50'} p-3">
 								<div class="flex items-start gap-3">
 									{#if item.picture}
-										<img src={item.picture} alt={item.name} class="h-9 w-9 shrink-0 rounded object-cover" loading="lazy" />
+										<img src={item.picture} alt={item.name} class="h-9 w-9 shrink-0 rounded object-cover {item.available === 0 ? 'opacity-50' : ''}" loading="lazy" />
 									{:else}
-										<div class="h-9 w-9 shrink-0 overflow-hidden rounded">
+										<div class="h-9 w-9 shrink-0 overflow-hidden rounded {item.available === 0 ? 'opacity-50' : ''}">
 											<ItemImagePlaceholder size="sm" />
 										</div>
 									{/if}
 									<div class="min-w-0 flex-1">
-										<p class="truncate text-sm font-medium text-gray-900">{item.name}</p>
-										<p class="truncate text-xs text-gray-500">{item.category} · {item.available} available</p>
+										<div class="flex items-start gap-2">
+											<p class="truncate text-sm font-medium {item.available === 0 ? 'text-gray-500' : 'text-gray-900'}">{item.name}</p>
+											{#if item.isConstant}
+												<span class="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+													<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+														<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+													</svg>
+													Frequent
+												</span>
+											{/if}
+										</div>
+										<p class="truncate text-xs {item.available === 0 ? 'text-gray-400' : 'text-gray-500'}">{item.category} · {item.available} available</p>
+										{#if item.available === 0}
+											<div class="mt-1 flex items-center gap-1 text-xs text-amber-700">
+												<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+													<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+												</svg>
+												<span class="font-medium">Currently out of stock - Remove to continue</span>
+											</div>
+										{/if}
 									</div>
 									<div class="flex shrink-0 items-center gap-2">
-										<input
-											type="number"
-											min="1"
-											max={item.available}
-											value={item.requestedQuantity}
-											onchange={(e) => updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
-											class="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm"
-										/>
-										<button onclick={() => removeItemFromCart(item.id)} class="text-red-500 hover:text-red-700">
-											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-											</svg>
-										</button>
+										{#if item.available > 0}
+											<input
+												type="number"
+												min="1"
+												max={item.available}
+												value={item.requestedQuantity}
+												onchange={(e) => updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
+												class="w-16 rounded-lg border border-gray-300 px-2 py-1 text-sm"
+												disabled={item.isConstant}
+											/>
+										{:else}
+											<div class="w-16 rounded-lg border border-amber-300 bg-amber-100 px-2 py-1 text-center text-sm text-amber-700 font-medium">
+												N/A
+											</div>
+										{/if}
+										{#if !item.isConstant}
+											<button 
+												onclick={() => removeItemFromCart(item.id)} 
+												class="text-red-500 hover:text-red-700"
+												title="Remove item"
+											>
+												<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+												</svg>
+											</button>
+										{:else}
+											<div class="w-4 h-4"></div>
+										{/if}
 									</div>
 								</div>
 							</div>
