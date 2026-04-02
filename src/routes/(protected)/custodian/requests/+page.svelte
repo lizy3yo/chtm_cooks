@@ -881,63 +881,49 @@ return { text: '', color: 'text-gray-500' };
 		
 		{#each filteredRequests as request}
 			<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}">
-				<div class="p-5">
-					<div class="flex items-start justify-between gap-3">
-						<div class="min-w-0 flex-1">
-							<div class="flex min-w-0 flex-wrap items-center gap-2">
+				<div class="p-4 sm:p-5">
+					<!-- Header: ID, Status, Student Info -->
+					<div class="flex items-start justify-between gap-3 mb-3">
+						<div class="flex flex-col gap-1 flex-1 min-w-0">
+							<div class="flex flex-wrap items-center gap-2">
 								<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
-								<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold {getStatusBadge(request.status, request.rawStatus, request.rejectionReason).color}">
+								<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusBadge(request.status, request.rawStatus, request.rejectionReason).color}">
 									<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
 									{getStatusBadge(request.status, request.rawStatus, request.rejectionReason).text}
 								</span>
 								{#if request.status === 'unresolved'}
 									{#if request.missingItemCount > 0}
-										<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-200">
+										<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-200">
 											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
 											{request.missingItemCount} Missing
 										</span>
 									{/if}
 									{#if request.damagedItemCount > 0}
-										<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-800 ring-1 ring-rose-200">
+										<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800 ring-1 ring-rose-200">
 											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
 											{request.damagedItemCount} Damaged
 										</span>
 									{/if}
-									{#if request.missingItemCount === 0 && request.damagedItemCount === 0}
-										<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-200">
-											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-											Missing
-										</span>
-									{/if}
 								{/if}
 							</div>
-
-							<div class="mt-4 flex items-start gap-3">
-								<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 font-semibold text-pink-700">
+							<div class="flex items-center gap-2 mt-1">
+								<div class="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
 									{#if request.student.avatarUrl}
-										<img
-											src={request.student.avatarUrl}
-											alt={request.student.name}
-											class="h-full w-full object-cover"
-											loading="lazy"
-										/>
+										<img src={request.student.avatarUrl} alt={request.student.name} class="h-full w-full object-cover" loading="lazy" />
 									{:else}
 										{request.student.avatar}
 									{/if}
 								</div>
-								<div class="min-w-0">
-									<h3 class="text-lg font-semibold text-gray-900">{request.student.name}</h3>
-									<p class="text-sm text-gray-500">{request.student.yearLevel} &bull; Block {request.student.block}</p>
-									<p class="mt-1 text-xs text-gray-400">Student ID {request.student.studentId}</p>
-								</div>
+								<span class="text-sm font-medium text-gray-900">{request.student.name}</span>
+								<span class="text-xs text-gray-400">{request.student.yearLevel} • Block {request.student.block}</span>
 							</div>
 						</div>
-
-						<time class="shrink-0 whitespace-nowrap text-xs text-gray-400">
+						<time class="shrink-0 whitespace-nowrap text-[11px] text-gray-400">
 							{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
 						</time>
 					</div>
 
+					<!-- Equipment Chips -->
 					<div class="mt-4">
 						<p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Equipment Requested</p>
 						<div class="flex flex-wrap gap-1.5">
@@ -956,46 +942,40 @@ return { text: '', color: 'text-gray-500' };
 						</div>
 					</div>
 
-					<div class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
+					<!-- Metadata Row -->
+					<div class="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1.5">
 						<div class="flex items-center gap-1.5 text-xs text-gray-500">
 							<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10m-11 9h12a2 2 0 002-2V7a2 2 0 00-2-2H6a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
 							</svg>
-							<span class="flex flex-col sm:flex-row sm:gap-1">
-								<span class="font-medium">Borrow:</span>
-								<span>{formatDateTimeShort(request.borrowDate)}</span>
+							<span>
+								{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+								–
+								{new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
 							</span>
 						</div>
-						<div class="flex items-center gap-1.5 text-xs text-gray-500">
-							<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-							</svg>
-							<span class="flex flex-col sm:flex-row sm:gap-1">
-								<span class="font-medium">Return:</span>
-								<span>{formatDateTimeShort(request.returnDate)}</span>
-							</span>
-						</div>
-						<div class="flex min-w-0 items-center gap-1.5 text-xs text-gray-500">
+						<div class="flex items-center gap-1.5 text-xs text-gray-500 min-w-0">
 							<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
 							</svg>
-							<span class="truncate max-w-[260px]">{request.purpose}</span>
+							<span class="truncate">{request.purpose}</span>
 						</div>
 						<div class="flex items-center gap-1.5 text-xs text-gray-500">
 							<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0zm6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
 							</svg>
-							<span>{request.approvedBy}</span>
+							<span class="truncate">{request.approvedBy}</span>
 						</div>
 					</div>
 
+					<!-- Overdue Warning -->
 					{#if request.isOverdue}
 						<div class="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
 							<svg class="mt-0.5 h-4 w-4 shrink-0 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
 							</svg>
-							<div>
-								<p class="text-sm font-medium text-red-800">
+							<div class="min-w-0">
+								<p class="text-xs font-semibold text-red-800">
 									{request.daysOverdue} {request.daysOverdue === 1 ? 'day' : 'days'} overdue
 								</p>
 								<p class="mt-0.5 text-xs text-red-700">
@@ -1004,132 +984,88 @@ return { text: '', color: 'text-gray-500' };
 							</div>
 						</div>
 					{/if}
-
-					{#if request.status !== 'pending'}
-						<div class="mt-4 rounded-lg border border-gray-200 bg-gray-50/80 px-4 py-3">
-							<p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Workflow</p>
-							<div class="mt-2 flex flex-wrap gap-2">
-								{#if request.approvedDate}
-									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-gray-600 ring-1 ring-gray-200">
-										Approved: {request.approvedDate}
-									</span>
-								{/if}
-								{#if request.releasedDate}
-									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-gray-600 ring-1 ring-gray-200">
-										Released: {request.releasedDate}
-									</span>
-								{/if}
-								{#if request.pickedUpDate}
-									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-gray-600 ring-1 ring-gray-200">
-										Picked up: {request.pickedUpDate}
-									</span>
-								{/if}
-								{#if request.returnedDate}
-									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-gray-600 ring-1 ring-gray-200">
-										Returned: {request.returnedDate}
-									</span>
-								{/if}
-								{#if request.missingDate}
-									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-rose-700 ring-1 ring-rose-200">
-										Unresolved: {request.missingDate}
-									</span>
-								{/if}
-								{#if request.resolvedDate}
-									<span class="inline-flex items-center rounded-full bg-white px-2.5 py-1 text-xs text-emerald-700 ring-1 ring-emerald-200">
-										Resolved: {request.resolvedDate}
-									</span>
-								{/if}
-							</div>
-						</div>
-					{/if}
 				</div>
 
-				<div class="border-t border-gray-100 bg-gray-50/60 px-5 py-3">
-					<div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-						<div class="min-w-0">
-							<p class="text-xs font-medium {getRequestHint(request.status, request.rawStatus, request.rejectionReason).color}">{getRequestHint(request.status, request.rawStatus, request.rejectionReason).text}</p>
-							{#if request.lastReminderAt}
-								<p class="mt-1 text-xs text-gray-500">
-									Last reminder sent on {request.lastReminderAt}.
-								</p>
-							{:else if request.reminderCount > 0}
-								<p class="mt-1 text-xs text-gray-500">
-									{request.reminderCount} reminder{request.reminderCount === 1 ? '' : 's'} sent.
-								</p>
-							{/if}
-						</div>
+				<!-- Card Footer -->
+				<div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+					<!-- Status hint -->
+					<div class="text-xs min-w-0">
+						<p class="font-medium {getRequestHint(request.status, request.rawStatus, request.rejectionReason).color}">
+							{getRequestHint(request.status, request.rawStatus, request.rejectionReason).text}
+						</p>
+					</div>
 
-						<div class="relative flex flex-wrap items-center gap-2 lg:justify-end">
+					<!-- Action buttons -->
+					<div class="relative flex flex-wrap items-center gap-2 lg:justify-end">
+						<button
+							onclick={() => openDetailModal(request)}
+							class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+						>
+							View Details
+						</button>
+						{#if request.status === 'pending'}
 							<button
-								onclick={() => openDetailModal(request)}
-								class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+								onclick={() => markReady(request.rawId)}
+								class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
 							>
-								View Details
+								Mark Ready
 							</button>
-							{#if request.status === 'pending'}
-								<button
-									onclick={() => markReady(request.rawId)}
-									class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
-								>
-									Mark Ready
-								</button>
-							{/if}
-							{#if request.status === 'ready'}
-								<button
-									onclick={() => confirmPickup(request.rawId)}
-									class="rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700"
-								>
-									Confirm Pickup
-								</button>
-							{/if}
-							{#if request.status === 'active' && request.rawStatus === 'pending_return'}
+						{/if}
+						{#if request.status === 'ready'}
+							<button
+								onclick={() => confirmPickup(request.rawId)}
+								class="rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700"
+							>
+								Confirm Pickup
+							</button>
+						{/if}
+						{#if request.status === 'active' && request.rawStatus === 'pending_return'}
+							<button
+								onclick={() => {
+									closeActionMenu();
+									confirmReturn(request.rawId);
+								}}
+								class="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-700"
+							>
+								Confirm Return
+							</button>
+						{/if}
+						{#if request.status === 'active'}
+							<button
+								onclick={() => toggleActionMenu(request.rawId)}
+								class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
+								aria-label="More actions"
+							>
+								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5h.01M12 12h.01M12 19h.01"/>
+								</svg>
+							</button>
+						{/if}
+
+						{#if request.status === 'active' && openActionMenuFor === request.rawId}
+							<div class="absolute right-0 top-full z-10 mt-2 w-48 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
 								<button
 									onclick={() => {
 										closeActionMenu();
-										confirmReturn(request.rawId);
+										markMissing(request.rawId);
 									}}
-									class="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-700"
+									class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-rose-700 hover:bg-rose-50"
 								>
-									Confirm Return
+									Mark Missing
 								</button>
-							{/if}
-							{#if request.status === 'active'}
-								<button
-									onclick={() => toggleActionMenu(request.rawId)}
-									class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
-									aria-label="More actions"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5h.01M12 12h.01M12 19h.01"/>
-									</svg>
-								</button>
-							{/if}
-
-							{#if request.status === 'active' && openActionMenuFor === request.rawId}
-								<div class="absolute right-0 top-full z-10 mt-2 w-48 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+								{#if request.isOverdue}
 									<button
 										onclick={() => {
 											closeActionMenu();
-											markMissing(request.rawId);
+											sendReminder(request.rawId);
 										}}
-										class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-rose-700 hover:bg-rose-50"
+										class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50"
 									>
-										Mark Missing
+										Send Reminder
 									</button>
-									{#if request.isOverdue}
-										<button
-											onclick={() => {
-												closeActionMenu();
-												sendReminder(request.rawId);
-											}}
-											class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50"
-										>
-											Send Reminder
-										</button>
-									{/if}
-								</div>
-							{/if}
-						</div>
+								{/if}
+							</div>
+						{/if}
 					</div>
 				</div>
 			</div>
