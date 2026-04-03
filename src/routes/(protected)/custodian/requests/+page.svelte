@@ -809,95 +809,96 @@ return { text: '', color: 'text-gray-500' };
 			</button>
 		</nav>
 	</div>
-
-	<!-- History Sub-tabs -->
-	{#if activeTab === 'history'}
-		<div class="border-b border-gray-200 bg-white">
-			<nav class="-mb-px flex overflow-x-auto" aria-label="History filter" style="scrollbar-width: none; -ms-overflow-style: none;">
-				{#each [
-					{ key: 'all', label: 'All', count: tabCounts.history },
-					{ key: 'resolved', label: 'Resolved', count: tabCounts.historyResolved },
-					{ key: 'completed', label: 'Completed', count: tabCounts.historyCompleted },
-					{ key: 'cancelled', label: 'Cancelled', count: tabCounts.historyCancelled }
-				] as sub}
-					<button
-						onclick={() => (historySubTab = sub.key as HistorySubTab)}
-						class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-3 text-[11px] font-medium transition-colors sm:flex-none sm:px-4 sm:text-sm {historySubTab === sub.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-					>
-						<span class="truncate">{sub.label}</span>
-						<span class="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] {historySubTab === sub.key ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
-							{sub.count}
-						</span>
-					</button>
-				{/each}
-			</nav>
-		</div>
-	{/if}
-
-	<!-- Search and Filter Bar -->
-	<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-		<div class="flex-1 max-w-md">
-			<div class="relative">
-				<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-					<svg class="h-4 w-4 text-gray-400 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-					</svg>
-				</div>
-				<input
-					type="text"
-					bind:value={searchQuery}
-					placeholder="Search by student, request ID, or item..."
-					class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm placeholder-gray-400 focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500 sm:pl-10"
-				/>
-			</div>
-		</div>
-		
-		<div class="flex shrink-0 items-center gap-2">
-			<select
-				bind:value={sortBy}
-				class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-			>
-				<option value="date">Date</option>
-				<option value="student">Student</option>
-				<option value="status">Status</option>
-			</select>
-			
-			<button class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 sm:gap-2 sm:px-4">
-				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-				</svg>
-				<span class="hidden sm:inline">Export</span>
-			</button>
-		</div>
-	</div>
 	
-	<!-- Request Cards -->
-	<div class="space-y-4">
-		<div class="flex items-center justify-between rounded-lg bg-gray-50 p-3">
-			<span class="text-sm font-medium text-gray-700">
-				{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
-			</span>
-		</div>
-		
-		{#each filteredRequests as request}
-			<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}">
-				<div class="p-4 sm:p-5">
-					<!-- Header: ID, Status, Student Info -->
-					<div class="flex items-start justify-between gap-3 mb-3">
-						<div class="flex flex-col gap-1 flex-1 min-w-0">
-							<div class="flex flex-wrap items-center gap-2">
-								<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
-								<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusBadge(request.status, request.rawStatus, request.rejectionReason).color}">
-									<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-									{getStatusBadge(request.status, request.rawStatus, request.rejectionReason).text}
+	<!-- Request Cards in Professional Card Container -->
+	<div class="bg-white rounded-lg shadow">
+		<div class="p-6">
+			<!-- History Sub-tabs inside card -->
+			{#if activeTab === 'history'}
+				<div class="border-b border-gray-200 mb-6 -mx-6 px-6">
+					<nav class="-mb-px flex overflow-x-auto" aria-label="History filter" style="scrollbar-width: none; -ms-overflow-style: none;">
+						{#each [
+							{ key: 'all', label: 'All', count: tabCounts.history },
+							{ key: 'resolved', label: 'Resolved', count: tabCounts.historyResolved },
+							{ key: 'completed', label: 'Completed', count: tabCounts.historyCompleted },
+							{ key: 'cancelled', label: 'Cancelled', count: tabCounts.historyCancelled }
+						] as sub}
+							<button
+								onclick={() => (historySubTab = sub.key as HistorySubTab)}
+								class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-3 text-[11px] font-medium transition-colors sm:flex-none sm:px-4 sm:text-sm {historySubTab === sub.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+							>
+								<span class="truncate">{sub.label}</span>
+								<span class="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] {historySubTab === sub.key ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
+									{sub.count}
 								</span>
-								{#if request.status === 'unresolved'}
-									{#if request.missingItemCount > 0}
-										<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-200">
+							</button>
+						{/each}
+					</nav>
+				</div>
+			{/if}
+			
+			<!-- Search and Filter Bar -->
+			<div class="flex flex-col gap-2 mb-6 sm:flex-row sm:items-center sm:justify-between">
+				<div class="flex-1 max-w-md">
+					<div class="relative">
+						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+							<svg class="h-4 w-4 text-gray-400 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+							</svg>
+						</div>
+						<input
+							type="text"
+							bind:value={searchQuery}
+							placeholder="Search by student, request ID, or item..."
+							class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm placeholder-gray-400 focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500 sm:pl-10"
+						/>
+					</div>
+				</div>
+				
+				<div class="flex shrink-0 items-center gap-2">
+					<select
+						bind:value={sortBy}
+						class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+					>
+						<option value="date">Date</option>
+						<option value="student">Student</option>
+						<option value="status">Status</option>
+					</select>
+					
+					<button class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 sm:gap-2 sm:px-4">
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+						</svg>
+						<span class="hidden sm:inline">Export</span>
+					</button>
+				</div>
+			</div>
+			<div class="space-y-4">
+				<div class="flex items-center justify-between rounded-lg bg-gray-50 p-3">
+					<span class="text-sm font-medium text-gray-700">
+						{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
+					</span>
+				</div>
+				
+				{#each filteredRequests as request}
+					<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}">
+						<div class="p-4 sm:p-5">
+							<!-- Header: ID, Status, Student Info -->
+							<div class="flex items-start justify-between gap-3 mb-3">
+								<div class="flex flex-col gap-1 flex-1 min-w-0">
+									<div class="flex flex-wrap items-center gap-2">
+										<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
+										<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusBadge(request.status, request.rawStatus, request.rejectionReason).color}">
 											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-											{request.missingItemCount} Missing
+											{getStatusBadge(request.status, request.rawStatus, request.rejectionReason).text}
 										</span>
-									{/if}
+										{#if request.status === 'unresolved'}
+											{#if request.missingItemCount > 0}
+												<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-200">
+													<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+													{request.missingItemCount} Missing
+												</span>
+											{/if}
 									{#if request.damagedItemCount > 0}
 										<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800 ring-1 ring-rose-200">
 											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
@@ -1104,6 +1105,8 @@ return { text: '', color: 'text-gray-500' };
 				</p>
 			</div>
 		{/if}
+			</div>
+		</div>
 	</div>
 </div>
 
