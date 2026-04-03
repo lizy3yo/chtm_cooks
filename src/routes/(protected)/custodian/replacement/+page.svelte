@@ -27,6 +27,7 @@
 	let selectedSummary = $state<{ borrowRequestId: string; requestCode: string; studentName: string; studentEmail: string; studentProfilePhotoUrl: string | null; items: number; missingCount: number; damagedCount: number; amount: number; amountPaid: number; balance: number; latestDueDate: string; statuses: Set<string> } | null>(null);
 	let selectedSummaryItemIndex = $state(0);
 	let hasInitialized = $state(false);
+	let selectedDonation = $state<DonationResponse | null>(null);
 
 	const selectedSummaryItems = $derived(
 		selectedSummary
@@ -877,106 +878,53 @@
 								<p class="mt-2 text-sm text-gray-500">Item donations from individuals or organizations will be recorded and tracked here.</p>
 							</div>
 						{:else}
-							<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-								<div class="overflow-x-auto">
-									<table class="min-w-full divide-y divide-gray-200">
-										<thead class="bg-gray-50">
-											<tr>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Receipt #</th>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Donor</th>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Item</th>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Qty</th>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Action</th>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Purpose</th>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Date</th>
-												<th scope="col" class="relative px-4 py-3 sm:px-6"><span class="sr-only">Actions</span></th>
-											</tr>
-										</thead>
-										<tbody class="divide-y divide-gray-200 bg-white">
-											{#each Array(itemsPerPageDonations) as _, index}
-												{@const donation = paginatedDonations[index]}
-												{#if donation}
-													<tr class="transition-colors hover:bg-gray-50">
-														<td class="whitespace-nowrap px-4 py-4 text-sm font-medium text-gray-900 sm:px-6">{donation.receiptNumber}</td>
-														<td class="whitespace-nowrap px-4 py-4 text-sm text-gray-900 sm:px-6">{donation.donorName}</td>
-														<td class="px-4 py-4 sm:px-6">
-															<div class="text-sm font-medium text-gray-900">{donation.itemName}</div>
-															{#if donation.notes}
-																<p class="mt-0.5 max-w-[180px] truncate text-xs text-gray-400" title={donation.notes}>{donation.notes}</p>
-															{/if}
-														</td>
-														<td class="whitespace-nowrap px-4 py-4 text-sm font-semibold text-gray-900 sm:px-6">
-															{donation.quantity.toLocaleString()}{donation.unit ? ` ${donation.unit}` : ''}
-														</td>
-														<td class="whitespace-nowrap px-4 py-4 sm:px-6">
-															<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {donation.inventoryAction === 'new_item' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">
-																{donation.inventoryAction === 'new_item' ? 'New Item' : 'Added to Existing'}
-															</span>
-														</td>
-														<td class="max-w-[200px] truncate px-4 py-4 text-sm text-gray-900 sm:px-6" title={donation.purpose}>{donation.purpose}</td>
-														<td class="whitespace-nowrap px-4 py-4 text-sm text-gray-500 sm:px-6">{donation.date}</td>
-														<td class="whitespace-nowrap px-4 py-4 text-right text-sm sm:px-6">
-															<div class="flex items-center justify-end gap-3">
-																<button
-																	onclick={() => openAddQuantityModal(donation)}
-																	class="inline-flex items-center gap-1 font-medium text-blue-600 transition-colors hover:text-blue-800"
-																	title="Add quantity"
-																>
-																	<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-																		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-																	</svg>
-																	<span class="hidden sm:inline">Add Qty</span>
-																</button>
-																<button
-																	onclick={() => printReceipt(donation.receiptNumber)}
-																	class="font-medium text-emerald-600 transition-colors hover:text-emerald-900"
-																>
-																	Print
-																</button>
-																<button
-																	onclick={async () => {
-																		const confirmed = await confirmStore.danger(
-																			`Delete donation ${donation.receiptNumber} (${donation.itemName}) from ${donation.donorName}? This cannot be undone.`,
-																			'Delete Donation',
-																			'Delete'
-																		);
-																		if (!confirmed) return;
-																		try {
-																			await donationsAPI.delete(donation.id);
-																			await loadDonations();
-																			toastStore.success('Donation deleted successfully', 'Deleted');
-																		} catch (err) {
-																			toastStore.error(err instanceof Error ? err.message : 'Failed to delete donation', 'Error');
-																		}
-																	}}
-																	class="font-medium text-red-500 transition-colors hover:text-red-700"
-																>
-																	Delete
-																</button>
-															</div>
-														</td>
-													</tr>
-												{:else}
-													<!-- Empty placeholder row -->
-													<tr class="bg-gray-50/30">
-														<td colspan="8" class="px-4 py-4 text-center sm:px-6">
-															<span class="text-xs text-gray-300">—</span>
-														</td>
-													</tr>
-												{/if}
-											{/each}
-										</tbody>
-									</table>
-								</div>
+							<!-- Clean list view -->
+							<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
+								{#each Array(itemsPerPageDonations) as _, index}
+									{@const donation = paginatedDonations[index]}
+									{#if donation}
+										<button
+											onclick={() => selectedDonation = donation}
+											class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
+										>
+											<!-- Icon -->
+											<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 sm:h-14 sm:w-14">
+												<svg class="h-6 w-6 sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
+												</svg>
+											</div>
+
+											<!-- Info -->
+											<div class="min-w-0 flex-1">
+												<p class="truncate text-sm font-semibold text-gray-900">{donation.itemName}</p>
+												<p class="truncate text-xs text-gray-500">{donation.donorName}</p>
+												<div class="mt-1 flex flex-wrap items-center gap-1">
+													<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {donation.inventoryAction === 'new_item' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">
+														{donation.inventoryAction === 'new_item' ? 'New Item' : 'Added'}
+													</span>
+													<span class="text-[10px] text-gray-400">Qty: {donation.quantity.toLocaleString()}</span>
+												</div>
+											</div>
+
+											<!-- Arrow -->
+											<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+											</svg>
+										</button>
+									{:else}
+										<!-- Empty placeholder -->
+										<div class="flex items-center justify-center px-3 py-3 sm:px-4 sm:py-3.5 bg-gray-50/30">
+											<span class="text-xs text-gray-300">—</span>
+										</div>
+									{/if}
+								{/each}
 							</div>
 
 							<!-- Pagination -->
 							{#if totalDonationsPages > 1}
-								<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
-									<p class="text-sm text-gray-700">
-										Page <span class="font-medium">{currentPage}</span> of <span class="font-medium">{totalDonationsPages}</span>
-										<span class="text-gray-500">·</span>
-										<span class="font-medium">{donations.length}</span> total donations
+								<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
+									<p class="text-xs text-gray-600">
+										Page <span class="font-semibold">{currentPage}</span> of <span class="font-semibold">{totalDonationsPages}</span>
 									</p>
 									<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
 										<button
@@ -985,8 +933,8 @@
 											class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
 											aria-label="Previous page"
 										>
-											<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-												<path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
+											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
 											</svg>
 										</button>
 
@@ -994,13 +942,13 @@
 											{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalDonationsPages}
 												<button
 													onclick={() => goToPage(i + 1)}
-													class="relative inline-flex items-center px-4 py-2 text-sm font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
+													class="relative inline-flex items-center px-3 py-2 text-xs font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
 													aria-current={i + 1 === currentPage ? 'page' : undefined}
 												>
 													{i + 1}
 												</button>
 											{:else if Math.abs(i + 1 - currentPage) === 2}
-												<span class="relative inline-flex items-center px-4 py-2 text-sm text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
+												<span class="relative inline-flex items-center px-3 py-2 text-xs text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
 											{/if}
 										{/each}
 
@@ -1010,8 +958,8 @@
 											class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
 											aria-label="Next page"
 										>
-											<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-												<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
 											</svg>
 										</button>
 									</nav>
@@ -1095,8 +1043,81 @@
 						</div>
 					{:else if replacementsView === 'by-request'}
 						<div class="space-y-4">
-							<!-- Fixed height container for 5 cards -->
-							<div class="space-y-4" style="min-height: 680px;">
+							<!-- Mobile card list - hidden on sm+ -->
+							<div class="space-y-3 sm:hidden">
+								{#each Array(itemsPerPageByRequest) as _, index}
+									{@const summary = requestSummaries[index]}
+									{#if summary}
+										<button
+											onclick={() => { selectedSummary = summary; selectedSummaryItemIndex = 0; }}
+											class="w-full rounded-xl border-l-4 {getRequestSummaryStatusClass(summary.statuses).includes('amber') ? 'border-amber-400' : getRequestSummaryStatusClass(summary.statuses).includes('slate') ? 'border-slate-400' : 'border-gray-300'} bg-white p-4 text-left shadow-sm ring-1 ring-gray-200 transition-all active:bg-gray-50"
+										>
+											<div class="space-y-3">
+												<!-- Header -->
+												<div class="flex items-start justify-between gap-2">
+													<div class="flex flex-col gap-1 flex-1 min-w-0">
+														<span class="font-mono text-xs font-bold tracking-widest text-gray-900">{summary.requestCode}</span>
+														<span class="inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getRequestSummaryStatusClass(summary.statuses)}">
+															{getRequestSummaryStatusLabel(summary.statuses)}
+														</span>
+													</div>
+													<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+													</svg>
+												</div>
+
+												<!-- Student -->
+												<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+													<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-[10px] font-semibold text-pink-700">
+														{#if summary.studentProfilePhotoUrl}
+															<img src={summary.studentProfilePhotoUrl} alt={summary.studentName} class="h-full w-full object-cover" loading="lazy" />
+														{:else}
+															{getInitials(summary.studentName)}
+														{/if}
+													</div>
+													<div class="sm:ml-auto">
+														<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getRequestSummaryStatusClass(summary.statuses)}">
+															{getRequestSummaryStatusLabel(summary.statuses)}
+														</span>
+													</div>
+													<div class="min-w-0 flex-1">
+														<div class="truncate text-xs font-medium text-gray-900">{summary.studentName}</div>
+														<div class="truncate text-[10px] text-gray-500">{summary.studentEmail}</div>
+													</div>
+												</div>
+
+												<!-- Incidents & Meta -->
+												<div class="flex flex-wrap items-center gap-1.5 text-[10px]">
+													{#if summary.missingCount > 0}
+														<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-800">
+															<span class="h-1 w-1 rounded-full bg-red-500"></span>
+															{summary.missingCount} Missing
+														</span>
+													{/if}
+													{#if summary.damagedCount > 0}
+														<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-800">
+															<span class="h-1 w-1 rounded-full bg-rose-500"></span>
+															{summary.damagedCount} Damaged
+														</span>
+													{/if}
+													<span class="text-gray-400">· {summary.items} item{summary.items !== 1 ? 's' : ''}</span>
+													<span class="text-gray-400">· Due: {new Date(summary.latestDueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+												</div>
+											</div>
+										</button>
+									{:else}
+										<!-- Empty placeholder -->
+										<div class="rounded-xl border border-gray-100 bg-gray-50/50 p-4" style="height: 120px;">
+											<div class="flex h-full items-center justify-center">
+												<span class="text-xs text-gray-300">—</span>
+											</div>
+										</div>
+									{/if}
+								{/each}
+							</div>
+
+							<!-- Desktop card list - hidden on mobile -->
+							<div class="hidden space-y-4 sm:block" style="min-height: 680px;">
 								{#each Array(itemsPerPageByRequest) as _, index}
 									{@const summary = requestSummaries[index]}
 									{#if summary}
@@ -1235,87 +1256,57 @@
 						</div>
 					{:else}
 						<div class="space-y-4">
-							<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-								<div class="overflow-x-auto">
-									<table class="min-w-full divide-y divide-gray-200">
-										<thead class="bg-gray-50">
-											<tr>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Student</th>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Item</th>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Incident</th>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Status</th>
-												<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Due Date</th>
-												<th scope="col" class="relative px-4 py-3 sm:px-6"><span class="sr-only">Actions</span></th>
-											</tr>
-										</thead>
-										<tbody class="divide-y divide-gray-200 bg-white">
-											{#each Array(itemsPerPageByItem) as _, index}
-												{@const obligation = paginatedObligations[index]}
-												{#if obligation}
-													<tr class="transition-colors hover:bg-gray-50">
-														<td class="px-4 py-4 sm:px-6">
-															<div class="flex items-center gap-3">
-																<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
-																	{#if obligation.studentProfilePhotoUrl}
-																		<img src={obligation.studentProfilePhotoUrl} alt={obligation.studentName || 'Student'} class="h-full w-full object-cover" loading="lazy" />
-																	{:else}
-																		{getInitials(obligation.studentName || 'Unknown Student')}
-																	{/if}
-																</div>
-																<div class="min-w-0">
-																	<div class="truncate text-sm font-medium text-gray-900">{obligation.studentName || 'Unknown Student'}</div>
-																	<div class="truncate text-xs text-gray-500">{obligation.studentEmail || 'N/A'}</div>
-																</div>
-															</div>
-														</td>
-														<td class="whitespace-nowrap px-4 py-4 sm:px-6">
-															<div class="text-sm font-medium text-gray-900">{obligation.itemName}</div>
-															<div class="text-xs text-gray-500">Qty: {obligation.amount}</div>
-														</td>
-														<td class="whitespace-nowrap px-4 py-4 sm:px-6">
-															<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {obligation.type === 'missing' ? 'bg-red-100 text-red-800' : 'bg-rose-100 text-rose-800'}">
-																<span class="h-1.5 w-1.5 rounded-full {obligation.type === 'missing' ? 'bg-red-500' : 'bg-rose-500'}"></span>
-																{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
-															</span>
-														</td>
-														<td class="whitespace-nowrap px-4 py-4 sm:px-6">
-															<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getObligationStatusClass(obligation.status)}">
-																{obligation.status.charAt(0).toUpperCase() + obligation.status.slice(1)}
-															</span>
-														</td>
-														<td class="whitespace-nowrap px-4 py-4 text-sm text-gray-500 sm:px-6">
-															{new Date(obligation.dueDate).toLocaleDateString()}
-														</td>
-														<td class="whitespace-nowrap px-4 py-4 text-right sm:px-6">
-															<button
-																onclick={() => selectedObligation = obligation}
-																class="inline-flex items-center gap-1 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1"
-															>
-																View Details
-															</button>
-														</td>
-													</tr>
+							<!-- Mobile/All screens list -->
+							<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
+								{#each Array(itemsPerPageByItem) as _, index}
+									{@const obligation = paginatedObligations[index]}
+									{#if obligation}
+										<button
+											onclick={() => selectedObligation = obligation}
+											class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
+										>
+											<!-- Student Avatar -->
+											<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 sm:h-14 sm:w-14">
+												{#if obligation.studentProfilePhotoUrl}
+													<img src={obligation.studentProfilePhotoUrl} alt={obligation.studentName || 'Student'} class="h-full w-full object-cover" loading="lazy" />
 												{:else}
-													<!-- Empty placeholder row -->
-													<tr class="bg-gray-50/30">
-														<td colspan="6" class="px-4 py-4 text-center sm:px-6">
-															<span class="text-xs text-gray-300">—</span>
-														</td>
-													</tr>
+													{getInitials(obligation.studentName || 'Unknown Student')}
 												{/if}
-											{/each}
-										</tbody>
-									</table>
-								</div>
+											</div>
+
+											<!-- Info -->
+											<div class="min-w-0 flex-1">
+												<p class="truncate text-sm font-semibold text-gray-900">{obligation.studentName || 'Unknown Student'}</p>
+												<p class="truncate text-xs text-gray-500">{obligation.itemName}</p>
+												<div class="mt-1 flex flex-wrap items-center gap-1">
+													<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {obligation.type === 'missing' ? 'bg-red-100 text-red-800' : 'bg-rose-100 text-rose-800'}">
+														{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
+													</span>
+													<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getObligationStatusClass(obligation.status)}">
+														{obligation.status.charAt(0).toUpperCase() + obligation.status.slice(1)}
+													</span>
+												</div>
+											</div>
+
+											<!-- Arrow -->
+											<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+											</svg>
+										</button>
+									{:else}
+										<!-- Empty placeholder -->
+										<div class="flex items-center justify-center px-3 py-3 sm:px-4 sm:py-3.5 bg-gray-50/30">
+											<span class="text-xs text-gray-300">—</span>
+										</div>
+									{/if}
+								{/each}
 							</div>
 
 							<!-- Pagination -->
 							{#if totalPages > 1}
-								<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
-									<p class="text-sm text-gray-700">
-										Page <span class="font-medium">{currentPage}</span> of <span class="font-medium">{totalPages}</span>
-										<span class="text-gray-500">·</span>
-										<span class="font-medium">{filteredObligations.length}</span> total items
+								<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
+									<p class="text-xs text-gray-600">
+										Page <span class="font-semibold">{currentPage}</span> of <span class="font-semibold">{totalPages}</span>
 									</p>
 									<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
 										<button
@@ -1324,8 +1315,8 @@
 											class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
 											aria-label="Previous page"
 										>
-											<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-												<path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
+											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
 											</svg>
 										</button>
 
@@ -1333,13 +1324,13 @@
 											{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalPages}
 												<button
 													onclick={() => goToPage(i + 1)}
-													class="relative inline-flex items-center px-4 py-2 text-sm font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
+													class="relative inline-flex items-center px-3 py-2 text-xs font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
 													aria-current={i + 1 === currentPage ? 'page' : undefined}
 												>
 													{i + 1}
 												</button>
 											{:else if Math.abs(i + 1 - currentPage) === 2}
-												<span class="relative inline-flex items-center px-4 py-2 text-sm text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
+												<span class="relative inline-flex items-center px-3 py-2 text-xs text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
 											{/if}
 										{/each}
 
@@ -1349,8 +1340,8 @@
 											class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
 											aria-label="Next page"
 										>
-											<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-												<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
 											</svg>
 										</button>
 									</nav>
@@ -1411,69 +1402,56 @@
 							<p class="mt-1 text-xs text-gray-500">Resolved obligations will appear here once closed.</p>
 						</div>
 					{:else}
-						<div class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-							<div class="overflow-x-auto">
-								<table class="min-w-full divide-y divide-gray-200">
-									<thead class="bg-gray-50">
-										<tr>
-											<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Ref #</th>
-											<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Student</th>
-											<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Resolution</th>
-											<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Date</th>
-											<th scope="col" class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 sm:px-6">Status</th>
-											<th scope="col" class="relative px-4 py-3 sm:px-6"><span class="sr-only">Actions</span></th>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-gray-200 bg-white">
-										{#each Array(itemsPerPageHistory) as _, index}
-											{@const transaction = paginatedHistory[index]}
-											{#if transaction}
-												<tr class="transition-colors hover:bg-gray-50">
-													<td class="whitespace-nowrap px-4 py-4 text-sm font-medium text-gray-900 sm:px-6">{transaction.receiptNumber}</td>
-													<td class="whitespace-nowrap px-4 py-4 text-sm text-gray-900 sm:px-6">{transaction.name}</td>
-													<td class="whitespace-nowrap px-4 py-4 sm:px-6">
-														<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {transaction.resolutionType === 'replacement' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'}">
-															{transaction.resolutionType === 'replacement' ? 'Item Replaced' : 'Waived'}
-														</span>
-													</td>
-													<td class="whitespace-nowrap px-4 py-4 text-sm text-gray-500 sm:px-6">
-														{new Date(transaction.date).toLocaleDateString()}
-													</td>
-													<td class="whitespace-nowrap px-4 py-4 sm:px-6">
-														<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {transaction.status === 'resolved' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}">
-															{transaction.status === 'resolved' ? 'Resolved' : 'Waived'}
-														</span>
-													</td>
-													<td class="whitespace-nowrap px-4 py-4 text-right text-sm sm:px-6">
-														<button
-															onclick={() => printReceipt(transaction.receiptNumber)}
-															class="font-medium text-emerald-600 transition-colors hover:text-emerald-900"
-														>
-															View Receipt
-														</button>
-													</td>
-												</tr>
-											{:else}
-												<!-- Empty placeholder row -->
-												<tr class="bg-gray-50/30">
-													<td colspan="6" class="px-4 py-4 text-center sm:px-6">
-														<span class="text-xs text-gray-300">—</span>
-													</td>
-												</tr>
-											{/if}
-										{/each}
-									</tbody>
-								</table>
-							</div>
+						<!-- Clean list view -->
+						<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
+							{#each Array(itemsPerPageHistory) as _, index}
+								{@const transaction = paginatedHistory[index]}
+								{#if transaction}
+									<button
+										onclick={() => printReceipt(transaction.receiptNumber)}
+										class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
+									>
+										<!-- Icon -->
+										<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full {transaction.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'} sm:h-14 sm:w-14">
+											<svg class="h-6 w-6 sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												{#if transaction.status === 'resolved'}
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+												{:else}
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+												{/if}
+											</svg>
+										</div>
+
+										<!-- Info -->
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-semibold text-gray-900">{transaction.name}</p>
+											<p class="truncate text-xs text-gray-500">{transaction.receiptNumber}</p>
+											<div class="mt-1 flex flex-wrap items-center gap-1">
+												<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {transaction.resolutionType === 'replacement' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'}">
+													{transaction.resolutionType === 'replacement' ? 'Replaced' : 'Waived'}
+												</span>
+											</div>
+										</div>
+
+										<!-- Arrow -->
+										<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+										</svg>
+									</button>
+								{:else}
+									<!-- Empty placeholder -->
+									<div class="flex items-center justify-center px-3 py-3 sm:px-4 sm:py-3.5 bg-gray-50/30">
+										<span class="text-xs text-gray-300">—</span>
+									</div>
+								{/if}
+							{/each}
 						</div>
 
 						<!-- Pagination -->
 						{#if totalHistoryPages > 1}
-							<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
-								<p class="text-sm text-gray-700">
-									Page <span class="font-medium">{currentPage}</span> of <span class="font-medium">{totalHistoryPages}</span>
-									<span class="text-gray-500">·</span>
-									<span class="font-medium">{filteredPaymentHistory.length}</span> total records
+							<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
+								<p class="text-xs text-gray-600">
+									Page <span class="font-semibold">{currentPage}</span> of <span class="font-semibold">{totalHistoryPages}</span>
 								</p>
 								<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
 									<button
@@ -1482,8 +1460,8 @@
 										class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
 										aria-label="Previous page"
 									>
-										<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-											<path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
+										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
 										</svg>
 									</button>
 
@@ -1491,13 +1469,13 @@
 										{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalHistoryPages}
 											<button
 												onclick={() => goToPage(i + 1)}
-												class="relative inline-flex items-center px-4 py-2 text-sm font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
+												class="relative inline-flex items-center px-3 py-2 text-xs font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
 												aria-current={i + 1 === currentPage ? 'page' : undefined}
 											>
 												{i + 1}
 											</button>
 										{:else if Math.abs(i + 1 - currentPage) === 2}
-											<span class="relative inline-flex items-center px-4 py-2 text-sm text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
+											<span class="relative inline-flex items-center px-3 py-2 text-xs text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
 										{/if}
 									{/each}
 
@@ -1507,8 +1485,8 @@
 										class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
 										aria-label="Next page"
 									>
-										<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-											<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
 										</svg>
 									</button>
 								</nav>
@@ -1524,10 +1502,9 @@
 
 <!-- Request Summary Detail Modal -->
 {#if selectedSummary}
-	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="summary-modal-title">
-		<button type="button" class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => selectedSummary = null} aria-label="Close modal" tabindex="-1"></button>
-		<div class="flex min-h-full items-center justify-center p-4">
-			<div class="relative z-50 w-full max-w-lg rounded-xl bg-white shadow-2xl">
+	<div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="summary-modal-title">
+		<button type="button" class="fixed inset-0 -z-10" onclick={() => selectedSummary = null} aria-label="Close modal" tabindex="-1"></button>
+		<div class="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
 
 				<!-- Header -->
 				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -1547,10 +1524,10 @@
 				</div>
 
 				<!-- Body -->
-				<div class="px-6 py-5 space-y-5">
+				<div class="flex-1 overflow-y-auto px-4 py-4 space-y-5 sm:px-6 sm:py-5">
 
 					<!-- Student -->
-					<div class="flex items-center gap-3">
+					<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
 						<div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-sm font-semibold text-pink-700">
 							{#if selectedSummary.studentProfilePhotoUrl}
 								<img src={selectedSummary.studentProfilePhotoUrl} alt={selectedSummary.studentName} class="h-full w-full object-cover" />
@@ -1562,7 +1539,7 @@
 							<p class="text-sm font-medium text-gray-900">{selectedSummary.studentName}</p>
 							<p class="text-xs text-gray-500">{selectedSummary.studentEmail}</p>
 						</div>
-						<div class="ml-auto">
+						<div class="sm:ml-auto">
 							<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getRequestSummaryStatusClass(selectedSummary.statuses)}">
 								{getRequestSummaryStatusLabel(selectedSummary.statuses)}
 							</span>
@@ -1611,15 +1588,15 @@
 
 						<!-- replacements for selected item -->
 						<div class="rounded-lg border border-gray-200 divide-y divide-gray-100 text-sm">
-							<div class="flex items-center justify-between px-4 py-3">
+							<div class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
 								<span class="text-gray-500">Item</span>
 								<span class="font-medium text-gray-900">{selectedSummaryItem.itemName}</span>
 							</div>
-							<div class="flex items-center justify-between px-4 py-3">
+							<div class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
 								<span class="text-gray-500">Quantity</span>
 								<span class="font-medium text-gray-900">{selectedSummaryItem.quantity}</span>
 							</div>
-							<div class="flex items-center justify-between px-4 py-3">
+							<div class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
 								<span class="text-gray-500">Due Date</span>
 								<span class="font-medium text-gray-900">{new Date(selectedSummaryItem.dueDate).toLocaleDateString()}</span>
 							</div>
@@ -1627,7 +1604,7 @@
 
 						<!-- Actions for selected item -->
 						{#if selectedSummaryItem.status === 'pending'}
-							<div class="flex flex-wrap gap-2 pt-1">
+							<div class="flex flex-col gap-2 pt-1 sm:flex-row">
 								<button
 									onclick={async () => {
 										const confirmed = await confirmStore.confirm({ type: 'info', title: 'Mark as Replaced', message: 'Mark this item as replaced by the student?', confirmText: 'Mark Replaced' });
@@ -1636,7 +1613,7 @@
 											selectedSummary = null;
 										}
 									}}
-									class="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 transition-colors"
+									class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 transition-colors sm:flex-1"
 								>
 									Mark Replaced
 								</button>
@@ -1648,7 +1625,7 @@
 											selectedSummary = null;
 										}
 									}}
-									class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 transition-colors"
+									class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 transition-colors sm:w-auto"
 								>
 									Waive
 								</button>
@@ -1667,7 +1644,7 @@
 				</div>
 
 				<!-- Footer -->
-				<div class="flex justify-end border-t border-gray-200 px-6 py-4">
+				<div class="flex justify-end border-t border-gray-200 px-4 py-4 sm:px-6">
 					<button
 						onclick={() => selectedSummary = null}
 						class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors"
@@ -1675,17 +1652,15 @@
 						Close
 					</button>
 				</div>
-			</div>
 		</div>
 	</div>
 {/if}
 
 <!-- Record Donation Modal -->
 {#if showDonationModal}
-	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="donation-modal-title">
+	<div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="donation-modal-title">
 		<button type="button" class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => { if (!donationSubmitting) { showDonationModal = false; resetDonationForms(); } }} aria-label="Close modal" tabindex="-1"></button>
-		<div class="flex min-h-full items-center justify-center p-4">
-			<div class="relative z-50 w-full max-w-2xl rounded-xl bg-white shadow-2xl">
+		<div class="relative z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
 
 				<!-- Header -->
 				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -1700,17 +1675,17 @@
 				</div>
 
 				<!-- Mode toggle -->
-				<div class="border-b border-gray-200 px-6 pt-4 pb-3">
-					<div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-1 gap-1">
+				<div class="border-b border-gray-200 px-4 pt-4 pb-3 sm:px-6">
+					<div class="inline-flex w-full flex-col gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1 sm:w-auto sm:flex-row">
 						<button onclick={() => donationMode = 'new_item'}
-							class="rounded-md px-4 py-2 text-sm font-medium transition-colors {donationMode === 'new_item' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+							class="rounded-md px-4 py-2 text-sm font-medium transition-colors {donationMode === 'new_item' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'} sm:flex-1">
 							<span class="flex items-center gap-2">
 								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
 								New Inventory Item
 							</span>
 						</button>
 						<button onclick={() => donationMode = 'add_to_existing'}
-							class="rounded-md px-4 py-2 text-sm font-medium transition-colors {donationMode === 'add_to_existing' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}">
+							class="rounded-md px-4 py-2 text-sm font-medium transition-colors {donationMode === 'add_to_existing' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'} sm:flex-1">
 							<span class="flex items-center gap-2">
 								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
 								Add to Existing Item
@@ -1723,7 +1698,7 @@
 				</div>
 
 				<!-- Body -->
-				<div class="px-6 py-5 space-y-4 max-h-[60vh] overflow-y-auto">
+				<div class="flex-1 overflow-y-auto px-4 py-5 space-y-4 sm:px-6">
 					{#if inventoryLoading}
 						<div class="flex items-center justify-center py-8 gap-3 text-gray-500">
 							<svg class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
@@ -1890,13 +1865,13 @@
 				</div>
 
 				<!-- Footer -->
-				<div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
+				<div class="flex flex-col-reverse gap-3 border-t border-gray-200 px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
 					<button onclick={() => { if (!donationSubmitting) { showDonationModal = false; resetDonationForms(); } }} disabled={donationSubmitting}
-						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors disabled:opacity-50">
+						class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors disabled:opacity-50 sm:w-auto">
 						Cancel
 					</button>
 					<button onclick={handleAddDonation} disabled={donationSubmitting || inventoryLoading}
-						class="inline-flex items-center gap-2 rounded-lg {donationMode === 'new_item' ? 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500' : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'} px-4 py-2 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-1 transition-colors disabled:opacity-60">
+						class="inline-flex w-full items-center justify-center gap-2 rounded-lg {donationMode === 'new_item' ? 'bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500' : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'} px-4 py-2 text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-1 transition-colors disabled:opacity-60 sm:w-auto">
 						{#if donationSubmitting}
 							<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
 							Recording…
@@ -1906,16 +1881,14 @@
 					</button>
 				</div>
 			</div>
-		</div>
 	</div>
 {/if}
 
 <!-- Add Quantity Modal -->
 {#if showAddQuantityModal && selectedDonationForQty}
-	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="add-qty-modal-title">
-		<button type="button" class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => { if (!addQtySubmitting) { showAddQuantityModal = false; selectedDonationForQty = null; } }} aria-label="Close modal" tabindex="-1"></button>
-		<div class="flex min-h-full items-center justify-center p-4">
-			<div class="relative z-50 w-full max-w-md rounded-xl bg-white shadow-2xl">
+	<div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="add-qty-modal-title">
+		<button type="button" class="fixed inset-0 -z-10" onclick={() => { if (!addQtySubmitting) { showAddQuantityModal = false; selectedDonationForQty = null; } }} aria-label="Close modal" tabindex="-1"></button>
+		<div class="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
 
 				<!-- Header -->
 				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -1936,7 +1909,7 @@
 				</div>
 
 				<!-- Body -->
-				<div class="px-6 py-5 space-y-4">
+				<div class="flex-1 overflow-y-auto px-4 py-5 space-y-4 sm:px-6">
 					<div>
 						<label for="add-qty-value" class="block text-sm font-medium text-gray-700 mb-1">Quantity to Add <span class="text-red-500">*</span></label>
 						<input
@@ -1965,18 +1938,18 @@
 				</div>
 
 				<!-- Footer -->
-				<div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
+				<div class="flex flex-col-reverse gap-3 border-t border-gray-200 px-4 py-4 sm:flex-row sm:justify-end sm:px-6">
 					<button
 						onclick={() => { if (!addQtySubmitting) { showAddQuantityModal = false; selectedDonationForQty = null; } }}
 						disabled={addQtySubmitting}
-						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors disabled:opacity-50"
+						class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors disabled:opacity-50 sm:w-auto"
 					>
 						Cancel
 					</button>
 					<button
 						onclick={handleAddQuantity}
 						disabled={addQtySubmitting}
-						class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors disabled:opacity-60"
+						class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors disabled:opacity-60 sm:w-auto"
 					>
 						{#if addQtySubmitting}
 							<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -1989,20 +1962,18 @@
 						{/if}
 					</button>
 				</div>
-			</div>
-		</div>
+	</div>
 	</div>
 {/if}
 
 <!-- Obligation Detail Modal -->
 {#if selectedObligation}
-	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="obligation-modal-title">
-		<button type="button" class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => {
+	<div class="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="obligation-modal-title">
+		<button type="button" class="fixed inset-0 -z-10" onclick={() => {
 			selectedObligation = null;
 			editingAmountReplacedId = null;
 		}} aria-label="Close modal" tabindex="-1"></button>
-		<div class="flex min-h-full items-center justify-center p-4">
-			<div class="relative z-50 w-full max-w-lg rounded-xl bg-white shadow-2xl">
+		<div class="relative flex max-h-[100dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-xl">
 
 				<!-- Header -->
 				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
@@ -2025,10 +1996,10 @@
 				</div>
 
 				<!-- Body -->
-				<div class="px-6 py-5 space-y-5">
+				<div class="flex-1 overflow-y-auto px-4 py-5 space-y-5 sm:px-6">
 
 					<!-- Student -->
-					<div class="flex items-center gap-3">
+					<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
 						<div class="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-sm font-semibold text-pink-700">
 							{#if selectedObligation.studentProfilePhotoUrl}
 								<img src={selectedObligation.studentProfilePhotoUrl} alt={selectedObligation.studentName || ''} class="h-full w-full object-cover" />
@@ -2040,7 +2011,7 @@
 							<p class="text-sm font-medium text-gray-900">{selectedObligation.studentName || 'Unknown Student'}</p>
 							<p class="text-xs text-gray-500">{selectedObligation.studentEmail || 'N/A'}</p>
 						</div>
-						<div class="ml-auto">
+						<div class="sm:ml-auto">
 							<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getObligationStatusClass(selectedObligation.status)}">
 								{selectedObligation.status.charAt(0).toUpperCase() + selectedObligation.status.slice(1)}
 							</span>
@@ -2048,7 +2019,7 @@
 					</div>
 
 					<!-- Details grid -->
-					<div class="grid grid-cols-2 gap-4 rounded-lg bg-gray-50 p-4 text-sm">
+					<div class="grid grid-cols-1 gap-4 rounded-lg bg-gray-50 p-4 text-sm sm:grid-cols-2">
 						<div>
 							<p class="text-xs text-gray-500">Item</p>
 							<p class="mt-0.5 font-medium text-gray-900">{selectedObligation.itemName}</p>
@@ -2121,7 +2092,7 @@
 
 					<!-- Actions -->
 					{#if selectedObligation.status === 'pending'}
-						<div class="flex flex-wrap gap-2 pt-1">
+						<div class="flex flex-col gap-2 pt-1 sm:flex-row">
 							<button
 								onclick={async () => {
 									const confirmed = await confirmStore.confirm({ type: 'info', title: 'Mark as Replaced', message: 'Mark this item as replaced by the student?', confirmText: 'Mark Replaced' });
@@ -2130,7 +2101,7 @@
 										selectedObligation = null;
 									}
 								}}
-								class="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 transition-colors"
+								class="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 transition-colors sm:flex-1"
 							>
 								Mark Replaced
 							</button>
@@ -2142,7 +2113,7 @@
 										selectedObligation = null;
 									}
 								}}
-								class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 transition-colors"
+								class="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 transition-colors sm:w-auto"
 							>
 								Waive
 							</button>
@@ -2151,7 +2122,7 @@
 				</div>
 
 				<!-- Footer -->
-				<div class="flex justify-end border-t border-gray-200 px-6 py-4">
+				<div class="flex justify-end border-t border-gray-200 px-4 py-4 sm:px-6">
 					<button
 						onclick={() => {
 							selectedObligation = null;
@@ -2162,7 +2133,129 @@
 						Close
 					</button>
 				</div>
-			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Donation Detail Modal -->
+{#if selectedDonation}
+	<div class="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/50 p-0 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="donation-modal-title">
+		<button type="button" class="fixed inset-0 -z-10" onclick={() => selectedDonation = null} aria-label="Close modal" tabindex="-1"></button>
+		<div class="relative flex max-h-[100dvh] w-full max-w-lg flex-col overflow-hidden rounded-t-xl bg-white shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:rounded-xl">
+
+				<!-- Header -->
+				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+					<div>
+						<h2 id="donation-modal-title" class="text-base font-semibold text-gray-900">Donation Details</h2>
+						<p class="mt-0.5 text-xs text-gray-500">{selectedDonation.receiptNumber}</p>
+					</div>
+					<button
+						onclick={() => selectedDonation = null}
+						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+						aria-label="Close"
+					>
+						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						</svg>
+					</button>
+				</div>
+
+				<!-- Body -->
+				<div class="flex-1 overflow-y-auto px-4 py-5 space-y-5 sm:px-6">
+
+					<!-- Item Info -->
+					<div class="flex items-start gap-3">
+						<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+							<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
+							</svg>
+						</div>
+						<div class="flex-1">
+							<p class="text-base font-semibold text-gray-900">{selectedDonation.itemName}</p>
+							<p class="mt-0.5 text-sm text-gray-500">Donated by {selectedDonation.donorName}</p>
+							<div class="mt-2 flex flex-wrap items-center gap-1.5">
+								<span class="rounded px-2 py-0.5 text-xs font-semibold {selectedDonation.inventoryAction === 'new_item' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">
+									{selectedDonation.inventoryAction === 'new_item' ? 'New Item' : 'Added to Existing'}
+								</span>
+							</div>
+						</div>
+					</div>
+
+					<!-- Details grid -->
+					<div class="rounded-lg border border-gray-200 divide-y divide-gray-100 text-sm">
+						<div class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+							<span class="text-xs text-gray-500">Quantity</span>
+							<span class="font-medium text-gray-900">{selectedDonation.quantity.toLocaleString()}{selectedDonation.unit ? ` ${selectedDonation.unit}` : ''}</span>
+						</div>
+						<div class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+							<span class="text-xs text-gray-500">Date</span>
+							<span class="font-medium text-gray-900">{selectedDonation.date}</span>
+						</div>
+						<div class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+							<span class="text-xs text-gray-500">Purpose</span>
+							<span class="font-medium text-gray-900">{selectedDonation.purpose}</span>
+						</div>
+						<div class="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+							<span class="text-xs text-gray-500">Receipt #</span>
+							<span class="font-mono text-xs font-medium text-gray-900">{selectedDonation.receiptNumber}</span>
+						</div>
+					</div>
+
+					{#if selectedDonation.notes}
+						<div class="rounded-lg bg-blue-50 px-4 py-3">
+							<p class="text-xs font-medium text-blue-900">Notes</p>
+							<p class="mt-1 text-sm text-blue-700">{selectedDonation.notes}</p>
+						</div>
+					{/if}
+
+					<!-- Actions -->
+					<div class="flex flex-col gap-2 pt-1 sm:flex-row">
+						<button
+							onclick={(e) => { e.stopPropagation(); openAddQuantityModal(selectedDonation!); selectedDonation = null; }}
+							class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors sm:flex-1"
+						>
+							Add Quantity
+						</button>
+						<button
+							onclick={(e) => { e.stopPropagation(); printReceipt(selectedDonation!.receiptNumber); }}
+							class="w-full rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-1 transition-colors sm:flex-1"
+						>
+							Print Receipt
+						</button>
+						<button
+							onclick={async (e) => {
+								e.stopPropagation();
+								const confirmed = await confirmStore.danger(
+									`Delete donation ${selectedDonation!.receiptNumber} (${selectedDonation!.itemName}) from ${selectedDonation!.donorName}? This cannot be undone.`,
+									'Delete Donation',
+									'Delete'
+								);
+								if (!confirmed) return;
+								try {
+									await donationsAPI.delete(selectedDonation!.id);
+									await loadDonations();
+									toastStore.success('Donation deleted successfully', 'Deleted');
+									selectedDonation = null;
+								} catch (err) {
+									toastStore.error(err instanceof Error ? err.message : 'Failed to delete donation', 'Error');
+								}
+							}}
+							class="w-full rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 transition-colors"
+						>
+							Delete
+						</button>
+					</div>
+				</div>
+
+				<!-- Footer -->
+				<div class="flex justify-end border-t border-gray-200 px-4 py-4 sm:px-6">
+					<button
+						onclick={() => selectedDonation = null}
+						class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors"
+					>
+						Close
+					</button>
+				</div>
 		</div>
 	</div>
 {/if}
