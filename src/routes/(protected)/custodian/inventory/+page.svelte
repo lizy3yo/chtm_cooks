@@ -1627,105 +1627,271 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 
 		<!-- Item Details Modal -->
 		{#if selectedItem}
-			<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center">
-				<div class="fixed inset-0 bg-black/40" aria-hidden="true" onclick={closeModal}></div>
-				<div class="relative z-50 w-full rounded-t-2xl bg-white shadow-xl sm:max-w-3xl sm:rounded-2xl">
-					<!-- drag handle on mobile -->
-					<div class="flex justify-center pt-3 sm:hidden">
-						<div class="h-1 w-10 rounded-full bg-gray-300"></div>
-					</div>
-					<div class="p-4 sm:p-6">
-					<div class="flex items-start justify-between">
-						<h2 class="text-lg font-semibold text-gray-900">{selectedItem.name}</h2>
-						<div class="relative">
-							<button aria-haspopup="true" aria-expanded={showMenu} title="Menu" class="text-gray-500 hover:text-gray-700 p-2 rounded-full" onclick={(e) => toggleMenu(e)}>
-								<!-- vertical ellipsis -->
-								<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4zm0 6a2 2 0 110-4 2 2 0 010 4z"/></svg>
-							</button>
+			<div class="fixed inset-0 z-50 overflow-y-auto">
+				<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeModal} aria-label="Close modal" tabindex="-1"></button>
+				<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+					<div class="relative w-full max-w-2xl sm:max-w-4xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden mx-0 sm:mx-auto">
+						
+						<!-- Header -->
+						<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
+							<div class="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+								<div class="flex items-start gap-3 sm:gap-4">
+									<!-- Item Image as Icon -->
+									{#if selectedItem.picture}
+										<button
+											type="button"
+											onclick={openFullImage}
+											class="relative cursor-zoom-in transition-all group shrink-0"
+											title="Click to view full size"
+										>
+											<div class="relative h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16">
+												<img 
+													src={selectedItem.picture} 
+													alt={selectedItem.name} 
+													class="h-full w-full rounded-xl sm:rounded-2xl object-cover shadow-lg ring-2 ring-pink-200" 
+													loading="lazy" 
+												/>
+												<div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors rounded-xl sm:rounded-2xl">
+													<svg class="h-4 w-4 sm:h-5 sm:w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/>
+													</svg>
+												</div>
+											</div>
+										</button>
+									{:else}
+										<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+											<svg class="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+											</svg>
+										</div>
+									{/if}
+									
+									<div class="min-w-0 flex-1">
+										<h2 class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">{selectedItem.name}</h2>
+										<p class="mt-0.5 text-xs text-gray-500 sm:text-sm">{selectedItem.category}</p>
+										<div class="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
+											<span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1 shadow-sm ring-1 ring-black/5 {
+												selectedItem.status === 'In Stock' ? 'bg-green-100 text-green-800' :
+												selectedItem.status === 'Low Stock' ? 'bg-amber-100 text-amber-800' :
+												'bg-red-100 text-red-800'
+											}">
+												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+												<span class="text-[10px] font-bold sm:text-xs">{selectedItem.status}</span>
+											</span>
+											{#if selectedItem.isConstant}
+												<span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 sm:px-2.5 sm:py-1 text-purple-800 shadow-sm ring-1 ring-purple-200">
+													<Star class="h-2.5 w-2.5 sm:h-3 sm:w-3 fill-current" />
+													<span class="text-[10px] font-bold sm:text-xs">Constant</span>
+												</span>
+											{/if}
+										</div>
+									</div>
 
-							{#if showMenu}
-								<div class="absolute right-0 mt-2 w-48 rounded-md bg-white border shadow-lg z-50" role="menu" aria-label="Item menu">
-									<button class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2" role="menuitem" onclick={() => { toggleConstantStatus(selectedItem); toggleMenu(); }}>
-										{#if selectedItem.isConstant}
-											<svg class="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-											</svg>
-											Remove Constant
-										{:else}
-											<svg class="h-4 w-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-											</svg>
-											Mark as Constant
-										{/if}
+									<button 
+										onclick={closeModal}
+										aria-label="Close modal"
+										class="rounded-lg sm:rounded-xl p-1.5 sm:p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95 shrink-0"
+									>
+										<svg class="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+										</svg>
 									</button>
-									<button class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" role="menuitem" onclick={() => { editItem(selectedItem); toggleMenu(); }}>Edit</button>
-									<button class="w-full text-left px-4 py-2 text-sm text-yellow-700 hover:bg-yellow-50" role="menuitem" onclick={() => { archiveItem(selectedItem); toggleMenu(); }}>Archive</button>
-									<button class="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50" role="menuitem" onclick={() => { deleteItem(selectedItem); toggleMenu(); }}>Delete</button>
-									<button class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" role="menuitem" onclick={() => { closeModal(); toggleMenu(); }}>Close</button>
-								</div>
-							{/if}
-						</div>
-					</div>
-					<div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-						<div class="sm:col-span-1 flex items-center justify-center">
-							{#if selectedItem.picture}
-								<button
-									type="button"
-									onclick={openFullImage}
-									class="cursor-zoom-in hover:opacity-90 transition-opacity"
-									title="Click to view full size"
-								>
-									<img src={selectedItem.picture} alt={selectedItem.name} class="w-44 rounded object-cover" loading="lazy" />
-								</button>
-							{:else}
-								<div class="flex h-44 w-44 items-center justify-center overflow-hidden rounded bg-gray-100">
-									<ItemImagePlaceholder size="lg" />
-								</div>
-							{/if}
-						</div>
-						<div class="sm:col-span-2">
-							<div class="grid gap-2 md:grid-cols-2">
-								<div>
-									<p class="text-sm text-gray-500">Category</p>
-									<p class="font-medium">{selectedItem.category}</p>
-								</div>
-								<div>
-									<p class="text-sm text-gray-500">Specification</p>
-									<p class="font-medium">{selectedItem.specification}</p>
-								</div>
-								<div>
-									<p class="text-sm text-gray-500">Tools / Equipment</p>
-									<p class="font-medium">{selectedItem.toolsOrEquipment}</p>
-								</div>
-								<div>
-									<p class="text-sm text-gray-500">Location</p>
-									<p class="font-medium">{selectedItem.location ?? '—'}</p>
-								</div>
-								<div>
-									<p class="text-sm text-gray-500">Current Count</p>
-									<p class="font-medium">{selectedItem.quantity}</p>
-								</div>
-								<div>
-									<p class="text-sm text-gray-500">EOM Count</p>
-									<p class="font-medium">{selectedItem.eomCount}</p>
-								</div>
-								<div>
-									<p class="text-sm text-gray-500">Variance</p>
-									<p class="font-medium">{selectedItem.variance}</p>
-								</div>
-								<div>
-									<p class="text-sm text-gray-500">Status</p>
-									<p class="font-medium">{selectedItem.status}</p>
 								</div>
 							</div>
-							<div class="mt-4">
-								<p class="text-sm text-gray-500">Condition</p>
-								<p class="font-medium">{selectedItem.condition}</p>
-							</div>
 						</div>
-					</div>
+						
+						<!-- Content -->
+						<div class="max-h-[calc(100vh-180px)] sm:max-h-[70vh] overflow-y-auto">
+							<div class="px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
+								<div class="space-y-5 sm:space-y-6 lg:space-y-8">
+									
+									<!-- Item Details -->
+									<div>
+										<h3 class="mb-3 sm:mb-4 flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-gray-900">
+											<div class="h-1 w-1 rounded-full bg-pink-500"></div>
+											Item Details
+										</h3>
+										<div class="grid grid-cols-2 gap-2 lg:gap-3">
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+													</svg>
+													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Category</p>
+												</div>
+												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.category}</p>
+											</div>
 
-				</div>
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+													</svg>
+													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Specification</p>
+												</div>
+												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.specification || '—'}</p>
+											</div>
+
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+													</svg>
+													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Tools / Equipment</p>
+												</div>
+												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.toolsOrEquipment || '—'}</p>
+											</div>
+
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+													</svg>
+													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Location</p>
+												</div>
+												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.location || '—'}</p>
+											</div>
+
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+													</svg>
+													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Condition</p>
+												</div>
+												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.condition}</p>
+											</div>
+
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+													</svg>
+													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Status</p>
+												</div>
+												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.status}</p>
+											</div>
+										</div>
+									</div>
+
+									<!-- Stock Information -->
+									<div>
+										<h3 class="mb-3 sm:mb-4 flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-gray-900">
+											<div class="h-1 w-1 rounded-full bg-pink-500"></div>
+											Stock Information
+										</h3>
+										<div class="grid grid-cols-2 gap-2 lg:gap-3">
+<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+											<div class="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
+												<div class="flex h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 shrink-0 items-center justify-center rounded-md sm:rounded-lg bg-blue-100">
+													<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+													</svg>
+												</div>
+												<p class="text-[8px] sm:text-[9px] lg:text-xs font-bold uppercase tracking-tight text-gray-500 leading-tight">Current</p>
+											</div>
+											<p class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{selectedItem.quantity}</p>
+											</div>
+
+<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+											<div class="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
+												<div class="flex h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 shrink-0 items-center justify-center rounded-md sm:rounded-lg bg-purple-100">
+													<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+													</svg>
+												</div>
+												<p class="text-[8px] sm:text-[9px] lg:text-xs font-bold uppercase tracking-tight text-gray-500 leading-tight">EOM</p>
+											</div>
+											<p class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{selectedItem.eomCount}</p>
+											</div>
+
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+												<div class="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
+													<div class="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl {
+														selectedItem.variance > 0 ? 'bg-green-100' :
+														selectedItem.variance < 0 ? 'bg-red-100' :
+														'bg-gray-100'
+													}">
+														<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 {
+															selectedItem.variance > 0 ? 'text-green-600' :
+															selectedItem.variance < 0 ? 'text-red-600' :
+															'text-gray-600'
+														}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+														</svg>
+													</div>
+													<p class="text-[8px] sm:text-[9px] lg:text-xs font-bold uppercase tracking-tight text-gray-500 leading-tight">Variance</p>
+												</div>
+												<p class="text-lg sm:text-xl lg:text-2xl font-bold {
+													selectedItem.variance > 0 ? 'text-green-600' :
+													selectedItem.variance < 0 ? 'text-red-600' :
+													'text-gray-900'
+												}">{selectedItem.variance > 0 ? '+' : ''}{selectedItem.variance}</p>
+											</div>
+										</div>
+									</div>
+
+									<!-- Low Stock Warning -->
+									{#if selectedItem.status === 'Low Stock' || selectedItem.status === 'Out of Stock'}
+										<div class="rounded-xl sm:rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50 p-4 sm:p-5">
+											<div class="flex gap-2.5 sm:gap-3">
+												<div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl {selectedItem.status === 'Out of Stock' ? 'bg-red-500' : 'bg-amber-500'}">
+													<AlertTriangle class="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+												</div>
+												<div class="flex-1 min-w-0">
+													<p class="text-xs sm:text-sm font-bold {selectedItem.status === 'Out of Stock' ? 'text-red-900' : 'text-amber-900'}">
+														{selectedItem.status === 'Out of Stock' ? 'Out of Stock' : 'Low Stock Alert'}
+													</p>
+													<p class="mt-1 sm:mt-1.5 text-xs sm:text-sm {selectedItem.status === 'Out of Stock' ? 'text-red-800' : 'text-amber-800'} leading-relaxed">
+														{#if selectedItem.status === 'Out of Stock'}
+															This item is currently out of stock. Consider restocking or marking as unavailable for requests.
+														{:else}
+															Stock levels are running low. Consider restocking this item soon to maintain availability.
+														{/if}
+													</p>
+												</div>
+											</div>
+										</div>
+									{/if}
+								</div>
+							</div>
+						</div>
+						
+						<!-- Footer -->
+						<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm">
+							<div class="px-4 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-5">
+								<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+									<button
+										onclick={closeModal}
+										class="order-3 sm:order-1 rounded-lg sm:rounded-xl border border-gray-300 bg-white px-4 py-2 sm:px-4 sm:py-2 lg:px-4 lg:py-2 text-sm sm:text-xs lg:text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] whitespace-nowrap"
+									>
+										Close
+									</button>
+									<div class="order-1 sm:order-2 flex flex-row gap-2 sm:gap-2">
+										<button
+											onclick={() => { if (selectedItem) toggleConstantStatus(selectedItem); }}
+											class="flex-1 sm:flex-none rounded-md sm:rounded-xl border border-purple-300 bg-white px-3 py-1.5 sm:px-4 sm:py-2 lg:px-4 lg:py-2 text-xs sm:text-xs lg:text-sm font-semibold text-purple-700 shadow-sm transition-all hover:bg-purple-50 active:scale-[0.98] whitespace-nowrap"
+										>
+											{#if selectedItem.isConstant}
+												<span class="hidden sm:inline">Remove Constant</span>
+												<span class="sm:hidden">Remove Constant</span>
+											{:else}
+												<span class="hidden sm:inline">Mark Constant</span>
+												<span class="sm:hidden">Mark Constant</span>
+											{/if}
+										</button>
+										<button
+											onclick={() => { if (selectedItem) editItem(selectedItem); }}
+											class="flex-1 sm:flex-none rounded-md sm:rounded-xl bg-gradient-to-r from-pink-600 to-pink-700 px-3 py-1.5 sm:px-4 sm:py-2 lg:px-4 lg:py-2 text-xs sm:text-xs lg:text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] whitespace-nowrap"
+										>
+											Edit Item
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
 				</div>
 			</div>
 		{/if}
@@ -1886,7 +2052,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 	</div>
 	
 	<!-- Tab Content -->
-	<div class="overflow-hidden rounded-b-lg bg-white shadow">
+	<div class="rounded-b-lg bg-white shadow">
 		{#if activeTab === 'all-items'}
 			<!-- All Items View -->
 			<div class="p-4 sm:p-6">
@@ -2159,7 +2325,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 											</svg>
 										</button>
 										{#if openDropdownId === category.id}
-											<div class="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5 z-10">
+											<div class="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5 z-30 origin-top-right">
 												<div class="py-1">
 													<button
 														onclick={(e) => openEditCategory(category, e)}
@@ -2197,11 +2363,16 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 
 		<!-- Category Creation Modal -->
 		{#if showCategoryModal}
-			<div class="fixed inset-0 z-50 flex items-center justify-center">
-				<div class="fixed inset-0 bg-black/40" aria-hidden="true" onclick={() => showCategoryModal = false}></div>
-				<div class="relative z-50 w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-					<h3 class="text-lg font-semibold text-gray-900 mb-4">Add New Category</h3>
-					<form onsubmit={handleCreateCategory} class="space-y-4">
+			<div class="fixed inset-0 z-50 overflow-y-auto">
+				<div class="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" onclick={() => showCategoryModal = false}></div>
+				<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+					<div class="relative z-50 w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-gray-100 bg-white shadow-2xl">
+						<div class="border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4">
+							<h3 class="text-base sm:text-lg font-semibold text-gray-900">Add New Category</h3>
+							<p class="mt-1 text-xs text-gray-500">Create a category to organize inventory items.</p>
+						</div>
+						<div class="max-h-[70vh] overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+							<form onsubmit={handleCreateCategory} class="space-y-3">
 						<div>
 							<label for="categoryName" class="block text-sm font-medium text-gray-700">Category Name *</label>
 							<input
@@ -2209,7 +2380,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 								id="categoryName"
 								bind:value={newCategoryName}
 								required
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
 								placeholder="e.g., Cookware"
 							/>
 						</div>
@@ -2219,17 +2390,17 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 								type="text"
 								id="categoryDescription"
 								bind:value={newCategoryDescription}
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
 								placeholder="Optional description"
 							/>
 						</div>
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-2">Category Image</label>
-							<div class="flex items-center gap-3">
+							<div class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5">
 								<button
 									type="button"
 									onclick={() => categoryPictureInput?.click()}
-									class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700"
+									class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
 									disabled={uploadingCategoryImage || loading}
 								>
 									{#if uploadingCategoryImage}
@@ -2239,22 +2410,15 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									{/if}
 									Upload Image
 								</button>
-								<span class="text-sm text-gray-600">{newCategoryPictureFile ? newCategoryPictureFile.name : 'No file chosen'}</span>
+								<span class="min-w-0 flex-1 truncate text-xs text-gray-600">{newCategoryPictureFile ? newCategoryPictureFile.name : 'No file chosen'}</span>
 								{#if newCategoryPicture}
-									<img src={newCategoryPicture} alt="preview" class="h-16 w-auto rounded ml-2" />
-									<button type="button" onclick={() => { try { URL.revokeObjectURL(newCategoryPicture) } catch(e){}; newCategoryPicture=''; newCategoryPictureFile=null }} class="ml-2 text-sm text-red-500">Remove</button>
+									<img src={newCategoryPicture} alt="preview" class="h-14 w-14 rounded-lg object-cover border border-gray-200" />
+									<button type="button" onclick={() => { try { URL.revokeObjectURL(newCategoryPicture) } catch(e){}; newCategoryPicture=''; newCategoryPictureFile=null }} class="text-xs sm:text-sm text-red-500 hover:text-red-700">Remove</button>
 								{/if}
 								<input type="file" accept="image/*" onchange={handleCategoryPictureChange} bind:this={categoryPictureInput} class="hidden" />
 							</div>
 						</div>
-						<div class="flex gap-3 pt-4">
-							<button
-								type="submit"
-								class="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-								disabled={loading}
-							>
-								Create Category
-							</button>
+						<div class="flex flex-col-reverse gap-1.5 pt-1.5 sm:flex-row sm:justify-end">
 							<button
 								type="button"
 								onclick={() => {
@@ -2267,23 +2431,37 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									newCategoryPicture = '';
 									newCategoryPictureFile = null;
 								}}
-								class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+								class="inline-flex min-w-[108px] items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
 							>
 								Cancel
 							</button>
+							<button
+								type="submit"
+								class="inline-flex min-w-[108px] items-center justify-center rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
+								disabled={loading}
+							>
+								Create Category
+							</button>
 						</div>
 					</form>
+						</div>
+					</div>
 				</div>
 			</div>
 		{/if}
 			
 		<!-- Category Edit Modal -->
 		{#if showEditCategoryModal && editingCategory}
-			<div class="fixed inset-0 z-50 flex items-center justify-center">
-				<div class="fixed inset-0 bg-black/40" aria-hidden="true" onclick={() => showEditCategoryModal = false}></div>
-				<div class="relative z-50 w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-					<h3 class="text-lg font-semibold text-gray-900 mb-4">Edit Category</h3>
-					<form onsubmit={handleEditCategory} class="space-y-4">
+			<div class="fixed inset-0 z-50 overflow-y-auto">
+				<div class="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" onclick={() => showEditCategoryModal = false}></div>
+				<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+					<div class="relative z-50 w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-gray-100 bg-white shadow-2xl">
+						<div class="border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4">
+							<h3 class="text-base sm:text-lg font-semibold text-gray-900">Edit Category</h3>
+							<p class="mt-1 text-xs text-gray-500">Update category details and media.</p>
+						</div>
+						<div class="max-h-[70vh] overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+							<form onsubmit={handleEditCategory} class="space-y-3">
 						<div>
 							<label for="editCategoryName" class="block text-sm font-medium text-gray-700">Category Name *</label>
 							<input
@@ -2291,7 +2469,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 								id="editCategoryName"
 								bind:value={newCategoryName}
 								required
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
 								placeholder="e.g., Cookware"
 							/>
 						</div>
@@ -2301,17 +2479,17 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 								type="text"
 								id="editCategoryDescription"
 								bind:value={newCategoryDescription}
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
 								placeholder="Optional description"
 							/>
 						</div>
 						<div>
 							<label class="block text-sm font-medium text-gray-700 mb-2">Category Image</label>
-							<div class="flex items-center gap-3">
+							<div class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5">
 								<button
 									type="button"
 									onclick={() => editCategoryPictureInput?.click()}
-									class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700"
+									class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
 									disabled={uploadingCategoryImage || loading}
 								>
 									{#if uploadingCategoryImage}
@@ -2321,22 +2499,15 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									{/if}
 									Upload Image
 								</button>
-								<span class="text-sm text-gray-600">{newCategoryPictureFile ? newCategoryPictureFile.name : 'No file chosen'}</span>
+								<span class="min-w-0 flex-1 truncate text-xs text-gray-600">{newCategoryPictureFile ? newCategoryPictureFile.name : 'No file chosen'}</span>
 								{#if newCategoryPicture}
-									<img src={newCategoryPicture} alt="preview" class="h-16 w-auto rounded ml-2" />
-									<button type="button" onclick={() => { try { if(newCategoryPicture.startsWith('blob:')) URL.revokeObjectURL(newCategoryPicture) } catch(e){}; newCategoryPicture=editingCategory?.picture || ''; newCategoryPictureFile=null }} class="ml-2 text-sm text-red-500">Remove</button>
+									<img src={newCategoryPicture} alt="preview" class="h-14 w-14 rounded-lg object-cover border border-gray-200" />
+									<button type="button" onclick={() => { try { if(newCategoryPicture.startsWith('blob:')) URL.revokeObjectURL(newCategoryPicture) } catch(e){}; newCategoryPicture=editingCategory?.picture || ''; newCategoryPictureFile=null }} class="text-xs sm:text-sm text-red-500 hover:text-red-700">Remove</button>
 								{/if}
 								<input type="file" accept="image/*" onchange={handleCategoryPictureChange} bind:this={editCategoryPictureInput} class="hidden" />
 							</div>
 						</div>
-						<div class="flex gap-3 pt-4">
-							<button
-								type="submit"
-								class="flex-1 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-								disabled={loading}
-							>
-								Update Category
-							</button>
+						<div class="flex flex-col-reverse gap-1.5 pt-1.5 sm:flex-row sm:justify-end">
 							<button
 								type="button"
 								onclick={() => {
@@ -2350,12 +2521,21 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									newCategoryPicture = '';
 									newCategoryPictureFile = null;
 								}}
-								class="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+								class="inline-flex min-w-[108px] items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
 							>
 								Cancel
 							</button>
+							<button
+								type="submit"
+								class="inline-flex min-w-[108px] items-center justify-center rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
+								disabled={loading}
+							>
+								Update Category
+							</button>
 						</div>
 					</form>
+						</div>
+					</div>
 				</div>
 			</div>
 		{/if}
@@ -2389,33 +2569,33 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 					<!-- Mobile card list -->
 					<div class="divide-y divide-gray-100 sm:hidden">
 						{#each constantItems as item, i}
-							<div class="px-4 py-3">
+							<button
+								class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+								onclick={() => openModal(item)}
+							>
 								<div class="flex items-center gap-3">
-									{#if item.picture}
-										<img src={item.picture} alt={item.name} class="h-12 w-12 shrink-0 rounded object-cover" loading="lazy" />
-									{:else}
-										<div class="h-12 w-12 shrink-0 overflow-hidden rounded bg-gray-100">
-											<ItemImagePlaceholder size="sm" />
-										</div>
-									{/if}
+									<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
+										{i + 1}
+									</span>
 									<div class="min-w-0 flex-1">
 										<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
 										<p class="truncate text-xs text-gray-500">{item.specification || item.category}</p>
 										<div class="mt-1 flex flex-wrap items-center gap-1">
 											<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Constant</span>
 											<span class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">{item.category}</span>
-											<span class="text-[10px] text-gray-400">Qty: {item.quantity}</span>
+											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+												<span class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">{item.status}</span>
+											{:else}
+												<span class="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">{item.status}</span>
+											{/if}
+											<span class="text-[10px] text-gray-400">Qty: {item.quantity} · EOM: {item.eomCount}</span>
 										</div>
 									</div>
-									<button
-										onclick={() => toggleConstantStatus(item)}
-										class="shrink-0 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
-										title="Remove from constant items"
-									>
-										Remove
-									</button>
+									<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+									</svg>
 								</div>
-							</div>
+							</button>
 						{/each}
 					</div>
 
@@ -2724,11 +2904,11 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				</div>
 
 				<!-- Modal Footer -->
-				<div class="flex items-center justify-end gap-3 border-t border-gray-200 px-6 py-4">
+				<div class="flex items-center justify-end gap-2 sm:gap-3 border-t border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
 					<button
 						type="button"
 						onclick={closeAddItemModal}
-						class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:opacity-50"
+						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:opacity-50 whitespace-nowrap"
 						disabled={loading}
 					>
 						Cancel
@@ -2736,7 +2916,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 					<button
 						type="submit"
 						form="add-item-form"
-						class="inline-flex items-center rounded-lg bg-pink-600 px-5 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:opacity-50"
+						class="inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-xs sm:text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:opacity-50 whitespace-nowrap"
 						disabled={loading || uploadingImage}
 					>
 						{#if loading}

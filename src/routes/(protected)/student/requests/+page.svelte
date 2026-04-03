@@ -17,10 +17,12 @@ import {
 } from 'lucide-svelte';
 
 type StudentTab = 'my-request' | 'instructor-approved' | 'active' | 'history';
+type RequestViewMode = 'card' | 'list';
 
 let activeTab = $state<StudentTab>('my-request');
 let searchQuery = $state('');
 let sortBy = $state('newest');
+let requestViewMode = $state<RequestViewMode>('card');
 let showDetailModal = $state(false);
 let selectedRequest = $state<any>(null);
 let qrDataUrl = $state<string | null>(null);
@@ -621,13 +623,40 @@ return timeline;
 	<!-- Requests List -->
 	<div class="space-y-4">
 		<div class="flex items-center justify-between rounded-lg bg-gray-50 p-3">
-			<span class="text-sm font-medium text-gray-700">
-				{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
-			</span>
-			<a href="/student/request" class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-pink-700 shrink-0">
-				<Plus size={13} />
-				New
-			</a>
+			<div class="flex min-w-0 items-center gap-2">
+				<span class="text-sm font-medium text-gray-700">
+					{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
+				</span>
+				<span class="hidden rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-500 ring-1 ring-gray-200 sm:inline-flex">
+					{requestViewMode === 'card' ? 'Card view' : 'List view'}
+				</span>
+			</div>
+			<div class="flex items-center gap-2">
+				<div class="flex overflow-hidden rounded-lg border border-gray-300">
+					<button
+						onclick={() => (requestViewMode = 'card')}
+						aria-label="Card view"
+						class="flex items-center px-2.5 py-1.5 text-sm transition-colors {requestViewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+					>
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+						</svg>
+					</button>
+					<button
+						onclick={() => (requestViewMode = 'list')}
+						aria-label="List view"
+						class="flex items-center border-l border-gray-300 px-2.5 py-1.5 text-sm transition-colors {requestViewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+					>
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+						</svg>
+					</button>
+				</div>
+				<a href="/student/request" class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-pink-700 shrink-0">
+					<Plus size={13} />
+					New
+				</a>
+			</div>
 		</div>
 		
 		<!-- Loading skeletons only show on first load when no requests exist -->
@@ -666,7 +695,7 @@ return timeline;
 				</div>
 			{/each}
 		{:else}
-		
+		{#if requestViewMode === 'card'}
 		{#each filteredRequests as request}
 			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md border-l-4 {getStatusBorderColor(request.status)}">
 
@@ -836,6 +865,109 @@ return timeline;
 				</div>
 			</div>
 		{/each}
+		{:else}
+			<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+				<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.1fr_1.2fr_1fr_auto] md:items-center md:gap-3">
+					<span>Request</span>
+					<span>Purpose</span>
+					<span>Status</span>
+					<span class="text-right">Actions</span>
+				</div>
+				<div class="divide-y divide-gray-100">
+					{#each filteredRequests as request}
+						<div class="grid gap-3 p-4 md:grid-cols-[1.1fr_1.2fr_1fr_auto] md:items-center md:gap-3">
+							<div class="min-w-0">
+								<p class="font-mono text-xs font-bold tracking-wider text-gray-900">{request.id}</p>
+								<p class="mt-1 text-xs text-gray-500">{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+								<p class="mt-1 text-xs text-gray-500 truncate">
+									{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+									-
+									{new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+								</p>
+							</div>
+
+							<div class="min-w-0">
+								<p class="truncate text-sm font-medium text-gray-900">{request.purpose}</p>
+								<p class="mt-1 truncate text-xs text-gray-500">{request.instructor}</p>
+								<div class="mt-1 flex flex-wrap gap-1.5">
+									{#each request.items.slice(0, 2) as item}
+										<span class="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
+											<span class="truncate max-w-[120px]">{item.name}</span>
+										</span>
+									{/each}
+									{#if request.items.length > 2}
+										<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">+{request.items.length - 2} more</span>
+									{/if}
+								</div>
+							</div>
+
+							<div class="min-w-0">
+								<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusColor(request.status)}">
+									<svelte:component this={getStatusIconComponent(request.status)} size={11} />
+									{getStatusLabel(request.status)}
+								</span>
+								{#if request.status === 'ready'}
+									<p class="mt-1 text-xs font-medium text-emerald-700">Ready for pickup</p>
+								{:else if request.status === 'pending-return'}
+									<p class="mt-1 text-xs font-medium text-orange-600">Awaiting confirmation</p>
+								{/if}
+							</div>
+
+							<div class="flex flex-wrap items-center gap-2 md:justify-end">
+								{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(request.status)}
+									<button
+										onclick={() => {
+											selectedRequest = request;
+											qrDataUrl = null;
+											QRCode.toDataURL(request.rawId, {
+												width: 240,
+												margin: 2,
+												color: { dark: '#111827', light: '#ffffff' },
+												errorCorrectionLevel: 'H'
+											}).then(url => { qrDataUrl = url; }).catch(() => {});
+											showQrModal = true;
+										}}
+										class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-pink-200 bg-white text-pink-600 shadow-sm transition-colors hover:bg-pink-50"
+										title="View QR Code"
+									>
+										<QrCode size={15} strokeWidth={2} />
+									</button>
+								{/if}
+								<button
+									onclick={() => openDetailModal(request)}
+									class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
+								>
+									View Details
+								</button>
+								{#if request.status === 'pending'}
+									<button
+										onclick={() => requestCancelConfirmation(request)}
+										disabled={loadingCancel === request.rawId}
+										class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+									>
+										{loadingCancel === request.rawId ? 'Cancelling...' : 'Cancel'}
+									</button>
+								{/if}
+								{#if request.status === 'picked-up'}
+									<button
+										onclick={() => requestReturnConfirmation(request)}
+										disabled={loadingReturn === request.rawId}
+										class="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+									>
+										{loadingReturn === request.rawId ? 'Processing...' : 'Return Items'}
+									</button>
+								{/if}
+								{#if request.status === 'rejected'}
+									<button class="rounded-lg border border-pink-200 bg-white px-3 py-1.5 text-xs font-medium text-pink-700 shadow-sm hover:bg-pink-50 transition-colors">
+										Appeal
+									</button>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		{/if}
 		{/if}
 		
 		{#if filteredRequests.length === 0}
