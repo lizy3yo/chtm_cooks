@@ -2,7 +2,7 @@
  * GET /api/reports/analytics
  *
  * Custodian / superadmin analytics endpoint.
- * Aggregates data from borrow_requests, financial_obligations, donations,
+ * Aggregates data from borrow_requests, replacement_obligations, donations,
  * and inventory_items into a single analytics payload.
  *
  * Query params:
@@ -77,7 +77,7 @@ export const GET: RequestHandler = async (event) => {
 
 		const db = await getDatabase();
 		const borrowRequests = db.collection('borrow_requests');
-		const obligations = db.collection('financial_obligations');
+		const obligations = db.collection('replacement_obligations');
 		const donationsCol = db.collection('donations');
 		const inventory = db.collection('inventory_items');
 
@@ -354,10 +354,10 @@ export const GET: RequestHandler = async (event) => {
 			{ $limit: 20 }
 		]).toArray();
 
-		// ── 3. Financial Overview ─────────────────────────────────────────────
+		// ── 3. replacement Overview ─────────────────────────────────────────────
 
 		// Outstanding vs collected (total)
-		const financialSummary = await obligations.aggregate([
+		const replacementSummary = await obligations.aggregate([
 			{
 				$group: {
 					_id: null,
@@ -673,7 +673,7 @@ export const GET: RequestHandler = async (event) => {
 		// ── Assemble response ─────────────────────────────────────────────────
 
 		const turnaround = turnaroundPipeline[0] ?? {};
-		const financial = financialSummary[0] ?? { totalOutstanding: 0, totalCollected: 0, totalObligations: 0, pendingCount: 0 };
+		const replacement = replacementSummary[0] ?? { totalOutstanding: 0, totalCollected: 0, totalObligations: 0, pendingCount: 0 };
 
 		const response = {
 			meta: {
@@ -726,12 +726,12 @@ export const GET: RequestHandler = async (event) => {
 				conditionDistribution: conditionDistribution.map((c) => ({ condition: c._id, count: c.count })),
 				stockAlerts
 			},
-			financial: {
+			replacement: {
 				summary: {
-					totalOutstanding: financial.totalOutstanding ?? 0,
-					totalCollected: financial.totalCollected ?? 0,
-					totalObligations: financial.totalObligations ?? 0,
-					pendingCount: financial.pendingCount ?? 0
+					totalOutstanding: replacement.totalOutstanding ?? 0,
+					totalCollected: replacement.totalCollected ?? 0,
+					totalObligations: replacement.totalObligations ?? 0,
+					pendingCount: replacement.pendingCount ?? 0
 				},
 				resolutionBreakdown: resolutionBreakdown.map((r) => ({
 					type: r._id,

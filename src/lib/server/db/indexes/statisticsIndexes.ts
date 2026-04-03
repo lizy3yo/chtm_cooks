@@ -4,7 +4,7 @@
  * Dedicated index definitions for statistics aggregation queries.
  * These support the student statistics page, trust score computation,
  * and performance analytics that fan across borrow_requests and
- * financial_obligations in a single service call.
+ * replacement_obligations in a single service call.
  *
  * @module statisticsIndexes
  */
@@ -16,7 +16,7 @@ import type { IndexDefinition } from './types';
  * STATISTICS QUERY INDEXES
  * ============================================================================
  * These are additive to the existing borrow_requests and
- * financial_obligations indexes already defined in their dedicated files.
+ * replacement_obligations indexes already defined in their dedicated files.
  * The partial-filter expressions keep the index footprint minimal while
  * dramatically speeding up the specific aggregation patterns the statistics
  * service uses.
@@ -93,12 +93,12 @@ export const statisticsIndexes: IndexDefinition[] = [
 	},
 
 	/**
-	 * 3. STUDENT FINANCIAL SUMMARY (Statistics – financial card)
+	 * 3. STUDENT replacement SUMMARY (Statistics – replacement card)
 	 * Purpose: Aggregate total/pending/resolved obligation amounts for
 	 *          a student without a collection scan.
 	 * Query:   { studentId: ObjectId }  (no additional filter — all statuses needed)
 	 *
-	 * The existing idx_financial_obligations_student_status_timeline covers
+	 * The existing idx_replacement_obligations_student_status_timeline covers
 	 * { studentId, status, createdAt } which is a superset; this entry
 	 * documents the query pattern for the statistics service explicitly.
 	 * No new index is created — the existing one handles it.
@@ -106,5 +106,5 @@ export const statisticsIndexes: IndexDefinition[] = [
 	 * (Listed here as documentation only; skipped in allIndexDefinitions
 	 *  because the collection already has the covering index.)
 	 */
-	// Documentation note — covered by idx_financial_obligations_student_status_timeline
+	// Documentation note — covered by idx_replacement_obligations_student_status_timeline
 ];

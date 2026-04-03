@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { financialObligationsAPI, type FinancialObligation } from '$lib/api/financialObligations';
+	import { replacementObligationsAPI, type ReplacementObligation } from '$lib/api/replacementObligations';
 	import { donationsAPI, type DonationResponse, type CreateDonationRequest, type CreateDonationNewItemRequest, type CreateDonationAddToExistingRequest, type AddDonationQuantityRequest } from '$lib/api/donations';
 	import { inventoryItemsAPI, inventoryCategoriesAPI, type InventoryItem, type InventoryCategory } from '$lib/api/inventory';
 	import { toastStore } from '$lib/stores/toast';
@@ -12,10 +12,13 @@
 	let replacementsFilter = $state<'all' | 'pending' | 'paid' | 'replaced' | 'waived'>('all');
 	let historyFilter = $state<'all' | 'resolved' | 'waived'>('all');
 	let replacementsView = $state<'by-request' | 'by-item'>('by-item');
-	let obligations = $state<FinancialObligation[]>([]);
+	let obligations = $state<ReplacementObligation[]>([]);
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
-	let selectedObligation = $state<FinancialObligation | null>(null);
+	let selectedObligation = $state<ReplacementObligation | null>(null);
+	let editingAmountReplacedId = $state<string | null>(null);
+	let editedAmountReplaced = $state(0);
+	let isUpdatingAmountReplaced = $state(false);
 	let selectedSummary = $state<{ borrowRequestId: string; requestCode: string; studentName: string; studentEmail: string; studentProfilePhotoUrl: string | null; items: number; missingCount: number; damagedCount: number; amount: number; amountPaid: number; balance: number; latestDueDate: string; statuses: Set<string> } | null>(null);
 	let selectedSummaryItemIndex = $state(0);
 
@@ -103,7 +106,7 @@
 				status: o.status === 'waived' ? 'waived' : 'resolved',
 				obligationStatus: o.status,
 				resolutionType: o.resolutionType,
-				paymentMethod: o.resolutionType === 'replacement' ? 'Item Replacement' : o.resolutionType === 'waiver' ? 'Waived' : 'Cash',
+				paymentMethod: o.resolutionType === 'replacement' ? 'Item Replaced' : 'Waived',
 				receiptNumber: o.paymentReference || `REP-${o.id.slice(-6).toUpperCase()}`
 			}))
 			.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -142,7 +145,6 @@
 	const obligationCounts = $derived({
 		all: obligations.length,
 		pending: obligations.filter((o) => o.status === 'pending').length,
-		paid: obligations.filter((o) => o.status === 'paid').length,
 		replaced: obligations.filter((o) => o.status === 'replaced').length,
 		waived: obligations.filter((o) => o.status === 'waived').length
 	});
@@ -223,13 +225,13 @@
 	);
 
 	let unsubscribeDonations: (() => void) | null = null;
-	let unsubscribeFinancial: (() => void) | null = null;
+	let unsubscribereplacement: (() => void) | null = null;
 
 	onMount(async () => {
-		await financialObligationsAPI.reconcile();
+		await replacementObligationsAPI.reconcile();
 		await Promise.all([loadObligations(), loadDonations()]);
 
-		unsubscribeFinancial = financialObligationsAPI.subscribeToChanges(async () => {
+		unsubscribereplacement = replacementObligationsAPI.subscribeToChanges(async () => {
 			await loadObligations();
 		});
 
@@ -238,7 +240,7 @@
 		});
 
 		return () => {
-			unsubscribeFinancial?.();
+			unsubscribereplacement?.();
 			unsubscribeDonations?.();
 		};
 	});
@@ -247,7 +249,7 @@
 		isLoading = true;
 		error = null;
 		try {
-			const response = await financialObligationsAPI.getObligations({ limit: 500 });
+			const response = await replacementObligationsAPI.getObligations({ limit: 500 });
 			obligations = response.obligations;
 		} catch (err) {
 			console.error('Failed to load obligations', err);
@@ -275,7 +277,7 @@
 		resolutionType: 'replacement' | 'waiver'
 	): Promise<void> {
 		try {
-			await financialObligationsAPI.resolveObligation(id, {
+			await replacementObligationsAPI.resolveObligation(id, {
 				resolutionType,
 				resolutionNotes: `Resolved via ${resolutionType}`
 			});
@@ -284,6 +286,26 @@
 		} catch (err) {
 			console.error('Failed to resolve obligation', err);
 			toastStore.error(err instanceof Error ? err.message : 'Failed to resolve obligation', 'Error');
+		}
+	}
+
+	async function updateAmountReplaced(): Promise<void> {
+		if (!selectedObligation || editedAmountReplaced < 0) return;
+
+		isUpdatingAmountReplaced = true;
+		try {
+			await replacementObligationsAPI.resolveObligation(selectedObligation.id, {
+				resolutionType: 'replacement',
+				amountPaid: editedAmountReplaced
+			});
+			await loadObligations();
+			editingAmountReplacedId = null;
+			toastStore.success('Amount replaced updated successfully', 'Success');
+		} catch (err) {
+			console.error('Failed to update amount replaced', err);
+			toastStore.error(err instanceof Error ? err.message : 'Failed to update amount replaced', 'Error');
+		} finally {
+			isUpdatingAmountReplaced = false;
 		}
 	}
 
@@ -447,8 +469,6 @@
 		switch (status) {
 			case 'pending':
 				return 'bg-amber-100 text-amber-800 ring-amber-200';
-			case 'paid':
-				return 'bg-emerald-100 text-emerald-800 ring-emerald-200';
 			case 'replaced':
 				return 'bg-cyan-100 text-cyan-800 ring-cyan-200';
 			case 'waived':
@@ -547,8 +567,8 @@
 			<div class="flex items-center justify-between gap-2">
 				<div class="min-w-0">
 					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Resolved</p>
-					<p class="mt-1 text-2xl font-semibold text-green-600 sm:mt-2 sm:text-3xl">{obligationCounts.paid + obligationCounts.replaced + obligationCounts.waived}</p>
-					<p class="text-xs text-gray-500 mt-0.5">Paid/replaced/waived</p>
+					<p class="mt-1 text-2xl font-semibold text-green-600 sm:mt-2 sm:text-3xl">{obligationCounts.replaced + obligationCounts.waived}</p>
+					<p class="text-xs text-gray-500 mt-0.5">Replaced/waived</p>
 				</div>
 				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 sm:h-12 sm:w-12">
 					<CheckCircle2 size={18} class="text-green-600 sm:hidden" />
@@ -823,7 +843,6 @@
 							{#each [
 								{ key: 'all', label: 'All', count: obligationCounts.all },
 								{ key: 'pending', label: 'Pending', count: obligationCounts.pending },
-								{ key: 'paid', label: 'Paid', count: obligationCounts.paid },
 								{ key: 'replaced', label: 'Replaced', count: obligationCounts.replaced },
 								{ key: 'waived', label: 'Waived', count: obligationCounts.waived }
 							] as tab}
@@ -982,7 +1001,7 @@
 											</td>
 											<td class="px-6 py-4 whitespace-nowrap">
 												<div class="text-sm text-gray-900">{obligation.itemName}</div>
-												<div class="text-xs text-gray-500">Qty: {obligation.quantity}</div>
+												<div class="text-xs text-gray-500">Replacement qty: {obligation.amount}</div>
 											</td>
 											<td class="px-6 py-4 whitespace-nowrap">
 												<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {obligation.type === 'missing' ? 'bg-red-100 text-red-800 ring-red-200' : 'bg-rose-100 text-rose-800 ring-rose-200'}">
@@ -1080,8 +1099,8 @@
 											<td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{transaction.receiptNumber}</td>
 											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transaction.name}</td>
 											<td class="px-6 py-4 whitespace-nowrap">
-												<span class="px-2 py-1 text-xs font-medium rounded-full {transaction.resolutionType === 'payment' ? 'bg-emerald-100 text-emerald-800' : transaction.resolutionType === 'replacement' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'}">
-													{transaction.resolutionType === 'payment' ? 'Cash Payment' : transaction.resolutionType === 'replacement' ? 'Item Replaced' : 'Waived'}
+												<span class="px-2 py-1 text-xs font-medium rounded-full {transaction.resolutionType === 'replacement' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'}">
+													{transaction.resolutionType === 'replacement' ? 'Item Replaced' : 'Waived'}
 												</span>
 											</td>
 											<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -1200,7 +1219,7 @@
 							</div>
 						</div>
 
-						<!-- Financials for selected item -->
+						<!-- replacements for selected item -->
 						<div class="rounded-lg border border-gray-200 divide-y divide-gray-100 text-sm">
 							<div class="flex items-center justify-between px-4 py-3">
 								<span class="text-gray-500">Item</span>
@@ -1588,7 +1607,10 @@
 <!-- Obligation Detail Modal -->
 {#if selectedObligation}
 	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="obligation-modal-title">
-		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => selectedObligation = null}></div>
+		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => {
+			selectedObligation = null;
+			editingAmountReplacedId = null;
+		}}></div>
 		<div class="flex min-h-full items-center justify-center p-4">
 			<div class="relative z-50 w-full max-w-lg rounded-xl bg-white shadow-2xl">
 
@@ -1599,7 +1621,10 @@
 						<p class="mt-0.5 text-xs text-gray-500">{selectedObligation.itemName} · {selectedObligation.studentName || 'Unknown Student'}</p>
 					</div>
 					<button
-						onclick={() => selectedObligation = null}
+						onclick={() => {
+							selectedObligation = null;
+							editingAmountReplacedId = null;
+						}}
 						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
 						aria-label="Close"
 					>
@@ -1639,9 +1664,58 @@
 							<p class="mt-0.5 font-medium text-gray-900">{selectedObligation.itemName}</p>
 						</div>
 						<div>
-							<p class="text-xs text-gray-500">Quantity</p>
-							<p class="mt-0.5 font-medium text-gray-900">{selectedObligation.quantity}</p>
-						</div>
+								<p class="text-xs text-gray-500">Replacement Quantity</p>
+								<p class="mt-0.5 font-medium text-gray-900">{selectedObligation.amount}</p>
+							</div>
+							<div>
+								<p class="text-xs text-gray-500">Original Borrowed Quantity</p>
+								<p class="mt-0.5 font-medium text-gray-900">{selectedObligation.quantity}</p>
+							</div>
+							<div>
+								<p class="text-xs text-gray-500">Amount Replaced</p>
+								{#if editingAmountReplacedId === selectedObligation.id}
+									<div class="mt-0.5 flex items-center gap-2">
+										<input
+											type="number"
+											min="0"
+											max={selectedObligation.amount}
+											bind:value={editedAmountReplaced}
+											placeholder="0"
+											class="w-20 rounded border border-gray-300 px-2 py-1 text-sm font-medium text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+											disabled={isUpdatingAmountReplaced}
+										/>
+										<button
+											onclick={updateAmountReplaced}
+											disabled={isUpdatingAmountReplaced}
+											class="rounded px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-colors"
+										>
+											{isUpdatingAmountReplaced ? 'Saving...' : 'Save'}
+										</button>
+										<button
+											onclick={() => editingAmountReplacedId = null}
+											disabled={isUpdatingAmountReplaced}
+											class="rounded px-2 py-1 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 transition-colors"
+										>
+											Cancel
+										</button>
+									</div>
+								{:else}
+									<div class="mt-0.5 flex items-center justify-between">
+										<p class="font-medium text-gray-900">{selectedObligation.amountPaid}</p>
+										{#if selectedObligation.status === 'pending'}
+											<button
+												onclick={() => {
+													editingAmountReplacedId = selectedObligation!.id;
+													editedAmountReplaced = selectedObligation!.amountPaid;
+												}}
+												class="text-xs text-blue-600 hover:text-blue-700 font-medium focus:outline-none"
+											>
+												Edit
+											</button>
+										{/if}
+									</div>
+								{/if}
+							</div>
 						<div>
 							<p class="text-xs text-gray-500">Type</p>
 							<span class="mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 {selectedObligation.type === 'missing' ? 'bg-red-100 text-red-800 ring-red-200' : 'bg-rose-100 text-rose-800 ring-rose-200'}">
@@ -1689,7 +1763,10 @@
 				<!-- Footer -->
 				<div class="flex justify-end border-t border-gray-200 px-6 py-4">
 					<button
-						onclick={() => selectedObligation = null}
+						onclick={() => {
+							selectedObligation = null;
+							editingAmountReplacedId = null;
+						}}
 						class="rounded-lg border border-gray-300 bg-white px-5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 transition-colors"
 					>
 						Close

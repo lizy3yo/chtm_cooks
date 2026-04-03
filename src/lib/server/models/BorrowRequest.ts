@@ -25,7 +25,7 @@ export interface ItemInspection {
 	inspectedAt: Date;
 	inspectedBy: ObjectId;
 	notes?: string;
-	unitPrice?: number; // Price at time of inspection
+	replacementQuantity?: number; // Quantity selected for replacement
 }
 
 export interface BorrowRequestItem {
@@ -138,7 +138,7 @@ export function toBorrowRequestResponse(request: BorrowRequest): BorrowRequestRe
 				inspectedAt: item.inspection.inspectedAt,
 				inspectedBy: item.inspection.inspectedBy.toString(),
 				notes: item.inspection.notes,
-				unitPrice: item.inspection.unitPrice
+				replacementQuantity: item.inspection.replacementQuantity
 			} : undefined
 		})),
 		purpose: request.purpose,

@@ -1,8 +1,8 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getDatabase } from '$lib/server/db/mongodb';
-import type { FinancialObligation } from '$lib/server/models/FinancialObligation';
-import { ObligationStatus } from '$lib/server/models/FinancialObligation';
+import type { ReplacementObligation } from '$lib/server/models/ReplacementObligation';
+import { ObligationStatus } from '$lib/server/models/ReplacementObligation';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
 import { BorrowRequestStatus, type BorrowRequest } from '$lib/server/models/BorrowRequest';
@@ -11,14 +11,14 @@ import {
 	publishBorrowRequestRealtimeEvent
 } from '../../borrow-requests/shared';
 import {
-	FINANCIAL_OBLIGATIONS_COLLECTION,
+	REPLACEMENT_OBLIGATIONS_COLLECTION,
 	getAuthenticatedUser,
-	invalidateFinancialObligationCaches,
-	publishFinancialObligationRealtimeEvent
+	invalidateReplacementObligationCaches,
+	publishReplacementObligationRealtimeEvent
 } from '../shared';
 
 /**
- * POST /api/financial-obligations/reconcile
+ * POST /api/replacement-obligations/reconcile
  * Reconciles stale 'missing' borrow requests where all obligations are resolved.
  * Transitions them to 'resolved' status.
  * Custodian / superadmin only.
@@ -50,7 +50,7 @@ export const POST: RequestHandler = async (event) => {
 
 		for (const request of missingRequests) {
 			const pendingCount = await db
-				.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION)
+				.collection<ReplacementObligation>(REPLACEMENT_OBLIGATIONS_COLLECTION)
 				.countDocuments({
 					borrowRequestId: request._id,
 					status: ObligationStatus.PENDING
@@ -65,8 +65,8 @@ export const POST: RequestHandler = async (event) => {
 						{ $set: { status: BorrowRequestStatus.RESOLVED, resolvedAt: now, updatedAt: now } }
 					);
 
-				// Publish to financial obligations SSE channel
-				publishFinancialObligationRealtimeEvent(
+				// Publish to replacement obligations SSE channel
+				publishReplacementObligationRealtimeEvent(
 					request.studentId.toString(),
 					'request_auto_resolved',
 					request._id!.toString(),
@@ -86,13 +86,13 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		if (reconciled > 0) {
-			await invalidateFinancialObligationCaches();
-			logger.info('financial-obligations', `Reconciled ${reconciled} stale missing request(s) to resolved`);
+			await invalidateReplacementObligationCaches();
+			logger.info('replacement-obligations', `Reconciled ${reconciled} stale missing request(s) to resolved`);
 		}
 
 		return json({ reconciled });
 	} catch (error) {
-		logger.error('financial-obligations', 'Reconciliation failed', { error });
+		logger.error('replacement-obligations', 'Reconciliation failed', { error });
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
 };

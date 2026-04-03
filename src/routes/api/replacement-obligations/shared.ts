@@ -3,20 +3,20 @@ import { cacheService } from '$lib/server/cache';
 import {
 	ObligationStatus,
 	ResolutionType,
-	type ResolveFinancialObligationRequest
-} from '$lib/server/models/FinancialObligation';
+	type ResolveReplacementObligationRequest
+} from '$lib/server/models/ReplacementObligation';
 import { getUserFromToken } from '$lib/server/middleware/auth/verify';
 import { sanitizeInput } from '$lib/server/utils/validation';
 import type { RequestEvent } from '@sveltejs/kit';
 import {
-	publishFinancialObligationChange,
-	getFinancialObligationRealtimeChannels,
-	type FinancialObligationRealtimeAction,
-	type FinancialObligationRealtimeEvent
-} from '$lib/server/realtime/financialObligationEvents';
+	publishReplacementObligationChange,
+	getReplacementObligationRealtimeChannels,
+	type ReplacementObligationRealtimeAction,
+	type ReplacementObligationRealtimeEvent
+} from '$lib/server/realtime/replacementObligationEvents';
 
-export const FINANCIAL_OBLIGATIONS_COLLECTION = 'financial_obligations';
-export const FINANCIAL_OBLIGATIONS_CACHE_TAG = 'financial-obligations';
+export const REPLACEMENT_OBLIGATIONS_COLLECTION = 'replacement_obligations';
+export const REPLACEMENT_OBLIGATIONS_CACHE_TAG = 'replacement-obligations';
 
 export function getAuthenticatedUser(event: RequestEvent) {
 	return getUserFromToken(event);
@@ -30,7 +30,7 @@ export function isResolutionType(value: string): value is ResolutionType {
 	return Object.values(ResolutionType).includes(value as ResolutionType);
 }
 
-export function buildFinancialObligationsListCacheKey(input: {
+export function buildReplacementObligationsListCacheKey(input: {
 	role: string;
 	userId: string;
 	status?: ObligationStatus;
@@ -39,7 +39,7 @@ export function buildFinancialObligationsListCacheKey(input: {
 	limit: number;
 }): string {
 	return [
-		'financial-obligations:list',
+		'replacement-obligations:list',
 		input.role,
 		input.userId,
 		input.status || 'all',
@@ -49,18 +49,18 @@ export function buildFinancialObligationsListCacheKey(input: {
 	].join(':');
 }
 
-export function buildFinancialObligationDetailCacheKey(id: string): string {
-	return `financial-obligations:detail:${id}`;
+export function buildReplacementObligationDetailCacheKey(id: string): string {
+	return `replacement-obligations:detail:${id}`;
 }
 
-export async function invalidateFinancialObligationCaches(): Promise<void> {
+export async function invalidateReplacementObligationCaches(): Promise<void> {
 	await Promise.all([
-		cacheService.deletePattern('financial-obligations:*'),
-		cacheService.invalidateByTags([FINANCIAL_OBLIGATIONS_CACHE_TAG])
+		cacheService.deletePattern('replacement-obligations:*'),
+		cacheService.invalidateByTags([REPLACEMENT_OBLIGATIONS_CACHE_TAG])
 	]);
 }
 
-export function sanitizeResolutionPayload(body: ResolveFinancialObligationRequest): ResolveFinancialObligationRequest {
+export function sanitizeResolutionPayload(body: ResolveReplacementObligationRequest): ResolveReplacementObligationRequest {
 	return {
 		resolutionType: body.resolutionType,
 		amountPaid: typeof body.amountPaid === 'number' ? body.amountPaid : undefined,
@@ -78,23 +78,23 @@ export function parseObjectId(id: string): ObjectId | null {
 }
 
 /**
- * Publish a financial obligation realtime event to all subscribed SSE clients.
+ * Publish a replacement obligation realtime event to all subscribed SSE clients.
  * Fan-out targets: the owning student's channel + role:custodian + role:superadmin.
  */
-export function publishFinancialObligationRealtimeEvent(
+export function publishReplacementObligationRealtimeEvent(
 	studentId: string,
-	action: FinancialObligationRealtimeAction,
+	action: ReplacementObligationRealtimeAction,
 	borrowRequestId: string,
 	obligationId?: string,
 	occurredAt: Date = new Date()
 ): void {
-	const channels = getFinancialObligationRealtimeChannels(studentId);
-	const event: FinancialObligationRealtimeEvent = {
+	const channels = getReplacementObligationRealtimeChannels(studentId);
+	const event: ReplacementObligationRealtimeEvent = {
 		action,
 		obligationId,
 		borrowRequestId,
 		studentId,
 		occurredAt: occurredAt.toISOString()
 	};
-	publishFinancialObligationChange(channels, event);
+	publishReplacementObligationChange(channels, event);
 }

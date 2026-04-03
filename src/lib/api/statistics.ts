@@ -1,20 +1,20 @@
-/**
+﻿/**
  * Client-side Statistics API module
  *
  * Provides a typed wrapper around GET /api/student-statistics with a
  * 60-second in-memory cache to prevent redundant network round-trips
  * during the same browsing session (mirrors the pattern used in
- * borrowRequests.ts and financialObligations.ts).
+ * borrowRequests.ts and replacementObligations.ts).
  *
  * Cache layers:
- *  1. Client memory cache (this module) — 60 s TTL, instant reads
- *  2. Server Redis cache (/api/student-statistics) — 300 s TTL
- *  3. MongoDB aggregation (computeStudentStatistics service) — source of truth
+ *  1. Client memory cache (this module) â€” 60 s TTL, instant reads
+ *  2. Server Redis cache (/api/student-statistics) â€” 300 s TTL
+ *  3. MongoDB aggregation (computeStudentStatistics service) â€” source of truth
  */
 
 import { browser } from '$app/environment';
 
-// ─── Re-export shared types so consumers import from one place ─────────────────
+// â”€â”€â”€ Re-export shared types so consumers import from one place â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type TrustTier = 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
 export type StatisticsPeriod = '7d' | '30d' | '90d' | '180d' | '365d' | 'all';
@@ -66,14 +66,14 @@ export interface ItemHealthStats {
 	goodRate: number | null;
 }
 
-export interface FinancialStats {
+export interface ReplacementStats {
 	totalObligations: number;
 	pendingCount: number;
 	resolvedCount: number;
-	totalAmount: number;
-	amountPaid: number;
-	balance: number;
-	periodIncurredAmount: number;
+	totalAmount: number; // Total items affected
+	amountPaid: number; // Items already replaced
+	balance: number; // Items still pending replacement
+	periodIncurredAmount: number; // Items affected in period
 }
 
 export interface DataQuality {
@@ -115,7 +115,7 @@ export interface StudentStatisticsData {
 	requests: RequestStatistics;
 	returnPerformance: ReturnPerformance;
 	itemHealth: ItemHealthStats;
-	financial: FinancialStats;
+	replacement: ReplacementStats;
 	dataQuality: DataQuality;
 	activityTimeline: ActivityMonth[];
 	topCategories: CategoryStat[];
@@ -123,7 +123,7 @@ export interface StudentStatisticsData {
 	computedAt: string;
 }
 
-// ─── Internal cache primitives ─────────────────────────────────────────────────
+// â”€â”€â”€ Internal cache primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface CacheEntry {
 	data: StudentStatisticsData;
@@ -150,7 +150,7 @@ function setCache(period: StatisticsPeriod, data: StudentStatisticsData): void {
 	cacheByPeriod.set(period, { data, expiresAt: Date.now() + CLIENT_CACHE_TTL_MS });
 }
 
-// ─── HTTP helpers ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ HTTP helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface ApiError {
 	error?: string;
@@ -178,7 +178,7 @@ async function doFetch(period: StatisticsPeriod, forceRefresh: boolean): Promise
 	return payload;
 }
 
-// ─── Public API ────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface FetchOptions {
 	forceRefresh?: boolean;
@@ -193,7 +193,7 @@ export const statisticsAPI = {
 	 * - Deduplicates concurrent calls: if a fetch is already in-flight the
 	 *   same promise is returned to all callers.
 	 * - Pass `forceRefresh: true` to bypass both client and server caches
-	 *   (appends `?_t=…` which the server interprets as a cache-bust flag).
+	 *   (appends `?_t=â€¦` which the server interprets as a cache-bust flag).
 	 */
 	async get(options: FetchOptions = {}): Promise<StudentStatisticsData> {
 		const period = options.period ?? '180d';
@@ -244,3 +244,4 @@ export const statisticsAPI = {
 		inFlightByPeriod.clear();
 	}
 };
+

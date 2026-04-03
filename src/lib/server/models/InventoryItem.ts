@@ -29,7 +29,7 @@ export interface InventoryItem {
 	location?: string;
 	description?: string;
 	status: ItemStatus;
-	unitPrice?: number; // Price per unit for financial tracking
+	unitPrice?: number; // Price per unit for replacement tracking
 	isConstant?: boolean; // Items that always appear on student request forms
 	maxQuantityPerRequest?: number; // Maximum quantity allowed per request for constant items
 	archived: boolean;

@@ -8,7 +8,7 @@
 			itemId: string;
 			status: 'good' | 'damaged' | 'missing';
 			notes: string;
-			unitPrice: number;
+			replacementQuantity: number;
 		}>) => Promise<void>;
 		onCancel: () => void;
 	}
@@ -22,7 +22,7 @@
 		picture?: string | null;
 		status: 'good' | 'damaged' | 'missing' | null;
 		notes: string;
-		unitPrice: number;
+		replacementQuantity: number;
 	}
 
 	let inspections = $state<ItemInspection[]>(
@@ -33,7 +33,7 @@
 			picture: item.picture ?? null,
 			status: null,
 			notes: '',
-			unitPrice: 0
+			replacementQuantity: 0
 		}))
 	);
 
@@ -85,10 +85,13 @@
 			return;
 		}
 
-		// Require pricing for non-good returns.
+		// Require a valid replacement quantity for non-good returns.
 		for (const inspection of inspections) {
-			if ((inspection.status === 'damaged' || inspection.status === 'missing') && inspection.unitPrice <= 0) {
-				error = `Please enter a unit price for ${inspection.name}`;
+			if (
+				(inspection.status === 'damaged' || inspection.status === 'missing') &&
+				(!Number.isInteger(inspection.replacementQuantity) || inspection.replacementQuantity <= 0)
+			) {
+				error = `Please enter a replacement quantity for ${inspection.name}`;
 				return;
 			}
 		}
@@ -102,7 +105,7 @@
 					itemId: i.itemId,
 					status: i.status!,
 					notes: i.notes,
-					unitPrice: i.unitPrice
+					replacementQuantity: i.replacementQuantity
 				}))
 			);
 		} catch (err) {
@@ -128,7 +131,7 @@
 				<div>
 					<h2 id="modal-title" class="text-2xl font-bold text-gray-900">Item Inspection</h2>
 					<p class="mt-1 text-sm text-gray-600">
-						Inspect each item and document its condition. Financial obligations will be created for damaged or missing items.
+						Inspect each item and document its condition. Replacement obligations will be created for damaged or missing items.
 					</p>
 				</div>
 				<button
@@ -199,7 +202,7 @@
 									}`}
 									onclick={() => {
 										inspection.status = 'good';
-										inspection.unitPrice = 0;
+										inspection.replacementQuantity = 0;
 									}}
 								>
 									<svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -244,24 +247,24 @@
 							</div>
 						</div>
 
-						<!-- Unit Price (for damaged/missing) -->
+						<!-- Replacement Quantity (for damaged/missing) -->
 						{#if inspection.status === 'damaged' || inspection.status === 'missing'}
 							<div class="mb-4">
-								<label for={`price-${index}`} class="mb-2 block text-sm font-medium text-gray-700">
-									Unit Price (PHP) *
+								<label for={`replacement-quantity-${index}`} class="mb-2 block text-sm font-medium text-gray-700">
+									Replacement Quantity *
 								</label>
 								<input
-									id={`price-${index}`}
+									id={`replacement-quantity-${index}`}
 									type="number"
-									min="0"
-									step="0.01"
-									bind:value={inspection.unitPrice}
+									min="1"
+									step="1"
+									bind:value={inspection.replacementQuantity}
 									class="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-									placeholder="Enter replacement cost per unit"
+									placeholder="Enter quantity to replace"
 									required
 								/>
 								<p class="mt-1 text-sm text-gray-600">
-									Total obligation: PHP {(inspection.unitPrice * inspection.quantity).toFixed(2)}
+									Selected replacement quantity: {inspection.replacementQuantity}
 								</p>
 							</div>
 						{/if}
@@ -295,13 +298,13 @@
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
 						</svg>
 						<div class="flex-1">
-							<p class="font-medium text-amber-900">Financial obligations will be created</p>
+							<p class="font-medium text-amber-900">Replacement obligations will be created</p>
 							<p class="mt-1 text-sm text-amber-800">
-								Items marked as damaged or missing will generate financial obligations for the student.
-								Total amount: PHP {inspections
+								Items marked as damaged or missing will generate replacement obligations for the student.
+								Total quantity to replace: {inspections
 									.filter((i) => i.status === 'damaged' || i.status === 'missing')
-									.reduce((sum, i) => sum + i.unitPrice * i.quantity, 0)
-									.toFixed(2)}
+									.reduce((sum, i) => sum + i.replacementQuantity, 0)
+									.toLocaleString()}
 							</p>
 						</div>
 					</div>

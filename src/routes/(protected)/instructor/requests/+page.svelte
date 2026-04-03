@@ -618,7 +618,7 @@ function getStatusHint(status: string, rawStatus?: BorrowRequestStatus, rejectio
 	if (status === 'history') {
 		if (rawStatus === 'resolved') {
 			return {
-				text: 'All financial obligations from this incident have been settled. The request is fully resolved.',
+				text: 'All replacement obligations from this incident have been settled. The request is fully resolved.',
 				color: 'text-emerald-700'
 			};
 		}

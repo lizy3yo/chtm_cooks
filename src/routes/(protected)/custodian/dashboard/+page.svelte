@@ -40,7 +40,7 @@
 		(report?.borrowRequests.statusBreakdown.find(s => s.status === 'ready_for_pickup')?.count ?? 0)
 	);
 	const stockAlertCount   = $derived(report?.inventory.stockAlerts.length ?? 0);
-	const pendingObligations = $derived(report?.financial.summary.pendingCount ?? 0);
+	const pendingObligations = $derived(report?.replacement.summary.pendingCount ?? 0);
 	const totalItemsOut     = $derived(report?.inventory.itemsCurrentlyOut.reduce((s, i) => s + i.quantityOut, 0) ?? 0);
 
 	// live request groups
@@ -568,8 +568,8 @@
 						<!-- Replacement cases -->
 						<div class="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3">
 							<p class="text-xs font-medium text-amber-700">Pending Replacements</p>
-							<p class="mt-0.5 text-2xl font-bold text-amber-700">{report.financial.summary.pendingCount}</p>
-							<p class="mt-0.5 text-xs text-amber-500">Avg resolution: {report.financial.avgResolutionDays > 0 ? `${report.financial.avgResolutionDays}d` : '—'}</p>
+							<p class="mt-0.5 text-2xl font-bold text-amber-700">{report.replacement.summary.pendingCount}</p>
+							<p class="mt-0.5 text-xs text-amber-500">Avg resolution: {report.replacement.avgResolutionDays > 0 ? `${report.replacement.avgResolutionDays}d` : '—'}</p>
 						</div>
 					</div>
 				{:else}

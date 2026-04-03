@@ -9,7 +9,7 @@
 		ClipboardList, Clock, PackageOpen, TriangleAlert,
 		CheckCircle2, CalendarDays, TrendingUp, Package,
 		ArrowRight, CircleCheck, CornerDownLeft, CircleAlert,
-		PackageCheck, CircleX, Banknote,
+		PackageCheck, CircleX, PackageX,
 		ChevronDown, ChevronUp, Award, ShieldCheck, BellRing
 	} from 'lucide-svelte';
 
@@ -41,14 +41,7 @@
 		return `REQ-${id.slice(-6).toUpperCase()}`;
 	}
 
-	function formatCurrency(amount: number): string {
-		return new Intl.NumberFormat('en-PH', {
-			style: 'currency',
-			currency: 'PHP',
-			minimumFractionDigits: 0,
-			maximumFractionDigits: 0
-		}).format(amount);
-	}
+	// Removed currency formatting - system now tracks item replacement only
 
 	function isCancelledRequest(raw: BorrowRequestRecord['status'], rejectionReason?: string): boolean {
 		return raw === 'cancelled' || (raw === 'rejected' && rejectionReason === 'Request cancelled by student');
@@ -614,46 +607,46 @@
 					{/if}
 				</div>
 
-				<!-- Financial Record -->
+				<!-- Replacement Record -->
 				<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
 					<div class="mb-4 flex items-center gap-2">
 						<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50">
-							<Banknote class="h-4 w-4 text-emerald-600" />
+							<PackageX class="h-4 w-4 text-emerald-600" />
 						</div>
 						<h3 class="font-semibold text-gray-900">Replacement Record</h3>
 					</div>
-					{#if performanceStats.financial.totalObligations === 0}
+					{#if performanceStats.replacement.totalObligations === 0}
 						<p class="text-sm text-gray-400 italic">No replacement records yet.</p>
 					{:else}
 						<div class="space-y-3">
 							<div class="flex items-center justify-between text-sm">
-								<span class="text-gray-500">Outstanding replacement value</span>
-								<span class="font-bold {performanceStats.financial.balance > 0 ? 'text-red-600' : 'text-emerald-600'}">
-									{formatCurrency(performanceStats.financial.balance)}
+								<span class="text-gray-500">Outstanding items</span>
+								<span class="font-bold {performanceStats.replacement.balance > 0 ? 'text-red-600' : 'text-emerald-600'}">
+									{performanceStats.replacement.balance} item{performanceStats.replacement.balance !== 1 ? 's' : ''}
 								</span>
 							</div>
 							<div class="grid grid-cols-2 gap-2">
 								<div class="rounded-lg bg-red-50 p-2 text-center">
-									<p class="text-2xl font-bold text-red-700">{performanceStats.financial.pendingCount}</p>
+									<p class="text-2xl font-bold text-red-700">{performanceStats.replacement.pendingCount}</p>
 									<p class="text-xs text-red-500">Pending cases</p>
 								</div>
 								<div class="rounded-lg bg-emerald-50 p-2 text-center">
-									<p class="text-2xl font-bold text-emerald-700">{performanceStats.financial.resolvedCount}</p>
+									<p class="text-2xl font-bold text-emerald-700">{performanceStats.replacement.resolvedCount}</p>
 									<p class="text-xs text-emerald-500">Resolved cases</p>
 								</div>
 							</div>
 							<div class="space-y-1 text-xs text-gray-400">
 								<div class="flex justify-between">
 									<span>Recorded ({performanceStats.periodLabel})</span>
-									<span>{formatCurrency(performanceStats.financial.periodIncurredAmount)}</span>
+									<span>{performanceStats.replacement.periodIncurredAmount} item{performanceStats.replacement.periodIncurredAmount !== 1 ? 's' : ''}</span>
 								</div>
 								<div class="flex justify-between">
-									<span>Total replacement value</span>
-									<span>{formatCurrency(performanceStats.financial.totalAmount)}</span>
+									<span>Total items affected</span>
+									<span>{performanceStats.replacement.totalAmount} item{performanceStats.replacement.totalAmount !== 1 ? 's' : ''}</span>
 								</div>
 								<div class="flex justify-between">
-									<span>Settled value (cash/item)</span>
-									<span class="text-emerald-600">{formatCurrency(performanceStats.financial.amountPaid)}</span>
+									<span>Items replaced</span>
+									<span class="text-emerald-600">{performanceStats.replacement.amountPaid} item{performanceStats.replacement.amountPaid !== 1 ? 's' : ''}</span>
 								</div>
 							</div>
 						</div>

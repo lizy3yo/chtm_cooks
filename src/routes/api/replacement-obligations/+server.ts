@@ -2,25 +2,25 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getDatabase } from '$lib/server/db/mongodb';
 import { ObjectId } from 'mongodb';
-import type { FinancialObligation } from '$lib/server/models/FinancialObligation';
-import { ObligationStatus } from '$lib/server/models/FinancialObligation';
+import type { ReplacementObligation } from '$lib/server/models/ReplacementObligation';
+import { ObligationStatus } from '$lib/server/models/ReplacementObligation';
 import type { User } from '$lib/server/models/User';
-import { toFinancialObligationResponse } from '$lib/server/models/FinancialObligation';
+import { toReplacementObligationResponse } from '$lib/server/models/ReplacementObligation';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
 import { cacheService } from '$lib/server/cache';
 import {
-	buildFinancialObligationsListCacheKey,
-	FINANCIAL_OBLIGATIONS_CACHE_TAG,
-	FINANCIAL_OBLIGATIONS_COLLECTION,
+	buildReplacementObligationsListCacheKey,
+	REPLACEMENT_OBLIGATIONS_CACHE_TAG,
+	REPLACEMENT_OBLIGATIONS_COLLECTION,
 	getAuthenticatedUser,
 	isObligationStatus,
 	parseObjectId
 } from './shared';
 
 /**
- * GET /api/financial-obligations
- * Get financial obligations with optional filters
+ * GET /api/replacement-obligations
+ * Get replacement obligations with optional filters
  */
 export const GET: RequestHandler = async (event) => {
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -75,7 +75,7 @@ export const GET: RequestHandler = async (event) => {
 		const skip = (page - 1) * limit;
 		const skipCache = url.searchParams.has('_t');
 
-		const cacheKey = buildFinancialObligationsListCacheKey({
+		const cacheKey = buildReplacementObligationsListCacheKey({
 			role: user.role,
 			userId: user.userId,
 			status: statusParam ? (statusParam as ObligationStatus) : undefined,
@@ -86,7 +86,7 @@ export const GET: RequestHandler = async (event) => {
 
 		const cached = !skipCache
 			? await cacheService.get<{
-				obligations: ReturnType<typeof toFinancialObligationResponse>[];
+				obligations: ReturnType<typeof toReplacementObligationResponse>[];
 				total: number;
 				page: number;
 				limit: number;
@@ -100,13 +100,13 @@ export const GET: RequestHandler = async (event) => {
 
 		const [obligations, total] = await Promise.all([
 			db
-				.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION)
+				.collection<ReplacementObligation>(REPLACEMENT_OBLIGATIONS_COLLECTION)
 				.find(filter)
 				.sort({ createdAt: -1 })
 				.skip(skip)
 				.limit(limit)
 				.toArray(),
-			db.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION).countDocuments(filter)
+			db.collection<ReplacementObligation>(REPLACEMENT_OBLIGATIONS_COLLECTION).countDocuments(filter)
 		]);
 
 		// Get student details for each obligation
@@ -132,7 +132,7 @@ export const GET: RequestHandler = async (event) => {
 		const response = {
 			obligations: obligations.map((obligation) => {
 				const studentInfo = studentMap.get(obligation.studentId.toString());
-				return toFinancialObligationResponse(
+				return toReplacementObligationResponse(
 					obligation,
 					studentInfo?.name,
 					studentInfo?.email,
@@ -147,17 +147,17 @@ export const GET: RequestHandler = async (event) => {
 
 		await cacheService.set(cacheKey, response, {
 			ttl: 90,
-			tags: [FINANCIAL_OBLIGATIONS_CACHE_TAG]
+			tags: [REPLACEMENT_OBLIGATIONS_CACHE_TAG]
 		});
 
-		logger.info('financial-obligations', 'Retrieved obligations', {
+		logger.info('replacement-obligations', 'Retrieved obligations', {
 			userId: user.userId,
 			count: response.obligations.length
 		});
 
 		return json(response);
 	} catch (error) {
-		logger.error('financial-obligations', 'Failed to retrieve obligations', { error });
+		logger.error('replacement-obligations', 'Failed to retrieve obligations', { error });
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
 };

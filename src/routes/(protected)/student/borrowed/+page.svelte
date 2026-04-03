@@ -6,7 +6,7 @@
 		type BorrowRequestRecord
 	} from '$lib/api/borrowRequests';
 	import { catalogAPI } from '$lib/api/catalog';
-	import { financialObligationsAPI } from '$lib/api/financialObligations';
+	import { replacementObligationsAPI } from '$lib/api/replacementObligations';
 	import { confirmStore } from '$lib/stores/confirm';
 	import { toastStore } from '$lib/stores/toast';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -159,7 +159,6 @@
 		if (status === 'missing') return 'Missing';
 		if (status === 'replaced') return 'Replaced';
 		if (status === 'payable') return 'Payable';
-		if (status === 'paid') return 'Paid';
 		if (status === 'return-in-progress') return 'Return in Progress';
 		return 'In Use';
 	}
@@ -172,7 +171,6 @@
 		if (status === 'missing') return 'bg-red-100 text-red-700 ring-red-200';
 		if (status === 'replaced') return 'bg-cyan-100 text-cyan-700 ring-cyan-200';
 		if (status === 'payable') return 'bg-orange-100 text-orange-700 ring-orange-200';
-		if (status === 'paid') return 'bg-green-100 text-green-700 ring-green-200';
 		if (status === 'return-in-progress') return 'bg-slate-100 text-slate-700 ring-slate-200';
 		return 'bg-blue-100 text-blue-700 ring-blue-200';
 	}
@@ -182,7 +180,9 @@
 		if (isUnresolved) return 'Open incident case';
 		if (item.inspection?.status === 'good') return 'No charge';
 		if (item.inspection?.status === 'damaged' || item.inspection?.status === 'missing') {
-			return item.inspection.unitPrice ? `Charge review: ${item.inspection.unitPrice.toLocaleString()}` : 'Charge review';
+			return item.inspection.replacementQuantity
+				? `Replacement quantity: ${item.inspection.replacementQuantity.toLocaleString()}`
+				: 'Replacement quantity';
 		}
 		return 'Not assessed';
 	}
@@ -204,7 +204,7 @@
 					},
 					{ forceRefresh }
 				),
-				financialObligationsAPI.getObligations(
+				replacementObligationsAPI.getObligations(
 					{ status: 'pending', limit: 200 },
 					{ forceRefresh }
 				)
@@ -321,7 +321,7 @@
 		refreshInFlight = true;
 		try {
 			borrowRequestsAPI.invalidateCache();
-			financialObligationsAPI.invalidateCache();
+			replacementObligationsAPI.invalidateCache();
 			await loadBorrowedItems(true);
 		} finally {
 			refreshInFlight = false;
@@ -801,7 +801,7 @@
 								<th class="px-5 py-3 font-semibold">Item</th>
 								<th class="px-5 py-3 font-semibold">Qty</th>
 								<th class="px-5 py-3 font-semibold">Status</th>
-								<th class="px-5 py-3 font-semibold">Financial</th>
+								<th class="px-5 py-3 font-semibold">replacement</th>
 								<th class="px-5 py-3 font-semibold">Due</th>
 								<th class="px-5 py-3 font-semibold">Instructor</th>
 							</tr>
@@ -853,7 +853,7 @@
 					<div>
 						<p class="font-mono text-xs font-semibold tracking-widest text-gray-500">{selectedLoan.requestCode}</p>
 						<h2 class="mt-1 text-xl font-semibold text-gray-900">Borrowed Request Details</h2>
-						<p class="mt-1 text-sm text-gray-500">Detailed condition, return, and financial tracking for this request.</p>
+						<p class="mt-1 text-sm text-gray-500">Detailed condition, return, and replacement tracking for this request.</p>
 					</div>
 					<button
 						onclick={closeLoanDetails}
@@ -971,7 +971,7 @@
 											<th class="pb-2 pr-4 font-semibold">Item</th>
 											<th class="pb-2 pr-4 font-semibold">Qty</th>
 											<th class="pb-2 pr-4 font-semibold">Status</th>
-											<th class="pb-2 pr-4 font-semibold">Financial</th>
+											<th class="pb-2 pr-4 font-semibold">replacement</th>
 										</tr>
 									</thead>
 									<tbody>

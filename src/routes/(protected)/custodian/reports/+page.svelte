@@ -133,7 +133,7 @@
 	// Donation totals grouped by month (computed, not in template)
 	const donationByMonth = $derived.by(() => {
 		const map = new Map<string, { year: string; month: string; itemCount: number; totalQuantity: number }>();
-		for (const d of report?.financial.donationTotals ?? []) {
+		for (const d of report?.replacement.donationTotals ?? []) {
 			const key = `${d.year}-${String(d.month).padStart(2, '0')}`;
 			const existing = map.get(key) ?? { year: String(d.year), month: String(d.month).padStart(2, '0'), itemCount: 0, totalQuantity: 0 };
 			map.set(key, { 
@@ -356,9 +356,9 @@
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Outstanding</p>
 						<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
-							₱{(report?.financial.summary.totalOutstanding ?? 0).toLocaleString()}
+							₱{(report?.replacement.summary.totalOutstanding ?? 0).toLocaleString()}
 						</p>
-						<p class="text-xs text-gray-500 mt-0.5">{report?.financial.summary.pendingCount ?? 0} pending</p>
+						<p class="text-xs text-gray-500 mt-0.5">{report?.replacement.summary.pendingCount ?? 0} pending</p>
 					</div>
 					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
 						<DollarSign size={18} class="text-amber-600 sm:hidden" />
@@ -1026,7 +1026,7 @@
 					<!-- Repeat offenders -->
 					<section>
 						<h3 class="mb-1 text-base font-semibold text-gray-900">Repeat Offenders</h3>
-						<p class="mb-4 text-xs text-gray-400">Students with the most active (unpaid) financial obligations.</p>
+						<p class="mb-4 text-xs text-gray-400">Students with the most active (unresolved) replacement obligations.</p>
 						{#if report.studentRisk.repeatOffenders.length === 0}
 							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
 								<p class="text-sm text-emerald-600 font-medium">No students with active obligations</p>

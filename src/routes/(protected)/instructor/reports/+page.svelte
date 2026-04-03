@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import {
-		financialObligationsAPI,
-		type FinancialObligation,
+		replacementObligationsAPI,
+		type ReplacementObligation,
 		type ObligationStatus,
 		type ObligationType
-	} from '$lib/api/financialObligations';
+	} from '$lib/api/replacementObligations';
 
 	let activeTab = $state<'overview' | 'students' | 'equipment' | 'issues'>('overview');
 	let dateRange = $state('semester');
-	let obligations = $state<FinancialObligation[]>([]);
+	let obligations = $state<ReplacementObligation[]>([]);
 	let issuesLoading = $state(true);
 	let issuesError = $state<string | null>(null);
 	
@@ -90,7 +90,7 @@
 		issuesLoading = true;
 		issuesError = null;
 		try {
-			const response = await financialObligationsAPI.getObligations({ limit: 200 });
+			const response = await replacementObligationsAPI.getObligations({ limit: 200 });
 			obligations = response.obligations;
 		} catch (error) {
 			issuesError = error instanceof Error ? error.message : 'Failed to load issue case analytics.';

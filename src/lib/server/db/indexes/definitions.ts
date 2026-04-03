@@ -8,7 +8,7 @@
 
 import type { IndexDefinition } from './types';
 import { borrowRequestIndexes } from './borrowRequestsIndexes';
-import { financialObligationIndexes } from './financialObligationsIndexes';
+import { replacementObligationIndexes } from './replacementObligationsIndexes';
 import { statisticsIndexes } from './statisticsIndexes';
 import { donationIndexes } from './donationIndexes';
 import { analyticsIndexes } from './analyticsIndexes';
@@ -931,7 +931,7 @@ export const allIndexDefinitions: IndexDefinition[] = [
 	...rememberTokenIndexes,
 	...inventoryItemIndexes,
 	...inventoryCategoryIndexes,
-	...financialObligationIndexes,
+	...replacementObligationIndexes,
 	...borrowRequestIndexes,
 	...statisticsIndexes,
 	...donationIndexes,
