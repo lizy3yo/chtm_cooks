@@ -13,7 +13,7 @@
 	let historyFilter = $state<'all' | 'resolved' | 'waived'>('all');
 	let replacementsView = $state<'by-request' | 'by-item'>('by-item');
 	let obligations = $state<ReplacementObligation[]>([]);
-	let isLoading = $state(true);
+	let isLoading = $state(false);
 	let error = $state<string | null>(null);
 	let selectedObligation = $state<ReplacementObligation | null>(null);
 	let editingAmountReplacedId = $state<string | null>(null);
@@ -21,6 +21,7 @@
 	let isUpdatingAmountReplaced = $state(false);
 	let selectedSummary = $state<{ borrowRequestId: string; requestCode: string; studentName: string; studentEmail: string; studentProfilePhotoUrl: string | null; items: number; missingCount: number; damagedCount: number; amount: number; amountPaid: number; balance: number; latestDueDate: string; statuses: Set<string> } | null>(null);
 	let selectedSummaryItemIndex = $state(0);
+	let hasInitialized = $state(false);
 
 	const selectedSummaryItems = $derived(
 		selectedSummary
@@ -226,49 +227,136 @@
 
 	let unsubscribeDonations: (() => void) | null = null;
 	let unsubscribereplacement: (() => void) | null = null;
+	let isMounted = $state(false);
+	let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+
+	// Debounced refresh to prevent excessive API calls
+	function scheduleRefresh(loadFn: () => Promise<void>, delay = 300) {
+		if (refreshTimeout) {
+			clearTimeout(refreshTimeout);
+		}
+		refreshTimeout = setTimeout(() => {
+			if (isMounted) {
+				loadFn();
+			}
+		}, delay);
+	}
 
 	onMount(async () => {
-		await replacementObligationsAPI.reconcile();
-		await Promise.all([loadObligations(), loadDonations()]);
+		isMounted = true;
 
-		unsubscribereplacement = replacementObligationsAPI.subscribeToChanges(async () => {
-			await loadObligations();
+		// Initialize from cache if available, otherwise show loading
+		const cachedObligations = replacementObligationsAPI.peekCachedObligations({ limit: 500 });
+		const cachedDonations = donationsAPI.peekCachedDonations({ limit: 200 });
+		
+		if (cachedObligations) {
+			obligations = cachedObligations.obligations;
+		}
+		if (cachedDonations) {
+			donations = cachedDonations.donations;
+		}
+
+		// Only show loading indicator if we don't have any cached data
+		const shouldShowLoading = !cachedObligations || !cachedDonations;
+		if (shouldShowLoading) {
+			isLoading = true;
+		}
+
+		// Parallel reconciliation and data load
+		try {
+			await replacementObligationsAPI.reconcile();
+			await Promise.all([loadObligations(shouldShowLoading), loadDonations(shouldShowLoading)]);
+		} catch (err) {
+			console.error('Initial load failed', err);
+			if (isMounted && !error) {
+				error = 'Failed to load resource management data';
+			}
+		}
+
+		hasInitialized = true;
+
+		// Set up real-time subscriptions with debouncing
+		unsubscribereplacement = replacementObligationsAPI.subscribeToChanges(() => {
+			if (isMounted) {
+				scheduleRefresh(() => loadObligations(false));
+			}
 		});
 
-		unsubscribeDonations = donationsAPI.subscribeToChanges(async () => {
-			await loadDonations();
+		unsubscribeDonations = donationsAPI.subscribeToChanges(() => {
+			if (isMounted) {
+				scheduleRefresh(() => loadDonations(false));
+			}
 		});
 
 		return () => {
-			unsubscribereplacement?.();
-			unsubscribeDonations?.();
+			isMounted = false;
+			
+			// Clear any pending refreshes
+			if (refreshTimeout) {
+				clearTimeout(refreshTimeout);
+				refreshTimeout = null;
+			}
+			
+			// Unsubscribe from SSE connections
+			if (unsubscribereplacement) {
+				unsubscribereplacement();
+				unsubscribereplacement = null;
+			}
+			if (unsubscribeDonations) {
+				unsubscribeDonations();
+				unsubscribeDonations = null;
+			}
 		};
 	});
 
-	async function loadObligations(): Promise<void> {
-		isLoading = true;
+	async function loadObligations(showLoading = true): Promise<void> {
+		if (showLoading) {
+			isLoading = true;
+		}
 		error = null;
+		
 		try {
 			const response = await replacementObligationsAPI.getObligations({ limit: 500 });
-			obligations = response.obligations;
+			if (isMounted) {
+				obligations = response.obligations;
+			}
 		} catch (err) {
 			console.error('Failed to load obligations', err);
-			error = err instanceof Error ? err.message : 'Failed to load obligations';
+			if (isMounted) {
+				error = err instanceof Error ? err.message : 'Failed to load obligations';
+			}
 		} finally {
-			isLoading = false;
+			if (showLoading && isMounted) {
+				isLoading = false;
+			}
 		}
 	}
 
-	async function loadDonations(): Promise<void> {
-		donationsLoading = true;
+	async function loadDonations(showLoading = true): Promise<void> {
+		if (showLoading && isMounted) {
+			donationsLoading = true;
+		}
+		
 		try {
-			const response = await donationsAPI.getAll({ search: donationsSearch || undefined, limit: 200 });
-			donations = response.donations;
+			const response = await donationsAPI.getAll({ 
+				search: donationsSearch || undefined, 
+				limit: 200 
+			});
+			if (isMounted) {
+				donations = response.donations;
+			}
 		} catch (err) {
 			console.error('Failed to load donations', err);
-			toastStore.error(err instanceof Error ? err.message : 'Failed to load donations', 'Error');
+			if (isMounted) {
+				toastStore.error(
+					err instanceof Error ? err.message : 'Failed to load donations', 
+					'Error'
+				);
+			}
 		} finally {
-			donationsLoading = false;
+			if (showLoading && isMounted) {
+				donationsLoading = false;
+			}
 		}
 	}
 
