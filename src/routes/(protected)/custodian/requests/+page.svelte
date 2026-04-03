@@ -1110,7 +1110,7 @@ return { text: '', color: 'text-gray-500' };
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal}></div>
+		<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal} aria-label="Close modal" tabindex="-1"></button>
 		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
 			<div class="relative w-full max-w-4xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden">
 				
@@ -1133,7 +1133,8 @@ return { text: '', color: 'text-gray-500' };
 							</div>
 						</div>
 						<button 
-							onclick={closeDetailModal} 
+							onclick={closeDetailModal}
+							aria-label="Close modal"
 							class="rounded-xl p-2 sm:p-2.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
 						>
 							<svg class="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

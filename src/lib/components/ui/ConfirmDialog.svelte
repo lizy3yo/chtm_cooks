@@ -50,12 +50,14 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <!-- Backdrop -->
-<div
+<button
+	type="button"
 	class="fixed inset-0 z-[9998] min-h-[100dvh] w-screen bg-black/50 backdrop-blur-sm"
 	transition:fade={{ duration: 200 }}
 	onclick={dialog.onCancel}
-	aria-hidden="true"
-></div>
+	aria-label="Close dialog"
+	tabindex="-1"
+></button>
 
 <!-- Dialog -->
 <div

@@ -81,12 +81,13 @@
 
 <!-- Overlay for mobile -->
 {#if $mobileSidebarOpen}
-	<div
+	<button
+		type="button"
 		class="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
 		onclick={closeMobileMenu}
-		role="button"
-		tabindex="0"
-	></div>
+		onkeydown={(e) => e.key === 'Escape' && closeMobileMenu()}
+		aria-label="Close sidebar"
+	></button>
 {/if}
 
 <!-- Sidebar -->

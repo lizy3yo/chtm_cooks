@@ -25,23 +25,43 @@
 		replacementQuantity: number;
 	}
 
-	let inspections = $state<ItemInspection[]>(
+	let inspections = $derived.by(() =>
 		items.map((item) => ({
 			itemId: item.itemId,
 			name: item.name,
 			quantity: item.quantity,
 			picture: item.picture ?? null,
-			status: null,
+			status: null as 'good' | 'damaged' | 'missing' | null,
 			notes: '',
 			replacementQuantity: 0
 		}))
 	);
 
+	let inspectionStates = $state<Map<string, {
+		status: 'good' | 'damaged' | 'missing' | null;
+		notes: string;
+		replacementQuantity: number;
+	}>>(new Map());
+
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 
-	const allInspected = $derived(inspections.every((i) => i.status !== null));
-	const hasIssues = $derived(inspections.some((i) => i.status === 'damaged' || i.status === 'missing'));
+	function getInspectionState(itemId: string) {
+		if (!inspectionStates.has(itemId)) {
+			inspectionStates.set(itemId, { status: null, notes: '', replacementQuantity: 0 });
+		}
+		return inspectionStates.get(itemId)!;
+	}
+
+	const allInspected = $derived(
+		inspections.every((i) => getInspectionState(i.itemId).status !== null)
+	);
+	const hasIssues = $derived(
+		inspections.some((i) => {
+			const state = getInspectionState(i.itemId);
+			return state.status === 'damaged' || state.status === 'missing';
+		})
+	);
 
 	function getItemEmoji(name: string): string {
 		const normalized = name.toLowerCase();
@@ -87,9 +107,10 @@
 
 		// Require a valid replacement quantity for non-good returns.
 		for (const inspection of inspections) {
+			const state = getInspectionState(inspection.itemId);
 			if (
-				(inspection.status === 'damaged' || inspection.status === 'missing') &&
-				(!Number.isInteger(inspection.replacementQuantity) || inspection.replacementQuantity <= 0)
+				(state.status === 'damaged' || state.status === 'missing') &&
+				(!Number.isInteger(state.replacementQuantity) || state.replacementQuantity <= 0)
 			) {
 				error = `Please enter a replacement quantity for ${inspection.name}`;
 				return;
@@ -101,12 +122,15 @@
 
 		try {
 			await onSubmit(
-				inspections.map((i) => ({
-					itemId: i.itemId,
-					status: i.status!,
-					notes: i.notes,
-					replacementQuantity: i.replacementQuantity
-				}))
+				inspections.map((i) => {
+					const state = getInspectionState(i.itemId);
+					return {
+						itemId: i.itemId,
+						status: state.status!,
+						notes: state.notes,
+						replacementQuantity: state.replacementQuantity
+					};
+				})
 			);
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to submit inspection';
@@ -115,15 +139,25 @@
 	}
 </script>
 
-<!-- Backdrop -->
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onclick={onCancel}>
+<!-- Modal Container -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+	<!-- Backdrop -->
+	<button
+		type="button"
+		class="fixed inset-0 bg-black/50"
+		onclick={onCancel}
+		onkeydown={(e) => e.key === 'Escape' && onCancel()}
+		aria-label="Close modal"
+		tabindex="-1"
+	></button>
+	
 	<!-- Modal -->
 	<div
-		class="relative w-full max-w-4xl rounded-lg bg-white shadow-xl"
-		onclick={(e) => e.stopPropagation()}
+		class="relative w-full max-w-4xl rounded-lg bg-white shadow-xl z-10"
 		role="dialog"
 		aria-labelledby="modal-title"
 		aria-modal="true"
+		tabindex="-1"
 	>
 		<!-- Header -->
 		<div class="border-b border-gray-200 px-6 py-4">
@@ -162,6 +196,7 @@
 
 			<div class="space-y-4">
 				{#each inspections as inspection, index (inspection.itemId)}
+					{@const state = getInspectionState(inspection.itemId)}
 					<div class="rounded-lg border border-gray-200 bg-white p-4">
 						<!-- Item Header -->
 						<div class="mb-4 flex items-start gap-4">
@@ -184,25 +219,25 @@
 								<h3 class="font-semibold text-gray-900">{inspection.name}</h3>
 								<p class="text-sm text-gray-600">Quantity: {inspection.quantity}</p>
 							</div>
-							<div class={`rounded-full border px-3 py-1 text-sm font-medium ${getStatusColor(inspection.status)}`}>
-								{getStatusLabel(inspection.status)}
+							<div class={`rounded-full border px-3 py-1 text-sm font-medium ${getStatusColor(state.status)}`}>
+								{getStatusLabel(state.status)}
 							</div>
 						</div>
 
 						<!-- Status Selection -->
 						<div class="mb-4">
-							<label class="mb-2 block text-sm font-medium text-gray-700">Condition Status *</label>
-							<div class="grid grid-cols-3 gap-3">
+							<span id={`status-label-${index}`} class="mb-2 block text-sm font-medium text-gray-700">Condition Status *</span>
+							<div class="grid grid-cols-3 gap-3" role="group" aria-labelledby={`status-label-${index}`}>
 								<button
 									type="button"
 									class={`rounded-lg border-2 p-3 text-center transition-all ${
-										inspection.status === 'good'
+										state.status === 'good'
 											? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
 											: 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
 									}`}
 									onclick={() => {
-										inspection.status = 'good';
-										inspection.replacementQuantity = 0;
+										state.status = 'good';
+										state.replacementQuantity = 0;
 									}}
 								>
 									<svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -214,12 +249,12 @@
 								<button
 									type="button"
 									class={`rounded-lg border-2 p-3 text-center transition-all ${
-										inspection.status === 'damaged'
+										state.status === 'damaged'
 											? 'border-rose-500 bg-rose-50 text-rose-700 shadow-sm'
 											: 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
 									}`}
 									onclick={() => {
-										inspection.status = 'damaged';
+										state.status = 'damaged';
 									}}
 								>
 									<svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -231,12 +266,12 @@
 								<button
 									type="button"
 									class={`rounded-lg border-2 p-3 text-center transition-all ${
-										inspection.status === 'missing'
+										state.status === 'missing'
 											? 'border-red-500 bg-red-50 text-red-700 shadow-sm'
 											: 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
 									}`}
 									onclick={() => {
-										inspection.status = 'missing';
+										state.status = 'missing';
 									}}
 								>
 									<svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -248,7 +283,7 @@
 						</div>
 
 						<!-- Replacement Quantity (for damaged/missing) -->
-						{#if inspection.status === 'damaged' || inspection.status === 'missing'}
+						{#if state.status === 'damaged' || state.status === 'missing'}
 							<div class="mb-4">
 								<label for={`replacement-quantity-${index}`} class="mb-2 block text-sm font-medium text-gray-700">
 									Replacement Quantity *
@@ -258,13 +293,13 @@
 									type="number"
 									min="1"
 									step="1"
-									bind:value={inspection.replacementQuantity}
+									bind:value={state.replacementQuantity}
 									class="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
 									placeholder="Enter quantity to replace"
 									required
 								/>
 								<p class="mt-1 text-sm text-gray-600">
-									Selected replacement quantity: {inspection.replacementQuantity}
+									Selected replacement quantity: {state.replacementQuantity}
 								</p>
 							</div>
 						{/if}
@@ -276,11 +311,11 @@
 							</label>
 							<textarea
 								id={`notes-${index}`}
-								bind:value={inspection.notes}
+								bind:value={state.notes}
 								rows="2"
 								class="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
 								placeholder={
-									inspection.status === 'good'
+									state.status === 'good'
 										? 'Any observations about this item...'
 										: 'Describe the damage or circumstances of loss...'
 								}
@@ -302,8 +337,11 @@
 							<p class="mt-1 text-sm text-amber-800">
 								Items marked as damaged or missing will generate replacement obligations for the student.
 								Total quantity to replace: {inspections
-									.filter((i) => i.status === 'damaged' || i.status === 'missing')
-									.reduce((sum, i) => sum + i.replacementQuantity, 0)
+									.filter((i) => {
+										const state = getInspectionState(i.itemId);
+										return state.status === 'damaged' || state.status === 'missing';
+									})
+									.reduce((sum, i) => sum + getInspectionState(i.itemId).replacementQuantity, 0)
 									.toLocaleString()}
 							</p>
 						</div>
@@ -316,7 +354,7 @@
 		<div class="border-t border-gray-200 px-6 py-4">
 			<div class="flex items-center justify-between">
 				<p class="text-sm text-gray-600">
-					{inspections.filter((i) => i.status !== null).length} of {inspections.length} items inspected
+					{inspections.filter((i) => getInspectionState(i.itemId).status !== null).length} of {inspections.length} items inspected
 				</p>
 				<div class="flex gap-3">
 					<button

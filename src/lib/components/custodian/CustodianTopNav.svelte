@@ -126,7 +126,7 @@
 	}
 </script>
 
-<svelte:window onclick={handleWindowClick} />
+<svelte:window onclick={handleWindowClick} onkeydown={(e) => e.key === 'Escape' && (profileOpen = false, notifOpen = false)} />
 
 {#if isCustodianRoute}
 <header
@@ -292,7 +292,7 @@
 <!-- ── QR Scanner Modal ──────────────────────────────────────────────────── -->
 {#if scannerOpen}
 	<div class="fixed inset-0 z-50 flex items-end justify-center sm:items-center" role="dialog" aria-modal="true" aria-label="QR Scanner">
-		<div class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick={closeScanner}></div>
+		<button type="button" class="fixed inset-0 bg-black/60 backdrop-blur-sm" onclick={closeScanner} aria-label="Close scanner" tabindex="-1"></button>
 
 		<div class="relative w-full max-w-sm rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl">
 			<!-- Handle bar (mobile) -->

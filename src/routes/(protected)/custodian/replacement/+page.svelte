@@ -1135,7 +1135,7 @@
 <!-- Request Summary Detail Modal -->
 {#if selectedSummary}
 	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="summary-modal-title">
-		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => selectedSummary = null}></div>
+		<button type="button" class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => selectedSummary = null} aria-label="Close modal" tabindex="-1"></button>
 		<div class="flex min-h-full items-center justify-center p-4">
 			<div class="relative z-50 w-full max-w-lg rounded-xl bg-white shadow-2xl">
 
@@ -1293,7 +1293,7 @@
 <!-- Record Donation Modal -->
 {#if showDonationModal}
 	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="donation-modal-title">
-		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => { if (!donationSubmitting) { showDonationModal = false; resetDonationForms(); } }}></div>
+		<button type="button" class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => { if (!donationSubmitting) { showDonationModal = false; resetDonationForms(); } }} aria-label="Close modal" tabindex="-1"></button>
 		<div class="flex min-h-full items-center justify-center p-4">
 			<div class="relative z-50 w-full max-w-2xl rounded-xl bg-white shadow-2xl">
 
@@ -1435,13 +1435,13 @@
 						</div>
 
 						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-1">Inventory Item <span class="text-red-500">*</span></label>
+							<span id="inventory-item-label" class="block text-sm font-medium text-gray-700 mb-1">Inventory Item <span class="text-red-500">*</span></span>
 							<div class="relative mb-2">
 								<svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
 								<input type="search" bind:value={inventorySearch} placeholder="Search items…"
 									class="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
 							</div>
-							<div class="max-h-48 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
+							<div class="max-h-48 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100" role="listbox" aria-labelledby="inventory-item-label">
 								{#if filteredInventoryItems.length === 0}
 									<p class="py-6 text-center text-sm text-gray-400">No items found.</p>
 								{:else}
@@ -1523,7 +1523,7 @@
 <!-- Add Quantity Modal -->
 {#if showAddQuantityModal && selectedDonationForQty}
 	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="add-qty-modal-title">
-		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => { if (!addQtySubmitting) { showAddQuantityModal = false; selectedDonationForQty = null; } }}></div>
+		<button type="button" class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => { if (!addQtySubmitting) { showAddQuantityModal = false; selectedDonationForQty = null; } }} aria-label="Close modal" tabindex="-1"></button>
 		<div class="flex min-h-full items-center justify-center p-4">
 			<div class="relative z-50 w-full max-w-md rounded-xl bg-white shadow-2xl">
 
@@ -1607,10 +1607,10 @@
 <!-- Obligation Detail Modal -->
 {#if selectedObligation}
 	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="obligation-modal-title">
-		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => {
+		<button type="button" class="fixed inset-0 bg-black/40 transition-opacity" onclick={() => {
 			selectedObligation = null;
 			editingAmountReplacedId = null;
-		}}></div>
+		}} aria-label="Close modal" tabindex="-1"></button>
 		<div class="flex min-h-full items-center justify-center p-4">
 			<div class="relative z-50 w-full max-w-lg rounded-xl bg-white shadow-2xl">
 
