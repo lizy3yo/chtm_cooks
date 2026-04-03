@@ -1,5 +1,5 @@
 /**
- * Financial Obligations API Client
+ * replacement Obligations API Client
  *
  * Client-side cache + SSE subscription — mirrors the donations.ts pattern.
  * Credentials are sent via httpOnly cookies (credentials: 'include').
@@ -8,10 +8,10 @@
 import { browser } from '$app/environment';
 
 export type ObligationType = 'missing' | 'damaged';
-export type ObligationStatus = 'pending' | 'paid' | 'replaced' | 'waived';
-export type ResolutionType = 'payment' | 'replacement' | 'waiver';
+export type ObligationStatus = 'pending' | 'replaced' | 'waived';
+export type ResolutionType = 'replacement' | 'waiver';
 
-export interface FinancialObligation {
+export interface ReplacementObligation {
 	id: string;
 	borrowRequestId: string;
 	studentId: string;
@@ -24,13 +24,13 @@ export interface FinancialObligation {
 	quantity: number;
 	type: ObligationType;
 	status: ObligationStatus;
-	amount: number;
-	amountPaid: number;
-	balance: number;
+	amount: number; // Quantity of items to be replaced
+	amountPaid: number; // Quantity of items already replaced
+	balance: number; // Remaining items to be replaced
 	resolutionType?: ResolutionType;
 	resolutionDate?: string;
 	resolutionNotes?: string;
-	paymentReference?: string;
+	paymentReference?: string; // Replacement tracking reference
 	incidentDate: string;
 	incidentNotes?: string;
 	dueDate: string;
@@ -38,19 +38,19 @@ export interface FinancialObligation {
 	updatedAt: string;
 }
 
-export interface FinancialObligationsListResponse {
-	obligations: FinancialObligation[];
+export interface ReplacementObligationsListResponse {
+	obligations: ReplacementObligation[];
 	total: number;
 	page: number;
 	limit: number;
 	pages: number;
 }
 
-export interface ResolveObligationRequest {
+export interface ResolveReplacementObligationRequest {
 	resolutionType: ResolutionType;
-	amountPaid?: number;
+	amountPaid?: number; // Quantity of items being replaced
 	resolutionNotes?: string;
-	paymentReference?: string;
+	paymentReference?: string; // Replacement tracking reference
 }
 
 // ─── Internal types ──────────────────────────────────────────────────────────
@@ -72,8 +72,8 @@ interface CacheEntry<T> {
 // ─── Client-side cache ───────────────────────────────────────────────────────
 
 const CLIENT_CACHE_TTL_MS = 60_000;
-const listCache = new Map<string, CacheEntry<FinancialObligationsListResponse>>();
-const detailCache = new Map<string, CacheEntry<{ obligation: FinancialObligation }>>();
+const listCache = new Map<string, CacheEntry<ReplacementObligationsListResponse>>();
+const detailCache = new Map<string, CacheEntry<{ obligation: ReplacementObligation }>>();
 const inFlight = new Map<string, Promise<unknown>>();
 
 function getFetchOptions(method: string, body?: unknown): RequestInit {
@@ -136,9 +136,9 @@ function invalidateAllCaches(): void {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-export const financialObligationsAPI = {
+export const replacementObligationsAPI = {
 	/**
-	 * Fetch paginated financial obligations with optional filters.
+	 * Fetch paginated replacement obligations with optional filters.
 	 */
 	async getObligations(
 		params: {
@@ -148,7 +148,7 @@ export const financialObligationsAPI = {
 			limit?: number;
 		} = {},
 		options: RequestOptions = {}
-	): Promise<FinancialObligationsListResponse> {
+	): Promise<ReplacementObligationsListResponse> {
 		const searchParams = new URLSearchParams();
 		if (params.status) searchParams.set('status', params.status);
 		if (params.studentId) searchParams.set('studentId', params.studentId);
@@ -157,7 +157,7 @@ export const financialObligationsAPI = {
 		if (options.forceRefresh) searchParams.set('_t', String(Date.now()));
 
 		const query = searchParams.toString();
-		const url = `/api/financial-obligations${query ? `?${query}` : ''}`;
+		const url = `/api/replacement-obligations${query ? `?${query}` : ''}`;
 		const cacheKey = buildListCacheKey(params);
 		const inFlightKey = `list:${cacheKey}`;
 
@@ -166,14 +166,14 @@ export const financialObligationsAPI = {
 			if (cached) return cached;
 
 			const existing = inFlight.get(inFlightKey) as
-				| Promise<FinancialObligationsListResponse>
+				| Promise<ReplacementObligationsListResponse>
 				| undefined;
 			if (existing) return existing;
 		}
 
 		const req = (async () => {
 			const res = await fetch(url, getFetchOptions('GET'));
-			const data = await handleResponse<FinancialObligationsListResponse>(res);
+			const data = await handleResponse<ReplacementObligationsListResponse>(res);
 			setCache(listCache, cacheKey, data);
 			return data;
 		})();
@@ -187,12 +187,12 @@ export const financialObligationsAPI = {
 	},
 
 	/**
-	 * Fetch a single financial obligation by ID.
+	 * Fetch a single replacement obligation by ID.
 	 */
 	async getObligation(
 		id: string,
 		options: RequestOptions = {}
-	): Promise<{ obligation: FinancialObligation }> {
+	): Promise<{ obligation: ReplacementObligation }> {
 		const inFlightKey = `detail:${id}`;
 
 		if (!options.forceRefresh) {
@@ -200,18 +200,18 @@ export const financialObligationsAPI = {
 			if (cached) return cached;
 
 			const existing = inFlight.get(inFlightKey) as
-				| Promise<{ obligation: FinancialObligation }>
+				| Promise<{ obligation: ReplacementObligation }>
 				| undefined;
 			if (existing) return existing;
 		}
 
 		const url = options.forceRefresh
-			? `/api/financial-obligations/${id}?_t=${Date.now()}`
-			: `/api/financial-obligations/${id}`;
+			? `/api/replacement-obligations/${id}?_t=${Date.now()}`
+			: `/api/replacement-obligations/${id}`;
 
 		const req = (async () => {
 			const res = await fetch(url, getFetchOptions('GET'));
-			const data = await handleResponse<{ obligation: FinancialObligation }>(res);
+			const data = await handleResponse<{ obligation: ReplacementObligation }>(res);
 			setCache(detailCache, id, data);
 			return data;
 		})();
@@ -225,15 +225,15 @@ export const financialObligationsAPI = {
 	},
 
 	/**
-	 * Resolve a financial obligation (payment, replacement, or waiver).
+	 * Resolve a replacement obligation (payment, replacement, or waiver).
 	 * Invalidates all client-side caches on success.
 	 */
 	async resolveObligation(
 		id: string,
-		resolution: ResolveObligationRequest
+		resolution: ResolveReplacementObligationRequest
 	): Promise<{ success: boolean; message: string }> {
 		const res = await fetch(
-			`/api/financial-obligations/${id}`,
+			`/api/replacement-obligations/${id}`,
 			getFetchOptions('PATCH', resolution)
 		);
 		const data = await handleResponse<{ success: boolean; message: string }>(res);
@@ -249,7 +249,7 @@ export const financialObligationsAPI = {
 	async reconcile(): Promise<{ reconciled: number }> {
 		try {
 			const res = await fetch(
-				'/api/financial-obligations/reconcile',
+				'/api/replacement-obligations/reconcile',
 				getFetchOptions('POST')
 			);
 			return await handleResponse<{ reconciled: number }>(res);
@@ -259,18 +259,18 @@ export const financialObligationsAPI = {
 	},
 
 	/**
-	 * Subscribe to real-time financial obligation changes via SSE.
+	 * Subscribe to real-time replacement obligation changes via SSE.
 	 * Invalidates client cache and calls `onEvent` on every change.
 	 * Returns an unsubscribe function — call it in component cleanup.
 	 */
 	subscribeToChanges(onEvent: () => void): () => void {
 		if (!browser) return () => {};
 
-		const es = new EventSource('/api/financial-obligations/stream', {
+		const es = new EventSource('/api/replacement-obligations/stream', {
 			withCredentials: true
 		});
 
-		es.addEventListener('financial_obligation_change', () => {
+		es.addEventListener('replacement_obligation_change', () => {
 			invalidateAllCaches();
 			onEvent();
 		});
@@ -291,11 +291,11 @@ export const financialObligationsAPI = {
 			page?: number;
 			limit?: number;
 		} = {}
-	): FinancialObligationsListResponse | null {
+	): ReplacementObligationsListResponse | null {
 		return getFreshCache(listCache, buildListCacheKey(params));
 	},
 
-	peekCachedObligation(id: string): { obligation: FinancialObligation } | null {
+	peekCachedObligation(id: string): { obligation: ReplacementObligation } | null {
 		return getFreshCache(detailCache, id);
 	},
 

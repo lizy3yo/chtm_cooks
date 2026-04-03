@@ -256,6 +256,18 @@ export const donationsAPI = {
 		return () => es.close();
 	},
 
+	// ─── Cache utilities ────────────────────────────────────────────────────
+
+	peekCachedDonations(
+		params: { search?: string; page?: number; limit?: number } = {}
+	): DonationsListResponse | null {
+		return getFreshCache(listCache, buildListCacheKey(params));
+	},
+
+	peekCachedDonation(id: string): { donation: DonationResponse } | null {
+		return getFreshCache(detailCache, id);
+	},
+
 	invalidateCache(): void {
 		invalidateAllCaches();
 	}

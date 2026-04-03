@@ -13,7 +13,7 @@ import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import ItemInspectionModal from '$lib/components/custodian/ItemInspectionModal.svelte';
 import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
-import { financialObligationsAPI } from '$lib/api/financialObligations';
+import { replacementObligationsAPI } from '$lib/api/replacementObligations';
 
 type Tab = 'pending' | 'ready' | 'active' | 'unresolved' | 'history';
 type HistorySubTab = 'all' | 'completed' | 'resolved' | 'cancelled';
@@ -227,7 +227,7 @@ async function handleInspectionSubmit(
 		itemId: string;
 		status: 'good' | 'damaged' | 'missing';
 		notes: string;
-		unitPrice: number;
+		replacementQuantity: number;
 	}>
 ): Promise<void> {
 	if (!selectedRequest) return;
@@ -240,7 +240,7 @@ async function handleInspectionSubmit(
 		
 		if (result.obligationsCreated > 0) {
 			toastStore.success(
-				`Inspection complete. ${result.obligationsCreated} financial obligation(s) created for damaged/missing items.`
+				`Inspection complete. ${result.obligationsCreated} replacement obligation(s) created for damaged or missing items.`
 			);
 		} else {
 			toastStore.success('All items returned intact. Inventory updated successfully.');
@@ -470,7 +470,7 @@ async function backfillItemPictures(): Promise<void> {
 }
 
 onMount(() => {
-	void financialObligationsAPI.reconcile().then(({ reconciled }) => {
+	void replacementObligationsAPI.reconcile().then(({ reconciled }) => {
 		if (reconciled > 0) loadRequests(true);
 	});
 	void loadRequests();
@@ -656,7 +656,7 @@ color: 'text-red-700'
 }
 : rawStatus === 'resolved'
 ? {
-text: 'All financial obligations from this incident have been settled. The request is fully resolved.',
+		text: 'All replacement obligations from this incident have been settled. The request is fully resolved.',
 color: 'text-emerald-700'
 }
 : {
@@ -1110,7 +1110,7 @@ return { text: '', color: 'text-gray-500' };
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal}></div>
+		<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal} aria-label="Close modal" tabindex="-1"></button>
 		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
 			<div class="relative w-full max-w-4xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden">
 				
@@ -1133,7 +1133,8 @@ return { text: '', color: 'text-gray-500' };
 							</div>
 						</div>
 						<button 
-							onclick={closeDetailModal} 
+							onclick={closeDetailModal}
+							aria-label="Close modal"
 							class="rounded-xl p-2 sm:p-2.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
 						>
 							<svg class="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

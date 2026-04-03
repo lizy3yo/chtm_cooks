@@ -7,18 +7,16 @@ export enum ObligationType {
 
 export enum ObligationStatus {
 	PENDING = 'pending',
-	PAID = 'paid',
 	REPLACED = 'replaced',
 	WAIVED = 'waived'
 }
 
 export enum ResolutionType {
-	PAYMENT = 'payment',
 	REPLACEMENT = 'replacement',
 	WAIVER = 'waiver'
 }
 
-export interface FinancialObligation {
+export interface ReplacementObligation {
 	_id?: ObjectId;
 	borrowRequestId: ObjectId;
 	studentId: ObjectId;
@@ -28,12 +26,12 @@ export interface FinancialObligation {
 	quantity: number;
 	type: ObligationType;
 	status: ObligationStatus;
-	amount: number;
-	amountPaid: number;
+	amount: number; // Represents quantity of items to be replaced
+	amountPaid: number; // Represents quantity of items already replaced
 	resolutionType?: ResolutionType;
 	resolutionDate?: Date;
 	resolutionNotes?: string;
-	paymentReference?: string;
+	paymentReference?: string; // Repurposed as replacement reference/tracking number
 	incidentDate: Date;
 	incidentNotes?: string;
 	dueDate: Date;
@@ -43,7 +41,7 @@ export interface FinancialObligation {
 	updatedBy?: ObjectId;
 }
 
-export interface FinancialObligationResponse {
+export interface ReplacementObligationResponse {
 	id: string;
 	borrowRequestId: string;
 	studentId: string;
@@ -56,13 +54,13 @@ export interface FinancialObligationResponse {
 	quantity: number;
 	type: ObligationType;
 	status: ObligationStatus;
-	amount: number;
-	amountPaid: number;
-	balance: number;
+	amount: number; // Quantity of items to be replaced
+	amountPaid: number; // Quantity of items already replaced
+	balance: number; // Remaining items to be replaced
 	resolutionType?: ResolutionType;
 	resolutionDate?: Date;
 	resolutionNotes?: string;
-	paymentReference?: string;
+	paymentReference?: string; // Replacement tracking reference
 	incidentDate: Date;
 	incidentNotes?: string;
 	dueDate: Date;
@@ -70,7 +68,7 @@ export interface FinancialObligationResponse {
 	updatedAt: Date;
 }
 
-export interface CreateFinancialObligationRequest {
+export interface CreateReplacementObligationRequest {
 	borrowRequestId: string;
 	itemId: string;
 	quantity: number;
@@ -80,19 +78,19 @@ export interface CreateFinancialObligationRequest {
 	dueDate: string;
 }
 
-export interface ResolveFinancialObligationRequest {
+export interface ResolveReplacementObligationRequest {
 	resolutionType: ResolutionType;
-	amountPaid?: number;
+	amountPaid?: number; // Quantity of items being replaced
 	resolutionNotes?: string;
-	paymentReference?: string;
+	paymentReference?: string; // Replacement tracking reference
 }
 
-export function toFinancialObligationResponse(
-	obligation: FinancialObligation,
+export function toReplacementObligationResponse(
+	obligation: ReplacementObligation,
 	studentName?: string,
 	studentEmail?: string,
 	studentProfilePhotoUrl?: string
-): FinancialObligationResponse {
+): ReplacementObligationResponse {
 	return {
 		id: obligation._id!.toString(),
 		borrowRequestId: obligation.borrowRequestId.toString(),

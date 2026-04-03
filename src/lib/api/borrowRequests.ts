@@ -382,7 +382,7 @@ export const borrowRequestsAPI = {
 
 	/**
 	 * Inspect items during return process
-	 * Creates financial obligations for damaged/missing items
+	 * Creates replacement obligations for damaged/missing items
 	 */
 	async inspectItems(
 		id: string,
@@ -390,7 +390,7 @@ export const borrowRequestsAPI = {
 			itemId: string;
 			status: 'good' | 'damaged' | 'missing';
 			notes?: string;
-			unitPrice?: number;
+			replacementQuantity?: number;
 		}>
 	): Promise<{ success: boolean; message: string; status: BorrowRequestStatus; obligationsCreated: number }> {
 		const response = await fetch(`/api/borrow-requests/${id}/inspect-items`, getFetchOptions('POST', { items }));

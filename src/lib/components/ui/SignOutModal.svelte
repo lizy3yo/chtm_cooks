@@ -16,13 +16,13 @@
 
 {#if open}
 	<!-- Backdrop -->
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 	<div
 		class="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="signout-title"
 		aria-describedby="signout-desc"
+		tabindex="-1"
 		onkeydown={handleKeydown}
 	>
 		<!-- Panel -->

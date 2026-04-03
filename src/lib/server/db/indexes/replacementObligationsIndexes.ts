@@ -1,12 +1,12 @@
 import type { IndexDefinition } from './types';
 
-export const financialObligationIndexes: IndexDefinition[] = [
+export const replacementObligationIndexes: IndexDefinition[] = [
 	{
-		collection: 'financial_obligations',
+		collection: 'replacement_obligations',
 		type: 'compound',
 		fields: { studentId: 1, status: 1, createdAt: -1 },
 		options: {
-			name: 'idx_financial_obligations_student_status_timeline',
+			name: 'idx_replacement_obligations_student_status_timeline',
 			background: true
 		},
 		description: 'Student unresolved and history views by status with newest-first ordering',
@@ -23,11 +23,11 @@ export const financialObligationIndexes: IndexDefinition[] = [
 		}
 	},
 	{
-		collection: 'financial_obligations',
+		collection: 'replacement_obligations',
 		type: 'compound',
 		fields: { borrowRequestId: 1, status: 1, itemId: 1 },
 		options: {
-			name: 'idx_financial_obligations_request_status_item',
+			name: 'idx_replacement_obligations_request_status_item',
 			background: true
 		},
 		description: 'Borrow-request incident tracking and duplicate-item obligation prevention checks',
@@ -44,11 +44,11 @@ export const financialObligationIndexes: IndexDefinition[] = [
 		}
 	},
 	{
-		collection: 'financial_obligations',
+		collection: 'replacement_obligations',
 		type: 'compound',
 		fields: { status: 1, dueDate: 1, createdAt: -1 },
 		options: {
-			name: 'idx_financial_obligations_status_due_date',
+			name: 'idx_replacement_obligations_status_due_date',
 			background: true
 		},
 		description: 'Operational queue for pending, overdue, and due-date-driven obligation follow-up',
@@ -65,11 +65,11 @@ export const financialObligationIndexes: IndexDefinition[] = [
 		}
 	},
 	{
-		collection: 'financial_obligations',
+		collection: 'replacement_obligations',
 		type: 'compound',
 		fields: { studentId: 1, dueDate: 1 },
 		options: {
-			name: 'idx_financial_obligations_student_due_date',
+			name: 'idx_replacement_obligations_student_due_date',
 			background: true,
 			partialFilterExpression: {
 				status: 'pending'
@@ -89,11 +89,11 @@ export const financialObligationIndexes: IndexDefinition[] = [
 		}
 	},
 	{
-		collection: 'financial_obligations',
+		collection: 'replacement_obligations',
 		type: 'compound',
 		fields: { borrowRequestId: 1, status: 1 },
 		options: {
-			name: 'idx_financial_obligations_request_pending_count',
+			name: 'idx_replacement_obligations_request_pending_count',
 			background: true
 		},
 		description: 'Efficient countDocuments for pending obligations per borrow request — used by auto-resolve and reconcile logic',

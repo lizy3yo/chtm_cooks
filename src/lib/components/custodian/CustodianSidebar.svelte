@@ -20,7 +20,7 @@
 	let expandedSections = $state<Record<string, boolean>>({
 		inventory: false,
 		requests: false,
-		financial: false,
+		replacement: false,
 		reports: false
 	});
 	
@@ -46,8 +46,8 @@
 		},
 		{
 			name: 'Resource Management',
-			href: '/custodian/financial',
-			icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'
+			href: '/custodian/replacement',
+			icon: 'M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6M21 12a9 9 0 01-15 6.7L3 16'
 		},
 		{
 			name: 'Reports & Analytics',
@@ -81,12 +81,13 @@
 
 <!-- Overlay for mobile -->
 {#if $mobileSidebarOpen}
-	<div
+	<button
+		type="button"
 		class="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
 		onclick={closeMobileMenu}
-		role="button"
-		tabindex="0"
-	></div>
+		onkeydown={(e) => e.key === 'Escape' && closeMobileMenu()}
+		aria-label="Close sidebar"
+	></button>
 {/if}
 
 <!-- Sidebar -->

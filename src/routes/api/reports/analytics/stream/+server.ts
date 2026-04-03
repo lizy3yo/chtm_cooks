@@ -2,13 +2,13 @@
  * GET /api/reports/analytics/stream
  *
  * SSE endpoint that notifies the analytics page when underlying data changes
- * (borrow requests, financial obligations, donations, inventory).
+ * (borrow requests, replacement obligations, donations, inventory).
  * Custodian / superadmin only.
  */
 
 import { getUserFromToken } from '$lib/server/middleware/auth/verify';
 import { subscribeToBorrowRequestChannel } from '$lib/server/realtime/borrowRequestEvents';
-import { subscribeToFinancialObligationChannel } from '$lib/server/realtime/financialObligationEvents';
+import { subscribeToReplacementObligationChannel } from '$lib/server/realtime/replacementObligationEvents';
 import { subscribeToDonationChannel, DONATION_CHANNEL } from '$lib/server/realtime/donationEvents';
 import { subscribeToInventoryChannel, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
 import type { RequestHandler } from './$types';
@@ -55,7 +55,7 @@ export const GET: RequestHandler = async (event) => {
 
 			// Subscribe to all data sources that affect analytics
 			cleanupFns.push(subscribeToBorrowRequestChannel('role:custodian', notify));
-			cleanupFns.push(subscribeToFinancialObligationChannel('role:custodian', notify));
+			cleanupFns.push(subscribeToReplacementObligationChannel('role:custodian', notify));
 			cleanupFns.push(subscribeToDonationChannel(DONATION_CHANNEL, notify));
 			cleanupFns.push(subscribeToInventoryChannel(INVENTORY_CHANNEL, notify));
 

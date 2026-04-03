@@ -1,11 +1,11 @@
-/**
+﻿/**
  * Analytics Reports API Client
  * Client-side cache + SSE subscription for the custodian reports page.
  */
 
 import { browser } from '$app/environment';
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export type AnalyticsPeriod = 'week' | 'month' | 'semester';
 
@@ -34,7 +34,7 @@ export interface OverdueRequest {
 }
 
 export interface PeakHeatmapPoint {
-	dayOfWeek: number; // 1=Sun … 7=Sat
+	dayOfWeek: number; // 1=Sun â€¦ 7=Sat
 	hour: number;
 	count: number;
 }
@@ -90,7 +90,7 @@ export interface StockAlert {
 	condition: string;
 }
 
-export interface FinancialSummary {
+export interface replacementntSummary {
 	totalOutstanding: number;
 	totalCollected: number;
 	totalObligations: number;
@@ -165,8 +165,8 @@ export interface AnalyticsReport {
 		conditionDistribution: ConditionDistributionItem[];
 		stockAlerts: StockAlert[];
 	};
-	financial: {
-		summary: FinancialSummary;
+	replacement: {
+		summary: replacementntSummary;
 		resolutionBreakdown: ResolutionBreakdownItem[];
 		avgResolutionDays: number;
 		obligationsByCategory: ObligationByCategory[];
@@ -181,7 +181,7 @@ export interface AnalyticsReport {
 	};
 }
 
-// ── Cache ─────────────────────────────────────────────────────────────────────
+// â”€â”€ Cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 interface CacheEntry {
 	data: AnalyticsReport;
@@ -210,7 +210,7 @@ export function clearAnalyticsCache(): void {
 	cache.clear();
 }
 
-// ── API ───────────────────────────────────────────────────────────────────────
+// â”€â”€ API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface FetchAnalyticsOptions {
 	period?: AnalyticsPeriod;
@@ -268,7 +268,7 @@ export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<
 	throw lastError ?? new Error('Analytics request failed');
 }
 
-// ── SSE subscription ──────────────────────────────────────────────────────────
+// â”€â”€ SSE subscription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export function subscribeToAnalyticsChanges(onRefresh: () => void): () => void {
 	if (!browser) return () => {};
@@ -302,3 +302,4 @@ export function subscribeToAnalyticsChanges(onRefresh: () => void): () => void {
 		es?.close();
 	};
 }
+

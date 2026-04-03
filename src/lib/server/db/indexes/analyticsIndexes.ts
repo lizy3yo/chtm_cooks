@@ -4,7 +4,7 @@
  * Optimized for the custodian analytics aggregation queries:
  *   - Borrow request operations (time-series, status, overdue, heatmap)
  *   - Inventory utilization (most borrowed, damage rate, EOM variance)
- *   - Financial overview (obligations, donations, monthly revenue)
+ *   - replacement overview (obligations, donations, monthly revenue)
  *   - Student trust / risk scoring
  */
 
@@ -106,7 +106,7 @@ export const analyticsIndexes: IndexDefinition[] = [
 		}
 	},
 
-	// ── Financial Obligations ─────────────────────────────────────────────────
+	// ── replacement Obligations ─────────────────────────────────────────────────
 
 	/**
 	 * Monthly revenue aggregation: resolved obligations by resolution date.
@@ -114,11 +114,11 @@ export const analyticsIndexes: IndexDefinition[] = [
 	 * Note: partial index uses $in for resolved statuses (MongoDB doesn't support $ne in partial filters)
 	 */
 	{
-		collection: 'financial_obligations',
+		collection: 'replacement_obligations',
 		type: 'compound',
 		fields: { status: 1, resolutionDate: 1 },
 		options: {
-			name: 'idx_financial_obligations_analytics_resolution',
+			name: 'idx_replacement_obligations_analytics_resolution',
 			background: true,
 			partialFilterExpression: { status: { $in: ['paid', 'replaced', 'waived'] } }
 		},
@@ -141,11 +141,11 @@ export const analyticsIndexes: IndexDefinition[] = [
 	 * Query: group by itemCategory
 	 */
 	{
-		collection: 'financial_obligations',
+		collection: 'replacement_obligations',
 		type: 'single',
 		fields: { itemCategory: 1 },
 		options: {
-			name: 'idx_financial_obligations_analytics_category',
+			name: 'idx_replacement_obligations_analytics_category',
 			background: true,
 			sparse: true
 		},
@@ -164,11 +164,11 @@ export const analyticsIndexes: IndexDefinition[] = [
 	 * Query: { status: "pending" }  →  group by studentId
 	 */
 	{
-		collection: 'financial_obligations',
+		collection: 'replacement_obligations',
 		type: 'compound',
 		fields: { status: 1, studentId: 1 },
 		options: {
-			name: 'idx_financial_obligations_analytics_student_pending',
+			name: 'idx_replacement_obligations_analytics_student_pending',
 			background: true,
 			partialFilterExpression: { status: 'pending' }
 		},

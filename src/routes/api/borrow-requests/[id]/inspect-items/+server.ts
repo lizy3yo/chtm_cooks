@@ -3,20 +3,20 @@ import type { RequestHandler } from './$types';
 import { getDatabase } from '$lib/server/db/mongodb';
 import { ObjectId } from 'mongodb';
 import type { BorrowRequest, BorrowRequestItem, ItemInspectionStatus } from '$lib/server/models/BorrowRequest';
-import type { FinancialObligation, ObligationType } from '$lib/server/models/FinancialObligation';
+import type { ReplacementObligation, ObligationType } from '$lib/server/models/ReplacementObligation';
 import { BorrowRequestStatus } from '$lib/server/models/BorrowRequest';
-import { ObligationStatus } from '$lib/server/models/FinancialObligation';
+import { ObligationStatus } from '$lib/server/models/ReplacementObligation';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
 import { sanitizeInput } from '$lib/server/utils/validation';
 import { getAuthenticatedUser, BORROW_REQUESTS_COLLECTION, invalidateBorrowRequestCaches, publishBorrowRequestRealtimeEvent } from '../../shared';
-import { FINANCIAL_OBLIGATIONS_COLLECTION, invalidateFinancialObligationCaches } from '../../../financial-obligations/shared';
+import { REPLACEMENT_OBLIGATIONS_COLLECTION, invalidateReplacementObligationCaches } from '../../../replacement-obligations/shared';
 
 interface ItemInspectionInput {
 	itemId: string;
 	status: ItemInspectionStatus;
 	notes?: string;
-	unitPrice?: number;
+	replacementQuantity?: number;
 }
 
 interface InspectItemsRequest {
@@ -30,7 +30,7 @@ function isValidInspectionStatus(value: string): value is ItemInspectionStatus {
 /**
  * POST /api/borrow-requests/[id]/inspect-items
  * Perform item-level inspection during return
- * Creates financial obligations for damaged/missing items
+ * Creates replacement obligations for damaged/missing items
  * Custodian only
  */
 export const POST: RequestHandler = async (event) => {
@@ -74,8 +74,11 @@ export const POST: RequestHandler = async (event) => {
 			if (!isValidInspectionStatus(item.status)) {
 				return json({ error: 'Invalid inspection status' }, { status: 400 });
 			}
-			if (item.unitPrice !== undefined && (!Number.isFinite(item.unitPrice) || item.unitPrice < 0)) {
-				return json({ error: 'Unit price must be a valid non-negative number' }, { status: 400 });
+			if (
+				item.replacementQuantity !== undefined &&
+				(!Number.isInteger(item.replacementQuantity) || item.replacementQuantity <= 0)
+			) {
+				return json({ error: 'Replacement quantity must be a valid positive integer' }, { status: 400 });
 			}
 			if (item.notes !== undefined) {
 				item.notes = sanitizeInput(item.notes).slice(0, 500);
@@ -133,7 +136,7 @@ export const POST: RequestHandler = async (event) => {
 						inspectedAt: now,
 						inspectedBy: new ObjectId(user.userId),
 						notes: inspection.notes,
-						unitPrice: inspection.unitPrice
+						replacementQuantity: inspection.replacementQuantity
 					}
 				};
 			}
@@ -176,8 +179,8 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: 'Failed to update request' }, { status: 500 });
 		}
 
-		// Create financial obligations for damaged/missing items
-		const obligations: FinancialObligation[] = [];
+		// Create replacement obligations for damaged/missing items
+		const obligations: ReplacementObligation[] = [];
 		for (const inspectionItem of body.items) {
 			if (inspectionItem.status === 'damaged' || inspectionItem.status === 'missing') {
 				const originalItem = borrowRequest.items.find(
@@ -185,14 +188,13 @@ export const POST: RequestHandler = async (event) => {
 				);
 				if (!originalItem) continue;
 
-				const unitPrice = inspectionItem.unitPrice || 0;
-				const totalAmount = unitPrice * originalItem.quantity;
+				const replacementQuantity = inspectionItem.replacementQuantity ?? 1;
 
 				// Calculate due date (30 days from incident)
 				const dueDate = new Date(now);
 				dueDate.setDate(dueDate.getDate() + 30);
 
-				const obligation: FinancialObligation = {
+				const obligation: ReplacementObligation = {
 					borrowRequestId: new ObjectId(requestId),
 					studentId: borrowRequest.studentId,
 					itemId: originalItem.itemId,
@@ -201,7 +203,7 @@ export const POST: RequestHandler = async (event) => {
 					quantity: originalItem.quantity,
 					type: inspectionItem.status === 'missing' ? 'missing' as ObligationType : 'damaged' as ObligationType,
 					status: ObligationStatus.PENDING,
-					amount: totalAmount,
+					amount: replacementQuantity,
 					amountPaid: 0,
 					incidentDate: now,
 					incidentNotes: inspectionItem.notes,
@@ -215,9 +217,9 @@ export const POST: RequestHandler = async (event) => {
 			}
 		}
 
-		// Insert financial obligations
+		// Insert replacement obligations
 		if (obligations.length > 0) {
-			await db.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION).insertMany(obligations);
+			await db.collection<ReplacementObligation>(REPLACEMENT_OBLIGATIONS_COLLECTION).insertMany(obligations);
 		}
 
 		// If all good, restore inventory
@@ -252,7 +254,7 @@ export const POST: RequestHandler = async (event) => {
 		});
 
 		await invalidateBorrowRequestCaches();
-		await invalidateFinancialObligationCaches();
+		await invalidateReplacementObligationCaches();
 		publishBorrowRequestRealtimeEvent(
 			{ ...borrowRequest, _id: new ObjectId(requestId), status: newStatus },
 			'items_inspected',

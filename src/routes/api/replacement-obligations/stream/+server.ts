@@ -1,13 +1,13 @@
 /**
- * GET /api/financial-obligations/stream
+ * GET /api/replacement-obligations/stream
  *
- * Authenticated SSE endpoint for real-time financial obligation change notifications.
+ * Authenticated SSE endpoint for real-time replacement obligation change notifications.
  * Only custodians and superadmins may subscribe (students receive events via the
  * borrow-requests stream which already covers obligation_updated actions).
  *
  * Protocol:
  *   - `event: connected`                  — acknowledges successful subscription.
- *   - `event: financial_obligation_change` — an obligation was created, resolved, or
+ *   - `event: replacement_obligation_change` — an obligation was created, resolved, or
  *                                            a borrow request was auto-resolved; client
  *                                            should re-fetch its obligations list.
  *   - `event: heartbeat`                  — keepalive; no client action needed.
@@ -19,9 +19,9 @@
 
 import { getUserFromToken } from '$lib/server/middleware/auth/verify';
 import {
-	subscribeToFinancialObligationChannel,
-	type FinancialObligationRealtimeEvent
-} from '$lib/server/realtime/financialObligationEvents';
+	subscribeToReplacementObligationChannel,
+	type ReplacementObligationRealtimeEvent
+} from '$lib/server/realtime/replacementObligationEvents';
 import type { RequestHandler } from './$types';
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
@@ -89,12 +89,12 @@ export const GET: RequestHandler = async (event) => {
 			send('connected', { channels, ts: new Date().toISOString() });
 
 			// Forward broker events to this SSE client.
-			const onEvent = (brokerEvent: FinancialObligationRealtimeEvent) => {
-				send('financial_obligation_change', brokerEvent);
+			const onEvent = (brokerEvent: ReplacementObligationRealtimeEvent) => {
+				send('replacement_obligation_change', brokerEvent);
 			};
 
 			const unsubscribers = channels.map((ch) =>
-				subscribeToFinancialObligationChannel(ch, onEvent)
+				subscribeToReplacementObligationChannel(ch, onEvent)
 			);
 			cleanupFns.push(...unsubscribers);
 

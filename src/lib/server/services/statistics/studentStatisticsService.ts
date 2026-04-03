@@ -1,10 +1,10 @@
-/**
+﻿/**
  * Student Statistics Service
  *
  * Enterprise-grade student analytics focused on what students need most:
  * - Trust score transparency (penalties + bonuses)
  * - Return discipline and item-care performance
- * - Current financial risk and obligations
+ * - Current replacement risk and obligations
  * - Period-based activity trends and categories actually fulfilled
  * - Actionable insights (what to do next)
  */
@@ -13,7 +13,7 @@ import { getDatabase } from '$lib/server/db/mongodb';
 import { ObjectId } from 'mongodb';
 import type { Collection } from 'mongodb';
 import type { BorrowRequest } from '$lib/server/models/BorrowRequest';
-import type { FinancialObligation } from '$lib/server/models/FinancialObligation';
+import type { ReplacementObligation } from '$lib/server/models/ReplacementObligation';
 
 export type TrustTier = 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
 export type StatisticsPeriod = '7d' | '30d' | '90d' | '180d' | '365d' | 'all';
@@ -65,7 +65,7 @@ export interface ItemHealthStats {
 	goodRate: number | null;
 }
 
-export interface FinancialStats {
+export interface ReplacementStats {
 	totalObligations: number;
 	pendingCount: number;
 	resolvedCount: number;
@@ -112,7 +112,7 @@ export interface StudentStatisticsData {
 	requests: RequestStatistics;
 	returnPerformance: ReturnPerformance;
 	itemHealth: ItemHealthStats;
-	financial: FinancialStats;
+	replacement: ReplacementStats;
 	dataQuality: DataQuality;
 	activityTimeline: ActivityMonth[];
 	topCategories: CategoryStat[];
@@ -121,7 +121,7 @@ export interface StudentStatisticsData {
 }
 
 const BORROW_REQUESTS_COLLECTION = 'borrow_requests';
-const FINANCIAL_OBLIGATIONS_COLLECTION = 'financial_obligations';
+const REPLACEMENT_OBLIGATIONS_COLLECTION = 'replacement_obligations';
 const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -164,7 +164,7 @@ function getTierLabel(score: number): string {
 	return 'Critical';
 }
 
-function computeTrustScore(allRequests: BorrowRequest[], allObligations: FinancialObligation[]): TrustScore {
+function computeTrustScore(allRequests: BorrowRequest[], allObligations: ReplacementObligation[]): TrustScore {
 	const breakdown: TrustScoreBreakdown = {
 		missingItemPenalty: 0,
 		damagedItemPenalty: 0,
@@ -235,7 +235,7 @@ function computeTrustScore(allRequests: BorrowRequest[], allObligations: Financi
 	for (const obl of allObligations) {
 		if (obl.status === 'pending') {
 			breakdown.pendingObligationPenalty += 3;
-		} else if (obl.status === 'paid' || obl.status === 'replaced' || obl.status === 'waived') {
+		} else if (obl.status === 'replaced' || obl.status === 'waived') {
 			breakdown.resolvedObligationBonus += 2;
 		}
 	}
@@ -365,7 +365,7 @@ function computeItemHealth(requests: BorrowRequest[]): ItemHealthStats {
 	};
 }
 
-function computeFinancialStats(allObligations: FinancialObligation[], periodObligations: FinancialObligation[]): FinancialStats {
+function computeReplacementStats(allObligations: ReplacementObligation[], periodObligations: ReplacementObligation[]): ReplacementStats {
 	let pendingCount = 0;
 	let resolvedCount = 0;
 	let totalAmount = 0;
@@ -504,17 +504,17 @@ function buildInsights(data: {
 	trustScore: TrustScore;
 	requests: RequestStatistics;
 	returnPerformance: ReturnPerformance;
-	financial: FinancialStats;
+	replacement: ReplacementStats;
 	dataQuality: DataQuality;
 }): StudentInsight[] {
 	const insights: StudentInsight[] = [];
 
-	if (data.financial.pendingCount > 0 || data.financial.balance > 0) {
+	if (data.replacement.pendingCount > 0 || data.replacement.balance > 0) {
 		insights.push({
-			id: 'resolve-financial-obligations',
-			severity: data.financial.balance > 0 ? 'critical' : 'warning',
+			id: 'resolve-replacement-obligations',
+			severity: data.replacement.balance > 0 ? 'critical' : 'warning',
 			title: 'Resolve outstanding obligations',
-			description: `You have ${data.financial.pendingCount} pending obligation(s) with ${data.financial.balance.toFixed(0)} outstanding balance.`,
+			description: `You have ${data.replacement.pendingCount} pending obligation(s) with ${data.replacement.balance.toFixed(0)} outstanding balance.`,
 			actionLabel: 'Review obligations',
 			href: '/student/borrowed'
 		});
@@ -574,7 +574,7 @@ export async function computeStudentStatistics(
 	const studentObjectId = new ObjectId(studentId);
 
 	const borrowCollection: Collection<BorrowRequest> = db.collection(BORROW_REQUESTS_COLLECTION);
-	const obligationsCollection: Collection<FinancialObligation> = db.collection(FINANCIAL_OBLIGATIONS_COLLECTION);
+	const obligationsCollection: Collection<ReplacementObligation> = db.collection(REPLACEMENT_OBLIGATIONS_COLLECTION);
 
 	const [allRequests, allObligations] = await Promise.all([
 		borrowCollection.find({ studentId: studentObjectId }).toArray(),
@@ -590,7 +590,7 @@ export async function computeStudentStatistics(
 	const requests = computeRequestStats(periodRequests);
 	const returnPerformance = computeReturnPerformance(periodRequests);
 	const itemHealth = computeItemHealth(periodRequests);
-	const financial = computeFinancialStats(allObligations, periodObligations);
+	const replacement = computeReplacementStats(allObligations, periodObligations);
 	const dataQuality = computeDataQuality(periodRequests);
 	const chartGranularity: 'day' | 'month' = period === '7d' ? 'day' : 'month';
 	const activityTimeline =
@@ -598,7 +598,7 @@ export async function computeStudentStatistics(
 			? computeActivityTimelineDaily(periodRequests)
 			: computeActivityTimeline(periodRequests, cfg.timelineMonths);
 	const topCategories = computeTopCategories(periodRequests);
-	const insights = buildInsights({ trustScore, requests, returnPerformance, financial, dataQuality });
+	const insights = buildInsights({ trustScore, requests, returnPerformance, replacement, dataQuality });
 
 	return {
 		period,
@@ -608,7 +608,7 @@ export async function computeStudentStatistics(
 		requests,
 		returnPerformance,
 		itemHealth,
-		financial,
+		replacement,
 		dataQuality,
 		activityTimeline,
 		topCategories,
@@ -616,3 +616,4 @@ export async function computeStudentStatistics(
 		computedAt: new Date().toISOString()
 	};
 }
+

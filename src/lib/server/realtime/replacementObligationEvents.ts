@@ -1,31 +1,31 @@
 /**
- * In-process SSE event broker for financial obligation change notifications.
+ * In-process SSE event broker for replacement obligation change notifications.
  *
  * Architecture mirrors borrowRequestEvents.ts:
- *   - One global singleton (`globalThis.__financialObligationRealtimeBroker`) so the
+ *   - One global singleton (`globalThis.__replacementObligationRealtimeBroker`) so the
  *     broker survives SvelteKit HMR restarts without dropping registered listeners.
  *   - Channels:
  *       `role:custodian`   — all custodian/superadmin-visible events
  *       `role:superadmin`  — superadmin-only events
  *       `student:<userId>` — per-student obligation events
- *   - Publishers call `publishFinancialObligationChange()` after every mutation.
+ *   - Publishers call `publishReplacementObligationChange()` after every mutation.
  */
 
-export type FinancialObligationRealtimeAction =
+export type ReplacementObligationRealtimeAction =
 	| 'obligation_created'
 	| 'obligation_resolved'
 	| 'obligation_updated'
 	| 'request_auto_resolved';
 
-export interface FinancialObligationRealtimeEvent {
-	action: FinancialObligationRealtimeAction;
+export interface ReplacementObligationRealtimeEvent {
+	action: ReplacementObligationRealtimeAction;
 	obligationId?: string;
 	borrowRequestId: string;
 	studentId: string;
 	occurredAt: string;
 }
 
-type Listener = (event: FinancialObligationRealtimeEvent) => void;
+type Listener = (event: ReplacementObligationRealtimeEvent) => void;
 
 interface BrokerState {
 	listeners: Map<string, Set<Listener>>;
@@ -33,21 +33,21 @@ interface BrokerState {
 
 declare global {
 	// eslint-disable-next-line no-var
-	var __financialObligationRealtimeBroker: BrokerState | undefined;
+	var __replacementObligationRealtimeBroker: BrokerState | undefined;
 }
 
 function getBrokerState(): BrokerState {
-	if (!globalThis.__financialObligationRealtimeBroker) {
-		globalThis.__financialObligationRealtimeBroker = { listeners: new Map() };
+	if (!globalThis.__replacementObligationRealtimeBroker) {
+		globalThis.__replacementObligationRealtimeBroker = { listeners: new Map() };
 	}
-	return globalThis.__financialObligationRealtimeBroker;
+	return globalThis.__replacementObligationRealtimeBroker;
 }
 
 /**
  * Subscribe a listener to a channel.
  * Returns an unsubscribe function — call it in SSE stream cleanup.
  */
-export function subscribeToFinancialObligationChannel(
+export function subscribeToReplacementObligationChannel(
 	channel: string,
 	listener: Listener
 ): () => void {
@@ -69,9 +69,9 @@ export function subscribeToFinancialObligationChannel(
  * Broadcast an event to every listener subscribed to any of the given channels.
  * Deduplicates so a listener on multiple channels only receives the event once.
  */
-export function publishFinancialObligationChange(
+export function publishReplacementObligationChange(
 	channels: string[],
-	event: FinancialObligationRealtimeEvent
+	event: ReplacementObligationRealtimeEvent
 ): void {
 	const broker = getBrokerState();
 	const notified = new Set<Listener>();
@@ -99,6 +99,6 @@ export function publishFinancialObligationChange(
  *   - Always: role channels for custodians and superadmins
  *   - Always: the owning student's personal channel
  */
-export function getFinancialObligationRealtimeChannels(studentId: string): string[] {
+export function getReplacementObligationRealtimeChannels(studentId: string): string[] {
 	return [`student:${studentId}`, 'role:custodian', 'role:superadmin'];
 }

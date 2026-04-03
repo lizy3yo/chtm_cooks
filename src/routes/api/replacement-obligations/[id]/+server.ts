@@ -2,34 +2,34 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getDatabase } from '$lib/server/db/mongodb';
 import { ObjectId } from 'mongodb';
-import type { FinancialObligation } from '$lib/server/models/FinancialObligation';
+import type { ReplacementObligation } from '$lib/server/models/ReplacementObligation';
 import type { User } from '$lib/server/models/User';
 import {
 	ObligationStatus,
 	ResolutionType,
-	toFinancialObligationResponse,
-	type ResolveFinancialObligationRequest
-} from '$lib/server/models/FinancialObligation';
+	toReplacementObligationResponse,
+	type ResolveReplacementObligationRequest
+} from '$lib/server/models/ReplacementObligation';
+import { BorrowRequestStatus, type BorrowRequest } from '$lib/server/models/BorrowRequest';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
-import type { BorrowRequest } from '$lib/server/models/BorrowRequest';
 import { BORROW_REQUESTS_COLLECTION, publishBorrowRequestRealtimeEvent } from '../../borrow-requests/shared';
 import { cacheService } from '$lib/server/cache';
 import {
-	buildFinancialObligationDetailCacheKey,
-	FINANCIAL_OBLIGATIONS_CACHE_TAG,
-	FINANCIAL_OBLIGATIONS_COLLECTION,
+	buildReplacementObligationDetailCacheKey,
+	REPLACEMENT_OBLIGATIONS_CACHE_TAG,
+	REPLACEMENT_OBLIGATIONS_COLLECTION,
 	getAuthenticatedUser,
-	invalidateFinancialObligationCaches,
+	invalidateReplacementObligationCaches,
 	isResolutionType,
 	parseObjectId,
 	sanitizeResolutionPayload,
-	publishFinancialObligationRealtimeEvent
+	publishReplacementObligationRealtimeEvent
 } from '../shared';
 
 /**
- * GET /api/financial-obligations/[id]
- * Get a specific financial obligation
+ * GET /api/replacement-obligations/[id]
+ * Get a specific replacement obligation
  */
 export const GET: RequestHandler = async (event) => {
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -49,8 +49,8 @@ export const GET: RequestHandler = async (event) => {
 			return json({ error: 'Invalid obligation ID' }, { status: 400 });
 		}
 
-		const cacheKey = buildFinancialObligationDetailCacheKey(obligationId);
-		const cached = await cacheService.get<{ obligation: ReturnType<typeof toFinancialObligationResponse> }>(cacheKey);
+		const cacheKey = buildReplacementObligationDetailCacheKey(obligationId);
+		const cached = await cacheService.get<{ obligation: ReturnType<typeof toReplacementObligationResponse> }>(cacheKey);
 		if (cached) {
 			if (user.role === 'student' && cached.obligation.studentId !== user.userId) {
 				return json({ error: 'Forbidden' }, { status: 403 });
@@ -61,7 +61,7 @@ export const GET: RequestHandler = async (event) => {
 		const db = await getDatabase();
 
 		const obligation = await db
-			.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION)
+			.collection<ReplacementObligation>(REPLACEMENT_OBLIGATIONS_COLLECTION)
 			.findOne({ _id: obligationObjectId });
 
 		if (!obligation) {
@@ -82,7 +82,7 @@ export const GET: RequestHandler = async (event) => {
 		const studentEmail = student?.email;
 		const studentProfilePhotoUrl = student?.profilePhotoUrl;
 		const response = {
-			obligation: toFinancialObligationResponse(
+				obligation: toReplacementObligationResponse(
 				obligation,
 				studentName,
 				studentEmail,
@@ -92,19 +92,19 @@ export const GET: RequestHandler = async (event) => {
 
 		await cacheService.set(cacheKey, response, {
 			ttl: 120,
-			tags: [FINANCIAL_OBLIGATIONS_CACHE_TAG]
+			tags: [REPLACEMENT_OBLIGATIONS_CACHE_TAG]
 		});
 
 		return json(response);
 	} catch (error) {
-		logger.error('financial-obligations', 'Failed to retrieve obligation', { error });
+		logger.error('replacement-obligations', 'Failed to retrieve obligation', { error });
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
 };
 
 /**
- * PATCH /api/financial-obligations/[id]
- * Resolve a financial obligation (payment or replacement)
+ * PATCH /api/replacement-obligations/[id]
+ * Resolve a replacement obligation (item replacement or waiver)
  * Custodian only
  */
 export const PATCH: RequestHandler = async (event) => {
@@ -125,9 +125,9 @@ export const PATCH: RequestHandler = async (event) => {
 			return json({ error: 'Invalid obligation ID' }, { status: 400 });
 		}
 
-		let body: ResolveFinancialObligationRequest;
+		let body: ResolveReplacementObligationRequest;
 		try {
-			body = (await event.request.json()) as ResolveFinancialObligationRequest;
+			body = (await event.request.json()) as ResolveReplacementObligationRequest;
 		} catch {
 			return json({ error: 'Invalid JSON payload' }, { status: 400 });
 		}
@@ -138,13 +138,14 @@ export const PATCH: RequestHandler = async (event) => {
 
 		const sanitizedBody = sanitizeResolutionPayload(body);
 
-		if (sanitizedBody.resolutionType === ResolutionType.PAYMENT) {
+		// Replacement type requires quantity validation
+		if (sanitizedBody.resolutionType === ResolutionType.REPLACEMENT) {
 			if (
 				typeof sanitizedBody.amountPaid !== 'number' ||
 				!Number.isFinite(sanitizedBody.amountPaid) ||
 				sanitizedBody.amountPaid <= 0
 			) {
-				return json({ error: 'Valid payment amount is required' }, { status: 400 });
+				return json({ error: 'Valid replacement quantity is required' }, { status: 400 });
 			}
 		}
 
@@ -153,7 +154,7 @@ export const PATCH: RequestHandler = async (event) => {
 
 		// Get the obligation
 		const obligation = await db
-			.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION)
+			.collection<ReplacementObligation>(REPLACEMENT_OBLIGATIONS_COLLECTION)
 			.findOne({ _id: obligationObjectId });
 
 		if (!obligation) {
@@ -164,18 +165,16 @@ export const PATCH: RequestHandler = async (event) => {
 			return json({ error: 'Obligation is already resolved' }, { status: 400 });
 		}
 
-		// Calculate new status and amount paid
+		// Calculate new status and items replaced
 		let newStatus = ObligationStatus.PENDING;
 		let totalAmountPaid = obligation.amountPaid;
 
-		if (sanitizedBody.resolutionType === ResolutionType.PAYMENT) {
+		if (sanitizedBody.resolutionType === ResolutionType.REPLACEMENT) {
 			totalAmountPaid += sanitizedBody.amountPaid || 0;
 			if (totalAmountPaid > obligation.amount) {
-				return json({ error: 'Payment amount exceeds outstanding balance' }, { status: 400 });
+				return json({ error: 'Replacement quantity exceeds outstanding balance' }, { status: 400 });
 			}
-			newStatus = totalAmountPaid >= obligation.amount ? ObligationStatus.PAID : ObligationStatus.PENDING;
-		} else if (sanitizedBody.resolutionType === ResolutionType.REPLACEMENT) {
-			newStatus = ObligationStatus.REPLACED;
+			newStatus = totalAmountPaid >= obligation.amount ? ObligationStatus.REPLACED : ObligationStatus.PENDING;
 		} else if (sanitizedBody.resolutionType === ResolutionType.WAIVER) {
 			newStatus = ObligationStatus.WAIVED;
 		}
@@ -203,7 +202,7 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 
 		const updatedObligation = await db
-			.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION)
+			.collection<ReplacementObligation>(REPLACEMENT_OBLIGATIONS_COLLECTION)
 			.findOneAndUpdate(
 				{ _id: obligationObjectId, status: ObligationStatus.PENDING },
 				updateDoc,
@@ -219,14 +218,14 @@ export const PATCH: RequestHandler = async (event) => {
 			.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION)
 			.findOne({ _id: obligation.borrowRequestId });
 
-		await invalidateFinancialObligationCaches();
+		await invalidateReplacementObligationCaches();
 
 		// Check if all obligations for this borrow request are now resolved.
 		// If so, transition the borrow request from 'missing' → 'resolved'.
 		let autoResolved = false;
 		if (newStatus !== ObligationStatus.PENDING && relatedBorrowRequest?.status === 'missing') {
 			const remainingPending = await db
-				.collection<FinancialObligation>(FINANCIAL_OBLIGATIONS_COLLECTION)
+				.collection<ReplacementObligation>(REPLACEMENT_OBLIGATIONS_COLLECTION)
 				.countDocuments({
 					borrowRequestId: obligation.borrowRequestId,
 					status: ObligationStatus.PENDING
@@ -237,18 +236,18 @@ export const PATCH: RequestHandler = async (event) => {
 					.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION)
 					.updateOne(
 						{ _id: obligation.borrowRequestId },
-						{ $set: { status: 'resolved', resolvedAt: now, updatedAt: now } }
+						{ $set: { status: BorrowRequestStatus.RESOLVED, resolvedAt: now, updatedAt: now } }
 					);
 
 				autoResolved = true;
-				logger.info('financial-obligations', 'Borrow request auto-resolved after all obligations settled', {
+				logger.info('replacement-obligations', 'Borrow request auto-resolved after all obligations settled', {
 					borrowRequestId: obligation.borrowRequestId.toString()
 				});
 			}
 		}
 
-		// Publish to the financial obligations SSE channel so the financial page updates live.
-		publishFinancialObligationRealtimeEvent(
+		// Publish to the replacement obligations SSE channel so the replacement page updates live.
+		publishReplacementObligationRealtimeEvent(
 			obligation.studentId.toString(),
 			autoResolved ? 'request_auto_resolved' : 'obligation_resolved',
 			obligation.borrowRequestId.toString(),
@@ -269,7 +268,7 @@ export const PATCH: RequestHandler = async (event) => {
 			);
 		}
 
-		logger.info('financial-obligations', 'Obligation resolved', {
+		logger.info('replacement-obligations', 'Obligation resolved', {
 			obligationId,
 			userId: user.userId,
 			resolutionType: sanitizedBody.resolutionType,
@@ -281,7 +280,7 @@ export const PATCH: RequestHandler = async (event) => {
 			message: 'Obligation updated successfully'
 		});
 	} catch (error) {
-		logger.error('financial-obligations', 'Failed to resolve obligation', { error });
+		logger.error('replacement-obligations', 'Failed to resolve obligation', { error });
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
 };
