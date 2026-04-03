@@ -9,7 +9,7 @@
 	import {
 		Package, ClipboardList, TriangleAlert, Clock,
 		CheckCircle2, ArrowRight, TrendingUp, Users,
-		Banknote, ShieldAlert, PackageOpen,
+		ShieldAlert, PackageOpen,
 		AlertCircle, Activity
 	} from 'lucide-svelte';
 

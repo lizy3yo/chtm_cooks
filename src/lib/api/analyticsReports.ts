@@ -90,9 +90,9 @@ export interface StockAlert {
 	condition: string;
 }
 
-export interface replacementntSummary {
-	totalOutstanding: number;
-	totalCollected: number;
+export interface ReplacementSummary {
+	totalItemsPending: number; // Total items awaiting replacement
+	totalItemsReplaced: number; // Total items already replaced
 	totalObligations: number;
 	pendingCount: number;
 }
@@ -110,11 +110,11 @@ export interface ObligationByCategory {
 	pendingAmount: number;
 }
 
-export interface MonthlyRevenuePoint {
+export interface MonthlyReplacementActivity {
 	year: number;
 	month: number;
-	collected: number;
-	count: number;
+	totalAmount: number; // Total items replaced this month
+	count: number; // Number of obligations resolved
 }
 
 export interface DonationTotalPoint {
@@ -166,11 +166,11 @@ export interface AnalyticsReport {
 		stockAlerts: StockAlert[];
 	};
 	replacement: {
-		summary: replacementntSummary;
+		summary: ReplacementSummary;
 		resolutionBreakdown: ResolutionBreakdownItem[];
 		avgResolutionDays: number;
 		obligationsByCategory: ObligationByCategory[];
-		monthlyRevenue: MonthlyRevenuePoint[];
+		monthlyActivity: MonthlyReplacementActivity[];
 		donationTotals: DonationTotalPoint[];
 	};
 	studentRisk: {

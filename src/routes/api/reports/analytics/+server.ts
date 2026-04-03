@@ -361,7 +361,7 @@ export const GET: RequestHandler = async (event) => {
 			{
 				$group: {
 					_id: null,
-					totalOutstanding: {
+					totalItemsPending: {
 						$sum: {
 							$cond: [
 								{ $eq: ['$status', 'pending'] },
@@ -370,7 +370,7 @@ export const GET: RequestHandler = async (event) => {
 							]
 						}
 					},
-					totalCollected: {
+					totalItemsReplaced: {
 						$sum: { $cond: [{ $ne: ['$status', 'pending'] }, '$amountPaid', 0] }
 					},
 					totalObligations: { $sum: 1 },
@@ -434,7 +434,7 @@ export const GET: RequestHandler = async (event) => {
 		const sixMonthsAgo = new Date();
 		sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
 
-		const monthlyRevenue = await obligations.aggregate([
+		const monthlyActivity = await obligations.aggregate([
 			{
 				$match: {
 					status: { $ne: 'pending' },
@@ -673,7 +673,7 @@ export const GET: RequestHandler = async (event) => {
 		// ── Assemble response ─────────────────────────────────────────────────
 
 		const turnaround = turnaroundPipeline[0] ?? {};
-		const replacement = replacementSummary[0] ?? { totalOutstanding: 0, totalCollected: 0, totalObligations: 0, pendingCount: 0 };
+		const replacement = replacementSummary[0] ?? { totalItemsPending: 0, totalItemsReplaced: 0, totalObligations: 0, pendingCount: 0 };
 
 		const response = {
 			meta: {
@@ -728,8 +728,8 @@ export const GET: RequestHandler = async (event) => {
 			},
 			replacement: {
 				summary: {
-					totalOutstanding: replacement.totalOutstanding ?? 0,
-					totalCollected: replacement.totalCollected ?? 0,
+					totalItemsPending: replacement.totalItemsPending ?? 0,
+					totalItemsReplaced: replacement.totalItemsReplaced ?? 0,
 					totalObligations: replacement.totalObligations ?? 0,
 					pendingCount: replacement.pendingCount ?? 0
 				},
@@ -745,7 +745,7 @@ export const GET: RequestHandler = async (event) => {
 					totalAmount: o.totalAmount,
 					pendingAmount: o.pendingAmount
 				})),
-				monthlyRevenue: monthlyRevenue.map((m) => ({
+				monthlyActivity: monthlyActivity.map((m) => ({
 					year: m._id.year,
 					month: m._id.month,
 					collected: m.collected,
