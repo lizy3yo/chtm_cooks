@@ -17,6 +17,7 @@ import { replacementObligationsAPI } from '$lib/api/replacementObligations';
 
 type Tab = 'pending' | 'ready' | 'active' | 'unresolved' | 'history';
 type HistorySubTab = 'all' | 'completed' | 'resolved' | 'cancelled';
+type ViewMode = 'card' | 'list';
 
 let activeTab = $state<Tab>('pending');
 let historySubTab = $state<HistorySubTab>('all');
@@ -26,6 +27,7 @@ let selectedRequest = $state<any>(null);
 let requests = $state<any[]>([]);
 let searchQuery = $state('');
 let sortBy = $state<'date' | 'student' | 'status'>('date');
+let viewMode = $state<ViewMode>('card');
 const PAGE_SIZE = 5;
 let currentPage = $state(1);
 let openActionMenuFor = $state<string | null>(null);
@@ -885,6 +887,27 @@ return { text: '', color: 'text-gray-500' };
 						<option value="student">Student</option>
 						<option value="status">Status</option>
 					</select>
+
+					<div class="flex overflow-hidden rounded-lg border border-gray-300">
+						<button
+							onclick={() => (viewMode = 'card')}
+							aria-label="Card view"
+							class="flex items-center px-2.5 py-2 text-sm transition-colors {viewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+						>
+							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+							</svg>
+						</button>
+						<button
+							onclick={() => (viewMode = 'list')}
+							aria-label="List view"
+							class="flex items-center border-l border-gray-300 px-2.5 py-2 text-sm transition-colors {viewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+						>
+							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+							</svg>
+						</button>
+					</div>
 					
 					<button class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 sm:gap-2 sm:px-4">
 						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -899,9 +922,13 @@ return { text: '', color: 'text-gray-500' };
 					<span class="text-sm font-medium text-gray-700">
 						{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
 					</span>
+					<span class="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-500 ring-1 ring-gray-200">
+						{viewMode === 'card' ? 'Card view' : 'List view'}
+					</span>
 				</div>
-				
-				{#each paginatedRequests as request}
+
+				{#if viewMode === 'card'}
+					{#each paginatedRequests as request}
 					<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}">
 						<div class="p-4 sm:p-5">
 							<!-- Header: ID, Status, Student Info -->
@@ -1090,8 +1117,132 @@ return { text: '', color: 'text-gray-500' };
 						{/if}
 					</div>
 				</div>
-			</div>
-		{/each}
+					</div>
+				{/each}
+				{:else}
+					<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+						<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+							<span>Request</span>
+							<span>Student</span>
+							<span>Items</span>
+							<span>Status</span>
+							<span class="text-right">Actions</span>
+						</div>
+						<div class="divide-y divide-gray-100">
+							{#each paginatedRequests as request}
+								<div class="grid gap-3 p-4 md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+									<div class="min-w-0">
+										<p class="font-mono text-xs font-bold tracking-wider text-gray-900">{request.id}</p>
+										<p class="mt-1 text-xs text-gray-500">{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+										{#if request.isOverdue}
+											<p class="mt-1 text-xs font-semibold text-red-600">{request.daysOverdue} {request.daysOverdue === 1 ? 'day' : 'days'} overdue</p>
+										{/if}
+									</div>
+
+									<div class="min-w-0">
+										<p class="truncate text-sm font-semibold text-gray-900">{request.student.name}</p>
+										<p class="truncate text-xs text-gray-500">{request.student.yearLevel} • Block {request.student.block}</p>
+									</div>
+
+									<div class="min-w-0">
+										<div class="flex flex-wrap gap-1.5">
+											{#each request.items.slice(0, 2) as item}
+												<span class="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700">
+													<span class="truncate max-w-[120px]">{item.name}</span>
+													<span class="ml-1 text-gray-400">x{item.quantity}</span>
+												</span>
+											{/each}
+											{#if request.items.length > 2}
+												<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">+{request.items.length - 2} more</span>
+											{/if}
+										</div>
+										<p class="mt-1 truncate text-xs text-gray-500">{request.purpose}</p>
+									</div>
+
+									<div class="min-w-0">
+										<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusBadge(request.status, request.rawStatus, request.rejectionReason).color}">
+											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+											{getStatusBadge(request.status, request.rawStatus, request.rejectionReason).text}
+										</span>
+										<p class="mt-1 text-xs text-gray-500">Due {formatDate(request.returnDate)}</p>
+									</div>
+
+									<div class="relative flex flex-wrap items-center gap-2 md:justify-end">
+										<button
+											onclick={() => openDetailModal(request)}
+											class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+										>
+											Details
+										</button>
+										{#if request.status === 'pending'}
+											<button
+												onclick={() => markReady(request.rawId)}
+												class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
+											>
+												Mark Ready
+											</button>
+										{/if}
+										{#if request.status === 'ready'}
+											<button
+												onclick={() => confirmPickup(request.rawId)}
+												class="rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700"
+											>
+												Confirm Pickup
+											</button>
+										{/if}
+										{#if request.status === 'active' && request.rawStatus === 'pending_return'}
+											<button
+												onclick={() => {
+													closeActionMenu();
+													confirmReturn(request.rawId);
+												}}
+												class="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-700"
+											>
+												Confirm Return
+											</button>
+										{/if}
+										{#if request.status === 'active'}
+											<button
+												onclick={() => toggleActionMenu(request.rawId)}
+												class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
+												aria-label="More actions"
+											>
+												<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5h.01M12 12h.01M12 19h.01"/>
+												</svg>
+											</button>
+										{/if}
+
+										{#if request.status === 'active' && openActionMenuFor === request.rawId}
+											<div class="absolute right-0 top-full z-10 mt-2 w-48 rounded-lg border border-gray-200 bg-white p-1 shadow-lg">
+												<button
+													onclick={() => {
+														closeActionMenu();
+														markMissing(request.rawId);
+													}}
+													class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-rose-700 hover:bg-rose-50"
+												>
+													Mark Missing
+												</button>
+												{#if request.isOverdue}
+													<button
+														onclick={() => {
+															closeActionMenu();
+															sendReminder(request.rawId);
+														}}
+														class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50"
+													>
+														Send Reminder
+													</button>
+												{/if}
+											</div>
+										{/if}
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
 
 				{#if filteredRequests.length > 0 && totalPages > 1}
 					<div class="flex flex-col gap-2 border-t border-gray-200 pt-4 sm:flex-row sm:items-center sm:justify-between">
