@@ -1,6 +1,7 @@
 <script lang="ts">
 	import CustodianSidebar from '$lib/components/custodian/CustodianSidebar.svelte';
 	import CustodianTopNav from '$lib/components/custodian/CustodianTopNav.svelte';
+	import CustodianBottomNav from '$lib/components/custodian/CustodianBottomNav.svelte';
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
 	import { sidebarCollapsed } from '$lib/stores/custodian';
@@ -25,5 +26,6 @@
 </div>
 
 <CustodianTopNav />
+<CustodianBottomNav />
 <ToastContainer />
 <ConfirmDialogContainer />

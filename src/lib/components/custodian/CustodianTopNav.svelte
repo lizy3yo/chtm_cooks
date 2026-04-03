@@ -188,10 +188,10 @@
 			<HelpCircle size={18} strokeWidth={1.75} />
 		</a>
 
-		<!-- QR Scanner -->
+		<!-- QR Scanner - hidden on mobile/tablet, visible on desktop -->
 		<button
 			onclick={openScanner}
-			class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all duration-200 hover:bg-pink-50 hover:text-pink-600"
+			class="hidden h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all duration-200 hover:bg-pink-50 hover:text-pink-600 lg:flex"
 			aria-label="Scan QR code"
 			title="Scan QR Code"
 		>
@@ -270,6 +270,12 @@
 						</a>
 						<a href="/custodian/history" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
 							<History size={15} class="text-gray-400" /> History
+						</a>
+						<a href="/custodian/reports" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600 lg:hidden">
+							<svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+							</svg>
+							Reports & Analytics
 						</a>
 						<div class="my-1 border-t border-gray-100"></div>
 						<button onclick={() => { profileOpen = false; signOutOpen = true; }} role="menuitem" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50">
