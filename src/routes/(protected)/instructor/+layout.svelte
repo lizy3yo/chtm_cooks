@@ -1,6 +1,7 @@
 <script lang="ts">
 	import InstructorSidebar from '$lib/components/instructor/InstructorSidebar.svelte';
 	import InstructorTopNav from '$lib/components/instructor/InstructorTopNav.svelte';
+	import InstructorBottomNav from '$lib/components/instructor/InstructorBottomNav.svelte';
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
 	import { sidebarCollapsed } from '$lib/stores/instructor';
@@ -25,5 +26,6 @@
 </div>
 
 <InstructorTopNav />
+<InstructorBottomNav />
 <ToastContainer />
 <ConfirmDialogContainer />
