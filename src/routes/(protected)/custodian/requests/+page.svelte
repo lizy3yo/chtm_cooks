@@ -1734,4 +1734,3 @@ return { text: '', color: 'text-gray-500' };
 		}}
 	/>
 {/if}
-
