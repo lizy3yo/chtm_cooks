@@ -719,613 +719,451 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 }
 </script>
 
+
 <svelte:head>
 	<title>Student Requests - Instructor Portal</title>
 </svelte:head>
 
 <div class="space-y-6">
+	<!-- Header -->
 	<div>
 		<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Student Requests</h1>
 		<p class="mt-1 text-sm text-gray-500">Review and approve equipment borrow requests</p>
 	</div>
-	
-	<!-- Statistics Cards -->
-	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-		<div class="rounded-lg bg-white p-5 shadow">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Total Requests</p>
-					<p class="mt-2 text-3xl font-semibold text-gray-900">{stats.totalRequests}</p>
+
+	<!-- Stats Cards -->
+	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
+					<p class="mt-1 text-xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{stats.totalRequests}</p>
 				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-					<ClipboardList class="h-6 w-6 text-blue-600" />
-				</div>
-			</div>
-		</div>
-		
-		<div class="rounded-lg bg-white p-5 shadow">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Pending Approval</p>
-					<p class="mt-2 text-3xl font-semibold text-yellow-600">{stats.pendingCount}</p>
-				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-100">
-					<Clock3 class="h-6 w-6 text-yellow-600" />
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+					<ClipboardList class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6" />
 				</div>
 			</div>
 		</div>
-		
-		<div class="rounded-lg bg-white p-5 shadow">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">With Custodian</p>
-					<p class="mt-2 text-3xl font-semibold text-blue-600">{stats.fulfillmentCount}</p>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
+					<p class="mt-1 text-xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">{stats.pendingCount}</p>
 				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-blue-100">
-					<PackageCheck class="h-6 w-6 text-blue-600" />
-				</div>
-			</div>
-		</div>
-		
-		<div class="rounded-lg bg-white p-5 shadow">
-			<div class="flex items-center justify-between">
-				<div>
-					<p class="text-sm font-medium text-gray-600">Completed</p>
-					<p class="mt-2 text-3xl font-semibold text-teal-600">{stats.completedCount}</p>
-				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-teal-100">
-					<CheckCircle2 class="h-6 w-6 text-teal-600" />
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
+					<Clock3 class="h-5 w-5 text-amber-600 sm:h-6 sm:w-6" />
 				</div>
 			</div>
 		</div>
-	</div>
-	
-	<!-- Tabs -->
-	<div class="bg-white rounded-lg shadow">
-		<div class="border-b border-gray-200">
-			<nav class="-mb-px flex overflow-x-auto" aria-label="Tabs">
-				<button
-					onclick={() => activeTab = 'pending'}
-					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'pending' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Pending Approval
-					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'pending' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
-						{tabCounts.pending}
-					</span>
-				</button>
-				<button
-					onclick={() => activeTab = 'fulfillment'}
-					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'fulfillment' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Preparation
-					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'fulfillment' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
-						{tabCounts.fulfillment}
-					</span>
-				</button>
-				<button
-					onclick={() => activeTab = 'borrowed'}
-					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'borrowed' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Picked Up & Return
-					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'borrowed' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
-						{tabCounts.borrowed}
-					</span>
-				</button>
-				<button
-					onclick={() => activeTab = 'unresolved'}
-					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'unresolved' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					Unresolved
-					{#if tabCounts.unresolved > 0}
-						<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs font-semibold {activeTab === 'unresolved' ? 'bg-rose-100 text-rose-700' : 'bg-rose-50 text-rose-600'}">
-							{tabCounts.unresolved}
-						</span>
-					{:else}
-						<span class="ml-1.5 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">0</span>
-					{/if}
-				</button>
-				<button
-					onclick={() => activeTab = 'history'}
-					class="whitespace-nowrap py-4 px-6 border-b-2 font-medium text-sm {activeTab === 'history' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-				>
-					History
-					<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {activeTab === 'history' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
-						{tabCounts.history}
-					</span>
-				</button>
-			</nav>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">With Custodian</p>
+					<p class="mt-1 text-xl font-semibold text-blue-600 sm:mt-2 sm:text-3xl">{stats.fulfillmentCount}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+					<PackageCheck class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6" />
+				</div>
+			</div>
+		</div>
+		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Completed</p>
+					<p class="mt-1 text-xl font-semibold text-teal-600 sm:mt-2 sm:text-3xl">{stats.completedCount}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 sm:h-12 sm:w-12">
+					<CheckCircle2 class="h-5 w-5 text-teal-600 sm:h-6 sm:w-6" />
+				</div>
+			</div>
 		</div>
 	</div>
 
-	<!-- History Sub-tabs -->
-	{#if activeTab === 'history'}
-		<div class="border-b border-gray-200 bg-white px-4">
-			<nav class="-mb-px flex gap-6 overflow-x-auto" aria-label="History filter">
-				{#each [
-					{ key: 'all', label: 'All', count: tabCounts.history },
-					{ key: 'resolved', label: 'Resolved', count: tabCounts.historyResolved },
-					{ key: 'completed', label: 'Completed', count: tabCounts.historyCompleted },
-					{ key: 'cancelled', label: 'Cancelled', count: tabCounts.historyCancelled }
-				] as sub}
-					<button
-						onclick={() => (historySubTab = sub.key as typeof historySubTab)}
-						class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {historySubTab === sub.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-					>
-						{sub.label}
-						<span class="ml-1.5 rounded-full px-2 py-0.5 text-xs {historySubTab === sub.key ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
-							{sub.count}
-						</span>
-					</button>
-				{/each}
-			</nav>
-		</div>
-	{/if}
-	
-	<!-- Search and Filter Bar -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<div class="flex-1 max-w-md">
-			<div class="relative">
-				<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-					<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-					</svg>
-				</div>
-				<input
-					type="text"
-					bind:value={searchQuery}
-					placeholder="Search by student name, request ID, or item..."
-					class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm placeholder-gray-400 focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-				/>
-			</div>
-		</div>
-		
-		<div class="flex items-center gap-3">
-			<select
-				bind:value={sortBy}
-				class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-			>
-				<option value="date">Sort by Date</option>
-				<option value="student">Sort by Student</option>
-				<option value="status">Sort by Status</option>
-			</select>
-			
-			<button class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
-				</svg>
-				Filter
-			</button>
-			
-			<button class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
-				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-				</svg>
-				Export
-			</button>
-		</div>
+	<!-- Tab Bar -->
+	<div class="border-b border-gray-200">
+		<nav class="-mb-px flex" aria-label="Tabs">
+			{#each [
+				{ key: 'pending',     label: 'Pending',     shortLabel: 'Pending',  count: tabCounts.pending,     urgent: false },
+				{ key: 'fulfillment', label: 'Preparation', shortLabel: 'Prep',     count: tabCounts.fulfillment, urgent: false },
+				{ key: 'borrowed',    label: 'Borrowed',    shortLabel: 'Borrowed', count: tabCounts.borrowed,    urgent: false },
+				{ key: 'unresolved',  label: 'Unresolved',  shortLabel: 'Issues',   count: tabCounts.unresolved,  urgent: tabCounts.unresolved > 0 },
+				{ key: 'history',     label: 'History',     shortLabel: 'History',  count: tabCounts.history,     urgent: false }
+			] as tab}
+				<button
+					onclick={() => { activeTab = tab.key as typeof activeTab; }}
+					class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:text-sm
+						{activeTab === tab.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				>
+					<span class="hidden sm:inline">{tab.label}</span>
+					<span class="sm:hidden">{tab.shortLabel}</span>
+					<span class="rounded-full px-1.5 py-0.5 text-[10px]
+						{activeTab === tab.key
+							? (tab.urgent ? 'bg-rose-100 text-rose-700' : 'bg-pink-100 text-pink-600')
+							: (tab.urgent ? 'bg-rose-50 text-rose-600' : 'bg-gray-100 text-gray-600')}">
+						{tab.count}
+					</span>
+				</button>
+			{/each}
+		</nav>
 	</div>
-	
-	<!-- Request Cards -->
-	<div class="space-y-4">
-		<div class="flex items-center justify-between">
-			<div class="flex items-center gap-3">
-				{#if activeTab === 'pending'}
-					<label class="inline-flex items-center gap-2 text-sm text-gray-600">
+
+	<!-- Card Container -->
+	<div class="rounded-lg bg-white shadow">
+		<div class="p-4 sm:p-6">
+
+			<!-- History Sub-tabs -->
+			{#if activeTab === 'history'}
+				<div class="-mx-4 -mt-4 mb-5 border-b border-gray-200 px-4 sm:-mx-6 sm:-mt-6 sm:mb-6 sm:px-6">
+					<nav class="-mb-px flex overflow-x-auto" aria-label="History filter" style="scrollbar-width:none">
+						{#each [
+							{ key: 'all',       label: 'All',       count: tabCounts.history },
+							{ key: 'resolved',  label: 'Resolved',  count: tabCounts.historyResolved },
+							{ key: 'completed', label: 'Completed', count: tabCounts.historyCompleted },
+							{ key: 'cancelled', label: 'Cancelled', count: tabCounts.historyCancelled }
+						] as sub}
+							<button
+								onclick={() => (historySubTab = sub.key as typeof historySubTab)}
+								class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-3 text-[11px] font-medium transition-colors sm:flex-none sm:px-4 sm:text-sm
+									{historySubTab === sub.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+							>
+								<span class="truncate">{sub.label}</span>
+								<span class="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] {historySubTab === sub.key ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">{sub.count}</span>
+							</button>
+						{/each}
+					</nav>
+				</div>
+			{/if}
+
+			<!-- Search + Sort + Bulk Actions -->
+			<div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+				<div class="flex flex-1 items-center gap-2">
+					{#if activeTab === 'pending'}
 						<input
 							type="checkbox"
-							checked={filteredRequests.length > 0 && filteredRequests.every((request) => selectedRequests.includes(request.rawId))}
+							checked={filteredRequests.length > 0 && filteredRequests.every(r => selectedRequests.includes(r.rawId))}
 							onchange={toggleSelectAllVisiblePendingRequests}
 							class="h-4 w-4 rounded border-gray-300 text-pink-600"
+							aria-label="Select all"
 						/>
-						<span>Select all</span>
-					</label>
-					{#if selectedRequests.length > 0}
-						<span class="text-xs text-gray-400">|</span>
+					{/if}
+					<div class="relative flex-1 max-w-sm">
+						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+							<svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+							</svg>
+						</div>
+						<input
+							type="text"
+							bind:value={searchQuery}
+							placeholder="Search by student, ID, or item…"
+							class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+						/>
+					</div>
+				</div>
+				<div class="flex shrink-0 items-center gap-2">
+					{#if activeTab === 'pending' && selectedRequests.length > 0}
 						<span class="text-xs text-gray-500">{selectedRequests.length} selected</span>
-						<button
-							onclick={bulkApprove}
-							disabled={bulkActionInFlight}
-							class="rounded-md bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-						>
+						<button onclick={bulkApprove} disabled={bulkActionInFlight} class="rounded-md bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50">
 							{bulkActionInFlight ? 'Processing…' : 'Approve'}
 						</button>
-						<button
-							onclick={() => showBulkRejectModal = true}
-							disabled={bulkActionInFlight}
-							class="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-						>
+						<button onclick={() => showBulkRejectModal = true} disabled={bulkActionInFlight} class="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50">
 							Reject
 						</button>
-						<button
-							onclick={() => selectedRequests = []}
-							disabled={bulkActionInFlight}
-							class="text-xs text-gray-400 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50"
-						>
-							Clear
-						</button>
+						<button onclick={() => selectedRequests = []} class="text-xs text-gray-400 hover:text-gray-600">Clear</button>
+					{:else}
+						<select bind:value={sortBy} class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
+							<option value="date">Date</option>
+							<option value="student">Student</option>
+							<option value="status">Status</option>
+						</select>
 					{/if}
-				{/if}
+				</div>
 			</div>
-			<span class="text-xs text-gray-400">
-				{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'}
-			</span>
-		</div>
-		
-		{#each filteredRequests as request}
-			<div class="flex items-start gap-3">
-				{#if request.status === 'pending'}
-					<input
-						type="checkbox"
-						checked={selectedRequests.includes(request.rawId)}
-						onchange={() => toggleSelectRequest(request.rawId)}
-						class="mt-5 h-5 w-5 rounded border-gray-300 text-pink-600"
-					/>
-				{/if}
 
-				<div class="flex-1 overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}">
-					<div class="p-5">
-						<div class="flex items-start justify-between gap-3">
-							<div class="flex min-w-0 flex-wrap items-center gap-2">
-								<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
-								<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold {getStatusColor(request.status, request.rawStatus, request.rejectionReason)}">
-									<svelte:component this={getStatusIconComponent(request.status, request.rawStatus, request.rejectionReason)} size={12} />
-									{getStatusLabel(request.status, request.rawStatus, request.rejectionReason)}
-								</span>
-							</div>
-							<time class="shrink-0 whitespace-nowrap text-xs text-gray-400">
-								{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-							</time>
-						</div>
+			<!-- Results count -->
+			<div class="mb-4 flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2.5">
+				<span class="text-sm font-medium text-gray-700">
+					{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'}
+				</span>
+			</div>
 
-						<div class="mt-4 flex items-start gap-3">
-							<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 font-semibold text-pink-700">
-								{#if request.student.avatarUrl}
-									<img
-										src={request.student.avatarUrl}
-										alt={request.student.name}
-										class="h-full w-full object-cover"
-										loading="lazy"
-									/>
-								{:else}
-									{request.student.avatar}
-								{/if}
-							</div>
-							<div class="min-w-0">
-								<h3 class="text-lg font-semibold text-gray-900">{request.student.name}</h3>
-								<p class="text-sm text-gray-500">{request.student.yearLevel} • Block {request.student.block}</p>
-								<p class="mt-1 text-xs text-gray-400">Student ID {request.student.studentId}</p>
-							</div>
-						</div>
-
-						<div class="mt-4">
-							<p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Equipment Requested</p>
-							<div class="flex flex-wrap gap-1.5">
-								{#each request.items as item}
-									{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-									<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
-										{#if pic}
-											<img src={pic} alt={item.name} class="h-4 w-4 shrink-0 rounded object-cover" loading="lazy" />
-										{:else}
-											<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
-											</svg>
-										{/if}
-										<span>{item.name}</span>
-										<span class="text-gray-400">x{item.quantity}</span>
-									</span>
-								{/each}
-							</div>
-						</div>
-
-						<div class="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2">
-							<div class="flex items-center gap-1.5 text-xs text-gray-500">
-								<CalendarDays size={14} class="shrink-0 text-gray-400" />
-								<span>
-									{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-									–
-									{new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-								</span>
-							</div>
-							<div class="flex min-w-0 items-center gap-1.5 text-xs text-gray-500">
-								<FileText size={14} class="shrink-0 text-gray-400" />
-								<span class="max-w-[260px] truncate">{request.purpose}</span>
-							</div>
-							<div class="flex items-center gap-1.5 text-xs text-gray-500">
-								<UserCircle size={14} class="shrink-0 text-gray-400" />
-								<span>{request.student.email}</span>
-							</div>
-						</div>
-
-						<div class="mt-4 flex flex-wrap items-center gap-2">
-							<span class="text-xs font-medium text-gray-500">Trust Score</span>
-							<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {getTrustScoreColor(request.borrowingRecord.trustScore)}">
-								{request.borrowingRecord.trustScore}
-							</span>
-						</div>
-
-						{#if request.status !== 'pending'}
-							<div class="mt-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3">
-								<p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">Workflow Status</p>
-								<div class="space-y-2">
-									{#if request.approvedDate}
-										<div class="flex items-center gap-2 text-xs text-gray-600">
-											<span class="text-green-600">✓</span>
-											<span>Approved by {request.approvedBy} on {request.approvedDate}</span>
-										</div>
-									{/if}
-									{#if request.custodianStatus}
-										<div class="flex items-center gap-2 text-xs text-gray-600">
-											<span class="{request.custodianStatus === 'Ready for Pickup' || request.custodianStatus === 'Picked Up' || request.custodianStatus === 'Return Requested' || request.custodianStatus === 'Returned' ? 'text-green-600' : request.custodianStatus === 'Missing - Investigation' ? 'text-rose-600' : 'text-blue-600'}">
-												{request.custodianStatus === 'Ready for Pickup' || request.custodianStatus === 'Picked Up' || request.custodianStatus === 'Return Requested' || request.custodianStatus === 'Returned' ? '✓' : request.custodianStatus === 'Missing - Investigation' ? '⚠' : '⏳'}
+			<!-- Request Cards -->
+			<div class="space-y-4">
+				{#each filteredRequests as request}
+					<div class="flex items-start gap-3">
+						{#if activeTab === 'pending'}
+							<input
+								type="checkbox"
+								checked={selectedRequests.includes(request.rawId)}
+								onchange={() => toggleSelectRequest(request.rawId)}
+								class="mt-5 h-4 w-4 rounded border-gray-300 text-pink-600"
+							/>
+						{/if}
+						<div class="flex-1 overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}">
+							<div class="p-4 sm:p-5">
+								<div class="flex items-start justify-between gap-3">
+									<div class="flex min-w-0 flex-col gap-1">
+										<div class="flex flex-wrap items-center gap-2">
+											<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
+											<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusColor(request.status, request.rawStatus, request.rejectionReason)}">
+												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+												{getStatusLabel(request.status, request.rawStatus, request.rejectionReason)}
 											</span>
-											<span>Custodian Status: {request.custodianStatus}</span>
 										</div>
-									{/if}
-									{#if request.releasedDate}
-										<div class="flex items-center gap-2 text-xs text-gray-600">
-											<span class="text-green-600">✓</span>
-											<span>Released on {request.releasedDate}</span>
+										<div class="flex items-center gap-2">
+											<div class="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+												{#if request.student.avatarUrl}
+													<img src={request.student.avatarUrl} alt={request.student.name} class="h-full w-full object-cover" loading="lazy" />
+												{:else}
+													{request.student.avatar}
+												{/if}
+											</div>
+											<span class="text-sm font-medium text-gray-900">{request.student.name}</span>
+											<span class="text-xs text-gray-400">{request.student.yearLevel} · Block {request.student.block}</span>
 										</div>
-									{/if}
-									{#if request.pickedUpDate}
-										<div class="flex items-center gap-2 text-xs text-gray-600">
-											<span class="text-green-600">✓</span>
-											<span>Picked up on {request.pickedUpDate}</span>
-										</div>
-									{/if}
-									{#if request.actualReturnDate}
-										<div class="flex items-center gap-2 text-xs text-gray-600">
-											<span class="text-green-600">✓</span>
-											<span>Returned on {request.actualReturnDate}</span>
-										</div>
-									{/if}
-									{#if request.missingDate}
-										<div class="flex items-center gap-2 text-xs text-gray-600">
-											<span class="text-rose-600">⚠</span>
-											<span>Reported missing on {request.missingDate}</span>
-										</div>
-									{/if}
-									{#if request.resolvedDate}
-										<div class="flex items-center gap-2 text-xs text-gray-600">
-											<span class="text-emerald-600">✓</span>
-											<span>Resolved on {request.resolvedDate}</span>
-										</div>
-									{/if}
-									{#if request.returnCondition}
-										<div class="flex items-center gap-2 text-xs text-gray-600">
-											<span class="text-gray-500">•</span>
-											<span>Condition: <span class="font-medium {request.returnCondition === 'Good' ? 'text-green-600' : request.returnCondition === 'Fair' ? 'text-yellow-600' : 'text-red-600'}">{request.returnCondition}</span></span>
-										</div>
-									{/if}
-									{#if request.returnNotes}
-										<div class="flex items-start gap-2 text-xs text-gray-600">
-											<span class="mt-0.5 text-gray-500">📝</span>
-											<span class="flex-1">{request.returnNotes}</span>
-										</div>
+									</div>
+									<time class="shrink-0 whitespace-nowrap text-[11px] text-gray-400">
+										{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+									</time>
+								</div>
+
+								<div class="mt-4">
+									<p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Equipment Requested</p>
+									<div class="flex flex-wrap gap-1.5">
+										{#each request.items as item}
+											{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+											<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
+												{#if pic}
+													<img src={pic} alt={item.name} class="h-4 w-4 shrink-0 rounded object-cover" loading="lazy" />
+												{:else}
+													<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 10V7"/>
+													</svg>
+												{/if}
+												<span class="truncate">{item.name}</span>
+												<span class="text-gray-400">x{item.quantity}</span>
+											</span>
+										{/each}
+									</div>
+								</div>
+
+								<div class="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1.5">
+									<div class="flex items-center gap-1.5 text-xs text-gray-500">
+										<CalendarDays size={13} class="shrink-0 text-gray-400" />
+										<span>
+											{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+											–
+											{new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+										</span>
+									</div>
+									<div class="flex min-w-0 items-center gap-1.5 text-xs text-gray-500">
+										<FileText size={13} class="shrink-0 text-gray-400" />
+										<span class="truncate max-w-[220px]">{request.purpose}</span>
+									</div>
+									<div class="flex items-center gap-1.5 text-xs text-gray-500">
+										<UserCircle size={13} class="shrink-0 text-gray-400" />
+										<span class="truncate">{request.student.email}</span>
+									</div>
+								</div>
+							</div>
+
+							<div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+								<p class="min-w-0 text-xs font-medium {getStatusHint(request.status, request.rawStatus, request.rejectionReason).color}">
+									{getStatusHint(request.status, request.rawStatus, request.rejectionReason).text}
+								</p>
+								<div class="flex flex-wrap items-center gap-2">
+									<button
+										onclick={() => openDetailModal(request)}
+										class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+									>
+										View Details
+									</button>
+									{#if request.status === 'pending'}
+										<button
+											onclick={() => approveRequest(request.rawId)}
+											disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
+											class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											{isActionInFlight(request.rawId) ? 'Approving…' : 'Approve'}
+										</button>
+										<button
+											onclick={() => { selectedRequests = [request.rawId]; showBulkRejectModal = true; }}
+											disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
+											class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											Reject
+										</button>
 									{/if}
 								</div>
 							</div>
+						</div>
+					</div>
+				{/each}
+
+				{#if filteredRequests.length === 0}
+					{@const emptyState = getEmptyState(activeTab, Boolean(searchQuery.trim()))}
+					<div class="py-16 text-center">
+						<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
+							<emptyState.icon class="h-8 w-8 text-gray-400" />
+						</div>
+						<h3 class="mt-4 text-sm font-semibold text-gray-900">{emptyState.title}</h3>
+						<p class="mx-auto mt-1.5 max-w-sm text-xs text-gray-500">{emptyState.description}</p>
+						{#if searchQuery.trim()}
+							<button onclick={() => (searchQuery = '')} class="mt-4 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+								Clear Search
+							</button>
 						{/if}
 					</div>
-
-					<div class="flex flex-col gap-3 border-t border-gray-100 bg-gray-50/60 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-						<div class="text-xs font-medium {getStatusHint(request.status, request.rawStatus, request.rejectionReason).color}">
-							{getStatusHint(request.status, request.rawStatus, request.rejectionReason).text || ' '}
-						</div>
-						<div class="flex items-center gap-2">
-							<button
-								onclick={() => openDetailModal(request)}
-								class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-							>
-								View Details
-							</button>
-							{#if request.status === 'pending'}
-								<button
-									onclick={() => approveRequest(request.rawId)}
-									disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
-									class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
-								>
-									{isActionInFlight(request.rawId) ? 'Approving...' : 'Approve'}
-								</button>
-								<button
-									onclick={() => { selectedRequests = [request.rawId]; showBulkRejectModal = true; }}
-									disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
-									class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:border-red-100 disabled:text-red-300 disabled:hover:bg-white"
-								>
-									Reject
-								</button>
-							{/if}
-						</div>
-					</div>
-				</div>
-			</div>
-		{/each}
-		
-		{#if filteredRequests.length === 0}
-			{@const emptyState = getEmptyState(activeTab, Boolean(searchQuery.trim()))}
-			<div class="rounded-xl border border-dashed border-gray-300 bg-gradient-to-b from-gray-50 to-white p-12 text-center shadow-sm">
-				<div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-pink-50 text-pink-600 ring-1 ring-pink-100">
-					<emptyState.icon class="h-7 w-7" />
-				</div>
-				<h3 class="mt-5 text-base font-semibold text-gray-900">{emptyState.title}</h3>
-				<p class="mx-auto mt-2 max-w-md text-sm leading-6 text-gray-500">{emptyState.description}</p>
-				{#if searchQuery.trim()}
-					<button
-						onclick={() => (searchQuery = '')}
-						class="mt-5 inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-					>
-						Clear Search
-					</button>
 				{/if}
 			</div>
-		{/if}
+		</div>
 	</div>
 </div>
-
 
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-slate-900/35 backdrop-blur-[2px]" onclick={closeDetailModal}></div>
-		<div class="flex min-h-full items-center justify-center p-4 md:p-6">
-			<div class="relative w-full max-w-6xl overflow-hidden rounded-2xl border border-white/50 bg-white/85 shadow-2xl backdrop-blur-md">
-				<div class="border-b border-gray-200/80 bg-white/55 px-6 py-4 backdrop-blur-sm">
-					<div class="flex items-center justify-between">
-						<h3 class="text-lg font-semibold">Request Review - {selectedRequest.id}</h3>
-						<button onclick={closeDetailModal} class="text-gray-400 hover:text-gray-500">
-							<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+		<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick={closeDetailModal} aria-label="Close modal" tabindex="-1"></button>
+		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
+			<div class="relative w-full max-w-4xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl">
+				<div class="flex justify-center pt-2.5 sm:hidden">
+					<div class="h-1 w-10 rounded-full bg-gray-300"></div>
+				</div>
+				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
+					<div class="flex items-start justify-between gap-3">
+						<div class="flex min-w-0 flex-1 items-start gap-3">
+							<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-md">
+								<ClipboardList class="h-5 w-5 text-white" />
+							</div>
+							<div class="min-w-0">
+								<h2 class="text-lg font-bold text-gray-900 sm:text-xl">Request Details</h2>
+								<p class="font-mono text-xs font-semibold text-pink-600 sm:text-sm">{selectedRequest.id}</p>
+								<span class="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold {getStatusColor(selectedRequest.status, selectedRequest.rawStatus, selectedRequest.rejectionReason)}">
+									<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+									{getStatusLabel(selectedRequest.status, selectedRequest.rawStatus, selectedRequest.rejectionReason)}
+								</span>
+							</div>
+						</div>
+						<button onclick={closeDetailModal} class="shrink-0 rounded-xl p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600">
+							<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
 							</svg>
 						</button>
 					</div>
 				</div>
-				
-				<div class="grid max-h-[70vh] grid-cols-1 overflow-y-auto lg:grid-cols-2">
-					<!-- Left Panel -->
-					<div class="space-y-6 border-gray-200/70 p-6 lg:border-r">
-						<div>
-							<h4 class="text-sm font-medium text-gray-700 mb-3">Student Information</h4>
-							<div class="rounded-xl border border-white/70 bg-white/55 p-4 backdrop-blur-sm">
-								<div class="flex items-center gap-3 mb-4">
-									<div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-pink-700 font-semibold text-xl">
+
+				<div class="max-h-[65vh] overflow-y-auto">
+					<div class="grid grid-cols-1 lg:grid-cols-2">
+						<div class="space-y-5 border-gray-200 p-4 sm:p-6 lg:border-r">
+							<div>
+								<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Student</p>
+								<div class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+									<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-lg font-semibold text-pink-700">
 										{#if selectedRequest.student.avatarUrl}
-											<img
-												src={selectedRequest.student.avatarUrl}
-												alt={selectedRequest.student.name}
-												class="h-full w-full object-cover"
-												loading="lazy"
-											/>
+											<img src={selectedRequest.student.avatarUrl} alt={selectedRequest.student.name} class="h-full w-full object-cover" loading="lazy" />
 										{:else}
 											{selectedRequest.student.avatar}
 										{/if}
 									</div>
-									<div>
-										<p class="font-semibold">{selectedRequest.student.name}</p>
-										<p class="text-sm text-gray-600">{selectedRequest.student.yearLevel} • Block {selectedRequest.student.block}</p>
-										<p class="text-xs text-gray-500">{selectedRequest.student.studentId}</p>
+									<div class="min-w-0">
+										<p class="font-semibold text-gray-900">{selectedRequest.student.name}</p>
+										<p class="text-xs text-gray-500">{selectedRequest.student.yearLevel} · Block {selectedRequest.student.block}</p>
+										<p class="text-xs text-gray-400">{selectedRequest.student.studentId} · {selectedRequest.student.email}</p>
 									</div>
 								</div>
-								<div class="space-y-2 text-sm">
-									<div class="flex justify-between">
-										<span class="text-gray-600">Email:</span>
-										<span class="font-medium">{selectedRequest.student.email}</span>
+							</div>
+							<div>
+								<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Requested Items</p>
+								<div class="space-y-2">
+									{#each selectedRequest.items as item}
+										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+										<div class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
+											{#if pic}
+												<img src={pic} alt={item.name} class="h-10 w-10 shrink-0 rounded-lg object-cover" loading="lazy" />
+											{:else}
+												<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg">
+													<ItemImagePlaceholder size="sm" />
+												</div>
+											{/if}
+											<div class="min-w-0">
+												<p class="text-sm font-medium text-gray-900">{item.name}</p>
+												<p class="text-xs text-gray-500">{item.code} · Qty: {item.quantity}</p>
+											</div>
+										</div>
+									{/each}
+								</div>
+							</div>
+							<div>
+								<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Request Details</p>
+								<div class="space-y-2.5 rounded-xl border border-gray-200 bg-gray-50 p-3">
+									<div>
+										<p class="text-[10px] font-medium uppercase tracking-wide text-gray-400">Borrow Period</p>
+										<p class="mt-0.5 text-sm text-gray-900">{new Date(selectedRequest.borrowDate).toLocaleDateString()} – {new Date(selectedRequest.returnDate).toLocaleDateString()}</p>
+									</div>
+									<div>
+										<p class="text-[10px] font-medium uppercase tracking-wide text-gray-400">Purpose</p>
+										<p class="mt-0.5 text-sm text-gray-900">{selectedRequest.purpose}</p>
 									</div>
 								</div>
 							</div>
 						</div>
-						
-						<div>
-							<h4 class="text-sm font-medium text-gray-700 mb-3">Requested Items</h4>
-							<div class="space-y-2">
-								{#each selectedRequest.items as item}
-									{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-									<div class="flex items-center gap-3 rounded-xl border border-white/70 bg-white/55 p-3 backdrop-blur-sm">
-										{#if pic}
-											<img src={pic} alt={item.name} class="h-10 w-10 rounded object-cover" loading="lazy" />
-										{:else}
-											<div class="h-10 w-10 shrink-0 overflow-hidden rounded">
-												<ItemImagePlaceholder size="sm" />
+
+						<div class="space-y-5 bg-gray-50/40 p-4 sm:p-6">
+							<div class="rounded-xl border border-gray-200 bg-white p-3">
+								<p class="text-xs font-medium {getStatusHint(selectedRequest.status, selectedRequest.rawStatus, selectedRequest.rejectionReason).color}">
+									{getStatusHint(selectedRequest.status, selectedRequest.rawStatus, selectedRequest.rejectionReason).text}
+								</p>
+							</div>
+							{#if selectedRequest.status !== 'pending'}
+								<div>
+									<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Workflow</p>
+									<div class="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
+										{#if selectedRequest.approvedDate}
+											<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-green-600">✓</span><span>Approved by {selectedRequest.approvedBy} · {selectedRequest.approvedDate}</span></div>
+										{/if}
+										{#if selectedRequest.custodianStatus}
+											<div class="flex items-center gap-2 text-xs text-gray-600">
+												<span class="{['Ready for Pickup','Picked Up','Return Requested','Returned'].includes(selectedRequest.custodianStatus) ? 'text-green-600' : selectedRequest.custodianStatus === 'Missing - Investigation' ? 'text-rose-600' : 'text-blue-600'}">
+													{['Ready for Pickup','Picked Up','Return Requested','Returned'].includes(selectedRequest.custodianStatus) ? '✓' : selectedRequest.custodianStatus === 'Missing - Investigation' ? '⚠' : '⏳'}
+												</span>
+												<span>Custodian: {selectedRequest.custodianStatus}</span>
 											</div>
 										{/if}
-										<div>
-											<p class="text-sm font-medium">{item.name}</p>
-											<p class="text-xs text-gray-500">{item.code} • Qty: {item.quantity}</p>
-										</div>
+										{#if selectedRequest.releasedDate}<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-green-600">✓</span><span>Released · {selectedRequest.releasedDate}</span></div>{/if}
+										{#if selectedRequest.pickedUpDate}<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-green-600">✓</span><span>Picked up · {selectedRequest.pickedUpDate}</span></div>{/if}
+										{#if selectedRequest.actualReturnDate}<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-green-600">✓</span><span>Returned · {selectedRequest.actualReturnDate}</span></div>{/if}
+										{#if selectedRequest.missingDate}<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-rose-600">⚠</span><span>Reported missing · {selectedRequest.missingDate}</span></div>{/if}
+										{#if selectedRequest.resolvedDate}<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-emerald-600">✓</span><span>Resolved · {selectedRequest.resolvedDate}</span></div>{/if}
 									</div>
-								{/each}
-							</div>
-						</div>
-						
-						<div>
-							<h4 class="text-sm font-medium text-gray-700 mb-3">Request Details</h4>
-							<div class="space-y-3 rounded-xl border border-white/70 bg-white/55 p-4 backdrop-blur-sm">
+								</div>
+							{/if}
+							{#if selectedRequest.status === 'pending'}
 								<div>
-									<p class="text-xs font-medium text-gray-500">Borrow Period</p>
-									<p class="mt-1 text-sm">{new Date(selectedRequest.borrowDate).toLocaleDateString()} - {new Date(selectedRequest.returnDate).toLocaleDateString()}</p>
+									<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</p>
+									<div class="space-y-2">
+										<button
+											onclick={() => approveRequest(selectedRequest.rawId)}
+											disabled={isActionInFlight(selectedRequest.rawId) || bulkActionInFlight}
+											class="w-full rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											{isActionInFlight(selectedRequest.rawId) ? 'Approving…' : 'Approve Request'}
+										</button>
+										<button
+											onclick={() => { selectedRequests = [selectedRequest.rawId]; showBulkRejectModal = true; }}
+											disabled={isActionInFlight(selectedRequest.rawId) || bulkActionInFlight}
+											class="w-full rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											Reject Request
+										</button>
+									</div>
 								</div>
-								<div>
-									<p class="text-xs font-medium text-gray-500">Purpose</p>
-									<p class="mt-1 text-sm">{selectedRequest.purpose}</p>
-								</div>
-							</div>
+							{/if}
 						</div>
-					</div>
-					
-					<!-- Right Panel -->
-					<div class="space-y-6 bg-white/35 p-6">
-						<div>
-							<h4 class="text-sm font-medium text-gray-700 mb-3">Student Borrowing Record</h4>
-							<div class="rounded-xl border border-white/70 bg-white/65 p-4 backdrop-blur-sm">
-								<div class="mb-4 pb-4 border-b">
-									<div class="flex items-center justify-between">
-										<span class="text-sm text-gray-600">Trust Score:</span>
-										<span class="rounded-full px-3 py-1 text-sm font-semibold {getTrustScoreColor(selectedRequest.borrowingRecord.trustScore)}">
-											{selectedRequest.borrowingRecord.trustScore}
-										</span>
-									</div>
-									<div class="mt-2">
-										<div class="flex items-center justify-between text-xs text-gray-500 mb-1">
-											<span>Return Rate</span>
-											<span class="font-semibold">{selectedRequest.borrowingRecord.returnRate}%</span>
-										</div>
-										<div class="w-full bg-gray-200 rounded-full h-2">
-											<div class="bg-green-600 h-2 rounded-full" style="width: {selectedRequest.borrowingRecord.returnRate}%"></div>
-										</div>
-									</div>
-								</div>
-								<div class="grid grid-cols-2 gap-4">
-									<div class="text-center">
-										<p class="text-2xl font-bold">{selectedRequest.borrowingRecord.totalBorrowed}</p>
-										<p class="text-xs text-gray-500">Total Borrowed</p>
-									</div>
-									<div class="text-center">
-										<p class="text-2xl font-bold text-yellow-600">{selectedRequest.borrowingRecord.overdue}</p>
-										<p class="text-xs text-gray-500">Overdue</p>
-									</div>
-								</div>
-							</div>
-						</div>
-						
-						<div>
-							<h4 class="text-sm font-medium text-gray-700 mb-3">Equipment Availability</h4>
-							<div class="rounded-xl border border-white/70 bg-white/65 p-4 backdrop-blur-sm">
-								{#each selectedRequest.items as item}
-									<div class="flex items-center justify-between py-2">
-										<span class="text-sm">{item.name}</span>
-										<span class="rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-800">
-											✓ Available
-										</span>
-									</div>
-								{/each}
-							</div>
-						</div>
-						
-						{#if selectedRequest.status === 'pending'}
-							<div>
-								<h4 class="text-sm font-medium text-gray-700 mb-3">Quick Actions</h4>
-								<div class="space-y-2">
-									<button
-										onclick={() => approveRequest(selectedRequest.rawId)}
-										disabled={isActionInFlight(selectedRequest.rawId) || bulkActionInFlight}
-										class="w-full rounded-lg bg-green-600 px-4 py-3 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:bg-green-300"
-									>
-										{isActionInFlight(selectedRequest.rawId) ? 'Approving...' : 'Approve Request'}
-									</button>
-									<button onclick={() => { selectedRequests = [selectedRequest.rawId]; showBulkRejectModal = true; }} disabled={isActionInFlight(selectedRequest.rawId) || bulkActionInFlight} class="w-full rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-medium text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-red-200 disabled:text-red-300 disabled:hover:bg-white">
-										Reject Request
-									</button>
-								</div>
-							</div>
-						{/if}
 					</div>
 				</div>
-				
-				<div class="border-t border-gray-200/80 bg-white/55 px-6 py-4 backdrop-blur-sm">
-					<div class="flex justify-end">
-						<button onclick={closeDetailModal} class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-							Close
-						</button>
-					</div>
+
+				<div class="flex justify-end border-t border-gray-200 bg-white px-4 py-3 sm:px-6 sm:py-4">
+					<button onclick={closeDetailModal} class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Close</button>
 				</div>
 			</div>
 		</div>
@@ -1335,35 +1173,33 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 <!-- Bulk Reject Modal -->
 {#if showBulkRejectModal}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-gray-500 bg-opacity-75" onclick={() => showBulkRejectModal = false}></div>
+		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick={() => showBulkRejectModal = false}></div>
 		<div class="flex min-h-full items-center justify-center p-4">
-			<div class="relative w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-				<h3 class="text-lg font-semibold mb-4">Bulk Reject Requests</h3>
-				<div class="space-y-4">
+			<div class="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+				<h3 class="text-lg font-semibold text-gray-900">Reject Request{selectedRequests.length > 1 ? 's' : ''}</h3>
+				<p class="mt-1 text-sm text-gray-500">{selectedRequests.length > 1 ? `Rejecting ${selectedRequests.length} requests.` : 'Provide a reason for rejection.'}</p>
+				<div class="mt-4 space-y-4">
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-2">Rejection Reason</label>
-						<select bind:value={rejectReason} class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-							<option value="">Select a reason...</option>
+						<label class="mb-1.5 block text-sm font-medium text-gray-700">Rejection Reason</label>
+						<select bind:value={rejectReason} class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
+							<option value="">Select a reason…</option>
 							{#each rejectReasons as reason}
 								<option value={reason}>{reason}</option>
 							{/each}
 						</select>
 					</div>
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-2">Additional Details</label>
-						<textarea bind:value={rejectDetails} rows="4" class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"></textarea>
+						<label class="mb-1.5 block text-sm font-medium text-gray-700">Additional Notes <span class="text-gray-400">(optional)</span></label>
+						<textarea bind:value={rejectDetails} rows="3" placeholder="Add any additional context…" class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"></textarea>
 					</div>
 				</div>
 				<div class="mt-6 flex justify-end gap-3">
-					<button onclick={() => showBulkRejectModal = false} class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-						Cancel
-					</button>
-					<button onclick={bulkReject} disabled={!rejectReason || bulkActionInFlight} class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">
-						{bulkActionInFlight ? 'Processing...' : 'Confirm Rejection'}
+					<button onclick={() => { showBulkRejectModal = false; rejectReason = ''; rejectDetails = ''; selectedRequests = []; }} class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Cancel</button>
+					<button onclick={bulkReject} disabled={!rejectReason || bulkActionInFlight} class="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50">
+						{bulkActionInFlight ? 'Processing…' : 'Confirm Rejection'}
 					</button>
 				</div>
 			</div>
 		</div>
 	</div>
 {/if}
-
