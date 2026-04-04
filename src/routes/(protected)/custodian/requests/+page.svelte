@@ -928,9 +928,10 @@ return { text: '', color: 'text-gray-500' };
 				</div>
 
 				{#if viewMode === 'card'}
-					{#each paginatedRequests as request}
-					<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}">
-						<div class="p-4 sm:p-5">
+					{#if paginatedRequests.length > 0}
+						{#each paginatedRequests as request}
+							<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}">
+								<div class="p-4 sm:p-5">
 							<!-- Header: ID, Status, Student Info -->
 							<div class="flex items-start justify-between gap-3 mb-3">
 								<div class="flex flex-col gap-1 flex-1 min-w-0">
@@ -1033,10 +1034,10 @@ return { text: '', color: 'text-gray-500' };
 							</div>
 						</div>
 					{/if}
-				</div>
+					</div>
 
-				<!-- Card Footer -->
-				<div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+					<!-- Card Footer -->
+					<div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
 					<!-- Status hint -->
 					<div class="text-xs min-w-0">
 						<p class="font-medium {getRequestHint(request.status, request.rawStatus, request.rejectionReason).color}">
@@ -1117,19 +1118,65 @@ return { text: '', color: 'text-gray-500' };
 						{/if}
 					</div>
 				</div>
+			</div>
+			{/each}
+			
+			<!-- Empty placeholders to fill the page -->
+			{#each Array(Math.max(0, PAGE_SIZE - paginatedRequests.length)) as _}
+				<div class="overflow-hidden rounded-xl bg-gray-50/50 shadow-sm ring-1 ring-gray-200 border-l-4 border-gray-200" style="height: 280px;">
+					<div class="flex h-full items-center justify-center">
+						<span class="text-xs text-gray-300">—</span>
 					</div>
-				{/each}
+				</div>
+			{/each}
 				{:else}
-					<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-						<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
-							<span>Request</span>
-							<span>Student</span>
-							<span>Items</span>
-							<span>Status</span>
-							<span class="text-right">Actions</span>
+					<!-- Completely empty state -->
+					<div class="col-span-full py-16 text-center">
+						<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
+							<svg class="h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+							</svg>
 						</div>
-						<div class="divide-y divide-gray-100">
-							{#each paginatedRequests as request}
+						<h3 class="mt-6 text-base font-semibold text-gray-900">
+							{#if activeTab === 'pending'}
+								No pending requests
+							{:else if activeTab === 'ready'}
+								No items ready for pickup
+							{:else if activeTab === 'active'}
+								No active loans
+							{:else if activeTab === 'unresolved'}
+								No unresolved items
+							{:else}
+								No request history
+							{/if}
+						</h3>
+						<p class="mt-2 text-sm text-gray-600 max-w-md mx-auto">
+							{#if activeTab === 'pending'}
+								Requests approved by instructors will appear here for your action.
+							{:else if activeTab === 'ready'}
+								Items that have been released and are ready for student pickup will appear here.
+							{:else if activeTab === 'active'}
+								Currently borrowed items will be listed here when students pick them up.
+							{:else if activeTab === 'unresolved'}
+								Items reported as missing or damaged will be tracked here.
+							{:else}
+								Completed, cancelled, returned, and rejected requests will be archived here.
+							{/if}
+						</p>
+					</div>
+				{/if}
+				{:else}
+					{#if paginatedRequests.length > 0}
+						<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+							<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+								<span>Request</span>
+								<span>Student</span>
+								<span>Items</span>
+								<span>Status</span>
+								<span class="text-right">Actions</span>
+							</div>
+							<div class="divide-y divide-gray-100">
+								{#each paginatedRequests as request}
 								<div class="grid gap-3 p-4 md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
 									<div class="min-w-0">
 										<p class="font-mono text-xs font-bold tracking-wider text-gray-900">{request.id}</p>
@@ -1239,9 +1286,54 @@ return { text: '', color: 'text-gray-500' };
 										{/if}
 									</div>
 								</div>
+								{/each}
+							
+							<!-- Empty placeholders to fill the page -->
+							{#each Array(Math.max(0, PAGE_SIZE - paginatedRequests.length)) as _}
+								<div class="grid gap-3 p-4 md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3 bg-gray-50/30" style="height: 88px;">
+									<div class="flex items-center justify-center h-full">
+										<span class="text-xs text-gray-300">—</span>
+									</div>
+								</div>
 							{/each}
 						</div>
 					</div>
+					{:else}
+						<!-- Completely empty state -->
+						<div class="py-16 text-center">
+							<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
+								<svg class="h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+								</svg>
+							</div>
+							<h3 class="mt-6 text-base font-semibold text-gray-900">
+								{#if activeTab === 'pending'}
+									No pending requests
+								{:else if activeTab === 'ready'}
+									No items ready for pickup
+								{:else if activeTab === 'active'}
+									No active loans
+								{:else if activeTab === 'unresolved'}
+									No unresolved items
+								{:else}
+									No request history
+								{/if}
+							</h3>
+							<p class="mt-2 text-sm text-gray-600 max-w-md mx-auto">
+								{#if activeTab === 'pending'}
+									Requests approved by instructors will appear here for your action.
+								{:else if activeTab === 'ready'}
+									Items that have been released and are ready for student pickup will appear here.
+								{:else if activeTab === 'active'}
+									Currently borrowed items will be listed here when students pick them up.
+								{:else if activeTab === 'unresolved'}
+									Items reported as missing or damaged will be tracked here.
+								{:else}
+									Completed, cancelled, returned, and rejected requests will be archived here.
+								{/if}
+							</p>
+						</div>
+					{/if}
 				{/if}
 
 				{#if filteredRequests.length > 0 && totalPages > 1}
@@ -1289,40 +1381,6 @@ return { text: '', color: 'text-gray-500' };
 						</nav>
 					</div>
 				{/if}
-		
-		{#if filteredRequests.length === 0}
-			<div class="py-12 text-center">
-				<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-				</svg>
-				<h3 class="mt-4 text-lg font-medium text-gray-900">
-					{#if activeTab === 'pending'}
-						No pending requests
-					{:else if activeTab === 'ready'}
-						No items ready for pickup
-					{:else if activeTab === 'active'}
-						No active loans
-					{:else if activeTab === 'missing'}
-						No missing items
-					{:else}
-						No request history
-					{/if}
-				</h3>
-				<p class="mt-2 text-sm text-gray-500">
-					{#if activeTab === 'pending'}
-						Requests approved by instructors will appear here for your action.
-					{:else if activeTab === 'ready'}
-						Items that have been released and are ready for student pickup will appear here.
-					{:else if activeTab === 'active'}
-						Currently borrowed items will be listed here when students pick them up.
-					{:else if activeTab === 'missing'}
-						Items reported as missing will be tracked here.
-					{:else}
-						Completed, cancelled, returned, and rejected requests will be archived here.
-					{/if}
-				</p>
-			</div>
-		{/if}
 			</div>
 		</div>
 	</div>
