@@ -2,7 +2,6 @@
 	import { onMount } from 'svelte';
 	import { catalogAPI, type CatalogResponse, type CatalogFilters, type CatalogItem } from '$lib/api/catalog';
 	import { subscribeToInventoryChanges } from '$lib/api/inventory';
-	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 
 	// UI State
@@ -28,10 +27,7 @@
 	let totalItems = $derived.by(() => catalogData?.total ?? 0);
 	let totalPages = $derived.by(() => catalogData?.pages ?? 0);
 	let selectedItemStockHealth = $derived.by(() => {
-		if (!selectedItem || selectedItem.minStock == null || selectedItem.minStock <= 0) {
-			return null;
-		}
-
+		if (!selectedItem || selectedItem.minStock == null || selectedItem.minStock <= 0) return null;
 		return getStockHealth(selectedItem.quantity, selectedItem.minStock);
 	});
 
@@ -89,18 +85,13 @@
 		return cat?.name ?? 'Uncategorized';
 	}
 
-	function getStockHealth(quantity: number, minStock: number): {
-		pct: number;
-		barColor: string;
-		label: string;
-		labelColor: string;
-	} {
-		const stockRatio = quantity / minStock;
+	function getStockHealth(quantity: number, minStock: number) {
+		const ratio = quantity / minStock;
 		return {
 			pct: Math.min(Math.round((quantity / (minStock * 2)) * 100), 100),
-			barColor: stockRatio >= 1.5 ? 'bg-green-500' : stockRatio >= 1 ? 'bg-yellow-500' : 'bg-red-500',
-			label: stockRatio >= 1.5 ? 'Healthy' : stockRatio >= 1 ? 'Adequate' : 'Below Minimum',
-			labelColor: stockRatio >= 1.5 ? 'text-green-600' : stockRatio >= 1 ? 'text-yellow-600' : 'text-red-600'
+			barColor: ratio >= 1.5 ? 'bg-green-500' : ratio >= 1 ? 'bg-yellow-500' : 'bg-red-500',
+			label: ratio >= 1.5 ? 'Healthy' : ratio >= 1 ? 'Adequate' : 'Below Minimum',
+			labelColor: ratio >= 1.5 ? 'text-green-600' : ratio >= 1 ? 'text-yellow-600' : 'text-red-600'
 		};
 	}
 
@@ -109,7 +100,6 @@
 		try {
 			if (!background) isLoading = true;
 			error = null;
-
 			const filters: CatalogFilters = {
 				search: searchQuery || undefined,
 				category: selectedCategory !== 'all' ? selectedCategory : undefined,
@@ -119,12 +109,9 @@
 				page: currentPage,
 				limit: itemsPerPage
 			};
-
 			catalogData = await catalogAPI.getCatalog(filters, { forceRefresh: options.forceRefresh });
 		} catch (err) {
-			const msg = err instanceof Error ? err.message : 'Failed to load catalog';
-			if (!background) error = msg;
-			console.error('Catalog fetch error:', err);
+			if (!background) error = err instanceof Error ? err.message : 'Failed to load catalog';
 		} finally {
 			if (!background) isLoading = false;
 		}
@@ -141,6 +128,13 @@
 		fetchCatalog();
 	}
 
+	function goToPage(pageNum: number): void {
+		if (pageNum >= 1 && pageNum <= totalPages) {
+			currentPage = pageNum;
+			fetchCatalog();
+		}
+	}
+
 	let searchTimeout: ReturnType<typeof setTimeout>;
 	function handleSearch(query: string): void {
 		searchQuery = query;
@@ -154,25 +148,13 @@
 		fetchCatalog();
 	}
 
-	function openDetailModal(item: CatalogItem): void {
-		selectedItem = item;
-	}
-
-	function closeDetailModal(): void {
-		showFullImage = false;
-		selectedItem = null;
-	}
-
-	function openFullImage(): void {
-		if (selectedItem?.picture) showFullImage = true;
-	}
-
-	function closeFullImage(): void {
-		showFullImage = false;
-	}
+	function openDetailModal(item: CatalogItem): void { selectedItem = item; }
+	function closeDetailModal(): void { showFullImage = false; selectedItem = null; }
+	function openFullImage(): void { if (selectedItem?.picture) showFullImage = true; }
+	function closeFullImage(): void { showFullImage = false; }
 
 	onMount(() => {
-		const initialFilters: CatalogFilters = {
+		const filters: CatalogFilters = {
 			search: searchQuery || undefined,
 			category: selectedCategory !== 'all' ? selectedCategory : undefined,
 			availability: (selectedAvailability as CatalogFilters['availability']) || 'all',
@@ -181,8 +163,7 @@
 			page: currentPage,
 			limit: itemsPerPage
 		};
-
-		const cached = catalogAPI.peekCachedCatalog(initialFilters);
+		const cached = catalogAPI.peekCachedCatalog(filters);
 		if (cached) {
 			catalogData = cached;
 			isLoading = false;
@@ -190,22 +171,12 @@
 		} else {
 			fetchCatalog();
 		}
-
-		const refreshInterval = setInterval(() => {
-			fetchCatalog({ background: true, forceRefresh: true });
-		}, 5 * 60 * 1000);
-
-		return () => {
-			clearInterval(refreshInterval);
-			clearTimeout(searchTimeout);
-		};
+		const interval = setInterval(() => fetchCatalog({ background: true, forceRefresh: true }), 5 * 60 * 1000);
+		return () => { clearInterval(interval); clearTimeout(searchTimeout); };
 	});
 
-	// Real-time inventory updates via SSE
 	onMount(() => {
-		const unsub = subscribeToInventoryChanges(() => {
-			fetchCatalog({ background: true, forceRefresh: true });
-		});
+		const unsub = subscribeToInventoryChanges(() => fetchCatalog({ background: true, forceRefresh: true }));
 		return () => unsub();
 	});
 </script>
@@ -224,142 +195,120 @@
 
 <!-- Detail Modal -->
 {#if selectedItem}
-	<div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+	<div class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
 		<div class="fixed inset-0 bg-black/40" aria-hidden="true" onclick={closeDetailModal}></div>
 		<div
 			role="dialog"
 			aria-modal="true"
-			aria-labelledby="catalog-item-details-title"
-			class="relative z-50 w-full max-w-4xl rounded-lg bg-white shadow-xl"
+			aria-labelledby="catalog-item-title"
+			class="relative z-50 w-full max-h-[92vh] overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:max-w-4xl sm:rounded-xl"
 		>
-			<div class="flex items-start justify-between border-b border-gray-200 bg-gray-50 px-6 py-4">
-				<div>
-					<h2 id="catalog-item-details-title" class="text-lg font-semibold text-gray-900">{selectedItem.name}</h2>
-					<p class="mt-0.5 text-sm text-gray-500">{getCategoryName(selectedItem.categoryId)}</p>
+			<!-- Handle bar (mobile) -->
+			<div class="flex justify-center pt-2.5 sm:hidden">
+				<div class="h-1 w-10 rounded-full bg-gray-300"></div>
+			</div>
+
+			<div class="flex items-start justify-between border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
+				<div class="min-w-0 pr-3">
+					<h2 id="catalog-item-title" class="truncate text-base font-semibold text-gray-900 sm:text-lg">{selectedItem.name}</h2>
+					<p class="mt-0.5 text-xs text-gray-500 sm:text-sm">{getCategoryName(selectedItem.categoryId)}</p>
 				</div>
-				<button
-					onclick={closeDetailModal}
-					class="rounded-md p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700"
-					aria-label="Close details modal"
-					title="Close"
-				>
+				<button onclick={closeDetailModal} class="shrink-0 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label="Close">
 					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 					</svg>
 				</button>
 			</div>
 
-			<div class="max-h-[70vh] overflow-y-auto">
-				<div class="grid grid-cols-1 gap-6 px-6 py-5 lg:grid-cols-2">
-					<!-- Left Panel -->
-					<div class="space-y-5">
-						<div class="aspect-square overflow-hidden rounded-lg bg-gray-100">
-							{#if selectedItem.picture}
-								<button
-									type="button"
-									onclick={openFullImage}
-									class="h-full w-full cursor-zoom-in"
-									title="View full image"
-								>
-									<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full object-cover" loading="lazy" />
-								</button>
-							{:else}
-								<ItemImagePlaceholder size="lg" />
-							{/if}
-						</div>
-
-						<div>
-							<h4 class="mb-3 text-sm font-medium text-gray-700">Specifications</h4>
-							<div class="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
-								<div class="flex justify-between text-sm">
-									<span class="text-gray-600">Category</span>
-									<span class="font-medium text-gray-900">{getCategoryName(selectedItem.categoryId)}</span>
-								</div>
-								<div class="flex items-center justify-between text-sm">
-									<span class="text-gray-600">Status</span>
-									<span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold {getAvailabilityColor(selectedItem.status)}">{selectedItem.status}</span>
-								</div>
-								<div class="flex items-center justify-between text-sm">
-									<span class="text-gray-600">Condition</span>
-									<span class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold {getConditionColor(selectedItem.condition)}">{selectedItem.condition}</span>
-								</div>
-								{#if selectedItem.location}
-									<div class="flex justify-between text-sm">
-										<span class="text-gray-600">Location</span>
-										<span class="font-medium text-gray-900">{selectedItem.location}</span>
-									</div>
-								{/if}
-								{#if selectedItem.specification}
-									<div class="flex flex-col gap-1 text-sm">
-										<span class="text-gray-600">Specification</span>
-										<span class="font-medium text-gray-900">{selectedItem.specification}</span>
-									</div>
-								{/if}
-							</div>
-						</div>
-
-						{#if selectedItem.description}
-							<div>
-								<h4 class="mb-2 text-sm font-medium text-gray-700">Description</h4>
-								<p class="text-sm text-gray-600">{selectedItem.description}</p>
-							</div>
-						{/if}
-					</div>
-
-					<!-- Right Panel — Inventory Monitoring -->
-					<div class="space-y-5">
-						<div>
-							<h4 class="mb-3 text-sm font-medium text-gray-700">Inventory Overview</h4>
-							<div class="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-								<div class="flex items-center justify-between">
-									<span class="text-sm text-gray-600">Total Units</span>
-									<span class="text-sm font-semibold text-gray-900">{selectedItem.quantity}</span>
-								</div>
-								{#if selectedItem.eomCount != null}
-									<div class="flex items-center justify-between">
-										<span class="text-sm text-gray-600">End-of-Month Count</span>
-										<span class="text-sm font-semibold text-gray-900">{selectedItem.eomCount}</span>
-									</div>
-								{/if}
-								{#if selectedItem.minStock != null}
-									<div class="flex items-center justify-between">
-										<span class="text-sm text-gray-600">Minimum Stock</span>
-										<span class="text-sm font-semibold {selectedItem.quantity <= selectedItem.minStock ? 'text-red-600' : 'text-gray-900'}">{selectedItem.minStock}</span>
-									</div>
-								{/if}
-								{#if selectedItem.variance != null}
-									<div class="flex items-center justify-between">
-										<span class="text-sm text-gray-600">Variance</span>
-										<span class="text-sm font-semibold {selectedItem.variance < 0 ? 'text-red-600' : selectedItem.variance > 0 ? 'text-green-600' : 'text-gray-900'}">{selectedItem.variance > 0 ? '+' : ''}{selectedItem.variance}</span>
-									</div>
-								{/if}
-							</div>
-						</div>
-
-						{#if selectedItem.minStock != null && selectedItem.minStock > 0}
-							<div>
-								<h4 class="mb-3 text-sm font-medium text-gray-700">Stock Health</h4>
-								<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-									<div class="mb-2 flex items-center justify-between">
-										<span class="text-sm text-gray-600">Stock vs Minimum</span>
-										<span class="text-xs font-semibold {selectedItemStockHealth?.labelColor}">{selectedItemStockHealth?.label}</span>
-									</div>
-									<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-										<div class="h-2 rounded-full transition-all {selectedItemStockHealth?.barColor}" style="width: {selectedItemStockHealth?.pct ?? 0}%"></div>
-									</div>
-									<p class="mt-1.5 text-xs text-gray-500">{selectedItem.quantity} on hand · minimum {selectedItem.minStock}</p>
-								</div>
-							</div>
+			<div class="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-3 sm:gap-6 sm:px-6 sm:py-5">
+				<!-- Image — compact on mobile -->
+				<div class="sm:col-span-1">
+					<div class="aspect-square w-full max-w-[200px] mx-auto overflow-hidden rounded-lg bg-gray-100 sm:max-w-none">
+						{#if selectedItem.picture}
+							<button type="button" onclick={openFullImage} class="h-full w-full cursor-zoom-in" title="View full image">
+								<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full object-cover" loading="lazy" />
+							</button>
+						{:else}
+							<ItemImagePlaceholder size="lg" />
 						{/if}
 					</div>
 				</div>
+
+				<!-- Details -->
+				<div class="space-y-4 sm:col-span-2">
+					<div class="grid grid-cols-2 gap-3 sm:gap-4">
+						<div>
+							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Category</p>
+							<p class="mt-0.5 text-sm font-medium text-gray-900">{getCategoryName(selectedItem.categoryId)}</p>
+						</div>
+						<div>
+							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Status</p>
+							<span class="mt-0.5 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold {getAvailabilityColor(selectedItem.status)}">{selectedItem.status}</span>
+						</div>
+						<div>
+							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Condition</p>
+							<span class="mt-0.5 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold {getConditionColor(selectedItem.condition)}">{selectedItem.condition}</span>
+						</div>
+						<div>
+							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Total Units</p>
+							<p class="mt-0.5 text-sm font-medium text-gray-900">{selectedItem.quantity}</p>
+						</div>
+						{#if selectedItem.minStock != null}
+							<div>
+								<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Min Stock</p>
+								<p class="mt-0.5 text-sm font-medium {selectedItem.quantity <= selectedItem.minStock ? 'text-red-600' : 'text-gray-900'}">{selectedItem.minStock}</p>
+							</div>
+						{/if}
+						{#if selectedItem.eomCount != null}
+							<div>
+								<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">EOM Count</p>
+								<p class="mt-0.5 text-sm font-medium text-gray-900">{selectedItem.eomCount}</p>
+							</div>
+						{/if}
+						{#if selectedItem.variance != null}
+							<div>
+								<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Variance</p>
+								<p class="mt-0.5 text-sm font-medium {selectedItem.variance < 0 ? 'text-red-600' : selectedItem.variance > 0 ? 'text-green-600' : 'text-gray-900'}">{selectedItem.variance > 0 ? '+' : ''}{selectedItem.variance}</p>
+							</div>
+						{/if}
+						<div>
+							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Location</p>
+							<p class="mt-0.5 text-sm text-gray-900">{selectedItem.location || 'Not specified'}</p>
+						</div>
+						<div class="col-span-2">
+							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Specification</p>
+							<p class="mt-0.5 text-sm text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
+						</div>
+					</div>
+
+					{#if selectedItem.description}
+						<div>
+							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Description</p>
+							<p class="mt-0.5 text-sm text-gray-700">{selectedItem.description}</p>
+						</div>
+					{/if}
+
+					<!-- Stock Health Bar -->
+					{#if selectedItem.minStock != null && selectedItem.minStock > 0}
+						<div>
+							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Stock Health</p>
+							<div class="mt-1.5 rounded-lg border border-gray-200 bg-gray-50 p-3">
+								<div class="mb-1.5 flex items-center justify-between">
+									<span class="text-xs text-gray-600">Stock vs Minimum</span>
+									<span class="text-xs font-semibold {selectedItemStockHealth?.labelColor}">{selectedItemStockHealth?.label}</span>
+								</div>
+								<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+									<div class="h-2 rounded-full transition-all {selectedItemStockHealth?.barColor}" style="width: {selectedItemStockHealth?.pct ?? 0}%"></div>
+								</div>
+								<p class="mt-1 text-xs text-gray-500">{selectedItem.quantity} on hand · minimum {selectedItem.minStock}</p>
+							</div>
+						</div>
+					{/if}
+				</div>
 			</div>
 
-			<div class="flex justify-end border-t border-gray-200 bg-gray-50 px-6 py-4">
-				<button
-					onclick={closeDetailModal}
-					class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-				>
+			<div class="flex justify-end border-t border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
+				<button onclick={closeDetailModal} class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
 					Close
 				</button>
 			</div>
@@ -372,13 +321,7 @@
 	<div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
 		<div class="fixed inset-0 bg-black/90" aria-hidden="true" onclick={closeFullImage}></div>
 		<div class="relative z-[61] max-h-[90vh] max-w-[90vw]">
-			<button
-				type="button"
-				onclick={closeFullImage}
-				class="absolute -top-12 right-0 rounded-md p-2 text-white transition-colors hover:bg-white/10"
-				aria-label="Close full image"
-				title="Close"
-			>
+			<button type="button" onclick={closeFullImage} class="absolute -top-12 right-0 rounded-md p-2 text-white hover:bg-white/10" aria-label="Close full image">
 				<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
 				</svg>
@@ -388,386 +331,294 @@
 	</div>
 {/if}
 
-{#if isLoading}
-	<div class="space-y-6">
-		<!-- Header skeleton -->
-		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<div class="space-y-2">
-				<Skeleton class="h-8 w-64" />
-				<Skeleton class="h-4 w-80" />
-			</div>
-			<div class="flex gap-2">
-				<Skeleton class="h-9 w-9 rounded-lg" />
-				<Skeleton class="h-9 w-9 rounded-lg" />
-			</div>
+<div class="space-y-6">
+	<!-- Page Header -->
+	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+		<div>
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Equipment Catalog</h1>
+			<p class="mt-1 text-sm text-gray-500">Monitor equipment inventory, usage, and condition</p>
 		</div>
-		<!-- Filter bar skeleton -->
-		<div class="rounded-lg bg-white p-4 shadow">
-			<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
-				<div class="lg:col-span-2"><Skeleton class="h-9 w-full rounded-lg" /></div>
-				<Skeleton class="h-9 w-full rounded-lg" />
-				<Skeleton class="h-9 w-full rounded-lg" />
-				<Skeleton class="h-9 w-full rounded-lg" />
-			</div>
-		</div>
-		<!-- Card skeletons -->
-		<div class="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-			{#each { length: 6 } as _}
-				<div class="overflow-hidden rounded-lg bg-white shadow">
-					<Skeleton class="aspect-square w-full" />
-					<div class="space-y-3 p-4">
-						<div class="flex items-start justify-between gap-2">
-							<Skeleton class="h-5 w-40" />
-							<Skeleton class="h-5 w-20 rounded-full" />
-						</div>
-						<Skeleton class="h-4 w-full" />
-						<Skeleton class="h-4 w-3/4" />
-						<Skeleton class="h-16 w-full rounded-lg" />
-						<div class="flex gap-2">
-							<Skeleton class="h-5 w-24 rounded-full" />
-							<Skeleton class="h-5 w-16 rounded-full" />
-						</div>
-						<Skeleton class="h-9 w-full rounded-lg" />
-					</div>
-				</div>
-			{/each}
+		<div class="flex shrink-0 rounded-lg border border-gray-300 overflow-hidden self-start sm:self-auto">
+			<button
+				onclick={() => (viewMode = 'grid')}
+				aria-label="Grid view"
+				class="flex items-center px-2.5 py-2 text-sm transition-colors {viewMode === 'grid' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+			>
+				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+				</svg>
+			</button>
+			<button
+				onclick={() => (viewMode = 'list')}
+				aria-label="List view"
+				class="flex items-center px-2.5 py-2 text-sm transition-colors border-l border-gray-300 {viewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+			>
+				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+				</svg>
+			</button>
 		</div>
 	</div>
-{:else}
-	<div class="space-y-6">
-		<!-- Page Header -->
-		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<div>
-				<div class="flex items-center gap-3">
-					<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Equipment Catalog</h1>
-					<span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">
-						<svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-						</svg>
-						Monitoring
-					</span>
-				</div>
-				<p class="mt-1 text-sm text-gray-500">Monitor equipment inventory, usage, and condition</p>
+
+	<!-- Search and Filters -->
+	<div class="rounded-lg bg-white p-3 shadow sm:p-4">
+		<div class="relative mb-3">
+			<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+				<svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+				</svg>
 			</div>
-			<div class="flex gap-2">
-				<button
-					onclick={() => (viewMode = 'grid')}
-					aria-label="Switch to grid view"
-					title="Grid view"
-					class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium transition-colors {viewMode === 'grid' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-700 hover:bg-gray-50'}"
-				>
-					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-					</svg>
-				</button>
-				<button
-					onclick={() => (viewMode = 'list')}
-					aria-label="Switch to list view"
-					title="List view"
-					class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium transition-colors {viewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-700 hover:bg-gray-50'}"
-				>
-					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-					</svg>
-				</button>
+			<input
+				type="text"
+				id="search"
+				value={searchQuery}
+				onchange={(e) => handleSearch((e.target as HTMLInputElement).value)}
+				oninput={(e) => handleSearch((e.target as HTMLInputElement).value)}
+				placeholder="Search by name, category, or specification…"
+				class="block w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-pink-500 focus:ring-pink-500"
+				aria-label="Search equipment"
+				disabled={isLoading}
+			/>
+		</div>
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+			<select
+				value={selectedCategory}
+				onchange={(e) => { selectedCategory = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
+				class="block w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+				aria-label="Filter by category"
+				disabled={isLoading}
+			>
+				<option value="all">All Categories</option>
+				{#each categories as category}
+					<option value={category.id}>{category.name}</option>
+				{/each}
+			</select>
+			<select
+				value={selectedAvailability}
+				onchange={(e) => { selectedAvailability = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
+				class="block w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+				aria-label="Filter by status"
+				disabled={isLoading}
+			>
+				{#each availabilityOptions as option}
+					<option value={option.value}>{option.label}</option>
+				{/each}
+			</select>
+			<select
+				value={selectedCondition}
+				onchange={(e) => { selectedCondition = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
+				class="block w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+				aria-label="Filter by condition"
+				disabled={isLoading}
+			>
+				{#each conditionOptions as option}
+					<option value={option.value}>{option.label}</option>
+				{/each}
+			</select>
+			<select
+				value={sortBy}
+				onchange={(e) => { sortBy = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
+				class="block w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+				aria-label="Sort items"
+				disabled={isLoading}
+			>
+				{#each sortOptions as option}
+					<option value={option.value}>{option.label}</option>
+				{/each}
+			</select>
+		</div>
+	</div>
+
+	<!-- Error State -->
+	{#if error}
+		<div class="rounded-lg border border-red-200 bg-red-50 p-4">
+			<div class="flex">
+				<svg class="mr-3 h-5 w-5 shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+				</svg>
+				<div>
+					<p class="text-sm font-medium text-red-800">Failed to load catalog</p>
+					<p class="mt-1 text-sm text-red-600">{error}</p>
+					<button onclick={() => fetchCatalog()} class="mt-2 text-sm font-medium text-red-700 underline hover:text-red-900">Try again</button>
+				</div>
 			</div>
 		</div>
+	{/if}
 
-		<!-- Search and Filters -->
-		<div class="rounded-lg bg-white p-4 shadow">
-			<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
-				<!-- Search -->
-				<div class="lg:col-span-2">
-					<label for="search" class="mb-1 block text-sm font-medium text-gray-700">Search</label>
-					<div class="relative">
-						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-							<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-							</svg>
-						</div>
-						<input
-							type="text"
-							id="search"
-							value={searchQuery}
-							onchange={(e) => handleSearch((e.target as HTMLInputElement).value)}
-							oninput={(e) => handleSearch((e.target as HTMLInputElement).value)}
-							placeholder="Search by name, category, or specification..."
-							class="block w-full rounded-lg border border-gray-300 py-2 pl-10 pr-3 text-sm focus:border-pink-500 focus:ring-pink-500"
-							aria-label="Search equipment"
-						/>
-					</div>
-				</div>
-
-				<!-- Category Filter -->
-				<div>
-					<label for="category" class="mb-1 block text-sm font-medium text-gray-700">Category</label>
-					<select
-						id="category"
-						value={selectedCategory}
-						onchange={(e) => { selectedCategory = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
-						class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-						aria-label="Filter by category"
-					>
-						<option value="all">All Categories</option>
-						{#each categories as category}
-							<option value={category.id}>{category.name}</option>
-						{/each}
-					</select>
-				</div>
-
-				<!-- Availability Filter -->
-				<div>
-					<label for="availability" class="mb-1 block text-sm font-medium text-gray-700">Status</label>
-					<select
-						id="availability"
-						value={selectedAvailability}
-						onchange={(e) => { selectedAvailability = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
-						class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-						aria-label="Filter by status"
-					>
-						{#each availabilityOptions as option}
-							<option value={option.value}>{option.label}</option>
-						{/each}
-					</select>
-				</div>
-
-				<!-- Condition Filter -->
-				<div>
-					<label for="condition" class="mb-1 block text-sm font-medium text-gray-700">Condition</label>
-					<select
-						id="condition"
-						value={selectedCondition}
-						onchange={(e) => { selectedCondition = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
-						class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-						aria-label="Filter by condition"
-					>
-						{#each conditionOptions as option}
-							<option value={option.value}>{option.label}</option>
-						{/each}
-					</select>
-				</div>
-			</div>
-
-			<!-- Sort Row -->
-			<div class="mt-4 flex items-center gap-2">
-				<label for="sort" class="whitespace-nowrap text-sm font-medium text-gray-700">Sort by</label>
-				<select
-					id="sort"
-					value={sortBy}
-					onchange={(e) => { sortBy = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
-					class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:border-pink-500 focus:ring-pink-500"
-					aria-label="Sort items"
-				>
-					{#each sortOptions as option}
-						<option value={option.value}>{option.label}</option>
-					{/each}
-				</select>
-			</div>
-		</div>
-
-		<!-- Error State -->
-		{#if error}
-			<div class="rounded-lg border border-red-200 bg-red-50 p-4">
-				<div class="flex">
-					<svg class="mr-3 h-5 w-5 shrink-0 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-					</svg>
-					<div>
-						<p class="text-sm font-medium text-red-800">Failed to load catalog</p>
-						<p class="mt-1 text-sm text-red-600">{error}</p>
-						<button
-							onclick={() => fetchCatalog()}
-							class="mt-2 text-sm font-medium text-red-700 underline hover:text-red-900"
-						>
-							Try again
-						</button>
-					</div>
-				</div>
-			</div>
-		{/if}
-
-		<!-- Results Count -->
+	<!-- Results count + clear -->
+	{#if !isLoading}
 		<div class="flex items-center justify-between">
 			<p class="text-sm text-gray-700">
 				Showing <span class="font-medium">{filteredItems.length}</span>
-				{#if totalItems > filteredItems.length}
-					of <span class="font-medium">{totalItems}</span>
-				{/if}
-				items
+				{filteredItems.length === 1 ? 'item' : 'items'}
+				{totalItems > filteredItems.length ? ` of ${totalItems}` : ''}
 			</p>
 			{#if searchQuery || selectedCategory !== 'all' || selectedAvailability !== 'all' || selectedCondition !== 'all'}
-				<button onclick={clearFilters} class="text-sm font-medium text-pink-600 hover:text-pink-700">
+				<button onclick={clearFilters} class="text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors">
 					Clear all filters
 				</button>
 			{/if}
 		</div>
+	{/if}
 
-		<!-- Grid View -->
-		{#if viewMode === 'grid'}
-			{#if filteredItems.length === 0}
-				<div class="rounded-lg bg-white py-16 text-center shadow">
-					<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-					</svg>
-					<h3 class="mt-4 text-sm font-medium text-gray-900">No equipment found</h3>
-					<p class="mt-1 text-sm text-gray-500">Try adjusting your search or filter criteria.</p>
-					<button onclick={clearFilters} class="mt-4 text-sm font-medium text-pink-600 hover:text-pink-700">Clear filters</button>
-				</div>
-			{:else}
+	<!-- Loading skeleton -->
+	{#if isLoading}
+		<div class="animate-pulse">
+			{#if viewMode === 'grid'}
 				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
-					{#each filteredItems as item}
-						<div class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
-							<!-- Image — 4:3 ratio -->
-							<div class="relative aspect-[4/3] overflow-hidden bg-gray-100">
-								{#if item.picture}
-									<img src={item.picture} alt={item.name} class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-								{:else}
-									<ItemImagePlaceholder size="lg" />
-								{/if}
-								<span class="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight {getAvailabilityColor(item.status)}">
-									{item.status === 'In Stock' ? 'In Stock' : item.status === 'Out of Stock' ? 'Out' : item.status}
-								</span>
-							</div>
-
-							<!-- Content -->
-							<div class="flex flex-1 flex-col p-2">
-								<h3 class="line-clamp-2 text-xs font-semibold leading-snug text-gray-900 sm:text-sm">{item.name}</h3>
-
-								<div class="mt-1.5 flex flex-wrap items-center gap-1">
-									<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">
-										{getCategoryName(item.categoryId)}
-									</span>
-									<span class="rounded px-1 py-0.5 text-[10px] font-semibold {getConditionColor(item.condition)}">
-										{item.condition}
-									</span>
+					{#each Array(8) as _}
+						<div class="overflow-hidden rounded-lg bg-white shadow-sm">
+							<div class="aspect-[4/3] bg-gray-200"></div>
+							<div class="p-2 space-y-1.5">
+								<div class="h-3 w-full rounded bg-gray-200"></div>
+								<div class="h-3 w-3/4 rounded bg-gray-200"></div>
+								<div class="flex gap-1 pt-0.5">
+									<div class="h-4 w-16 rounded bg-gray-200"></div>
+									<div class="h-4 w-12 rounded bg-gray-200"></div>
 								</div>
-
-								<p class="mt-1 text-[10px] text-gray-400">Qty: {item.quantity}</p>
-
-								<div class="mt-auto pt-2">
-									<button
-										onclick={() => openDetailModal(item)}
-										class="w-full rounded-md border border-gray-300 bg-white py-1.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50 sm:text-xs"
-									>
-										View Details
-									</button>
-								</div>
+								<div class="h-7 w-full rounded-md bg-gray-200 mt-2"></div>
 							</div>
 						</div>
 					{/each}
 				</div>
-			{/if}
-		{/if}
-
-		<!-- List View -->
-		{#if viewMode === 'list'}
-			{#if filteredItems.length === 0}
-				<div class="rounded-lg bg-white py-16 text-center shadow">
-					<svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-					</svg>
-					<h3 class="mt-4 text-sm font-medium text-gray-900">No equipment found</h3>
-					<p class="mt-1 text-sm text-gray-500">Try adjusting your search or filter criteria.</p>
-					<button onclick={clearFilters} class="mt-4 text-sm font-medium text-pink-600 hover:text-pink-700">Clear filters</button>
-				</div>
 			{:else}
-				<div class="overflow-hidden rounded-lg bg-white shadow">
-					<table class="min-w-full divide-y divide-gray-200">
-						<thead class="bg-gray-50">
-							<tr>
-								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
-								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
-								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Quantity</th>
-								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Condition</th>
-								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Location</th>
-								<th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
-							</tr>
-						</thead>
-						<tbody class="divide-y divide-gray-200 bg-white">
-							{#each filteredItems as item}
-								<tr class="hover:bg-gray-50">
-									<td class="px-6 py-4">
-										<div class="flex items-center gap-3">
-											<div class="h-10 w-10 shrink-0 overflow-hidden rounded bg-gray-100">
-												{#if item.picture}
-													<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
-												{:else}
-													<ItemImagePlaceholder size="sm" />
-												{/if}
-											</div>
-											<div class="min-w-0">
-												<p class="text-sm font-medium text-gray-900">{item.name}</p>
-												{#if item.specification}
-													<p class="truncate text-xs text-gray-500">{item.specification}</p>
-												{/if}
-											</div>
-										</div>
-									</td>
-									<td class="whitespace-nowrap px-6 py-4">
-										<span class="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700">
-											{getCategoryName(item.categoryId)}
-										</span>
-									</td>
-									<td class="whitespace-nowrap px-6 py-4">
-										<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {getAvailabilityColor(item.status)}">
-											{item.status}
-										</span>
-									</td>
-									<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">
-										<span class="font-medium">{item.quantity}</span>
-										{#if item.minStock != null && item.quantity <= item.minStock}
-											<span class="ml-1 inline-flex rounded-full bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">Low</span>
-										{/if}
-									</td>
-									<td class="whitespace-nowrap px-6 py-4">
-										<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {getConditionColor(item.condition)}">
-											{item.condition}
-										</span>
-									</td>
-									<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-										{item.location || '—'}
-									</td>
-									<td class="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-										<button
-											onclick={() => openDetailModal(item)}
-											class="text-pink-600 hover:text-pink-900"
-										>
-											View Details
-										</button>
-									</td>
-								</tr>
-							{/each}
-						</tbody>
-					</table>
+				<div class="space-y-2">
+					{#each Array(5) as _}
+						<div class="rounded-lg bg-gray-200 h-16"></div>
+					{/each}
 				</div>
 			{/if}
-		{/if}
+		</div>
+	{/if}
 
-		<!-- Pagination -->
-		{#if totalPages > 1}
-			<div class="flex items-center justify-between rounded-lg bg-white px-4 py-3 shadow">
-				<p class="text-sm text-gray-700">
-					Page <span class="font-medium">{currentPage}</span> of <span class="font-medium">{totalPages}</span>
-					· <span class="font-medium">{totalItems}</span> total items
-				</p>
-				<div class="flex gap-2">
-					<button
-						onclick={() => { currentPage = Math.max(1, currentPage - 1); fetchCatalog(); }}
-						disabled={currentPage <= 1}
-						class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-					>
-						Previous
-					</button>
-					<button
-						onclick={() => { currentPage = Math.min(totalPages, currentPage + 1); fetchCatalog(); }}
-						disabled={currentPage >= totalPages}
-						class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-					>
-						Next
-					</button>
+	<!-- Grid View -->
+	{#if !isLoading && viewMode === 'grid' && filteredItems.length > 0}
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
+			{#each filteredItems as item (item.id)}
+				<div class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
+					<div class="relative aspect-[4/3] overflow-hidden bg-gray-100">
+						{#if item.picture}
+							<img src={item.picture} alt={item.name} class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
+						{:else}
+							<ItemImagePlaceholder size="lg" />
+						{/if}
+						<span class="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight {getAvailabilityColor(item.status)}">
+							{item.status === 'In Stock' ? 'In Stock' : item.status === 'Out of Stock' ? 'Out' : item.status}
+						</span>
+					</div>
+					<div class="flex flex-1 flex-col p-2">
+						<h3 class="line-clamp-2 text-xs font-semibold leading-snug text-gray-900 sm:text-sm">{item.name}</h3>
+						<div class="mt-1.5 flex flex-wrap items-center gap-1">
+							<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">{getCategoryName(item.categoryId)}</span>
+							<span class="rounded px-1 py-0.5 text-[10px] font-semibold {getConditionColor(item.condition)}">{item.condition}</span>
+						</div>
+						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.quantity}</p>
+						<div class="mt-auto pt-2">
+							<button
+								onclick={() => openDetailModal(item)}
+								class="w-full rounded-md border border-gray-300 bg-white py-1.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50 sm:text-xs"
+							>
+								View Details
+							</button>
+						</div>
+					</div>
 				</div>
+			{/each}
+		</div>
+	{/if}
+
+	<!-- List View -->
+	{#if !isLoading && viewMode === 'list' && filteredItems.length > 0}
+		<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
+			{#each filteredItems as item (item.id)}
+				<div class="flex items-center gap-3 px-3 py-3 hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5">
+					<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14">
+						{#if item.picture}
+							<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
+						{:else}
+							<ItemImagePlaceholder size="sm" />
+						{/if}
+					</div>
+					<div class="min-w-0 flex-1">
+						<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+						<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
+						<div class="mt-1 flex flex-wrap items-center gap-1">
+							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
+							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getConditionColor(item.condition)}">{item.condition}</span>
+							<span class="text-[10px] text-gray-400">Qty: {item.quantity}</span>
+							{#if item.location}
+								<span class="text-[10px] text-gray-400">· {item.location}</span>
+							{/if}
+						</div>
+					</div>
+					<div class="shrink-0">
+						<button
+							onclick={() => openDetailModal(item)}
+							class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 sm:text-xs"
+						>
+							Details
+						</button>
+					</div>
+				</div>
+			{/each}
+		</div>
+	{/if}
+
+	<!-- Empty State -->
+	{#if !isLoading && filteredItems.length === 0}
+		<div class="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center sm:p-12">
+			<svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+			</svg>
+			<h3 class="mt-3 text-sm font-medium text-gray-900">No equipment found</h3>
+			<p class="mt-1 text-xs text-gray-500">Try adjusting your filters or search terms.</p>
+			<button onclick={clearFilters} class="mt-4 inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
+				Clear filters
+			</button>
+		</div>
+	{/if}
+
+	<!-- Pagination -->
+	{#if !isLoading && totalPages > 1}
+		<div class="flex flex-col items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 sm:flex-row sm:justify-between">
+			<p class="text-xs text-gray-600">
+				Page <span class="font-semibold">{currentPage}</span> of <span class="font-semibold">{totalPages}</span>
+			</p>
+			<div class="overflow-x-auto">
+				<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+					<button
+						onclick={() => goToPage(currentPage - 1)}
+						disabled={currentPage === 1}
+						class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+						aria-label="Previous page"
+					>
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+						</svg>
+					</button>
+					{#each Array(totalPages) as _, i}
+						{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalPages}
+							<button
+								onclick={() => goToPage(i + 1)}
+								class="relative inline-flex items-center px-3 py-2 text-xs font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
+								aria-current={i + 1 === currentPage ? 'page' : undefined}
+							>{i + 1}</button>
+						{:else if Math.abs(i + 1 - currentPage) === 2}
+							<span class="relative inline-flex items-center px-3 py-2 text-xs text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
+						{/if}
+					{/each}
+					<button
+						onclick={() => goToPage(currentPage + 1)}
+						disabled={currentPage === totalPages}
+						class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+						aria-label="Next page"
+					>
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+						</svg>
+					</button>
+				</nav>
 			</div>
-		{/if}
-	</div>
-{/if}
+		</div>
+	{/if}
+</div>

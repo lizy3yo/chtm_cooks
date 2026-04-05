@@ -10,13 +10,13 @@
 	} from '$lib/api/analyticsReports';
 	import { toastStore } from '$lib/stores/toast';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
-	import { FileText, AlertCircle, DollarSign, PackageX } from 'lucide-svelte';
+	import { FileText, AlertCircle, PackageX, TrendingUp } from 'lucide-svelte';
 
 	// ── State ─────────────────────────────────────────────────────────────────
 
-	type Tab = 'borrow' | 'inventory' | 'conditions' | 'risk';
+	type Tab = 'overview' | 'borrow' | 'inventory' | 'conditions' | 'risk' | 'replacement';
 
-	let activeTab = $state<Tab>('borrow');
+	let activeTab = $state<Tab>('overview');
 	let period = $state<AnalyticsPeriod>('month');
 	let customFrom = $state('');
 	let customTo = $state('');
@@ -354,15 +354,15 @@
 			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Outstanding</p>
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending Replacements</p>
 						<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
-							₱{(report?.replacement.summary.totalOutstanding ?? 0).toLocaleString()}
+							{(report?.replacement.summary.totalItemsPending ?? 0).toLocaleString()}
 						</p>
-						<p class="text-xs text-gray-500 mt-0.5">{report?.replacement.summary.pendingCount ?? 0} pending</p>
+						<p class="text-xs text-gray-500 mt-0.5">{report?.replacement.summary.pendingCount ?? 0} obligations</p>
 					</div>
 					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
-						<DollarSign size={18} class="text-amber-600 sm:hidden" />
-						<DollarSign size={24} class="hidden text-amber-600 sm:block" />
+						<TrendingUp size={18} class="text-amber-600 sm:hidden" />
+						<TrendingUp size={24} class="hidden text-amber-600 sm:block" />
 					</div>
 				</div>
 			</div>
@@ -389,9 +389,11 @@
 		<div class="border-b border-gray-200">
 			<nav class="-mb-px flex overflow-x-auto" aria-label="Analytics tabs">
 				{#each [
+					{ key: 'overview', label: 'Executive Overview' },
 					{ key: 'borrow', label: 'Borrow Operations' },
 					{ key: 'inventory', label: 'Inventory Utilization' },
 					{ key: 'conditions', label: 'Item Conditions' },
+					{ key: 'replacement', label: 'Replacement Tracking' },
 					{ key: 'risk', label: 'Student Risk' }
 				] as tab}
 					<button
@@ -442,6 +444,203 @@
 					</button>
 				</div>
 			{:else if report}
+
+			<!-- ══ EXECUTIVE OVERVIEW TAB ══════════════════════════════════════ -->
+			{#if activeTab === 'overview'}
+				<div class="space-y-8">
+					
+					<!-- Key Performance Indicators -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Key Performance Indicators</h3>
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-pink-50 to-white p-5">
+								<p class="text-xs font-medium text-gray-500">Approval Rate</p>
+								<p class="mt-1 text-3xl font-bold text-pink-600">{approvalRate}%</p>
+								<p class="mt-0.5 text-xs text-gray-400">of {totalRequests} requests</p>
+							</div>
+							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-emerald-50 to-white p-5">
+								<p class="text-xs font-medium text-gray-500">Return Rate</p>
+								<p class="mt-1 text-3xl font-bold text-emerald-600">
+									{totalRequests > 0 ? Math.round((returnedCount / totalRequests) * 100) : 0}%
+								</p>
+								<p class="mt-0.5 text-xs text-gray-400">{returnedCount} returned</p>
+							</div>
+							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-blue-50 to-white p-5">
+								<p class="text-xs font-medium text-gray-500">Avg Turnaround</p>
+								<p class="mt-1 text-3xl font-bold text-blue-600">
+									{Math.round((report.borrowRequests.turnaround.avgApprovalHours + report.borrowRequests.turnaround.avgReleaseHours) / 2)}h
+								</p>
+								<p class="mt-0.5 text-xs text-gray-400">approval to release</p>
+							</div>
+							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-purple-50 to-white p-5">
+								<p class="text-xs font-medium text-gray-500">Fleet Health</p>
+								<p class="mt-1 text-3xl font-bold text-purple-600">
+									{totalConditionItems > 0 ? Math.round(((totalConditionItems - needsAttention) / totalConditionItems) * 100) : 0}%
+								</p>
+								<p class="mt-0.5 text-xs text-gray-400">items in good condition</p>
+							</div>
+						</div>
+					</section>
+
+					<!-- Quick Stats Grid -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Operations Summary</h3>
+						<div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
+							<div class="rounded-lg border border-gray-200 bg-white p-4">
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-sm text-gray-500">Total Requests</p>
+										<p class="mt-1 text-2xl font-bold text-gray-900">{totalRequests}</p>
+									</div>
+									<FileText size={24} class="text-gray-400" />
+								</div>
+							</div>
+							<div class="rounded-lg border border-gray-200 bg-white p-4">
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-sm text-gray-500">Overdue Returns</p>
+										<p class="mt-1 text-2xl font-bold {(report.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">
+											{report.borrowRequests.overdueCount ?? 0}
+										</p>
+									</div>
+									<AlertCircle size={24} class="{(report.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-400' : 'text-emerald-400'}" />
+								</div>
+							</div>
+							<div class="rounded-lg border border-gray-200 bg-white p-4">
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-sm text-gray-500">Stock Alerts</p>
+										<p class="mt-1 text-2xl font-bold {(report.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'}">
+											{report.inventory.stockAlerts.length ?? 0}
+										</p>
+									</div>
+									<PackageX size={24} class="{(report.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-400' : 'text-emerald-400'}" />
+								</div>
+							</div>
+							<div class="rounded-lg border border-gray-200 bg-white p-4">
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-sm text-gray-500">Pending Replacements</p>
+										<p class="mt-1 text-2xl font-bold text-amber-600">{report.replacement.summary.pendingCount ?? 0}</p>
+									</div>
+									<TrendingUp size={24} class="text-amber-400" />
+								</div>
+							</div>
+							<div class="rounded-lg border border-gray-200 bg-white p-4">
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-sm text-gray-500">Items Needing Attention</p>
+										<p class="mt-1 text-2xl font-bold {needsAttention > 0 ? 'text-orange-600' : 'text-emerald-600'}">{needsAttention}</p>
+									</div>
+									<AlertCircle size={24} class="{needsAttention > 0 ? 'text-orange-400' : 'text-emerald-400'}" />
+								</div>
+							</div>
+							<div class="rounded-lg border border-gray-200 bg-white p-4">
+								<div class="flex items-center justify-between">
+									<div>
+										<p class="text-sm text-gray-500">Total Inventory</p>
+										<p class="mt-1 text-2xl font-bold text-gray-900">{totalConditionItems}</p>
+									</div>
+									<PackageX size={24} class="text-gray-400" />
+								</div>
+							</div>
+						</div>
+					</section>
+
+					<!-- Status Breakdown Visualization -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Request Status Distribution</h3>
+						<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+							{#each report.borrowRequests.statusBreakdown as item}
+								<div class="rounded-xl border border-gray-100 bg-gray-50 p-4 text-center transition-all hover:shadow-md">
+									<p class="text-2xl font-bold text-gray-900">{item.count}</p>
+									<span class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium {statusColors[item.status] ?? 'bg-gray-100 text-gray-600'}">
+										{statusLabels[item.status] ?? item.status}
+									</span>
+									<p class="mt-1 text-xs text-gray-400">
+										{totalRequests > 0 ? Math.round((item.count / totalRequests) * 100) : 0}%
+									</p>
+								</div>
+							{/each}
+						</div>
+					</section>
+
+					<!-- Condition Health Overview -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Fleet Condition Health</h3>
+						{#if totalConditionItems > 0}
+							<div class="mb-4 flex h-6 w-full overflow-hidden rounded-full bg-gray-100">
+								{#each conditionOrder as cond}
+									{@const item = report.inventory.conditionDistribution.find(c => c.condition === cond)}
+									{@const pct = item ? Math.round((item.count / totalConditionItems) * 100) : 0}
+									{#if pct > 0}
+										<div
+											class="{conditionMeta[cond].bar} transition-all"
+											style="width:{pct}%"
+											title="{cond}: {item?.count} ({pct}%)"
+										></div>
+									{/if}
+								{/each}
+							</div>
+							<div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
+								{#each conditionOrder as cond}
+									{@const item = report.inventory.conditionDistribution.find(c => c.condition === cond)}
+									{@const count = item?.count ?? 0}
+									{@const pct = totalConditionItems > 0 ? Math.round((count / totalConditionItems) * 100) : 0}
+									<div class="flex flex-col items-center rounded-lg border border-gray-100 bg-white p-3">
+										<div class="h-3 w-3 rounded-full {conditionMeta[cond].bar} mb-2"></div>
+										<span class="text-xs font-medium text-gray-600">{cond}</span>
+										<span class="text-lg font-bold text-gray-900 mt-1">{count}</span>
+										<span class="text-xs text-gray-400">({pct}%)</span>
+									</div>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-sm text-gray-400">No condition data available.</p>
+						{/if}
+					</section>
+
+					<!-- Top Alerts -->
+					{#if (report.borrowRequests.overdueCount > 0) || (report.inventory.stockAlerts.length > 0) || (needsAttention > 0)}
+						<section>
+							<h3 class="mb-4 text-base font-semibold text-gray-900">Action Required</h3>
+							<div class="space-y-3">
+								{#if report.borrowRequests.overdueCount > 0}
+									<div class="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+										<AlertCircle size={20} class="mt-0.5 shrink-0 text-red-500" />
+										<div class="flex-1">
+											<p class="text-sm font-semibold text-red-900">Overdue Returns</p>
+											<p class="text-sm text-red-700">{report.borrowRequests.overdueCount} request{report.borrowRequests.overdueCount !== 1 ? 's' : ''} past due date</p>
+										</div>
+										<button onclick={() => activeTab = 'borrow'} class="text-xs font-medium text-red-700 hover:text-red-900">View →</button>
+									</div>
+								{/if}
+								{#if report.inventory.stockAlerts.length > 0}
+									<div class="flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
+										<PackageX size={20} class="mt-0.5 shrink-0 text-orange-500" />
+										<div class="flex-1">
+											<p class="text-sm font-semibold text-orange-900">Stock Alerts</p>
+											<p class="text-sm text-orange-700">{report.inventory.stockAlerts.length} item{report.inventory.stockAlerts.length !== 1 ? 's' : ''} low or out of stock</p>
+										</div>
+										<button onclick={() => activeTab = 'inventory'} class="text-xs font-medium text-orange-700 hover:text-orange-900">View →</button>
+									</div>
+								{/if}
+								{#if needsAttention > 0}
+									<div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+										<AlertCircle size={20} class="mt-0.5 shrink-0 text-amber-500" />
+										<div class="flex-1">
+											<p class="text-sm font-semibold text-amber-900">Items Need Attention</p>
+											<p class="text-sm text-amber-700">{needsAttention} item{needsAttention !== 1 ? 's' : ''} in poor or damaged condition</p>
+										</div>
+										<button onclick={() => activeTab = 'conditions'} class="text-xs font-medium text-amber-700 hover:text-amber-900">View →</button>
+									</div>
+								{/if}
+							</div>
+						</section>
+					{/if}
+
+				</div>
+			{/if}
 
 			<!-- ══ BORROW OPERATIONS TAB ══════════════════════════════════════ -->
 			{#if activeTab === 'borrow'}
@@ -1019,6 +1218,170 @@
 				</div>
 			{/if}
 
+			<!-- ══ REPLACEMENT TRACKING TAB ════════════════════════════════════ -->
+			{#if activeTab === 'replacement'}
+				<div class="space-y-8">
+
+					<!-- Replacement Summary KPIs -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Replacement Overview</h3>
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-amber-50 to-white p-5">
+								<p class="text-xs font-medium text-gray-500">Total Obligations</p>
+								<p class="mt-1 text-3xl font-bold text-amber-600">{report.replacement.summary.totalObligations ?? 0}</p>
+								<p class="mt-0.5 text-xs text-gray-400">all time</p>
+							</div>
+							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-red-50 to-white p-5">
+								<p class="text-xs font-medium text-gray-500">Pending</p>
+								<p class="mt-1 text-3xl font-bold text-red-600">{report.replacement.summary.pendingCount ?? 0}</p>
+								<p class="mt-0.5 text-xs text-gray-400">{(report.replacement.summary.totalItemsPending ?? 0).toLocaleString()} items</p>
+							</div>
+							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-emerald-50 to-white p-5">
+								<p class="text-xs font-medium text-gray-500">Resolved</p>
+								<p class="mt-1 text-3xl font-bold text-emerald-600">
+									{(report.replacement.summary.totalObligations ?? 0) - (report.replacement.summary.pendingCount ?? 0)}
+								</p>
+								<p class="mt-0.5 text-xs text-gray-400">{(report.replacement.summary.totalItemsReplaced ?? 0).toLocaleString()} items replaced</p>
+							</div>
+							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-blue-50 to-white p-5">
+								<p class="text-xs font-medium text-gray-500">Resolution Rate</p>
+								<p class="mt-1 text-3xl font-bold text-blue-600">
+									{report.replacement.summary.totalObligations > 0 
+										? Math.round(((report.replacement.summary.totalObligations - report.replacement.summary.pendingCount) / report.replacement.summary.totalObligations) * 100)
+										: 0}%
+								</p>
+								<p class="mt-0.5 text-xs text-gray-400">obligations resolved</p>
+							</div>
+						</div>
+					</section>
+
+					<!-- Resolution Breakdown -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Resolution Type Breakdown</h3>
+						{#if report.replacement.resolutionBreakdown.length === 0}
+							<p class="text-sm text-gray-400">No resolution data available for this period.</p>
+						{:else}
+							<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+								{#each report.replacement.resolutionBreakdown as res}
+									{@const typeColors = {
+										replacement: { bg: 'bg-emerald-50', text: 'text-emerald-600', badge: 'bg-emerald-100 text-emerald-800' },
+										waiver: { bg: 'bg-blue-50', text: 'text-blue-600', badge: 'bg-blue-100 text-blue-800' },
+										other: { bg: 'bg-gray-50', text: 'text-gray-600', badge: 'bg-gray-100 text-gray-800' }
+									}}
+									{@const colors = typeColors[res.type as keyof typeof typeColors] ?? typeColors.other}
+									<div class="rounded-xl border border-gray-100 {colors.bg} p-5">
+										<div class="flex items-center justify-between mb-2">
+											<span class="inline-block rounded-full px-2 py-0.5 text-xs font-medium {colors.badge}">
+												{res.type === 'replacement' ? 'Replaced' : res.type === 'waiver' ? 'Waived' : res.type}
+											</span>
+											<span class="text-2xl font-bold {colors.text}">{res.count}</span>
+										</div>
+										<p class="text-sm font-medium text-gray-700">{(res.totalAmount ?? 0).toLocaleString()} items</p>
+										<p class="text-xs text-gray-400 mt-1">
+											Avg {res.avgResolutionDays ?? 0} days to resolve
+										</p>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					<!-- Obligations by Category -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Obligations by Item Category</h3>
+						{#if report.replacement.obligationsByCategory.length === 0}
+							<p class="text-sm text-gray-400">No category data available.</p>
+						{:else}
+							{@const maxCategoryCount = Math.max(...report.replacement.obligationsByCategory.map(c => c.count), 1)}
+							<div class="space-y-3">
+								{#each report.replacement.obligationsByCategory as cat}
+									<div class="rounded-lg border border-gray-100 bg-white p-4">
+										<div class="flex items-center justify-between mb-2">
+											<span class="text-sm font-medium text-gray-900">{cat.category || 'Uncategorized'}</span>
+											<div class="flex items-center gap-2">
+												<span class="text-xs text-gray-500">{cat.count} obligation{cat.count !== 1 ? 's' : ''}</span>
+												<span class="text-sm font-semibold text-amber-600">{(cat.totalAmount ?? 0).toLocaleString()} items</span>
+											</div>
+										</div>
+										<div class="h-2 w-full rounded-full bg-gray-100">
+											<div
+												class="h-2 rounded-full bg-amber-500 transition-all"
+												style="width:{barWidth(cat.count, maxCategoryCount)}"
+											></div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</section>
+
+					<!-- Monthly Replacement Trend -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Monthly Replacement Activity</h3>
+						{#if report.replacement.monthlyActivity.length === 0}
+							<p class="text-sm text-gray-400">No monthly data available for this period.</p>
+						{:else}
+							{@const maxMonthlyItems = Math.max(...report.replacement.monthlyActivity.map(m => m.totalAmount ?? 0), 1)}
+							<div class="overflow-x-auto">
+								<div class="flex min-w-max items-end gap-2 h-48 pb-8 relative">
+									{#each report.replacement.monthlyActivity as month}
+										<div class="flex flex-col items-center gap-2 group" style="min-width:60px">
+											<div class="text-center">
+												<span class="text-xs font-semibold text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity">
+													{month.totalAmount ?? 0}
+												</span>
+											</div>
+											<div
+												class="w-12 rounded-t bg-amber-400 hover:bg-amber-600 transition-colors cursor-default"
+												style="height:{Math.max(8, Math.round(((month.totalAmount ?? 0) / maxMonthlyItems) * 140))}px"
+												title="{MONTH_NAMES[month.month - 1]} {month.year}: {month.totalAmount ?? 0} items replaced"
+											></div>
+											<div class="text-center">
+												<span class="text-xs text-gray-600 font-medium">{MONTH_NAMES[month.month - 1]}</span>
+												<span class="block text-[10px] text-gray-400">{month.year}</span>
+											</div>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					</section>
+
+					<!-- Donation Tracking -->
+					<section>
+						<h3 class="mb-4 text-base font-semibold text-gray-900">Donation Contributions</h3>
+						<p class="mb-3 text-xs text-gray-400">Items received through donations to support replacement obligations.</p>
+						{#if donationByMonth.length === 0}
+							<p class="text-sm text-gray-400">No donation data available for this period.</p>
+						{:else}
+							<div class="overflow-x-auto rounded-lg border border-gray-200">
+								<table class="min-w-full divide-y divide-gray-200">
+									<thead class="bg-gray-50">
+										<tr>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Month</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Donations</th>
+											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Total Items</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-gray-200 bg-white">
+										{#each donationByMonth as d}
+											<tr class="hover:bg-gray-50">
+												<td class="px-4 py-3 text-sm font-medium text-gray-900">
+													{MONTH_NAMES[parseInt(d.month) - 1]} {d.year}
+												</td>
+												<td class="px-4 py-3 text-sm text-gray-600">{d.itemCount}</td>
+												<td class="px-4 py-3 text-sm font-semibold text-emerald-600">{d.totalQuantity.toLocaleString()}</td>
+											</tr>
+										{/each}
+									</tbody>
+								</table>
+							</div>
+						{/if}
+					</section>
+
+				</div>
+			{/if}
+
 			<!-- ══ STUDENT RISK TAB ════════════════════════════════════════════ -->
 			{#if activeTab === 'risk'}
 				<div class="space-y-8">
@@ -1064,7 +1427,7 @@
 														{s.activeObligations}
 													</span>
 												</td>
-												<td class="px-4 py-3 text-sm font-semibold text-amber-600">₱{(s.totalBalance ?? 0).toLocaleString()}</td>
+												<td class="px-4 py-3 text-sm font-semibold text-amber-600">{(s.totalBalance ?? 0).toLocaleString()} items</td>
 											</tr>
 										{/each}
 									</tbody>
