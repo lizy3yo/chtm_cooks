@@ -100,7 +100,8 @@ const hstsConfig: HSTSConfig = {
  * Permissions Policy Configuration (formerly Feature-Policy)
  * Controls which browser features and APIs can be used
  * 
- * Format: feature=(allowed-origins)
+ * Format: feature=(allowed-origins)$wa
+
  * - () = disabled for all
  * - (self) = allowed for same origin
  * - (*) = allowed for all origins

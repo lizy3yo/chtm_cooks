@@ -98,6 +98,9 @@ EMAIL_PASSWORD=your-email-password
 APP_URL=http://localhost:5173
 PUBLIC_BASE_URL=http://localhost:5173
 
+# AI Chat
+BYTEZ_API_KEY=your-bytez-api-key
+
 # Redis (optional)
 REDIS_URL=redis://localhost:6379
 ```
@@ -192,6 +195,7 @@ src/
 │   │       └── users/             # User management (superadmin)
 │   └── api/                       # API endpoints
 │       ├── auth/                  # Authentication APIs
+│       ├── ai-chat/               # AI chat streaming endpoint
 │       ├── dashboard/             # Dashboard statistics
 │       └── users/                 # User management CRUD
 ├── lib/
@@ -204,6 +208,11 @@ src/
 │       ├── utils/                 # Utilities (JWT, password, etc.)
 │       ├── middleware/            # Request middleware
 │       └── services/              # Business logic
+│           ├── aiChat/            # AI chat model orchestration and fallback
+│           ├── auth/              # Auth services
+│           ├── email/             # Email services
+│           ├── statistics/        # Statistics services
+│           └── storage/           # Storage services
 └── static/                        # Static assets
 ```
 
