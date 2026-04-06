@@ -176,16 +176,6 @@
 			{/if}
 		</button>
 
-		<!-- Help & Support -->
-		<a
-			href="/student/account/help"
-			class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all duration-200 hover:bg-pink-50 hover:text-pink-600"
-			aria-label="Help and support"
-			title="Help & Support"
-		>
-			<HelpCircle size={18} strokeWidth={1.75} />
-		</a>
-
 		<!-- Notifications -->
 		<div class="relative" data-topnav-dropdown>
 			<button
@@ -279,6 +269,9 @@
 						</a>
 						<a href="/student/account/history"  onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
 							<History size={15} class="text-gray-400" /> History
+						</a>
+						<a href="/student/account/help" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
+							<HelpCircle size={15} class="text-gray-400" /> Support & Assistance
 						</a>
 						<div class="my-1 border-t border-gray-100"></div>
 						<button onclick={() => { profileOpen = false; signOutOpen = true; }} role="menuitem" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50">
