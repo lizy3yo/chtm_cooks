@@ -1,18 +1,34 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { tick } from 'svelte';
 	import { fly, fade, scale } from 'svelte/transition';
 	import { quintOut, cubicOut } from 'svelte/easing';
 	import { chatStore } from '$lib/stores/chat';
 	import { user } from '$lib/stores/auth';
-	import { X, Send, Trash2, Bot, ChevronDown, RotateCcw, Minimize2 } from 'lucide-svelte';
+	import {
+		X,
+		Send,
+		Trash2,
+		Bot,
+		ChevronDown,
+		RotateCcw,
+		Minimize2,
+		PanelLeft,
+		MessageSquarePlus,
+		History
+	} from 'lucide-svelte';
 
 	let inputValue = $state('');
 	let messagesEl = $state<HTMLDivElement | null>(null);
 	let inputEl = $state<HTMLTextAreaElement | null>(null);
 	let isAtBottom = $state(true);
 	let scrollRafPending = false;
+	let activeHistoryScope = $state<string | null>(null);
+	let isHistoryOpen = $state(false);
 
 	const messages = $derived($chatStore.messages);
+	const conversations = $derived($chatStore.conversations);
+	const activeConversationId = $derived($chatStore.activeConversationId);
 	const isLoading = $derived($chatStore.isLoading);
 	const isOpen = $derived($chatStore.isOpen);
 	const hasMessages = $derived(messages.length > 0);
@@ -41,6 +57,22 @@
 
 	$effect(() => { if (messages.length) scrollToBottom(); });
 	$effect(() => { if (isOpen) tick().then(() => inputEl?.focus()); });
+	$effect(() => {
+		const scope = $user?.id ? `user:${$user.id}` : 'guest';
+		if (scope !== activeHistoryScope) {
+			activeHistoryScope = scope;
+			chatStore.initializeHistory(scope);
+			isHistoryOpen = false;
+		}
+	});
+
+	onMount(() => {
+		if (!activeHistoryScope) {
+			const scope = $user?.id ? `user:${$user.id}` : 'guest';
+			activeHistoryScope = scope;
+			chatStore.initializeHistory(scope);
+		}
+	});
 
 	async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 40000): Promise<Response> {
 		const controller = new AbortController();
@@ -174,6 +206,45 @@
 		return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 	}
 
+	function formatHistoryTime(date: Date): string {
+		const now = new Date();
+		const sameDay =
+			now.getFullYear() === date.getFullYear() &&
+			now.getMonth() === date.getMonth() &&
+			now.getDate() === date.getDate();
+
+		if (sameDay) {
+			return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+		}
+
+		return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+	}
+
+	function toggleHistoryPanel() {
+		isHistoryOpen = !isHistoryOpen;
+	}
+
+	function startNewChat() {
+		chatStore.startNewConversation();
+		chatStore.setError(null);
+		inputValue = '';
+		isHistoryOpen = false;
+		tick().then(() => inputEl?.focus());
+	}
+
+	function switchConversation(conversationId: string) {
+		chatStore.switchConversation(conversationId);
+		chatStore.setError(null);
+		isHistoryOpen = false;
+		tick().then(() => scrollToBottom(true));
+	}
+
+	function deleteConversation(event: MouseEvent, conversationId: string) {
+		event.stopPropagation();
+		chatStore.deleteConversation(conversationId);
+		chatStore.setError(null);
+	}
+
 	const userName = $derived($user?.firstName ?? 'there');
 	const suggestions = ['How do I borrow equipment?', 'Check my request status', 'Equipment return process'];
 </script>
@@ -182,7 +253,7 @@
 	<button
 		onclick={() => chatStore.open()}
 		class="fab-btn"
-		aria-label="Open AI Assistant"
+		aria-label="Open Aria Assistant"
 		in:scale={{ duration: 300, easing: quintOut }}
 	>
 		<span class="fab-ring"></span>
@@ -213,12 +284,18 @@
 						<Bot size={22} class="text-white" />
 					</div>
 					<div>
-						<p class="text-lg font-bold text-white leading-tight">CHTM Cooks AI</p>
-						<p class="text-xs text-white/80 font-medium">AI Assistant</p>
+						<p class="text-lg font-bold text-white leading-tight">Aria</p>
+						<p class="text-xs text-white/80 font-medium">AI Requisition & Inventory Assistant</p>
 					</div>
 				</div>
 
 				<div class="flex items-center gap-0.5">
+					<button onclick={toggleHistoryPanel} class="header-btn" title="Conversation history">
+						<PanelLeft size={15} />
+					</button>
+					<button onclick={startNewChat} class="header-btn" title="New chat">
+						<MessageSquarePlus size={15} />
+					</button>
 					{#if hasMessages}
 					<button onclick={() => chatStore.clearMessages()} class="header-btn" title="Clear">
 						<Trash2 size={15} />
@@ -232,6 +309,61 @@
 		</div>
 
 		<div bind:this={messagesEl} onscroll={handleScroll} class="messages-area">
+			{#if isHistoryOpen}
+				<div class="history-inline" in:fade={{ duration: 140 }}>
+					<div class="history-inline-header">
+						<div class="history-title-wrap">
+							<History size={14} class="history-icon" />
+							<p class="history-title">Conversation history</p>
+						</div>
+						<div class="history-inline-actions">
+							<button onclick={startNewChat} class="history-new-btn">
+								<MessageSquarePlus size={14} />
+								<span>Start new conversation</span>
+							</button>
+							<button onclick={() => { isHistoryOpen = false; }} class="history-close-btn" aria-label="Hide history panel">
+								<X size={14} />
+							</button>
+						</div>
+					</div>
+
+					<div class="history-list">
+						{#if conversations.length === 0}
+							<p class="history-empty">No saved conversations yet.</p>
+						{:else}
+							{#each conversations as conversation (conversation.id)}
+								<div
+									role="button"
+									tabindex="0"
+									onclick={() => switchConversation(conversation.id)}
+									onkeydown={(event) => {
+										if (event.key === 'Enter' || event.key === ' ') {
+											event.preventDefault();
+											switchConversation(conversation.id);
+										}
+									}}
+									class="history-item {conversation.id === activeConversationId ? 'active' : ''}"
+								>
+									<div class="history-item-copy">
+										<p class="history-item-title">{conversation.title}</p>
+										<p class="history-item-meta">
+											{formatHistoryTime(conversation.updatedAt)} · {conversation.messages.length} messages
+										</p>
+									</div>
+									<button
+										onclick={(event) => deleteConversation(event, conversation.id)}
+										class="history-delete-btn"
+										aria-label="Delete conversation"
+									>
+										<Trash2 size={13} />
+									</button>
+								</div>
+							{/each}
+						{/if}
+					</div>
+				</div>
+			{/if}
+
 			{#if !hasMessages}
 				<div class="welcome-state" in:fade={{ duration: 300 }}>
 					<div class="welcome-icon">
@@ -239,7 +371,7 @@
 					</div>
 					<div class="space-y-1">
 						<p class="text-base font-semibold text-gray-900">Hi, {userName} 👋</p>
-						<p class="text-sm text-gray-500 leading-relaxed">I'm your AI assistant for CHTM Cooks.<br>How can I help you today?</p>
+						<p class="text-sm text-gray-500 leading-relaxed">I am ARIA (AI Requisition & Inventory Assistant), your assistant for CHTM Cooks.<br>How can I help you today?</p>
 					</div>
 					<div class="flex flex-wrap justify-center gap-2 mt-1">
 						{#each suggestions as s}
@@ -307,7 +439,7 @@
 					onkeydown={handleKeydown}
 					use:autoResize
 					rows={1}
-					placeholder="Message AI Assistant…"
+					placeholder="Message Aria…"
 					disabled={isLoading}
 					class="input-field"
 					style="max-height: 120px; min-height: 22px;"
@@ -464,6 +596,168 @@
 		transition: all 0.15s;
 	}
 	.header-btn:hover { background: rgba(255, 255, 255, 0.25); }
+
+	.history-inline {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+		margin-bottom: 14px;
+		padding: 14px;
+		background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(255, 248, 252, 0.98));
+		border: 1px solid #f4d7e4;
+		border-radius: 18px;
+		box-shadow: 0 10px 24px rgba(17, 24, 39, 0.06);
+	}
+
+	.history-inline-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+	}
+
+	.history-inline-actions {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.history-title-wrap {
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.history-icon {
+		color: #be185d;
+	}
+
+	.history-title {
+		font-size: 11px;
+		font-weight: 700;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		color: #374151;
+	}
+
+	.history-close-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border: 1px solid #e5e7eb;
+		border-radius: 8px;
+		background: #fff;
+		color: #6b7280;
+		cursor: pointer;
+	}
+
+	.history-close-btn:hover {
+		background: #f9fafb;
+	}
+
+	.history-new-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 7px;
+		padding: 9px 12px;
+		border: 1px solid #f9a8d4;
+		border-radius: 12px;
+		background: #fff7fb;
+		color: #be185d;
+		font-size: 12px;
+		font-weight: 700;
+		cursor: pointer;
+	}
+
+	.history-new-btn:hover {
+		background: #ffeef7;
+	}
+
+	.history-list {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+		max-height: 180px;
+		overflow-y: auto;
+		padding-right: 2px;
+	}
+
+	.history-empty {
+		padding: 12px;
+		font-size: 12px;
+		color: #6b7280;
+		text-align: center;
+	}
+
+	.history-item {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		width: 100%;
+		padding: 11px 12px;
+		border: 1px solid #ead7e0;
+		border-radius: 14px;
+		background: rgba(255, 255, 255, 0.96);
+		text-align: left;
+		cursor: pointer;
+		box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+	}
+
+	.history-item:hover {
+		border-color: #ec4899;
+		background: #fff8fc;
+		box-shadow: 0 6px 16px rgba(219, 39, 119, 0.08);
+	}
+
+	.history-item.active {
+		border-color: #ec4899;
+		background: #fff1f7;
+		box-shadow: 0 8px 18px rgba(219, 39, 119, 0.12);
+	}
+
+	.history-item-copy {
+		min-width: 0;
+		flex: 1;
+	}
+
+	.history-item-title {
+		font-size: 13px;
+		font-weight: 600;
+		color: #111827;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+
+	.history-item-meta {
+		margin-top: 2px;
+		font-size: 11px;
+		color: #6b7280;
+	}
+
+	.history-delete-btn {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		width: 28px;
+		height: 28px;
+		border: 1px solid #e5e7eb;
+		border-radius: 9px;
+		background: #fff;
+		color: #9ca3af;
+		cursor: pointer;
+		flex-shrink: 0;
+	}
+
+	.history-delete-btn:hover {
+		border-color: #fecdd3;
+		color: #e11d48;
+		background: #fff1f2;
+	}
 
 	.messages-area {
 		flex: 1;
