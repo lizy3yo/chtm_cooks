@@ -14,11 +14,13 @@
 		"format": "prettier --write ."
 	},
 	"dependencies": {
+		"@google/genai": "^1.48.0",
 		"@types/qrcode": "^1.5.6",
 		"@upstash/redis": "^1.36.2",
 		"@zxing/browser": "^0.1.5",
 		"@zxing/library": "^0.21.3",
 		"bcryptjs": "^2.4.3",
+		"bytez.js": "^3.0.0",
 		"cloudinary": "^2.9.0",
 		"exceljs": "^4.4.0",
 		"html5-qrcode": "^2.3.8",

@@ -2,5 +2,8 @@
 	"files.associations": {
 		"*.css": "tailwindcss"
 	},
-	"kiroAgent.configureMCP": "Disabled"
+	"kiroAgent.configureMCP": "Disabled",
+	"typescript.tsdk": "node_modules/typescript/lib",
+	"typescript.enablePromptUseWorkspaceTsdk": true,
+	"typescript.tsserver.experimental.enableProjectDiagnostics": false
 }

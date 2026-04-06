@@ -7,6 +7,7 @@
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
 	import LoadingBar from '$lib/components/ui/LoadingBar.svelte';
+	import AIChatbot from '$lib/components/ui/AIChatbot.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
 
@@ -135,6 +136,9 @@
 
 <!-- Global Confirm/Alert Dialogs -->
 <ConfirmDialogContainer />
+
+<!-- Global AI Chatbot -->
+<AIChatbot />
 
 <!-- Shortcut Key Modals -->
 <ShortcutKeyModal 
