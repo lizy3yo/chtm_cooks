@@ -1,13 +1,23 @@
 import { APP_URL } from '$env/static/private';
 
 const EMAIL_LOGO_URL = 'https://res.cloudinary.com/dqvhbvqnw/image/upload/v1775488521/CHTM_LOGO_zkdl8h.png';
+const DEFAULT_PRODUCTION_URL = 'https://chtm-cooks.vercel.app';
+
+function normalizeBaseUrl(url: string): string {
+    return url.trim().replace(/\/+$/, '');
+}
 
 /**
  * Get the base URL for the application
- * Falls back to localhost if APP_URL is not set
+ * Uses APP_URL when it is a non-local URL, otherwise falls back to production host.
  */
 function getAppUrl(): string {
-	return APP_URL || 'http://localhost:5173';
+    const configuredUrl = normalizeBaseUrl(APP_URL || '');
+    if (configuredUrl && !/(localhost|127\.0\.0\.1)/i.test(configuredUrl)) {
+        return configuredUrl;
+    }
+
+    return DEFAULT_PRODUCTION_URL;
 }
 
 /**
@@ -126,6 +136,12 @@ function emailTemplate(content: string): string {
         .meta-value {
             color: #0f172a;
             font-weight: 700;
+        }
+        .reference-number {
+            color: #ec4899;
+            font-weight: 700;
+            font-size: 18px;
+            letter-spacing: 0.02em;
         }
         .badge {
             display: inline-block;
@@ -381,7 +397,7 @@ export function borrowRequestUpdateTemplate(input: {
                 <table role="presentation" class="meta-table">
                     <tr>
                         <td><span class="meta-label">Reference Number</span></td>
-                        <td><span class="meta-value">${input.requestCode}</span></td>
+                        <td><span class="reference-number">${input.requestCode}</span></td>
                     </tr>
                     <tr>
                         <td><span class="meta-label">Status</span></td>
