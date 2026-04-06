@@ -731,6 +731,101 @@ function buildLocalFallbackReply(userPrompt: string, role: ChatUserRole): string
 	].join('\n');
 }
 
+function isLikelyAccountSpecificPrompt(prompt: string): boolean {
+	return /\b(my|mine|me|account|status|trust score|request\s+status|pending\s+approval|ready\s+for\s+pickup|replacement\s+obligation|obligations?)\b/i.test(prompt);
+}
+
+function buildPreAiKnowledgeResponse(userPrompt: string, role: ChatUserRole): string | null {
+	const prompt = userPrompt.trim();
+	if (!prompt) return null;
+
+	if (isLikelyAccountSpecificPrompt(prompt)) {
+		return null;
+	}
+
+	if (/\b(hi|hello|hey|good\s+morning|good\s+afternoon|good\s+evening)\b/i.test(prompt)) {
+		return 'Hello. I am ARIA (AI Requisition & Inventory Assistant). How can I assist you today?';
+	}
+
+	if (/(what'?s your name|who are you|your name|identify yourself|what are you)/i.test(prompt)) {
+		return 'I am ARIA (AI Requisition & Inventory Assistant).';
+	}
+
+	if (/\b(how to borrow|borrow request|submit a borrow request|request equipment)\b/i.test(prompt)) {
+		return [
+			'Borrow request flow:',
+			'',
+			'1. Open the equipment catalog and select the items you need.',
+			'2. Choose the borrow date, return date, and purpose.',
+			'3. Submit the request for instructor review.',
+			'4. After approval, the custodian prepares the items for pickup.',
+			'5. Collect the items when marked Ready for Pickup.'
+		].join('\n');
+	}
+
+	if (/\b(request status|what does .*status mean|pending approval|ready for pickup|on loan|returned|unresolved)\b/i.test(prompt)) {
+		return [
+			'Request status guide:',
+			'',
+			'- Pending: waiting for instructor review.',
+			'- In Preparation: approved and being prepared by the custodian.',
+			'- Ready for Pickup: items are ready to collect.',
+			'- Active / On Loan: items are currently borrowed.',
+			'- Return Requested: return has been initiated.',
+			'- Returned / Completed: the request is closed.',
+			'- Unresolved: damaged or missing item requires follow-up.'
+		].join('\n');
+	}
+
+	if (/\b(return process|how to return|equipment return|damaged item|missing item|replacement obligation)\b/i.test(prompt)) {
+		return [
+			'Return and obligation workflow:',
+			'',
+			'1. Bring the borrowed items back to the custodian on the due date.',
+			'2. The custodian inspects the items for condition and completeness.',
+			'3. If damage or loss is found, a replacement obligation is created.',
+			'4. Resolve the obligation before submitting new borrow requests.'
+		].join('\n');
+	}
+
+	if (/\b(catalog|inventory|available equipment|available items|stock|low stock|out of stock)\b/i.test(prompt)) {
+		return [
+			'Catalog and inventory guidance:',
+			'',
+			'- Open the equipment catalog to browse available tools and equipment.',
+			'- Check the item status label for stock availability.',
+			'- Low-stock and out-of-stock items are flagged for review.',
+			'- If you need a specific item, search by name or category.'
+		].join('\n');
+	}
+
+	if (/\b(help|what can you do|how can you help|options|menu)\b/i.test(prompt)) {
+		return [
+			'I can help with the following:',
+			'',
+			'- Borrow request steps',
+			'- Request status meanings',
+			'- Returns and replacement obligations',
+			'- Catalog and inventory guidance',
+			'- Role-specific workflows for students, instructors, and custodians'
+		].join('\n');
+	}
+
+	return null;
+}
+
+function tryBuildPreAiResponse(messages: ChatMessage[], role: ChatUserRole): Response | null {
+	const latestPrompt = getLatestUserPrompt(messages);
+	const knowledgeReply = buildPreAiKnowledgeResponse(latestPrompt, role);
+
+	if (!knowledgeReply) {
+		return null;
+	}
+
+	console.log('[AI Chat] Using pre-AI knowledge response for common question.');
+	return createSingleChunkResponse(knowledgeReply);
+}
+
 function createLocalFallbackResponse(messages: ChatMessage[], reason: string, role: ChatUserRole): Response {
 	const latestPrompt = getLatestUserPrompt(messages);
 	const responseText = buildLocalFallbackReply(latestPrompt, role);
@@ -796,6 +891,11 @@ function markModelFailure(modelId: ModelId): void {
 export async function createAiChatResponse(messages: ChatMessage[], context?: ChatContext): Promise<Response> {
 	return runInProviderQueue(async () => {
 		const userRole = normalizeUserRole(context?.userRole);
+		const preAiResponse = tryBuildPreAiResponse(messages, userRole);
+		if (preAiResponse) {
+			return preAiResponse;
+		}
+
 		const userSnapshot = await buildUserContextSnapshot(context, userRole);
 		const userContextPrompt = buildUserContextPrompt(userSnapshot);
 		const normalizedMessages = normalizeMessages(messages, userRole, userContextPrompt);
