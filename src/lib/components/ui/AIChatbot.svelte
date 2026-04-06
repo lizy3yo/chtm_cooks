@@ -160,8 +160,14 @@
 			.replace(/^[-*] (.+)$/gm, '<li>$1</li>')
 			.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
 			.replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-			.replace(/\n\n/g, '</p><p>')
-			.replace(/\n/g, '<br>');
+			.replace(/<ul>\n/g, '<ul>')
+			.replace(/\n<\/ul>/g, '</ul>')
+			.replace(/<\/li>\n<li>/g, '</li><li>')
+			.replace(/\n\n/g, '<br><br>')
+			.replace(/\n/g, '<br>')
+			.replace(/<ul><br>/g, '<ul>')
+			.replace(/<br><\/ul>/g, '</ul>')
+			.replace(/<\/li><br><li>/g, '</li><li>');
 	}
 
 	function formatTime(date: Date): string {
@@ -214,11 +220,11 @@
 
 				<div class="flex items-center gap-0.5">
 					{#if hasMessages}
-						<button onclick={() => chatStore.clearMessages()} class="header-btn" title="Clear">
-							<Trash2 size={15} />
-						</button>
-					{/if}
-					<button onclick={() => chatStore.close()} class="header-btn">
+					<button onclick={() => chatStore.clearMessages()} class="header-btn" title="Clear">
+						<Trash2 size={15} />
+					</button>
+				{/if}
+				<button onclick={() => chatStore.close()} class="header-btn">
 						<Minimize2 size={17} />
 					</button>
 				</div>
@@ -237,7 +243,7 @@
 					</div>
 					<div class="flex flex-wrap justify-center gap-2 mt-1">
 						{#each suggestions as s}
-							<button onclick={() => { inputValue = s; sendMessage(); }} class="suggestion-chip">{s}</button>
+						<button onclick={() => { inputValue = s; sendMessage(); }} class="suggestion-chip">{s}</button>
 						{/each}
 					</div>
 				</div>
@@ -306,7 +312,7 @@
 					class="input-field"
 					style="max-height: 120px; min-height: 22px;"
 				></textarea>
-				<button onclick={sendMessage} disabled={!canSend} class="send-btn {canSend ? 'active' : ''}">
+			<button onclick={sendMessage} disabled={!canSend} class="send-btn {canSend ? 'active' : ''}">
 					{#if isLoading}
 						<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -540,8 +546,34 @@
 
 	.prose {
 		font-size: 15px;
-		line-height: 1.6;
+		line-height: 1.5;
 		color: #374151;
+	}
+	.prose :global(h1),
+	.prose :global(h2),
+	.prose :global(h3) {
+		margin: 0 0 8px;
+		line-height: 1.35;
+		color: #111827;
+	}
+	.prose :global(ul),
+	.prose :global(ol) {
+		margin: 6px 0 8px;
+		padding-left: 18px;
+	}
+	.prose :global(li) {
+		margin: 0;
+		padding: 0;
+		line-height: 1.45;
+	}
+	.prose :global(li + li) {
+		margin-top: 3px;
+	}
+	.prose :global(p) {
+		margin: 0 0 8px;
+	}
+	.prose :global(p:last-child) {
+		margin-bottom: 0;
 	}
 	.prose :global(code) {
 		background: #fdf2f8;

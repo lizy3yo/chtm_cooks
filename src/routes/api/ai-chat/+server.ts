@@ -27,7 +27,11 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	}
 
 	try {
-		return await createAiChatResponse(messages, { userRole: locals.user?.role ?? locals.userRole ?? null });
+		return await createAiChatResponse(messages, {
+			userRole: locals.user?.role ?? locals.userRole ?? null,
+			userId: locals.user?.userId ?? locals.userId ?? null,
+			userEmail: locals.user?.email ?? null
+		});
 	} catch (error) {
 		const serviceError = toChatServiceError(error);
 		if (serviceError.status === 429) {

@@ -1,6 +1,15 @@
 import Bytez from 'bytez.js';
 import { GoogleGenAI } from '@google/genai';
 import { env } from '$env/dynamic/private';
+import { ObjectId, type Collection } from 'mongodb';
+import { getDatabase } from '$lib/server/db/mongodb';
+import type { User } from '$lib/server/models/User';
+import { computeStudentStatistics } from '$lib/server/services/statistics';
+import {
+	BorrowRequestStatus,
+	type BorrowRequest
+} from '$lib/server/models/BorrowRequest';
+import { ObligationStatus, type ReplacementObligation } from '$lib/server/models/ReplacementObligation';
 
 export type ChatRole = 'user' | 'assistant';
 
@@ -13,6 +22,21 @@ export type ChatUserRole = 'student' | 'instructor' | 'custodian' | 'unknown';
 
 export interface ChatContext {
 	userRole?: string | null;
+	userId?: string | null;
+	userEmail?: string | null;
+}
+
+interface ChatUserContextSnapshot {
+	userId: string;
+	role: ChatUserRole;
+	name: string;
+	email: string;
+	yearLevel?: string;
+	block?: string;
+	isActive: boolean;
+	lastLogin?: string;
+	metrics: Record<string, number | string>;
+	generatedAt: string;
 }
 
 class ChatServiceError extends Error {
@@ -86,23 +110,29 @@ CHTM Cooks is a digital platform that manages the borrowing, tracking, and retur
 
 ### Reports and Analytics
 - Instructors and custodians can view usage reports, borrow trends, and equipment utilization data.
+- Student analytics include a Trust Score computed from borrowing behavior and obligations.
 
 ## How to Respond
 - Always use a professional, industry-standard support tone.
-- Be concise, clear, and practical. Prioritize actionable guidance.
-- Maintain proper grammar and punctuation. Avoid slang, sarcasm, jokes, and emojis.
+- Be concise, clear, and practical. Prioritize accurate, actionable guidance over long explanations.
+- Maintain proper grammar and punctuation. Avoid slang, sarcasm, jokes, emojis, and filler language.
 - Use neutral, respectful language suitable for academic and administrative users.
-- Guide users step by step when they ask how to do something.
-- If a user asks about equipment availability, explain how to check the catalog.
-- If a user asks about their request status, explain the status definitions above.
-- If the user intent is unclear, ask one brief clarifying question.
-- Use markdown formatting (short headings, bullet points, numbered steps) to keep answers easy to scan.
-- When relevant, present the response in this order:
+- Prefer structured answers with short headings, numbered steps, or bullets when it improves clarity.
+- For simple greetings (for example: "hello", "hi", "good morning"), reply with a short welcome and one question about what the user needs.
+- Do not proactively provide account metrics, request counts, or obligation summaries unless the user explicitly asks for status, summary, dashboard, activity, requests, or obligations.
+- When explaining a workflow, use this order when relevant:
 	1. Direct answer
 	2. Steps or details
 	3. What to do next
+- If the user asks for a process, provide the exact portal path or action sequence when known.
+- If the user asks about equipment availability, explain how to check the catalog and interpret stock indicators.
+- If the user asks about request status, define the status and the responsible role behind it.
+- If the user asks about returns or damaged items, explain inspection, unresolved status, and replacement obligation handling.
+- Do not claim that trust score is unavailable if student analytics context includes trust-score fields.
+- If the user intent is unclear, ask one brief clarifying question before guessing.
 - If you do not know something specific about the user's account, clearly state that limitation and direct them to the relevant portal section.
-- Always stay on topic - only answer questions related to CHTM Cooks and its features.`;
+- Never invent account data, approvals, inventory counts, or request status. Only describe system behavior and what the user can do next.
+- Stay on topic and only answer questions related to CHTM Cooks and its features.`;
 
 function normalizeUserRole(role: string | null | undefined): ChatUserRole {
 	const normalized = (role ?? '').trim().toLowerCase();
@@ -160,6 +190,235 @@ The current user role is not explicitly available.
 
 function buildSystemPrompt(role: ChatUserRole): string {
 	return `${BASE_SYSTEM_PROMPT}\n${buildRoleGuidance(role)}`;
+}
+
+function buildSystemPromptWithContext(role: ChatUserRole, userContextPrompt: string): string {
+	return `${buildSystemPrompt(role)}\n${userContextPrompt}`;
+}
+
+function formatDateForPrompt(date: Date | undefined): string | undefined {
+	if (!date) return undefined;
+	return date.toISOString();
+}
+
+async function buildStudentMetrics(
+	userId: string,
+	userObjectId: ObjectId,
+	borrowCollection: Collection<BorrowRequest>,
+	obligationsCollection: Collection<ReplacementObligation>
+): Promise<Record<string, number | string>> {
+	const [pendingApproval, readyForPickup, activeLoans, pendingObligations] = await Promise.all([
+		borrowCollection.countDocuments({
+			studentId: userObjectId,
+			status: BorrowRequestStatus.PENDING_INSTRUCTOR
+		}),
+		borrowCollection.countDocuments({
+			studentId: userObjectId,
+			status: BorrowRequestStatus.READY_FOR_PICKUP
+		}),
+		borrowCollection.countDocuments({
+			studentId: userObjectId,
+			status: { $in: [BorrowRequestStatus.BORROWED, BorrowRequestStatus.PENDING_RETURN] }
+		}),
+		obligationsCollection.countDocuments({
+			studentId: userObjectId,
+			status: ObligationStatus.PENDING
+		})
+	]);
+
+	let trustScore: number | null = null;
+	let trustTier: string | null = null;
+	try {
+		const studentStats = await computeStudentStatistics(userId, '180d');
+		trustScore = studentStats.trustScore.score;
+		trustTier = studentStats.trustScore.tierLabel;
+	} catch (error) {
+		console.warn('[AI Chat] Unable to load student trust-score analytics for user context.', error);
+	}
+
+	return {
+		pendingApproval,
+		readyForPickup,
+		activeLoans,
+		pendingObligations,
+		trustScore: trustScore ?? 'unavailable',
+		trustTier: trustTier ?? 'unavailable'
+	};
+}
+
+async function buildInstructorMetrics(
+	userObjectId: ObjectId,
+	borrowCollection: Collection<BorrowRequest>
+): Promise<Record<string, number | string>> {
+	const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+	const [assignedPendingReviews, assignedActiveRequests, approvedLast30Days] = await Promise.all([
+		borrowCollection.countDocuments({
+			instructorId: userObjectId,
+			status: BorrowRequestStatus.PENDING_INSTRUCTOR
+		}),
+		borrowCollection.countDocuments({
+			instructorId: userObjectId,
+			status: {
+				$in: [
+					BorrowRequestStatus.APPROVED_INSTRUCTOR,
+					BorrowRequestStatus.READY_FOR_PICKUP,
+					BorrowRequestStatus.BORROWED,
+					BorrowRequestStatus.PENDING_RETURN
+				]
+			}
+		}),
+		borrowCollection.countDocuments({
+			instructorId: userObjectId,
+			status: BorrowRequestStatus.APPROVED_INSTRUCTOR,
+			approvedAt: { $gte: last30Days }
+		})
+	]);
+
+	return {
+		assignedPendingReviews,
+		assignedActiveRequests,
+		approvedLast30Days
+	};
+}
+
+async function buildCustodianMetrics(
+	userObjectId: ObjectId,
+	borrowCollection: Collection<BorrowRequest>,
+	obligationsCollection: Collection<ReplacementObligation>
+): Promise<Record<string, number | string>> {
+	const [itemsToPrepare, readyForPickup, returnInspections, pendingObligations] = await Promise.all([
+		borrowCollection.countDocuments({
+			custodianId: userObjectId,
+			status: BorrowRequestStatus.APPROVED_INSTRUCTOR
+		}),
+		borrowCollection.countDocuments({
+			custodianId: userObjectId,
+			status: BorrowRequestStatus.READY_FOR_PICKUP
+		}),
+		borrowCollection.countDocuments({
+			custodianId: userObjectId,
+			status: BorrowRequestStatus.PENDING_RETURN
+		}),
+		obligationsCollection.countDocuments({ status: ObligationStatus.PENDING })
+	]);
+
+	return {
+		itemsToPrepare,
+		readyForPickup,
+		returnInspections,
+		pendingObligations
+	};
+}
+
+async function buildUserContextSnapshot(
+	context: ChatContext | undefined,
+	role: ChatUserRole
+): Promise<ChatUserContextSnapshot | null> {
+	const userId = context?.userId?.trim();
+	if (!userId) {
+		return null;
+	}
+
+	let userObjectId: ObjectId;
+	try {
+		userObjectId = new ObjectId(userId);
+	} catch {
+		return null;
+	}
+
+	try {
+		const db = await getDatabase();
+		const usersCollection: Collection<User> = db.collection('users');
+		const borrowCollection: Collection<BorrowRequest> = db.collection('borrow_requests');
+		const obligationsCollection: Collection<ReplacementObligation> = db.collection('replacement_obligations');
+
+		const userRecord = await usersCollection.findOne(
+			{ _id: userObjectId },
+			{
+				projection: {
+					firstName: 1,
+					lastName: 1,
+					email: 1,
+					role: 1,
+					yearLevel: 1,
+					block: 1,
+					isActive: 1,
+					lastLogin: 1
+				}
+			}
+		);
+
+		if (!userRecord) {
+			return null;
+		}
+
+		const effectiveRole = normalizeUserRole(userRecord.role ?? context?.userRole);
+		const name = `${userRecord.firstName ?? ''} ${userRecord.lastName ?? ''}`.trim() || 'User';
+
+		let metrics: Record<string, number | string> = {};
+		if (effectiveRole === 'student') {
+			metrics = await buildStudentMetrics(userId, userObjectId, borrowCollection, obligationsCollection);
+		} else if (effectiveRole === 'instructor') {
+			metrics = await buildInstructorMetrics(userObjectId, borrowCollection);
+		} else if (effectiveRole === 'custodian') {
+			metrics = await buildCustodianMetrics(userObjectId, borrowCollection, obligationsCollection);
+		} else {
+			metrics = { note: 'Role-specific metrics unavailable for this account type.' };
+		}
+
+		return {
+			userId,
+			role: effectiveRole === 'unknown' ? role : effectiveRole,
+			name,
+			email: userRecord.email ?? context?.userEmail ?? 'unknown',
+			yearLevel: userRecord.yearLevel,
+			block: userRecord.block,
+			isActive: Boolean(userRecord.isActive),
+			lastLogin: formatDateForPrompt(userRecord.lastLogin),
+			metrics,
+			generatedAt: new Date().toISOString()
+		};
+	} catch (error) {
+		console.warn('[AI Chat] Failed to build user context snapshot. Continuing without personalized context.', error);
+		return null;
+	}
+}
+
+function buildUserContextPrompt(snapshot: ChatUserContextSnapshot | null): string {
+	if (!snapshot) {
+		return `
+## Authenticated User Context
+- No authenticated user snapshot is available for this request.
+- If the user asks for account-specific guidance, ask them to sign in and then retry.`;
+	}
+
+	const metricLines = Object.entries(snapshot.metrics).map(([key, value]) => `- ${key}: ${value}`);
+	const classLine = snapshot.role === 'student' && (snapshot.yearLevel || snapshot.block)
+		? `- classContext: ${snapshot.yearLevel ?? 'N/A'} / ${snapshot.block ?? 'N/A'}`
+		: null;
+
+	return [
+		'## Authenticated User Context',
+		`- userId: ${snapshot.userId}`,
+		`- role: ${snapshot.role}`,
+		`- name: ${snapshot.name}`,
+		`- email: ${snapshot.email}`,
+		classLine,
+		`- accountActive: ${snapshot.isActive}`,
+		`- lastLogin: ${snapshot.lastLogin ?? 'unknown'}`,
+		'- roleMetrics:',
+		...metricLines,
+		`- snapshotGeneratedAt: ${snapshot.generatedAt}`,
+		'',
+		'## Context Usage Rules',
+		'- Use this context to personalize answers for this authenticated user.',
+		'- Do not reveal role metrics by default. Share counts only when the user explicitly asks for status, summary, dashboard, requests, or obligations.',
+		'- For basic greetings, keep the reply brief and do not include account snapshots.',
+		'- Treat these values as read-only facts and do not invent extra profile data.',
+		'- If asked for data outside this snapshot, explain the limitation and provide the exact portal page/action to verify it.'
+	]
+		.filter((line): line is string => Boolean(line))
+		.join('\n');
 }
 
 let bytezClient: Bytez | null = null;
@@ -223,13 +482,13 @@ function isSupportedRole(role: string): role is ChatRole {
 	return role === 'user' || role === 'assistant';
 }
 
-function normalizeMessages(messages: ChatMessage[], role: ChatUserRole) {
+function normalizeMessages(messages: ChatMessage[], role: ChatUserRole, userContextPrompt: string) {
 	const filtered = messages
 		.filter((m) => isSupportedRole(m.role) && typeof m.content === 'string' && m.content.trim().length > 0)
 		.slice(-MAX_HISTORY_MESSAGES)
 		.map((m) => ({ role: m.role, content: m.content.trim() }));
 
-	return [{ role: 'system', content: buildSystemPrompt(role) }, ...filtered];
+	return [{ role: 'system', content: buildSystemPromptWithContext(role, userContextPrompt) }, ...filtered];
 }
 
 function normalizeConversation(messages: ChatMessage[]) {
@@ -308,7 +567,8 @@ function createSingleChunkResponse(text: string): Response {
 async function createGoogleAiResponse(
 	messages: ChatMessage[],
 	apiKey: string,
-	role: ChatUserRole
+	role: ChatUserRole,
+	userContextPrompt: string
 ): Promise<Response> {
 	const configuredModel = getGoogleModelId();
 	const modelId = configuredModel.replace(/^models\//, '');
@@ -329,7 +589,7 @@ async function createGoogleAiResponse(
 			model: modelId,
 			contents: conversation,
 			config: {
-				systemInstruction: buildSystemPrompt(role),
+				systemInstruction: buildSystemPromptWithContext(role, userContextPrompt),
 				temperature: MODEL_OPTIONS.temperature
 			}
 		});
@@ -392,14 +652,21 @@ function getRoleSpecificFallbackTail(role: ChatUserRole): string {
 function buildLocalFallbackReply(userPrompt: string, role: ChatUserRole): string {
 	const prompt = userPrompt.toLowerCase();
 
+	if (/^\s*(hi|hello|hey|good\s+morning|good\s+afternoon|good\s+evening)\b[\s!.?]*$/i.test(prompt)) {
+		return [
+			'Hello. I am your CHTM Cooks assistant.',
+			'How can I assist you today with borrowing, request status, returns, or obligations?'
+		].join('\n');
+	}
+
 	if (/borrow|request|hiram|hulong|how to borrow/.test(prompt)) {
 		return [
 			'The standard borrow request flow in CHTM Cooks is as follows:',
 			'',
-			'1. Open the catalog and select the equipment you need.',
-			'2. Set borrow date, return date, and purpose.',
+			'1. Open the equipment catalog and select the items you need.',
+			'2. Set the borrow date, return date, and purpose.',
 			'3. Submit the request for instructor review.',
-			'4. Wait for status to move to Ready for Pickup.',
+			'4. Wait for the status to move to Ready for Pickup.',
 			'5. Claim the items from the custodian and return them on schedule.',
 			'',
 			'For a more precise guide, share your role (Student, Instructor, or Custodian) and I can provide a role-specific checklist.'
@@ -518,14 +785,16 @@ function markModelFailure(modelId: ModelId): void {
 export async function createAiChatResponse(messages: ChatMessage[], context?: ChatContext): Promise<Response> {
 	return runInProviderQueue(async () => {
 		const userRole = normalizeUserRole(context?.userRole);
-		const normalizedMessages = normalizeMessages(messages, userRole);
+		const userSnapshot = await buildUserContextSnapshot(context, userRole);
+		const userContextPrompt = buildUserContextPrompt(userSnapshot);
+		const normalizedMessages = normalizeMessages(messages, userRole, userContextPrompt);
 		const googleApiKey = getGoogleApiKey();
 		let lastError: unknown;
 
 		if (googleApiKey) {
 			try {
 				console.log(`[AI Chat] Trying Google AI model: ${getGoogleModelId()} for role: ${userRole}`);
-				return await createGoogleAiResponse(messages, googleApiKey, userRole);
+				return await createGoogleAiResponse(messages, googleApiKey, userRole, userContextPrompt);
 			} catch (error) {
 				console.warn('[AI Chat] Google AI failed, trying Bytez fallback...', error);
 				lastError = error;
