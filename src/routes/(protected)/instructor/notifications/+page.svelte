@@ -52,19 +52,15 @@
 </script>
 
 <svelte:head>
-	<title>Notifications - Student Portal</title>
+	<title>Notifications - Instructor Portal</title>
 </svelte:head>
 
 <div class="space-y-6">
-	<div class="border-b border-gray-200 pb-5">
-		<h1 class="text-3xl font-bold text-gray-900">Notifications</h1>
-		<p class="mt-2 text-sm text-gray-600">Stay updated with your requests and borrowed items</p>
-	</div>
-
-	<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
-		<p class="text-sm text-gray-600">
-			Unread notifications: <span class="font-semibold text-gray-900">{unreadCount}</span>
-		</p>
+	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+		<div>
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Notifications</h1>
+			<p class="mt-1 text-sm text-gray-500">Track request reviews, approvals, and downstream outcomes</p>
+		</div>
 		<button
 			type="button"
 			onclick={markAllAsRead}
@@ -76,13 +72,17 @@
 		</button>
 	</div>
 
+	<div class="rounded-lg border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600">
+		Unread notifications: <span class="font-semibold text-gray-900">{unreadCount}</span>
+	</div>
+
 	{#if loading}
 		<div class="rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">Loading notifications...</div>
 	{:else if notifications.length === 0}
 		<div class="rounded-lg border border-gray-200 bg-white p-12 text-center">
 			<Bell size={40} class="mx-auto text-gray-300" />
 			<h3 class="mt-4 text-lg font-medium text-gray-900">No notifications yet</h3>
-			<p class="mt-2 text-sm text-gray-500">You will see request lifecycle updates here as they happen.</p>
+			<p class="mt-2 text-sm text-gray-500">You are all caught up.</p>
 		</div>
 	{:else}
 		<div class="space-y-3">

@@ -60,6 +60,7 @@ export type {
 export {
 	userIndexes,
 	replacementObligationIndexes,
+	notificationIndexes,
 	allIndexDefinitions,
 	getIndexesByCollection,
 	getIndexesByPriority,

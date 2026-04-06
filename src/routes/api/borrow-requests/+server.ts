@@ -24,6 +24,7 @@ import {
 	publishBorrowRequestRealtimeEvent
 } from './shared';
 import { validateCreateBorrowRequest, validateItems, validatePurpose, validateDates } from '$lib/server/middleware/borrowRequestValidation';
+import { notifyBorrowRequestLifecycle } from '$lib/server/services/notifications';
 
 function escapeRegex(value: string): string {
 	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -324,6 +325,11 @@ export const POST: RequestHandler = async (event) => {
 		// Invalidate all relevant caches
 		await invalidateBorrowRequestCaches();
 		publishBorrowRequestRealtimeEvent(newRequest as BorrowRequest & { _id: ObjectId }, 'created', now);
+		await notifyBorrowRequestLifecycle({
+			db,
+			request: newRequest as BorrowRequest & { _id: ObjectId },
+			event: 'submitted'
+		});
 
 		logger.info('Borrow request created successfully', {
 			userId: user.userId,

@@ -14,6 +14,7 @@ import {
 	parseObjectId,
 	publishBorrowRequestRealtimeEvent
 } from '../../shared';
+import { notifyBorrowRequestLifecycle } from '$lib/server/services/notifications';
 
 export const POST: RequestHandler = async (event) => {
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -78,6 +79,11 @@ export const POST: RequestHandler = async (event) => {
 
 		await invalidateBorrowRequestCaches();
 		publishBorrowRequestRealtimeEvent(updated, 'returned', now);
+		await notifyBorrowRequestLifecycle({
+			db,
+			request: updated,
+			event: 'returned'
+		});
 		return json(toBorrowRequestResponse(updated));
 	} catch (error) {
 		logger.error('Error returning borrow request', { error });

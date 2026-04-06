@@ -12,6 +12,7 @@ import {
 	parseObjectId,
 	publishBorrowRequestRealtimeEvent
 } from '../../shared';
+import { notifyBorrowRequestLifecycle } from '$lib/server/services/notifications';
 
 export const POST: RequestHandler = async (event) => {
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -71,6 +72,12 @@ export const POST: RequestHandler = async (event) => {
 			'reminder_sent',
 			now
 		);
+		await notifyBorrowRequestLifecycle({
+			db,
+			request: { ...request, _id: requestId },
+			event: 'reminder_sent',
+			contextNotes: 'Borrowed items are overdue. Please return them as soon as possible.'
+		});
 		return json({
 			success: true,
 			message: 'Overdue reminder recorded successfully',

@@ -16,6 +16,7 @@ import {
 	parseObjectId,
 	publishBorrowRequestRealtimeEvent
 } from '../shared';
+import { notifyBorrowRequestLifecycle } from '$lib/server/services/notifications';
 
 export const GET: RequestHandler = async (event) => {
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -171,6 +172,11 @@ export const DELETE: RequestHandler = async (event) => {
 		const cacheKey = buildBorrowRequestDetailCacheKey(event.params.id);
 		await cacheService.delete(cacheKey);
 		publishBorrowRequestRealtimeEvent(updated, 'cancelled');
+		await notifyBorrowRequestLifecycle({
+			db,
+			request: updated,
+			event: 'cancelled'
+		});
 
 		return json(toBorrowRequestResponse(updated));
 	} catch (error) {

@@ -12,6 +12,9 @@ import { replacementObligationIndexes } from './replacementObligationsIndexes';
 import { statisticsIndexes } from './statisticsIndexes';
 import { donationIndexes } from './donationIndexes';
 import { analyticsIndexes } from './analyticsIndexes';
+import { notificationIndexes } from './notificationIndexes';
+
+export { notificationIndexes } from './notificationIndexes';
 
 /**
  * ============================================================================
@@ -935,7 +938,8 @@ export const allIndexDefinitions: IndexDefinition[] = [
 	...borrowRequestIndexes,
 	...statisticsIndexes,
 	...donationIndexes,
-	...analyticsIndexes
+	...analyticsIndexes,
+	...notificationIndexes
 	// ...sessionIndexes,
 	// ...otherCollectionIndexes,
 ];
