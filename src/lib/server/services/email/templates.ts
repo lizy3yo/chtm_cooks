@@ -1,11 +1,23 @@
 import { APP_URL } from '$env/static/private';
 
+const EMAIL_LOGO_URL = 'https://res.cloudinary.com/dqvhbvqnw/image/upload/v1775488521/CHTM_LOGO_zkdl8h.png';
+const DEFAULT_PRODUCTION_URL = 'https://chtm-cooks.vercel.app';
+
+function normalizeBaseUrl(url: string): string {
+    return url.trim().replace(/\/+$/, '');
+}
+
 /**
  * Get the base URL for the application
- * Falls back to localhost if APP_URL is not set
+ * Uses APP_URL when it is a non-local URL, otherwise falls back to production host.
  */
 function getAppUrl(): string {
-	return APP_URL || 'http://localhost:5173';
+    const configuredUrl = normalizeBaseUrl(APP_URL || '');
+    if (configuredUrl && !/(localhost|127\.0\.0\.1)/i.test(configuredUrl)) {
+        return configuredUrl;
+    }
+
+    return DEFAULT_PRODUCTION_URL;
 }
 
 /**
@@ -24,88 +36,166 @@ function emailTemplate(content: string): string {
             margin: 0;
             padding: 0;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background-color: #f5f5f5;
-            color: #333333;
+            background-color: #f4f5f8;
+            color: #1f2937;
         }
         .container {
             max-width: 600px;
             margin: 0 auto;
             background-color: #ffffff;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
         }
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 40px 20px;
+            background: linear-gradient(135deg, #be185d 0%, #ec4899 100%);
+            padding: 28px 20px;
             text-align: center;
+        }
+        .header img {
+            width: 52px;
+            height: 52px;
+            object-fit: contain;
+            margin-bottom: 10px;
         }
         .header h1 {
             color: #ffffff;
             margin: 0;
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 600;
+            letter-spacing: 0.01em;
         }
         .content {
-            padding: 40px 30px;
+            padding: 34px 30px;
         }
         .content h2 {
-            color: #333333;
-            font-size: 24px;
-            margin: 0 0 20px 0;
+            color: #111827;
+            font-size: 26px;
+            margin: 0 0 16px 0;
             font-weight: 600;
         }
         .content p {
-            color: #666666;
+            color: #475569;
             font-size: 16px;
             line-height: 1.6;
-            margin: 0 0 20px 0;
+            margin: 0 0 14px 0;
         }
         .button {
             display: inline-block;
             padding: 14px 32px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #be185d 0%, #ec4899 100%);
             color: #ffffff !important;
             text-decoration: none;
-            border-radius: 6px;
+            border-radius: 10px;
             font-weight: 600;
             font-size: 16px;
             margin: 20px 0;
-            transition: transform 0.2s;
+            transition: transform 0.2s ease;
         }
         .button:hover {
             transform: translateY(-2px);
         }
         .token-box {
-            background-color: #f8f9fa;
-            border: 2px dashed #dee2e6;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
             border-radius: 8px;
-            padding: 20px;
+            padding: 16px;
             margin: 20px 0;
             text-align: center;
             font-family: 'Courier New', monospace;
-            font-size: 18px;
-            font-weight: bold;
-            color: #495057;
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
             word-break: break-all;
+        }
+        .meta-card {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 10px;
+            padding: 14px;
+            margin: 18px 0;
+        }
+        .meta-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .meta-table td {
+            padding: 6px 0;
+            vertical-align: middle;
+        }
+        .meta-table td:last-child {
+            text-align: right;
+        }
+        .meta-label {
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            font-size: 11px;
+        }
+        .meta-value {
+            color: #0f172a;
+            font-weight: 700;
+        }
+        .reference-number {
+            color: #ec4899;
+            font-weight: 700;
+            font-size: 18px;
+            letter-spacing: 0.02em;
+        }
+        .badge {
+            display: inline-block;
+            padding: 6px 10px;
+            border-radius: 999px;
+            background: #fce7f3;
+            color: #be185d;
+            font-weight: 700;
+            font-size: 12px;
+        }
+        .qr-wrap {
+            margin: 22px 0;
+            padding: 16px;
+            border: 1px solid #fbcfe8;
+            border-radius: 12px;
+            background: #fdf2f8;
+            text-align: center;
+        }
+        .qr-wrap img {
+            width: 180px;
+            height: 180px;
+            display: block;
+            margin: 8px auto 12px auto;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 8px;
+            border: 1px solid #f9a8d4;
+        }
+        .qr-caption {
+            margin: 0;
+            font-size: 13px;
+            color: #6b7280;
+            line-height: 1.5;
         }
         .footer {
             background-color: #f8f9fa;
-            padding: 30px;
+            padding: 24px;
             text-align: center;
             border-top: 1px solid #dee2e6;
         }
         .footer p {
-            color: #6c757d;
-            font-size: 14px;
-            margin: 5px 0;
+            color: #64748b;
+            font-size: 13px;
+            margin: 4px 0;
         }
         .warning {
-            background-color: #fff3cd;
-            border-left: 4px solid #ffc107;
-            padding: 15px;
+            background-color: #fff7ed;
+            border-left: 4px solid #fb923c;
+            padding: 12px;
             margin: 20px 0;
             border-radius: 4px;
         }
         .warning p {
-            color: #856404;
+            color: #9a3412;
             margin: 0;
             font-size: 14px;
         }
@@ -125,7 +215,8 @@ function emailTemplate(content: string): string {
 <body>
     <div class="container">
         <div class="header">
-            <h1>🍳 CHTM Cooks</h1>
+            <img src="${EMAIL_LOGO_URL}" alt="CHTM Cooks" />
+            <h1>CHTM Cooks</h1>
         </div>
         ${content}
         <div class="footer">
@@ -255,6 +346,85 @@ export function emailVerificationSuccessTemplate(firstName: string): string {
             
             <p>Thank you for being part of our community!</p>
             
+            <p>Best regards,<br>The CHTM Cooks Team</p>
+        </div>
+    `;
+
+	return emailTemplate(content);
+}
+
+/**
+ * Borrow-request lifecycle update template
+ */
+export function borrowRequestUpdateTemplate(input: {
+	firstName: string;
+	title: string;
+	summary: string;
+	requestCode: string;
+	statusLabel: string;
+	roleLabel: string;
+	ctaPath: string;
+	items: string[];
+	notes?: string;
+    qrImageUrl?: string;
+	qrCaption?: string;
+}): string {
+	const viewUrl = `${getAppUrl()}${input.ctaPath}`;
+	const notesMarkup = input.notes
+		? `<div class="warning"><p><strong>Details:</strong> ${input.notes}</p></div>`
+		: '';
+	const qrMarkup = input.qrImageUrl
+		? `
+            <div class="qr-wrap">
+                <p style="margin: 0 0 8px 0; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #9d174d;">Request QR Code</p>
+                <img src="${input.qrImageUrl}" alt="Borrow Request QR Code" />
+                <p class="qr-caption">${input.qrCaption || 'Present this QR code to the custodian when processing your request.'}</p>
+            </div>
+        `
+		: '';
+
+	const itemsMarkup = input.items
+		.map((item) => `<li style="margin-bottom: 8px; color: #666666;">${item}</li>`)
+		.join('');
+
+	const content = `
+        <div class="content">
+            <h2>${input.title}</h2>
+            <p>Hi <strong>${input.firstName}</strong>,</p>
+            <p>${input.summary}</p>
+
+            <div class="meta-card">
+                <table role="presentation" class="meta-table">
+                    <tr>
+                        <td><span class="meta-label">Reference Number</span></td>
+                        <td><span class="reference-number">${input.requestCode}</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="meta-label">Status</span></td>
+                        <td><span class="badge">${input.statusLabel}</span></td>
+                    </tr>
+                    <tr>
+                        <td><span class="meta-label">Portal</span></td>
+                        <td><span class="meta-value">${input.roleLabel}</span></td>
+                    </tr>
+                </table>
+            </div>
+
+            <p><strong>Items in this request:</strong></p>
+            <ul style="padding-left: 20px; margin: 0 0 20px 0;">
+                ${itemsMarkup}
+            </ul>
+
+            ${notesMarkup}
+            ${qrMarkup}
+
+            <center>
+                <a href="${viewUrl}" class="button">Open Request</a>
+            </center>
+
+            <p>If the button doesn't work, copy this URL into your browser:</p>
+            <div class="token-box">${viewUrl}</div>
+
             <p>Best regards,<br>The CHTM Cooks Team</p>
         </div>
     `;

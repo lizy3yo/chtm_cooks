@@ -12,6 +12,7 @@ import {
 	parseObjectId,
 	publishBorrowRequestRealtimeEvent
 } from '../../shared';
+import { notifyBorrowRequestLifecycle } from '$lib/server/services/notifications';
 
 export const POST: RequestHandler = async (event) => {
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -69,6 +70,11 @@ export const POST: RequestHandler = async (event) => {
 
 		await invalidateBorrowRequestCaches();
 		publishBorrowRequestRealtimeEvent(updated, 'return_initiated', now);
+		await notifyBorrowRequestLifecycle({
+			db,
+			request: updated,
+			event: 'return_initiated'
+		});
 		logger.info('Student initiated return', { requestId: requestId.toString(), studentId: user.userId });
 		return json(toBorrowRequestResponse(updated));
 	} catch (error) {

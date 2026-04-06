@@ -1,5 +1,54 @@
 <script lang="ts">
-	// Account notifications page - Coming soon
+	import { goto } from '$app/navigation';
+	import { Bell, CheckCheck } from 'lucide-svelte';
+	import { notificationsAPI, type NotificationRecord } from '$lib/api/notifications';
+
+	let notifications = $state<NotificationRecord[]>([]);
+	let unreadCount = $state(0);
+	let loading = $state(true);
+
+	function formatDate(value: string): string {
+		return new Date(value).toLocaleString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric',
+			hour: 'numeric',
+			minute: '2-digit',
+			hour12: true
+		});
+	}
+
+	async function loadNotifications() {
+		loading = true;
+		try {
+			const data = await notificationsAPI.list(50, 0);
+			notifications = data.notifications;
+			unreadCount = data.unreadCount;
+		} finally {
+			loading = false;
+		}
+	}
+
+	async function markAllAsRead() {
+		if (unreadCount === 0) return;
+		await notificationsAPI.markAllAsRead();
+		await loadNotifications();
+	}
+
+	async function openNotification(notification: NotificationRecord) {
+		if (!notification.isRead) {
+			await notificationsAPI.markAsRead(notification.id);
+		}
+		if (notification.link) {
+			await goto(notification.link);
+			return;
+		}
+		await loadNotifications();
+	}
+
+	$effect(() => {
+		void loadNotifications();
+	});
 </script>
 
 <svelte:head>
@@ -9,14 +58,52 @@
 <div class="space-y-6">
 	<div class="border-b border-gray-200 pb-5">
 		<h1 class="text-3xl font-bold text-gray-900">Notifications</h1>
-		<p class="mt-2 text-sm text-gray-600">Stay updated with your requests and borrowed items from your account section</p>
+		<p class="mt-2 text-sm text-gray-600">Track updates on approvals, pickups, returns, and item issues</p>
 	</div>
 
-	<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
-		<svg class="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-			<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-		</svg>
-		<h3 class="mt-4 text-lg font-medium text-gray-900">Notifications</h3>
-		<p class="mt-2 text-sm text-gray-500">This feature is coming soon. You'll receive real-time updates about your requests and borrowed items here.</p>
+	<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
+		<p class="text-sm text-gray-600">
+			Unread notifications: <span class="font-semibold text-gray-900">{unreadCount}</span>
+		</p>
+		<button
+			type="button"
+			onclick={markAllAsRead}
+			disabled={unreadCount === 0}
+			class="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors {unreadCount > 0 ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'cursor-not-allowed bg-gray-100 text-gray-400'}"
+		>
+			<CheckCheck size={16} />
+			Mark all as read
+		</button>
 	</div>
+
+	{#if loading}
+		<div class="rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">Loading notifications...</div>
+	{:else if notifications.length === 0}
+		<div class="rounded-lg border border-gray-200 bg-white p-12 text-center">
+			<Bell size={40} class="mx-auto text-gray-300" />
+			<h3 class="mt-4 text-lg font-medium text-gray-900">No notifications yet</h3>
+			<p class="mt-2 text-sm text-gray-500">You will see request lifecycle updates here as they happen.</p>
+		</div>
+	{:else}
+		<div class="space-y-3">
+			{#each notifications as notification (notification.id)}
+				<button
+					type="button"
+					onclick={() => openNotification(notification)}
+					class="w-full rounded-lg border px-4 py-3 text-left transition-colors hover:bg-gray-50 {notification.isRead ? 'border-gray-200 bg-white' : 'border-pink-200 bg-pink-50/40'}"
+				>
+					<div class="flex items-start justify-between gap-4">
+						<div>
+							<p class="text-sm font-semibold text-gray-900">{notification.title}</p>
+							<p class="mt-1 text-sm text-gray-600">{notification.message}</p>
+						</div>
+						{#if !notification.isRead}
+							<span class="mt-1 inline-block h-2.5 w-2.5 rounded-full bg-pink-600"></span>
+						{/if}
+					</div>
+					<p class="mt-2 text-xs text-gray-400">{formatDate(notification.createdAt)}</p>
+				</button>
+			{/each}
+		</div>
+	{/if}
 </div>

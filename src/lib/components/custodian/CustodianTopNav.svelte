@@ -6,6 +6,7 @@
 	import { themeStore } from '$lib/stores/theme';
 	import { toastStore } from '$lib/stores/toast';
 	import { sidebarCollapsed, mobileSidebarOpen } from '$lib/stores/custodian';
+	import { notificationsAPI, type NotificationRecord } from '$lib/api/notifications';
 	import { Moon, Sun, HelpCircle, Bell, ChevronDown, LogOut, User, Settings, CalendarDays, History, ScanLine, X, CheckCircle2 } from 'lucide-svelte';
 	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
 	import logo from '$lib/assets/CHTM_LOGO.png';
@@ -18,6 +19,9 @@
 	let profileOpen = $state(false);
 	let notifOpen   = $state(false);
 	let signOutOpen = $state(false);
+	let recentNotifications = $state<NotificationRecord[]>([]);
+	let unreadCount = $state(0);
+	let loadingNotifications = $state(false);
 
 	// ── QR Scanner ────────────────────────────────────────────────────────────
 	let scannerOpen   = $state(false);
@@ -83,14 +87,20 @@
 	// ── Live clock ────────────────────────────────────────────────────────────
 	let now = $state(new Date());
 	let ticker: ReturnType<typeof setInterval>;
+	let notificationTicker: ReturnType<typeof setInterval>;
 
 	onMount(() => {
 		ticker = setInterval(() => { now = new Date(); }, 1000);
+		void loadNotifications();
+		notificationTicker = setInterval(() => {
+			void loadNotifications();
+		}, 60000);
 		document.body.style.paddingTop = '4rem';
 		return () => { document.body.style.paddingTop = ''; };
 	});
 	onDestroy(() => {
 		clearInterval(ticker);
+		clearInterval(notificationTicker);
 		document.body.style.paddingTop = '';
 	});
 
@@ -122,6 +132,53 @@
 		if (!(e.target as HTMLElement).closest('[data-topnav-dropdown]')) {
 			profileOpen = false;
 			notifOpen   = false;
+		}
+	}
+
+	function formatRelativeTime(dateValue: string): string {
+		const date = new Date(dateValue);
+		const diffMs = Date.now() - date.getTime();
+		const diffMinutes = Math.floor(diffMs / 60000);
+
+		if (diffMinutes < 1) return 'Just now';
+		if (diffMinutes < 60) return `${diffMinutes}m ago`;
+		const diffHours = Math.floor(diffMinutes / 60);
+		if (diffHours < 24) return `${diffHours}h ago`;
+		const diffDays = Math.floor(diffHours / 24);
+		return `${diffDays}d ago`;
+	}
+
+	async function loadNotifications() {
+		loadingNotifications = true;
+		try {
+			const data = await notificationsAPI.list(5, 0);
+			recentNotifications = data.notifications;
+			unreadCount = data.unreadCount;
+		} catch {
+			recentNotifications = [];
+			unreadCount = 0;
+		} finally {
+			loadingNotifications = false;
+		}
+	}
+
+	async function toggleNotifications(event: MouseEvent) {
+		event.stopPropagation();
+		notifOpen = !notifOpen;
+		profileOpen = false;
+		if (notifOpen) {
+			await loadNotifications();
+		}
+	}
+
+	async function openNotification(notification: NotificationRecord) {
+		if (!notification.isRead) {
+			await notificationsAPI.markAsRead(notification.id);
+		}
+		notifOpen = false;
+		await loadNotifications();
+		if (notification.link) {
+			goto(notification.link);
 		}
 	}
 </script>
@@ -201,14 +258,18 @@
 		<!-- Notifications -->
 		<div class="relative" data-topnav-dropdown>
 			<button
-				onclick={(e) => { e.stopPropagation(); notifOpen = !notifOpen; profileOpen = false; }}
+				onclick={toggleNotifications}
 				class="relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all duration-200 hover:bg-pink-50 hover:text-pink-600"
 				aria-label="Notifications"
 				aria-expanded={notifOpen}
 				title="Notifications"
 			>
 				<Bell size={18} strokeWidth={1.75} />
-				<span class="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-pink-500 ring-2 ring-white"></span>
+				{#if unreadCount > 0}
+					<span class="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-pink-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+						{Math.min(unreadCount, 99)}
+					</span>
+				{/if}
 			</button>
 
 			{#if notifOpen}
@@ -221,10 +282,28 @@
 						<p class="text-sm font-semibold text-gray-900">Notifications</p>
 						<a href="/custodian/notifications" onclick={() => notifOpen = false} class="text-xs font-medium text-pink-600 hover:text-pink-700">View all</a>
 					</div>
-					<div class="py-8 text-center">
-						<Bell size={28} class="mx-auto mb-2 text-gray-300" />
-						<p class="text-sm text-gray-500">No new notifications</p>
-					</div>
+					{#if loadingNotifications}
+						<div class="py-8 text-center text-sm text-gray-500">Loading notifications...</div>
+					{:else if recentNotifications.length === 0}
+						<div class="py-8 text-center">
+							<Bell size={28} class="mx-auto mb-2 text-gray-300" />
+							<p class="text-sm text-gray-500">No new notifications</p>
+						</div>
+					{:else}
+						<div class="max-h-80 overflow-y-auto py-2">
+							{#each recentNotifications as notification (notification.id)}
+								<button
+									type="button"
+									onclick={() => openNotification(notification)}
+									class="w-full border-l-2 px-4 py-2 text-left transition-colors hover:bg-gray-50 {notification.isRead ? 'border-transparent' : 'border-pink-500 bg-pink-50/40'}"
+								>
+									<p class="text-sm font-medium text-gray-900">{notification.title}</p>
+									<p class="mt-0.5 line-clamp-2 text-xs text-gray-600">{notification.message}</p>
+									<p class="mt-1 text-[11px] text-gray-400">{formatRelativeTime(notification.createdAt)}</p>
+								</button>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			{/if}
 		</div>

@@ -11,6 +11,7 @@ import { logger } from '$lib/server/utils/logger';
 import { sanitizeInput } from '$lib/server/utils/validation';
 import { getAuthenticatedUser, BORROW_REQUESTS_COLLECTION, invalidateBorrowRequestCaches, publishBorrowRequestRealtimeEvent } from '../../shared';
 import { REPLACEMENT_OBLIGATIONS_COLLECTION, invalidateReplacementObligationCaches } from '../../../replacement-obligations/shared';
+import { notifyBorrowRequestLifecycle } from '$lib/server/services/notifications';
 
 interface ItemInspectionInput {
 	itemId: string;
@@ -260,6 +261,34 @@ export const POST: RequestHandler = async (event) => {
 			'items_inspected',
 			now
 		);
+
+		const updatedRequestWithId: BorrowRequest & { _id: ObjectId } = {
+			...borrowRequest,
+			_id: new ObjectId(requestId),
+			items: updatedItems,
+			status: newStatus,
+			updatedAt: now,
+			updatedBy: new ObjectId(user.userId)
+		};
+
+		if (newStatus === BorrowRequestStatus.RETURNED) {
+			await notifyBorrowRequestLifecycle({
+				db,
+				request: updatedRequestWithId,
+				event: 'returned'
+			});
+		}
+
+		if (newStatus === BorrowRequestStatus.MISSING) {
+			await notifyBorrowRequestLifecycle({
+				db,
+				request: updatedRequestWithId,
+				event: 'item_issue',
+				contextNotes: obligations.length > 0
+					? `${obligations.length} replacement obligation(s) were created.`
+					: 'Inspection detected missing or damaged items.'
+			});
+		}
 
 		return json({
 			success: true,
