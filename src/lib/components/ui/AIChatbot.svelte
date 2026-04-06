@@ -260,7 +260,7 @@
 									<div class="assistant-bubble">
 										{#if message.content}
 											<div class="prose">{@html renderMarkdown(message.content)}</div>
-										{:else if message.isStreaming}
+										{:else}
 											<div class="flex items-center gap-1 py-0.5">
 												<span class="typing-dot" style="animation-delay: 0ms"></span>
 												<span class="typing-dot" style="animation-delay: 160ms"></span>
