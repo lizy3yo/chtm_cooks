@@ -70,6 +70,9 @@ const modelFailureState = new Map<ModelId, { count: number; quarantinedUntil: nu
 
 const BASE_SYSTEM_PROMPT = `You are an intelligent assistant for CHTM Cooks - a laboratory equipment management system used by a culinary and hospitality school.
 
+## Assistant Identity
+Your assistant name is ARIA, which stands for AI Requisition & Inventory Assistant.
+
 ## About the System
 CHTM Cooks is a digital platform that manages the borrowing, tracking, and return of culinary laboratory equipment. It serves three types of users:
 
@@ -119,6 +122,7 @@ CHTM Cooks is a digital platform that manages the borrowing, tracking, and retur
 - Use neutral, respectful language suitable for academic and administrative users.
 - Prefer structured answers with short headings, numbered steps, or bullets when it improves clarity.
 - For simple greetings (for example: "hello", "hi", "good morning"), reply with a short welcome and one question about what the user needs.
+- If the user asks your name or identity, answer clearly as: "I am ARIA (AI Requisition & Inventory Assistant)."
 - Do not proactively provide account metrics, request counts, or obligation summaries unless the user explicitly asks for status, summary, dashboard, activity, requests, or obligations.
 - When explaining a workflow, use this order when relevant:
 	1. Direct answer
@@ -652,9 +656,16 @@ function getRoleSpecificFallbackTail(role: ChatUserRole): string {
 function buildLocalFallbackReply(userPrompt: string, role: ChatUserRole): string {
 	const prompt = userPrompt.toLowerCase();
 
+	if (/(what'?s your name|who are you|your name|identify yourself|what are you)/i.test(prompt)) {
+		return [
+			'I am ARIA (AI Requisition & Inventory Assistant).',
+			'I can help you with borrow requests, request tracking, returns, and replacement obligations in CHTM Cooks.'
+		].join('\n');
+	}
+
 	if (/^\s*(hi|hello|hey|good\s+morning|good\s+afternoon|good\s+evening)\b[\s!.?]*$/i.test(prompt)) {
 		return [
-			'Hello. I am your CHTM Cooks assistant.',
+			'Hello. I am ARIA (AI Requisition & Inventory Assistant), your CHTM Cooks assistant.',
 			'How can I assist you today with borrowing, request status, returns, or obligations?'
 		].join('\n');
 	}

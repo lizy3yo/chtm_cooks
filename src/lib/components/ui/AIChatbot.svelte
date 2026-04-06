@@ -182,7 +182,7 @@
 	<button
 		onclick={() => chatStore.open()}
 		class="fab-btn"
-		aria-label="Open AI Assistant"
+		aria-label="Open Aria Assistant"
 		in:scale={{ duration: 300, easing: quintOut }}
 	>
 		<span class="fab-ring"></span>
@@ -213,8 +213,8 @@
 						<Bot size={22} class="text-white" />
 					</div>
 					<div>
-						<p class="text-lg font-bold text-white leading-tight">CHTM Cooks AI</p>
-						<p class="text-xs text-white/80 font-medium">AI Assistant</p>
+						<p class="text-lg font-bold text-white leading-tight">Aria</p>
+						<p class="text-xs text-white/80 font-medium">AI Requisition & Inventory Assistant</p>
 					</div>
 				</div>
 
@@ -239,7 +239,7 @@
 					</div>
 					<div class="space-y-1">
 						<p class="text-base font-semibold text-gray-900">Hi, {userName} 👋</p>
-						<p class="text-sm text-gray-500 leading-relaxed">I'm your AI assistant for CHTM Cooks.<br>How can I help you today?</p>
+						<p class="text-sm text-gray-500 leading-relaxed">I am ARIA (AI Requisition & Inventory Assistant), your assistant for CHTM Cooks.<br>How can I help you today?</p>
 					</div>
 					<div class="flex flex-wrap justify-center gap-2 mt-1">
 						{#each suggestions as s}
@@ -307,7 +307,7 @@
 					onkeydown={handleKeydown}
 					use:autoResize
 					rows={1}
-					placeholder="Message AI Assistant…"
+					placeholder="Message Aria…"
 					disabled={isLoading}
 					class="input-field"
 					style="max-height: 120px; min-height: 22px;"
