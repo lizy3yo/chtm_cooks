@@ -443,7 +443,7 @@
 				</div>
 				{#if stockAlerts.length === 0}
 					<div class="flex h-48 items-center justify-center gap-2 text-sm text-gray-400">
-						<CheckCircle2 size={16} class="text-emerald-400" /> All equipment is well-stocked
+						<CheckCircle2 size={16} class="text-pink-600" /> All equipment is well-stocked
 					</div>
 				{:else}
 					<div class="divide-y divide-gray-50">
