@@ -16,7 +16,7 @@
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);
 	let currentPage = $state(1);
-	const itemsPerPageByRequest = 5;  // Cards view
+	const itemsPerPageByRequest = 5;  // Cards view - max 5 cards
 	const itemsPerPageByItem = 10;     // Table/List view
 	const itemsPerPageDonations = 10;  // Donations table
 	const itemsPerPageHistory = 10;    // Resolution log table
@@ -870,53 +870,47 @@
 								{/each}
 							</div>
 						{:else if donations.length === 0}
-							<div class="py-12 text-center">
-								<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-								</svg>
-								<h3 class="mt-4 text-lg font-medium text-gray-900">No donations yet</h3>
-								<p class="mt-2 text-sm text-gray-500">Item donations from individuals or organizations will be recorded and tracked here.</p>
+							<div class="py-12 text-center" style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
+								<div>
+									<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+									</svg>
+									<h3 class="mt-4 text-lg font-medium text-gray-900">No donations yet</h3>
+									<p class="mt-2 text-sm text-gray-500">Item donations from individuals or organizations will be recorded and tracked here.</p>
+								</div>
 							</div>
 						{:else}
 							<!-- Clean list view -->
-							<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
-								{#each Array(itemsPerPageDonations) as _, index}
-									{@const donation = paginatedDonations[index]}
-									{#if donation}
-										<button
-											onclick={() => selectedDonation = donation}
-											class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
-										>
-											<!-- Icon -->
-											<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 sm:h-14 sm:w-14">
-												<svg class="h-6 w-6 sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
-												</svg>
-											</div>
-
-											<!-- Info -->
-											<div class="min-w-0 flex-1">
-												<p class="truncate text-sm font-semibold text-gray-900">{donation.itemName}</p>
-												<p class="truncate text-xs text-gray-500">{donation.donorName}</p>
-												<div class="mt-1 flex flex-wrap items-center gap-1">
-													<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {donation.inventoryAction === 'new_item' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">
-														{donation.inventoryAction === 'new_item' ? 'New Item' : 'Added'}
-													</span>
-													<span class="text-[10px] text-gray-400">Qty: {donation.quantity.toLocaleString()}</span>
-												</div>
-											</div>
-
-											<!-- Arrow -->
-											<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+							<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100" style="min-height: 600px;">
+								{#each paginatedDonations as donation}
+									<button
+										onclick={() => selectedDonation = donation}
+										class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
+									>
+										<!-- Icon -->
+										<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 sm:h-14 sm:w-14">
+											<svg class="h-6 w-6 sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
 											</svg>
-										</button>
-									{:else}
-										<!-- Empty placeholder -->
-										<div class="flex items-center justify-center px-3 py-3 sm:px-4 sm:py-3.5 bg-gray-50/30">
-											<span class="text-xs text-gray-300">—</span>
 										</div>
-									{/if}
+
+										<!-- Info -->
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-semibold text-gray-900">{donation.itemName}</p>
+											<p class="truncate text-xs text-gray-500">{donation.donorName}</p>
+											<div class="mt-1 flex flex-wrap items-center gap-1">
+												<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {donation.inventoryAction === 'new_item' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">
+													{donation.inventoryAction === 'new_item' ? 'New Item' : 'Added'}
+												</span>
+												<span class="text-[10px] text-gray-400">Qty: {donation.quantity.toLocaleString()}</span>
+											</div>
+										</div>
+
+										<!-- Arrow -->
+										<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+										</svg>
+									</button>
 								{/each}
 							</div>
 
@@ -1034,93 +1028,83 @@
 							<p class="text-red-600">{error}</p>
 						</div>
 					{:else if filteredObligations.length === 0}
-						<div class="rounded-lg border-2 border-dashed border-gray-200 py-14 text-center">
-							<svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-							</svg>
-							<p class="mt-3 text-sm font-medium text-gray-700">{replacementsFilter === 'all' ? 'No obligations recorded.' : `No ${replacementsFilter} obligations.`}</p>
-							<p class="mt-1 text-xs text-gray-500">Obligations from damage and missing incidents will appear here.</p>
+						<div class="rounded-lg border-2 border-dashed border-gray-200 py-14 text-center" style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
+							<div>
+								<svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+								</svg>
+								<p class="mt-3 text-sm font-medium text-gray-700">{replacementsFilter === 'all' ? 'No obligations recorded.' : `No ${replacementsFilter} obligations.`}</p>
+								<p class="mt-1 text-xs text-gray-500">Obligations from damage and missing incidents will appear here.</p>
+							</div>
 						</div>
 					{:else if replacementsView === 'by-request'}
 						<div class="space-y-4">
 							<!-- Mobile card list - hidden on sm+ -->
-							<div class="space-y-3 sm:hidden">
-								{#each Array(itemsPerPageByRequest) as _, index}
-									{@const summary = requestSummaries[index]}
-									{#if summary}
-										<button
-											onclick={() => { selectedSummary = summary; selectedSummaryItemIndex = 0; }}
-											class="w-full rounded-xl border-l-4 {getRequestSummaryStatusClass(summary.statuses).includes('amber') ? 'border-amber-400' : getRequestSummaryStatusClass(summary.statuses).includes('slate') ? 'border-slate-400' : 'border-gray-300'} bg-white p-4 text-left shadow-sm ring-1 ring-gray-200 transition-all active:bg-gray-50"
-										>
-											<div class="space-y-3">
-												<!-- Header -->
-												<div class="flex items-start justify-between gap-2">
-													<div class="flex flex-col gap-1 flex-1 min-w-0">
-														<span class="font-mono text-xs font-bold tracking-widest text-gray-900">{summary.requestCode}</span>
-														<span class="inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getRequestSummaryStatusClass(summary.statuses)}">
-															{getRequestSummaryStatusLabel(summary.statuses)}
-														</span>
-													</div>
-													<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-													</svg>
+							<div class="space-y-3 sm:hidden" style="min-height: 600px;">
+								{#each requestSummaries as summary}
+									<button
+										onclick={() => { selectedSummary = summary; selectedSummaryItemIndex = 0; }}
+										class="w-full rounded-xl border-l-4 {getRequestSummaryStatusClass(summary.statuses).includes('amber') ? 'border-amber-400' : getRequestSummaryStatusClass(summary.statuses).includes('slate') ? 'border-slate-400' : 'border-gray-300'} bg-white p-4 text-left shadow-sm ring-1 ring-gray-200 transition-all active:bg-gray-50"
+									>
+										<div class="space-y-3">
+											<!-- Header -->
+											<div class="flex items-start justify-between gap-2">
+												<div class="flex flex-col gap-1 flex-1 min-w-0">
+													<span class="font-mono text-xs font-bold tracking-widest text-gray-900">{summary.requestCode}</span>
+													<span class="inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getRequestSummaryStatusClass(summary.statuses)}">
+														{getRequestSummaryStatusLabel(summary.statuses)}
+													</span>
 												</div>
+												<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+												</svg>
+											</div>
 
-												<!-- Student -->
-												<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-													<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-[10px] font-semibold text-pink-700">
-														{#if summary.studentProfilePhotoUrl}
-															<img src={summary.studentProfilePhotoUrl} alt={summary.studentName} class="h-full w-full object-cover" loading="lazy" />
-														{:else}
-															{getInitials(summary.studentName)}
-														{/if}
-													</div>
-													<div class="sm:ml-auto">
-														<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getRequestSummaryStatusClass(summary.statuses)}">
-															{getRequestSummaryStatusLabel(summary.statuses)}
-														</span>
-													</div>
-													<div class="min-w-0 flex-1">
-														<div class="truncate text-xs font-medium text-gray-900">{summary.studentName}</div>
-														<div class="truncate text-[10px] text-gray-500">{summary.studentEmail}</div>
-													</div>
+											<!-- Student -->
+											<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+												<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-[10px] font-semibold text-pink-700">
+													{#if summary.studentProfilePhotoUrl}
+														<img src={summary.studentProfilePhotoUrl} alt={summary.studentName} class="h-full w-full object-cover" loading="lazy" />
+													{:else}
+														{getInitials(summary.studentName)}
+													{/if}
 												</div>
-
-												<!-- Incidents & Meta -->
-												<div class="flex flex-wrap items-center gap-1.5 text-[10px]">
-													{#if summary.missingCount > 0}
-														<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-800">
-															<span class="h-1 w-1 rounded-full bg-red-500"></span>
-															{summary.missingCount} Missing
-														</span>
-													{/if}
-													{#if summary.damagedCount > 0}
-														<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-800">
-															<span class="h-1 w-1 rounded-full bg-rose-500"></span>
-															{summary.damagedCount} Damaged
-														</span>
-													{/if}
-													<span class="text-gray-400">· {summary.items} item{summary.items !== 1 ? 's' : ''}</span>
-													<span class="text-gray-400">· Due: {new Date(summary.latestDueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+												<div class="sm:ml-auto">
+													<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getRequestSummaryStatusClass(summary.statuses)}">
+														{getRequestSummaryStatusLabel(summary.statuses)}
+													</span>
+												</div>
+												<div class="min-w-0 flex-1">
+													<div class="truncate text-xs font-medium text-gray-900">{summary.studentName}</div>
+													<div class="truncate text-[10px] text-gray-500">{summary.studentEmail}</div>
 												</div>
 											</div>
-										</button>
-									{:else}
-										<!-- Empty placeholder -->
-										<div class="rounded-xl border border-gray-100 bg-gray-50/50 p-4" style="height: 120px;">
-											<div class="flex h-full items-center justify-center">
-												<span class="text-xs text-gray-300">—</span>
+
+											<!-- Incidents & Meta -->
+											<div class="flex flex-wrap items-center gap-1.5 text-[10px]">
+												{#if summary.missingCount > 0}
+													<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-800">
+														<span class="h-1 w-1 rounded-full bg-red-500"></span>
+														{summary.missingCount} Missing
+													</span>
+												{/if}
+												{#if summary.damagedCount > 0}
+													<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-800">
+														<span class="h-1 w-1 rounded-full bg-rose-500"></span>
+														{summary.damagedCount} Damaged
+													</span>
+												{/if}
+												<span class="text-gray-400">· {summary.items} item{summary.items !== 1 ? 's' : ''}</span>
+												<span class="text-gray-400">· Due: {new Date(summary.latestDueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
 											</div>
 										</div>
-									{/if}
+									</button>
 								{/each}
 							</div>
 
 							<!-- Desktop card list - hidden on mobile -->
-							<div class="hidden space-y-4 sm:block" style="min-height: 680px;">
-								{#each Array(itemsPerPageByRequest) as _, index}
-									{@const summary = requestSummaries[index]}
-									{#if summary}
+							<div class="hidden space-y-4 sm:block" style="min-height: 600px;">
+								{#each requestSummaries as summary}
 										<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md border-l-4 {getRequestSummaryStatusClass(summary.statuses).includes('amber') ? 'border-amber-400' : getRequestSummaryStatusClass(summary.statuses).includes('slate') ? 'border-slate-400' : 'border-gray-300'}">
 											<!-- Card Body -->
 											<div class="p-4 sm:p-5">
@@ -1195,14 +1179,6 @@
 												</button>
 											</div>
 										</div>
-									{:else}
-										<!-- Empty placeholder card -->
-										<div class="overflow-hidden rounded-xl bg-gray-50/50 shadow-sm ring-1 ring-gray-200 border-l-4 border-gray-200" style="height: 128px;">
-											<div class="flex h-full items-center justify-center">
-												<span class="text-xs text-gray-300">—</span>
-											</div>
-										</div>
-									{/if}
 								{/each}
 							</div>
 
@@ -1257,48 +1233,40 @@
 					{:else}
 						<div class="space-y-4">
 							<!-- Mobile/All screens list -->
-							<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
-								{#each Array(itemsPerPageByItem) as _, index}
-									{@const obligation = paginatedObligations[index]}
-									{#if obligation}
-										<button
-											onclick={() => selectedObligation = obligation}
-											class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
-										>
-											<!-- Student Avatar -->
-											<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 sm:h-14 sm:w-14">
-												{#if obligation.studentProfilePhotoUrl}
-													<img src={obligation.studentProfilePhotoUrl} alt={obligation.studentName || 'Student'} class="h-full w-full object-cover" loading="lazy" />
-												{:else}
-													{getInitials(obligation.studentName || 'Unknown Student')}
-												{/if}
-											</div>
-
-											<!-- Info -->
-											<div class="min-w-0 flex-1">
-												<p class="truncate text-sm font-semibold text-gray-900">{obligation.studentName || 'Unknown Student'}</p>
-												<p class="truncate text-xs text-gray-500">{obligation.itemName}</p>
-												<div class="mt-1 flex flex-wrap items-center gap-1">
-													<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {obligation.type === 'missing' ? 'bg-red-100 text-red-800' : 'bg-rose-100 text-rose-800'}">
-														{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
-													</span>
-													<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getObligationStatusClass(obligation.status)}">
-														{obligation.status.charAt(0).toUpperCase() + obligation.status.slice(1)}
-													</span>
-												</div>
-											</div>
-
-											<!-- Arrow -->
-											<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-											</svg>
-										</button>
-									{:else}
-										<!-- Empty placeholder -->
-										<div class="flex items-center justify-center px-3 py-3 sm:px-4 sm:py-3.5 bg-gray-50/30">
-											<span class="text-xs text-gray-300">—</span>
+							<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100" style="min-height: 600px;">
+								{#each paginatedObligations as obligation}
+									<button
+										onclick={() => selectedObligation = obligation}
+										class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
+									>
+										<!-- Student Avatar -->
+										<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 sm:h-14 sm:w-14">
+											{#if obligation.studentProfilePhotoUrl}
+												<img src={obligation.studentProfilePhotoUrl} alt={obligation.studentName || 'Student'} class="h-full w-full object-cover" loading="lazy" />
+											{:else}
+												{getInitials(obligation.studentName || 'Unknown Student')}
+											{/if}
 										</div>
-									{/if}
+
+										<!-- Info -->
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-semibold text-gray-900">{obligation.studentName || 'Unknown Student'}</p>
+											<p class="truncate text-xs text-gray-500">{obligation.itemName}</p>
+											<div class="mt-1 flex flex-wrap items-center gap-1">
+												<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {obligation.type === 'missing' ? 'bg-red-100 text-red-800' : 'bg-rose-100 text-rose-800'}">
+													{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
+												</span>
+												<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getObligationStatusClass(obligation.status)}">
+													{obligation.status.charAt(0).toUpperCase() + obligation.status.slice(1)}
+												</span>
+											</div>
+										</div>
+
+										<!-- Arrow -->
+										<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+										</svg>
+									</button>
 								{/each}
 							</div>
 
@@ -1394,56 +1362,50 @@
 					</div>
 
 					{#if filteredPaymentHistory.length === 0}
-						<div class="rounded-lg border-2 border-dashed border-gray-200 py-14 text-center">
-							<svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
-							</svg>
-							<p class="mt-3 text-sm font-medium text-gray-700">{historyFilter === 'all' ? 'No resolution records yet.' : `No ${historyFilter} records.`}</p>
-							<p class="mt-1 text-xs text-gray-500">Resolved obligations will appear here once closed.</p>
+						<div class="rounded-lg border-2 border-dashed border-gray-200 py-14 text-center" style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
+							<div>
+								<svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+								</svg>
+								<p class="mt-3 text-sm font-medium text-gray-700">{historyFilter === 'all' ? 'No resolution records yet.' : `No ${historyFilter} records.`}</p>
+								<p class="mt-1 text-xs text-gray-500">Resolved obligations will appear here once closed.</p>
+							</div>
 						</div>
 					{:else}
 						<!-- Clean list view -->
-						<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
-							{#each Array(itemsPerPageHistory) as _, index}
-								{@const transaction = paginatedHistory[index]}
-								{#if transaction}
-									<button
-										onclick={() => printReceipt(transaction.receiptNumber)}
-										class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
-									>
-										<!-- Icon -->
-										<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full {transaction.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'} sm:h-14 sm:w-14">
-											<svg class="h-6 w-6 sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												{#if transaction.status === 'resolved'}
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-												{:else}
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-												{/if}
-											</svg>
-										</div>
-
-										<!-- Info -->
-										<div class="min-w-0 flex-1">
-											<p class="truncate text-sm font-semibold text-gray-900">{transaction.name}</p>
-											<p class="truncate text-xs text-gray-500">{transaction.receiptNumber}</p>
-											<div class="mt-1 flex flex-wrap items-center gap-1">
-												<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {transaction.resolutionType === 'replacement' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'}">
-													{transaction.resolutionType === 'replacement' ? 'Replaced' : 'Waived'}
-												</span>
-											</div>
-										</div>
-
-										<!-- Arrow -->
-										<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+						<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100" style="min-height: 600px;">
+							{#each paginatedHistory as transaction}
+								<button
+									onclick={() => printReceipt(transaction.receiptNumber)}
+									class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
+								>
+									<!-- Icon -->
+									<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full {transaction.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'} sm:h-14 sm:w-14">
+										<svg class="h-6 w-6 sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											{#if transaction.status === 'resolved'}
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+											{:else}
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+											{/if}
 										</svg>
-									</button>
-								{:else}
-									<!-- Empty placeholder -->
-									<div class="flex items-center justify-center px-3 py-3 sm:px-4 sm:py-3.5 bg-gray-50/30">
-										<span class="text-xs text-gray-300">—</span>
 									</div>
-								{/if}
+
+									<!-- Info -->
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-semibold text-gray-900">{transaction.name}</p>
+										<p class="truncate text-xs text-gray-500">{transaction.receiptNumber}</p>
+										<div class="mt-1 flex flex-wrap items-center gap-1">
+											<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {transaction.resolutionType === 'replacement' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'}">
+												{transaction.resolutionType === 'replacement' ? 'Replaced' : 'Waived'}
+											</span>
+										</div>
+									</div>
+
+									<!-- Arrow -->
+									<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+									</svg>
+								</button>
 							{/each}
 						</div>
 

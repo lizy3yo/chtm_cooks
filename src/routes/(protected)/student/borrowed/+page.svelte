@@ -18,6 +18,9 @@
 	type ViewMode = 'by-request' | 'by-item';
 	type ItemOperationalStatus = 'in-use' | 'return-in-progress' | 'returned' | 'damaged' | 'missing' | 'replaced' | 'payable' | 'paid' | 'unresolved-damaged' | 'unresolved-missing';
 
+	const PAGE_SIZE_BY_REQUEST = 5;
+	const PAGE_SIZE_BY_ITEM = 10;
+
 	interface LoanCard {
 		id: string;
 		requestCode: string;
@@ -63,6 +66,7 @@
 	let hasShownOverdueModal = $state(false);
 	let selectedFilter = $state<LoanFilter>('all');
 	let sortBy = $state<LoanSort>('urgent');
+	let currentPage = $state(1);
 	let loans = $state<LoanCard[]>([]);
 	let liveSyncActive = $state(false);
 
@@ -453,6 +457,44 @@
 		});
 	});
 
+	const currentPageSize = $derived(viewMode === 'by-request' ? PAGE_SIZE_BY_REQUEST : PAGE_SIZE_BY_ITEM);
+
+	const totalEntries = $derived(viewMode === 'by-request' ? filteredLoans.length : itemRows.length);
+
+	const totalPages = $derived(Math.max(1, Math.ceil(totalEntries / currentPageSize)));
+
+	const paginatedLoans = $derived.by(() => {
+		const start = (currentPage - 1) * PAGE_SIZE_BY_REQUEST;
+		const end = start + PAGE_SIZE_BY_REQUEST;
+		return filteredLoans.slice(start, end);
+	});
+
+	const paginatedItemRows = $derived.by(() => {
+		const start = (currentPage - 1) * PAGE_SIZE_BY_ITEM;
+		const end = start + PAGE_SIZE_BY_ITEM;
+		return itemRows.slice(start, end);
+	});
+
+	const pageStart = $derived(totalEntries === 0 ? 0 : (currentPage - 1) * currentPageSize + 1);
+	const pageEnd = $derived(Math.min(currentPage * currentPageSize, totalEntries));
+
+	// Reset pagination when user changes filters/sort/search/view mode.
+	$effect(() => {
+		search;
+		selectedFilter;
+		sortBy;
+		viewMode;
+		currentPage = 1;
+	});
+
+	// Keep page index valid when result count shrinks.
+	$effect(() => {
+		totalPages;
+		if (currentPage > totalPages) {
+			currentPage = totalPages;
+		}
+	});
+
 	const metrics = $derived({
 		totalActive: loans.length,
 		overdue: loans.filter((loan) => loan.isOverdue).length,
@@ -559,7 +601,9 @@
 		</div>
 	</div>
 
-	<div class="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100 sm:p-4">
+	<div class="rounded-xl bg-white shadow-sm">
+		<div class="p-4 sm:p-6">
+		<div class="mb-4 rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:p-4">
 		<!-- Row 1: view toggle -->
 		<div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs font-medium">
 			<button
@@ -600,9 +644,10 @@
 				class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-400 focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
 			/>
 		</div>
-	</div>
+		</div>
 
-	<div class="space-y-4">
+		<div class="min-h-[600px] flex flex-col">
+		<div class="flex-1 space-y-4">
 		{#if isLoading}
 			<div class="space-y-4" role="status" aria-live="polite" aria-label="Loading borrowed items">
 
@@ -673,7 +718,7 @@
 				</div>
 			</div>
 		{:else if filteredLoans.length === 0}
-			<div class="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
+			<div class="flex min-h-[360px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
 				<div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
 					<ClipboardX size={26} class="text-gray-400" />
 				</div>
@@ -686,7 +731,7 @@
 				</div>
 			</div>
 		{:else if viewMode === 'by-request'}
-			{#each filteredLoans as loan}
+			{#each paginatedLoans as loan}
 				<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getLoanCardBorderClasses(loan)}">
 					<div class="p-4">
 						<!-- Header -->
@@ -807,12 +852,12 @@
 							</tr>
 						</thead>
 						<tbody>
-							{#if itemRows.length === 0}
+							{#if paginatedItemRows.length === 0}
 								<tr>
 									<td colspan="7" class="px-5 py-8 text-center text-sm text-gray-500">No items match the current search/filter.</td>
 								</tr>
 							{:else}
-								{#each itemRows as row}
+								{#each paginatedItemRows as row}
 									<tr class="border-b border-gray-100 last:border-b-0">
 										<td class="px-5 py-3 font-mono text-xs font-semibold tracking-wide text-gray-700">{row.requestCode}</td>
 										<td class="px-5 py-3">
@@ -844,6 +889,109 @@
 				</div>
 			</div>
 		{/if}
+		</div>
+
+		{#if !isLoading && totalEntries > 0 && totalPages > 1}
+			<div class="mt-auto pt-4 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 sm:px-6">
+				<div class="flex flex-1 justify-between sm:hidden">
+					<button
+						onclick={() => currentPage = Math.max(1, currentPage - 1)}
+						disabled={currentPage === 1}
+						class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						Previous
+					</button>
+					<button
+						onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
+						disabled={currentPage === totalPages}
+						class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						Next
+					</button>
+				</div>
+				<div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+					<p class="text-sm text-gray-700">
+						Showing
+						<span class="font-medium">{pageStart}</span>
+						to
+						<span class="font-medium">{pageEnd}</span>
+						of
+						<span class="font-medium">{totalEntries}</span>
+						results
+					</p>
+					<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+						<button
+							onclick={() => currentPage = Math.max(1, currentPage - 1)}
+							disabled={currentPage === 1}
+							class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							<span class="sr-only">Previous</span>
+							<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+								<path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
+							</svg>
+						</button>
+
+						{#if totalPages <= 7}
+							{#each Array(totalPages) as _, i}
+								<button
+									onclick={() => currentPage = i + 1}
+									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === i + 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+								>
+									{i + 1}
+								</button>
+							{/each}
+						{:else}
+							<button
+								onclick={() => currentPage = 1}
+								class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+							>
+								1
+							</button>
+
+							{#if currentPage > 3}
+								<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>
+							{/if}
+
+							{#each Array(totalPages) as _, i}
+								{@const page = i + 1}
+								{#if page > 1 && page < totalPages && Math.abs(page - currentPage) <= 1}
+									<button
+										onclick={() => currentPage = page}
+										class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === page ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+									>
+										{page}
+									</button>
+								{/if}
+							{/each}
+
+							{#if currentPage < totalPages - 2}
+								<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>
+							{/if}
+
+							<button
+								onclick={() => currentPage = totalPages}
+								class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === totalPages ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+							>
+								{totalPages}
+							</button>
+						{/if}
+
+						<button
+							onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
+							disabled={currentPage === totalPages}
+							class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							<span class="sr-only">Next</span>
+							<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+								<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+							</svg>
+						</button>
+					</nav>
+				</div>
+			</div>
+		{/if}
+	</div>
+		</div>
 	</div>
 
 	{#if selectedLoan}

@@ -389,11 +389,11 @@
 			{@const trust = trustTierConfig(performanceStats.trustScore.tier)}
 			{@const score = performanceStats.trustScore.score}
 			<!-- ── Trust Score Hero ───────────────────────────────────────── -->
-			<div class="rounded-xl border {trust.border} {trust.bg} p-4 shadow-sm sm:p-6">
-				<div class="flex items-start gap-4">
-					<!-- Gauge — smaller on mobile -->
-					<div class="flex shrink-0 flex-col items-center gap-1.5">
-						<div class="relative flex h-20 w-20 items-center justify-center sm:h-28 sm:w-28">
+			<div class="rounded-xl border {trust.border} {trust.bg} p-3 shadow-sm sm:p-4">
+				<div class="flex items-center gap-3 sm:gap-4">
+					<!-- Gauge -->
+					<div class="flex shrink-0 flex-col items-center gap-1">
+						<div class="relative flex h-16 w-16 items-center justify-center sm:h-20 sm:w-20">
 							<svg viewBox="0 0 120 120" class="h-full w-full -rotate-90">
 								<circle cx="60" cy="60" r="50" fill="none" stroke="#d1d5db" stroke-width="10" />
 								<circle
@@ -410,52 +410,52 @@
 								/>
 							</svg>
 							<div class="absolute inset-0 flex flex-col items-center justify-center">
-								<p class="text-2xl font-bold {trust.text} sm:text-4xl">{score}</p>
-								<p class="text-[10px] text-gray-500 sm:text-xs">/ 100</p>
+								<p class="text-xl font-bold {trust.text} sm:text-2xl">{score}</p>
+								<p class="text-[9px] text-gray-500 sm:text-[10px]">/ 100</p>
 							</div>
 						</div>
-						<span class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium {trustTierBadgeClass(performanceStats.trustScore.tier)}">
-							<ShieldCheck class="h-3 w-3" />
+						<span class="inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium {trustTierBadgeClass(performanceStats.trustScore.tier)} sm:text-xs">
+							<ShieldCheck class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
 							{trust.label}
 						</span>
 					</div>
 
 					<!-- Text content -->
-					<div class="min-w-0 flex-1 space-y-1.5">
-						<h2 class="text-lg font-semibold {trust.text} sm:text-2xl">Trust Score</h2>
+					<div class="min-w-0 flex-1 space-y-1">
+						<h2 class="text-base font-semibold {trust.text} sm:text-lg">Trust Score</h2>
 						<p class="text-xs text-gray-600 sm:text-sm">{trust.description}</p>
 
 						<div class="pt-1">
-							<div class="mb-1 flex justify-between text-xs text-gray-400">
+							<div class="mb-1 flex justify-between text-[10px] text-gray-400 sm:text-xs">
 								<span>0 - Critical</span>
 								<span>100 - Excellent</span>
 							</div>
-							<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-								<div class="h-2 rounded-full {trust.ring}" style="width: {score}%"></div>
+							<div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 sm:h-2">
+								<div class="h-full rounded-full {trust.ring}" style="width: {score}%"></div>
 							</div>
 						</div>
 
-						<div class="flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500">
-							<span><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-red-500"></span>Critical &lt;40</span>
-							<span><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-orange-500"></span>Poor 40-59</span>
-							<span><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-500"></span>Fair 60-74</span>
-							<span><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-pink-500"></span>Good 75-89</span>
-							<span><span class="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"></span>Excellent 90+</span>
+						<div class="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-gray-500 sm:text-xs">
+							<span><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-red-500 sm:h-1.5 sm:w-1.5"></span>Critical &lt;40</span>
+							<span><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-orange-500 sm:h-1.5 sm:w-1.5"></span>Poor 40-59</span>
+							<span><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-amber-500 sm:h-1.5 sm:w-1.5"></span>Fair 60-74</span>
+							<span><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-pink-500 sm:h-1.5 sm:w-1.5"></span>Good 75-89</span>
+							<span><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-emerald-500 sm:h-1.5 sm:w-1.5"></span>Excellent 90+</span>
 						</div>
 
 						<button
 							onclick={() => (showScoreBreakdown = !showScoreBreakdown)}
-							class="inline-flex items-center gap-1 text-sm font-semibold {trust.text} hover:underline"
+							class="inline-flex items-center gap-0.5 text-xs font-semibold {trust.text} hover:underline sm:text-sm"
 						>
 							{#if showScoreBreakdown}
-								<ChevronUp class="h-3.5 w-3.5" />Hide breakdown
+								<ChevronUp class="h-3 w-3 sm:h-3.5 sm:w-3.5" />Hide breakdown
 							{:else}
-								<ChevronDown class="h-3.5 w-3.5" />View breakdown
+								<ChevronDown class="h-3 w-3 sm:h-3.5 sm:w-3.5" />View breakdown
 							{/if}
 						</button>
 
 						{#if showScoreBreakdown}
-							<div class="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
+							<div class="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
 								<div class="rounded-lg border border-red-100 bg-white p-3">
 									<p class="text-xs font-semibold uppercase tracking-wide text-red-600">Penalties</p>
 									<div class="mt-2 space-y-1 text-xs text-gray-700">
@@ -683,43 +683,62 @@
 							{#each activeRequests as req}
 								{@const Icon = statusIcon(req.status)}
 								{@const badge = req.daysUntilDue !== null ? dueBadge(req.daysUntilDue) : null}
-								<li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
-									<div class="flex -space-x-2 shrink-0">
-										{#each req.items.slice(0, 3) as item}
-											{#if item.picture}
-												<img src={item.picture} alt={item.name} class="h-9 w-9 rounded-full object-cover ring-2 ring-white" />
-											{:else}
-												<div class="flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 ring-2 ring-white">
-													<Package size={14} class="text-gray-400" />
+								<li class="px-4 py-3 hover:bg-gray-50/60 transition-colors sm:px-5 sm:py-4">
+									<div class="flex items-start gap-3">
+										<!-- Item images -->
+										<div class="flex -space-x-2 shrink-0">
+											{#each req.items.slice(0, 2) as item}
+												{#if item.picture}
+													<img src={item.picture} alt={item.name} class="h-10 w-10 rounded-lg object-cover ring-2 ring-white sm:h-12 sm:w-12" />
+												{:else}
+													<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 ring-2 ring-white sm:h-12 sm:w-12">
+														<Package size={16} class="text-gray-400" />
+													</div>
+												{/if}
+											{/each}
+											{#if req.items.length > 2}
+												<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200 ring-2 ring-white text-[10px] font-semibold text-gray-600 sm:h-12 sm:w-12 sm:text-xs">
+													+{req.items.length - 2}
 												</div>
 											{/if}
-										{/each}
-										{#if req.items.length > 3}
-											<div class="flex h-9 w-9 items-center justify-center rounded-full bg-gray-200 ring-2 ring-white text-xs font-medium text-gray-600">
-												+{req.items.length - 3}
-											</div>
-										{/if}
-									</div>
-									<div class="min-w-0 flex-1">
-										<p class="truncate text-sm font-semibold text-gray-900">
-											{req.items.slice(0, 2).map((i) => i.name).join(', ')}{req.items.length > 2 ? ` +${req.items.length - 2} more` : ''}
-										</p>
-										<div class="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
-											<span class="font-mono">{req.id}</span>
-											<span>·</span>
-											<span>Due {new Date(req.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
 										</div>
-									</div>
-									<div class="flex shrink-0 flex-col items-end gap-1.5">
-										<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(req.status)}">
-											<Icon size={10} />
-											{req.statusLabel}
-										</span>
-										{#if badge}
-											<span class="rounded-full px-2 py-0.5 text-xs font-semibold {badge.color}">
-												{badge.label}
+
+										<!-- Content -->
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-semibold text-gray-900 sm:text-base">
+												{req.items[0]?.name || 'Item'}{req.items.length > 1 ? ` +${req.items.length - 1}` : ''}
+											</p>
+											<div class="mt-1 flex flex-col gap-0.5 text-xs text-gray-500 sm:flex-row sm:items-center sm:gap-2">
+												<span class="font-mono text-[11px] sm:text-xs">{req.id}</span>
+												<span class="hidden sm:inline">·</span>
+												<span class="text-[11px] sm:text-xs">Due {new Date(req.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+											</div>
+											<!-- Status badges on mobile -->
+											<div class="mt-2 flex flex-wrap items-center gap-1.5 sm:hidden">
+												<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium {statusColor(req.status)}">
+													<Icon size={10} />
+													{req.statusLabel}
+												</span>
+												{#if badge}
+													<span class="rounded-full px-2 py-0.5 text-[10px] font-semibold {badge.color}">
+														{badge.label}
+													</span>
+												{/if}
+											</div>
+										</div>
+
+										<!-- Status badges on desktop -->
+										<div class="hidden shrink-0 flex-col items-end gap-1.5 sm:flex">
+											<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium {statusColor(req.status)}">
+												<Icon size={11} />
+												{req.statusLabel}
 											</span>
-										{/if}
+											{#if badge}
+												<span class="rounded-full px-2.5 py-1 text-xs font-semibold {badge.color}">
+													{badge.label}
+												</span>
+											{/if}
+										</div>
 									</div>
 								</li>
 							{/each}
@@ -748,22 +767,56 @@
 						<ul class="max-h-64 divide-y divide-gray-50 overflow-y-auto lg:h-[252px]">
 							{#each pendingRequests as req}
 								{@const Icon = statusIcon(req.status)}
-								<li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
-									<div class="min-w-0 flex-1">
-										<p class="truncate text-sm font-semibold text-gray-900">
-											{req.items.slice(0, 2).map((i) => i.name).join(', ')}{req.items.length > 2 ? ` +${req.items.length - 2}` : ''}
-										</p>
-										<div class="mt-0.5 flex items-center gap-2 text-xs text-gray-400">
-											<span class="font-mono">{req.id}</span>
-											<span>·</span>
-											<CalendarDays size={11} />
-											<span>{new Date(req.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(req.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+								<li class="px-4 py-3 hover:bg-gray-50/60 transition-colors sm:px-5 sm:py-4">
+									<div class="flex items-start gap-3">
+										<!-- Item images -->
+										<div class="flex -space-x-2 shrink-0">
+											{#each req.items.slice(0, 2) as item}
+												{#if item.picture}
+													<img src={item.picture} alt={item.name} class="h-10 w-10 rounded-lg object-cover ring-2 ring-white sm:h-12 sm:w-12" />
+												{:else}
+													<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 ring-2 ring-white sm:h-12 sm:w-12">
+														<Package size={16} class="text-gray-400" />
+													</div>
+												{/if}
+											{/each}
+											{#if req.items.length > 2}
+												<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200 ring-2 ring-white text-[10px] font-semibold text-gray-600 sm:h-12 sm:w-12 sm:text-xs">
+													+{req.items.length - 2}
+												</div>
+											{/if}
 										</div>
+
+										<!-- Content -->
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-semibold text-gray-900 sm:text-base">
+												{req.items[0]?.name || 'Item'}{req.items.length > 1 ? ` +${req.items.length - 1}` : ''}
+											</p>
+											<div class="mt-1 flex flex-col gap-0.5 text-xs text-gray-500 sm:flex-row sm:items-center sm:gap-2">
+												<span class="font-mono text-[11px] sm:text-xs">{req.id}</span>
+												<span class="hidden sm:inline">·</span>
+												<span class="flex items-center gap-1 text-[11px] sm:text-xs">
+													<CalendarDays size={11} class="shrink-0" />
+													<span class="truncate">{new Date(req.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(req.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+												</span>
+											</div>
+											<!-- Status badge on mobile -->
+											<div class="mt-2 sm:hidden">
+												<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium {statusColor(req.status)}">
+													<Icon size={10} />
+													{req.statusLabel}
+												</span>
+											</div>
 										</div>
-										<span class="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(req.status)}">
-											<Icon size={10} />
-											{req.statusLabel}
-										</span>
+
+										<!-- Status badge on desktop -->
+										<div class="hidden shrink-0 sm:block">
+											<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium {statusColor(req.status)}">
+												<Icon size={11} />
+												{req.statusLabel}
+											</span>
+										</div>
+									</div>
 								</li>
 							{/each}
 						</ul>

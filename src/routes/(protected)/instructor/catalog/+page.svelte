@@ -18,14 +18,19 @@
 	let selectedCondition = $state('all');
 	let sortBy = $state('name');
 	let currentPage = $state(1);
-	const itemsPerPage = 50;
 
 	// Data State
 	let catalogData = $state<CatalogResponse | null>(null);
-	let filteredItems = $derived.by(() => catalogData?.items ?? []);
+	let allItems = $derived.by(() => catalogData?.items ?? []);
 	let categories = $derived.by(() => catalogData?.categories ?? []);
-	let totalItems = $derived.by(() => catalogData?.total ?? 0);
-	let totalPages = $derived.by(() => catalogData?.pages ?? 0);
+	
+	// Client-side pagination
+	const itemsPerPageGrid = 20;
+	const itemsPerPageList = 10;
+	const itemsPerPage = $derived(viewMode === 'grid' ? itemsPerPageGrid : itemsPerPageList);
+	const totalPages = $derived(Math.max(1, Math.ceil(allItems.length / itemsPerPage)));
+	const filteredItems = $derived(allItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
+	const totalItems = $derived(allItems.length);
 	let selectedItemStockHealth = $derived.by(() => {
 		if (!selectedItem || selectedItem.minStock == null || selectedItem.minStock <= 0) return null;
 		return getStockHealth(selectedItem.quantity, selectedItem.minStock);
@@ -106,8 +111,8 @@
 				availability: (selectedAvailability as CatalogFilters['availability']) || 'all',
 				condition: (selectedCondition as CatalogFilters['condition']) || 'all',
 				sortBy: (sortBy as CatalogFilters['sortBy']) || 'name',
-				page: currentPage,
-				limit: itemsPerPage
+				page: 1,
+				limit: 1000 // Get all items for client-side pagination
 			};
 			catalogData = await catalogAPI.getCatalog(filters, { forceRefresh: options.forceRefresh });
 		} catch (err) {
@@ -131,7 +136,6 @@
 	function goToPage(pageNum: number): void {
 		if (pageNum >= 1 && pageNum <= totalPages) {
 			currentPage = pageNum;
-			fetchCatalog();
 		}
 	}
 
@@ -160,8 +164,8 @@
 			availability: (selectedAvailability as CatalogFilters['availability']) || 'all',
 			condition: (selectedCondition as CatalogFilters['condition']) || 'all',
 			sortBy: (sortBy as CatalogFilters['sortBy']) || 'name',
-			page: currentPage,
-			limit: itemsPerPage
+			page: 1,
+			limit: 1000 // Get all items for client-side pagination
 		};
 		const cached = catalogAPI.peekCachedCatalog(filters);
 		if (cached) {
@@ -178,6 +182,17 @@
 	onMount(() => {
 		const unsub = subscribeToInventoryChanges(() => fetchCatalog({ background: true, forceRefresh: true }));
 		return () => unsub();
+	});
+	
+	// Reset to page 1 when filters or view mode changes
+	$effect(() => {
+		searchQuery;
+		selectedCategory;
+		selectedAvailability;
+		selectedCondition;
+		sortBy;
+		viewMode;
+		currentPage = 1;
 	});
 </script>
 
@@ -196,121 +211,158 @@
 <!-- Detail Modal -->
 {#if selectedItem}
 	<div class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
-		<div class="fixed inset-0 bg-black/40" aria-hidden="true" onclick={closeDetailModal}></div>
+		<div class="fixed inset-0 bg-black/45 backdrop-blur-sm" aria-hidden="true" onclick={closeDetailModal}></div>
 		<div
 			role="dialog"
 			aria-modal="true"
-			aria-labelledby="catalog-item-title"
-			class="relative z-50 w-full max-h-[92vh] overflow-y-auto rounded-t-2xl bg-white shadow-xl sm:max-w-4xl sm:rounded-xl"
+			aria-labelledby="instructor-catalog-item-title"
+			aria-describedby="instructor-catalog-item-description"
+			class="relative z-50 w-full max-h-[92vh] overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-w-5xl sm:rounded-3xl"
 		>
-			<!-- Handle bar (mobile) -->
-			<div class="flex justify-center pt-2.5 sm:hidden">
-				<div class="h-1 w-10 rounded-full bg-gray-300"></div>
-			</div>
+			<div class="border-b border-gray-200 px-5 py-4 sm:px-8 sm:py-6">
+				<div class="flex items-start justify-between gap-4">
+					<div class="flex min-w-0 items-start gap-3 sm:gap-4">
+						<div class="mt-0.5 h-10 w-10 shrink-0 overflow-hidden rounded-full border border-pink-100 bg-gray-100 shadow-lg shadow-pink-100 sm:h-12 sm:w-12">
+							{#if selectedItem.picture}
+								<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full object-cover" loading="lazy" />
+							{:else}
+								<ItemImagePlaceholder size="sm" />
+							{/if}
+						</div>
+						<div class="min-w-0">
+							<h2 id="instructor-catalog-item-title" class="truncate text-xl font-bold text-gray-900 sm:text-2xl">Item Details</h2>
+							<p class="mt-1 truncate text-sm font-semibold tracking-wide text-pink-600">CAT-{selectedItem.id.slice(0, 8).toUpperCase()}</p>
+							<div class="mt-3 flex flex-wrap items-center gap-2">
+								<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {getAvailabilityColor(selectedItem.status)}">{selectedItem.status}</span>
+								<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {getConditionColor(selectedItem.condition)}">{selectedItem.condition}</span>
+								<span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Qty: {selectedItem.quantity}</span>
+							</div>
+						</div>
+					</div>
 
-			<div class="flex items-start justify-between border-b border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
-				<div class="min-w-0 pr-3">
-					<h2 id="catalog-item-title" class="truncate text-base font-semibold text-gray-900 sm:text-lg">{selectedItem.name}</h2>
-					<p class="mt-0.5 text-xs text-gray-500 sm:text-sm">{getCategoryName(selectedItem.categoryId)}</p>
-				</div>
-				<button onclick={closeDetailModal} class="shrink-0 rounded-md p-2 text-gray-500 hover:bg-gray-100 hover:text-gray-700" aria-label="Close">
-					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-					</svg>
-				</button>
-			</div>
-
-			<div class="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-3 sm:gap-6 sm:px-6 sm:py-5">
-				<!-- Image — compact on mobile -->
-				<div class="sm:col-span-1">
-					<div class="aspect-square w-full max-w-[200px] mx-auto overflow-hidden rounded-lg bg-gray-100 sm:max-w-none">
+					<div class="flex items-center gap-2">
 						{#if selectedItem.picture}
-							<button type="button" onclick={openFullImage} class="h-full w-full cursor-zoom-in" title="View full image">
+							<button
+								type="button"
+								onclick={openFullImage}
+								class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-pink-200 text-pink-600 transition-colors hover:bg-pink-50"
+								aria-label="View full image"
+								title="View full image"
+							>
+								<svg class="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+								</svg>
+							</button>
+						{/if}
+						<button
+							onclick={closeDetailModal}
+							class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+							aria-label="Close details modal"
+							title="Close"
+						>
+							<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+							</svg>
+						</button>
+					</div>
+				</div>
+			</div>
+
+			<div class="px-4 py-4 sm:px-8 sm:py-6" id="instructor-catalog-item-description">
+				<div class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/70 p-3 sm:p-4">
+					<div class="relative aspect-[21/8] overflow-hidden rounded-xl bg-gray-100">
+						{#if selectedItem.picture}
+							<button
+								type="button"
+								onclick={openFullImage}
+								class="h-full w-full cursor-zoom-in"
+								title="View full image"
+							>
 								<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full object-cover" loading="lazy" />
 							</button>
 						{:else}
-							<ItemImagePlaceholder size="lg" />
+							<div class="flex h-full w-full items-center justify-center">
+								<ItemImagePlaceholder size="lg" />
+							</div>
 						{/if}
+						<div class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
+							<p class="truncate text-sm font-semibold text-white sm:text-base">{selectedItem.name}</p>
+							<p class="truncate text-xs text-white/85">{getCategoryName(selectedItem.categoryId)}</p>
+						</div>
 					</div>
 				</div>
 
-				<!-- Details -->
-				<div class="space-y-4 sm:col-span-2">
-					<div class="grid grid-cols-2 gap-3 sm:gap-4">
-						<div>
-							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Category</p>
-							<p class="mt-0.5 text-sm font-medium text-gray-900">{getCategoryName(selectedItem.categoryId)}</p>
-						</div>
-						<div>
-							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Status</p>
-							<span class="mt-0.5 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold {getAvailabilityColor(selectedItem.status)}">{selectedItem.status}</span>
-						</div>
-						<div>
-							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Condition</p>
-							<span class="mt-0.5 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold {getConditionColor(selectedItem.condition)}">{selectedItem.condition}</span>
-						</div>
-						<div>
-							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Total Units</p>
-							<p class="mt-0.5 text-sm font-medium text-gray-900">{selectedItem.quantity}</p>
-						</div>
-						{#if selectedItem.minStock != null}
-							<div>
-								<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Min Stock</p>
-								<p class="mt-0.5 text-sm font-medium {selectedItem.quantity <= selectedItem.minStock ? 'text-red-600' : 'text-gray-900'}">{selectedItem.minStock}</p>
-							</div>
-						{/if}
-						{#if selectedItem.eomCount != null}
-							<div>
-								<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">EOM Count</p>
-								<p class="mt-0.5 text-sm font-medium text-gray-900">{selectedItem.eomCount}</p>
-							</div>
-						{/if}
-						{#if selectedItem.variance != null}
-							<div>
-								<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Variance</p>
-								<p class="mt-0.5 text-sm font-medium {selectedItem.variance < 0 ? 'text-red-600' : selectedItem.variance > 0 ? 'text-green-600' : 'text-gray-900'}">{selectedItem.variance > 0 ? '+' : ''}{selectedItem.variance}</p>
-							</div>
-						{/if}
-						<div>
-							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Location</p>
-							<p class="mt-0.5 text-sm text-gray-900">{selectedItem.location || 'Not specified'}</p>
-						</div>
-						<div class="col-span-2">
-							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Specification</p>
-							<p class="mt-0.5 text-sm text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
-						</div>
+				<div class="mt-5 grid grid-cols-2 gap-3">
+					<div class="rounded-2xl border border-gray-200 bg-white p-4">
+						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Item Name</p>
+						<p class="mt-1.5 break-words text-sm font-semibold text-gray-900 sm:text-base">{selectedItem.name}</p>
 					</div>
-
-					{#if selectedItem.description}
-						<div>
-							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Description</p>
-							<p class="mt-0.5 text-sm text-gray-700">{selectedItem.description}</p>
+					<div class="rounded-2xl border border-gray-200 bg-white p-4">
+						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Category</p>
+						<p class="mt-1.5 break-words text-sm font-semibold text-gray-900 sm:text-base">{getCategoryName(selectedItem.categoryId)}</p>
+					</div>
+					<div class="rounded-2xl border border-gray-200 bg-white p-4">
+						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Specification</p>
+						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
+					</div>
+					<div class="rounded-2xl border border-gray-200 bg-white p-4">
+						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Storage Location</p>
+						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.location || 'Not specified'}</p>
+					</div>
+					{#if selectedItem.minStock != null}
+						<div class="rounded-2xl border border-gray-200 bg-white p-4">
+							<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Min Stock</p>
+							<p class="mt-1.5 text-sm font-semibold {selectedItem.quantity <= selectedItem.minStock ? 'text-red-600' : 'text-gray-900'}">{selectedItem.minStock}</p>
 						</div>
 					{/if}
-
-					<!-- Stock Health Bar -->
-					{#if selectedItem.minStock != null && selectedItem.minStock > 0}
-						<div>
-							<p class="text-[10px] font-medium uppercase tracking-wide text-gray-500 sm:text-xs">Stock Health</p>
-							<div class="mt-1.5 rounded-lg border border-gray-200 bg-gray-50 p-3">
-								<div class="mb-1.5 flex items-center justify-between">
-									<span class="text-xs text-gray-600">Stock vs Minimum</span>
-									<span class="text-xs font-semibold {selectedItemStockHealth?.labelColor}">{selectedItemStockHealth?.label}</span>
-								</div>
-								<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-									<div class="h-2 rounded-full transition-all {selectedItemStockHealth?.barColor}" style="width: {selectedItemStockHealth?.pct ?? 0}%"></div>
-								</div>
-								<p class="mt-1 text-xs text-gray-500">{selectedItem.quantity} on hand · minimum {selectedItem.minStock}</p>
-							</div>
+					{#if selectedItem.eomCount != null}
+						<div class="rounded-2xl border border-gray-200 bg-white p-4">
+							<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">EOM Count</p>
+							<p class="mt-1.5 text-sm font-semibold text-gray-900">{selectedItem.eomCount}</p>
+						</div>
+					{/if}
+					{#if selectedItem.variance != null}
+						<div class="rounded-2xl border border-gray-200 bg-white p-4">
+							<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Variance</p>
+							<p class="mt-1.5 text-sm font-semibold {selectedItem.variance < 0 ? 'text-red-600' : selectedItem.variance > 0 ? 'text-green-600' : 'text-gray-900'}">{selectedItem.variance > 0 ? '+' : ''}{selectedItem.variance}</p>
 						</div>
 					{/if}
 				</div>
+
+				<div class="mt-3 rounded-2xl border border-gray-200 bg-white p-4">
+					<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Description</p>
+					<p class="mt-2 text-sm leading-relaxed text-gray-700">{selectedItem.description || 'No description available.'}</p>
+				</div>
+
+				{#if selectedItem.minStock != null && selectedItem.minStock > 0}
+					<div class="mt-3 rounded-2xl border border-gray-200 bg-white p-4">
+						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Stock Health</p>
+						<div class="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
+							<div class="mb-1.5 flex items-center justify-between">
+								<span class="text-xs text-gray-600">Stock vs Minimum</span>
+								<span class="text-xs font-semibold {selectedItemStockHealth?.labelColor}">{selectedItemStockHealth?.label}</span>
+							</div>
+							<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+								<div class="h-2 rounded-full transition-all {selectedItemStockHealth?.barColor}" style="width: {selectedItemStockHealth?.pct ?? 0}%"></div>
+							</div>
+							<p class="mt-1.5 text-xs text-gray-500">{selectedItem.quantity} on hand · minimum {selectedItem.minStock}</p>
+						</div>
+					</div>
+				{/if}
 			</div>
 
-			<div class="flex justify-end border-t border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
-				<button onclick={closeDetailModal} class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
-					Close
-				</button>
+			<div class="sticky bottom-0 z-10 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8">
+				<div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+					<p class="text-xs text-gray-500">Review details before continuing with instruction planning.</p>
+					<div class="flex w-full items-center gap-2 sm:w-auto">
+						<button
+							onclick={closeDetailModal}
+							class="shrink-0 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+						>
+							Close
+						</button>
+					</div>
+				</div>
 			</div>
 		</div>
 	</div>
@@ -449,9 +501,8 @@
 	{#if !isLoading}
 		<div class="flex items-center justify-between">
 			<p class="text-sm text-gray-700">
-				Showing <span class="font-medium">{filteredItems.length}</span>
-				{filteredItems.length === 1 ? 'item' : 'items'}
-				{totalItems > filteredItems.length ? ` of ${totalItems}` : ''}
+				Showing <span class="font-medium">{allItems.length}</span>
+				{allItems.length === 1 ? 'item' : 'items'}
 			</p>
 			{#if searchQuery || selectedCategory !== 'all' || selectedAvailability !== 'all' || selectedCondition !== 'all'}
 				<button onclick={clearFilters} class="text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors">
@@ -565,7 +616,7 @@
 	{/if}
 
 	<!-- Empty State -->
-	{#if !isLoading && filteredItems.length === 0}
+	{#if !isLoading && allItems.length === 0}
 		<div class="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center sm:p-12">
 			<svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -579,46 +630,49 @@
 	{/if}
 
 	<!-- Pagination -->
-	{#if !isLoading && totalPages > 1}
-		<div class="flex flex-col items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 sm:flex-row sm:justify-between">
-			<p class="text-xs text-gray-600">
-				Page <span class="font-semibold">{currentPage}</span> of <span class="font-semibold">{totalPages}</span>
-			</p>
-			<div class="overflow-x-auto">
-				<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-					<button
-						onclick={() => goToPage(currentPage - 1)}
-						disabled={currentPage === 1}
-						class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-						aria-label="Previous page"
-					>
-						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-						</svg>
-					</button>
-					{#each Array(totalPages) as _, i}
-						{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalPages}
-							<button
-								onclick={() => goToPage(i + 1)}
-								class="relative inline-flex items-center px-3 py-2 text-xs font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
-								aria-current={i + 1 === currentPage ? 'page' : undefined}
-							>{i + 1}</button>
-						{:else if Math.abs(i + 1 - currentPage) === 2}
-							<span class="relative inline-flex items-center px-3 py-2 text-xs text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
-						{/if}
-					{/each}
-					<button
-						onclick={() => goToPage(currentPage + 1)}
-						disabled={currentPage === totalPages}
-						class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-						aria-label="Next page"
-					>
-						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-						</svg>
-					</button>
-				</nav>
+	{#if !isLoading && allItems.length > itemsPerPage}
+		<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6">
+			<div class="text-sm text-gray-500">
+				Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, allItems.length)} of {allItems.length} items
 			</div>
+			<nav class="flex items-center gap-1" aria-label="Pagination">
+				<button
+					onclick={() => goToPage(currentPage - 1)}
+					disabled={currentPage === 1}
+					class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+					aria-label="Previous page"
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+					</svg>
+				</button>
+
+				{#each Array.from({ length: totalPages }, (_, i) => i + 1) as page}
+					{#if totalPages <= 7 || page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1}
+						<button
+							onclick={() => goToPage(page)}
+							class="inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors {currentPage === page ? 'bg-pink-600 text-white shadow-sm' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
+							aria-label="Page {page}"
+							aria-current={currentPage === page ? 'page' : undefined}
+						>
+							{page}
+						</button>
+					{:else if (page === currentPage - 2 || page === currentPage + 2) && totalPages > 7}
+						<span class="inline-flex h-8 w-8 items-center justify-center text-sm text-gray-400">…</span>
+					{/if}
+				{/each}
+
+				<button
+					onclick={() => goToPage(currentPage + 1)}
+					disabled={currentPage === totalPages}
+					class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+					aria-label="Next page"
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+					</svg>
+				</button>
+			</nav>
 		</div>
 	{/if}
 </div>

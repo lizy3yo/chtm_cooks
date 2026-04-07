@@ -25,6 +25,7 @@
 	let scrollRafPending = false;
 	let activeHistoryScope = $state<string | null>(null);
 	let isHistoryOpen = $state(false);
+	let hasBlockingModal = $state(false);
 
 	const messages = $derived($chatStore.messages);
 	const conversations = $derived($chatStore.conversations);
@@ -72,6 +73,39 @@
 			activeHistoryScope = scope;
 			chatStore.initializeHistory(scope);
 		}
+
+		const isVisibleDialog = (node: Element): boolean => {
+			if (!(node instanceof HTMLElement)) return false;
+			if (node.classList.contains('chat-panel')) return false;
+
+			const style = window.getComputedStyle(node);
+			if (style.display === 'none' || style.visibility === 'hidden') return false;
+
+			return node.getClientRects().length > 0;
+		};
+
+		const updateBlockingModalState = () => {
+			if (typeof document === 'undefined') return;
+			const modalDialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+			hasBlockingModal = Array.from(modalDialogs).some(isVisibleDialog);
+		};
+
+		updateBlockingModalState();
+
+		const observer = new MutationObserver(updateBlockingModalState);
+		observer.observe(document.body, {
+			childList: true,
+			subtree: true,
+			attributes: true,
+			attributeFilter: ['class', 'style', 'aria-hidden']
+		});
+
+		window.addEventListener('focus', updateBlockingModalState);
+
+		return () => {
+			observer.disconnect();
+			window.removeEventListener('focus', updateBlockingModalState);
+		};
 	});
 
 	async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 40000): Promise<Response> {
@@ -249,7 +283,7 @@
 	const suggestions = ['How do I borrow equipment?', 'Check my request status', 'Equipment return process'];
 </script>
 
-{#if !isOpen}
+{#if !isOpen && !hasBlockingModal}
 	<button
 		onclick={() => chatStore.open()}
 		class="fab-btn"
