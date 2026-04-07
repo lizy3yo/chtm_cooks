@@ -18,14 +18,19 @@
 	let selectedCondition = $state('all');
 	let sortBy = $state('name');
 	let currentPage = $state(1);
-	const itemsPerPage = 50;
 
 	// Data State
 	let catalogData = $state<CatalogResponse | null>(null);
-	let filteredItems = $derived.by(() => catalogData?.items ?? []);
+	let allItems = $derived.by(() => catalogData?.items ?? []);
 	let categories = $derived.by(() => catalogData?.categories ?? []);
-	let totalItems = $derived.by(() => catalogData?.total ?? 0);
-	let totalPages = $derived.by(() => catalogData?.pages ?? 0);
+	
+	// Client-side pagination
+	const itemsPerPageGrid = 20;
+	const itemsPerPageList = 10;
+	const itemsPerPage = $derived(viewMode === 'grid' ? itemsPerPageGrid : itemsPerPageList);
+	const totalPages = $derived(Math.max(1, Math.ceil(allItems.length / itemsPerPage)));
+	const filteredItems = $derived(allItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
+	const totalItems = $derived(allItems.length);
 	let selectedItemStockHealth = $derived.by(() => {
 		if (!selectedItem || selectedItem.minStock == null || selectedItem.minStock <= 0) return null;
 		return getStockHealth(selectedItem.quantity, selectedItem.minStock);
@@ -106,8 +111,8 @@
 				availability: (selectedAvailability as CatalogFilters['availability']) || 'all',
 				condition: (selectedCondition as CatalogFilters['condition']) || 'all',
 				sortBy: (sortBy as CatalogFilters['sortBy']) || 'name',
-				page: currentPage,
-				limit: itemsPerPage
+				page: 1,
+				limit: 1000 // Get all items for client-side pagination
 			};
 			catalogData = await catalogAPI.getCatalog(filters, { forceRefresh: options.forceRefresh });
 		} catch (err) {
@@ -131,7 +136,6 @@
 	function goToPage(pageNum: number): void {
 		if (pageNum >= 1 && pageNum <= totalPages) {
 			currentPage = pageNum;
-			fetchCatalog();
 		}
 	}
 
@@ -160,8 +164,8 @@
 			availability: (selectedAvailability as CatalogFilters['availability']) || 'all',
 			condition: (selectedCondition as CatalogFilters['condition']) || 'all',
 			sortBy: (sortBy as CatalogFilters['sortBy']) || 'name',
-			page: currentPage,
-			limit: itemsPerPage
+			page: 1,
+			limit: 1000 // Get all items for client-side pagination
 		};
 		const cached = catalogAPI.peekCachedCatalog(filters);
 		if (cached) {
@@ -178,6 +182,17 @@
 	onMount(() => {
 		const unsub = subscribeToInventoryChanges(() => fetchCatalog({ background: true, forceRefresh: true }));
 		return () => unsub();
+	});
+	
+	// Reset to page 1 when filters or view mode changes
+	$effect(() => {
+		searchQuery;
+		selectedCategory;
+		selectedAvailability;
+		selectedCondition;
+		sortBy;
+		viewMode;
+		currentPage = 1;
 	});
 </script>
 
@@ -449,9 +464,8 @@
 	{#if !isLoading}
 		<div class="flex items-center justify-between">
 			<p class="text-sm text-gray-700">
-				Showing <span class="font-medium">{filteredItems.length}</span>
-				{filteredItems.length === 1 ? 'item' : 'items'}
-				{totalItems > filteredItems.length ? ` of ${totalItems}` : ''}
+				Showing <span class="font-medium">{allItems.length}</span>
+				{allItems.length === 1 ? 'item' : 'items'}
 			</p>
 			{#if searchQuery || selectedCategory !== 'all' || selectedAvailability !== 'all' || selectedCondition !== 'all'}
 				<button onclick={clearFilters} class="text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors">
@@ -565,7 +579,7 @@
 	{/if}
 
 	<!-- Empty State -->
-	{#if !isLoading && filteredItems.length === 0}
+	{#if !isLoading && allItems.length === 0}
 		<div class="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center sm:p-12">
 			<svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -579,46 +593,49 @@
 	{/if}
 
 	<!-- Pagination -->
-	{#if !isLoading && totalPages > 1}
-		<div class="flex flex-col items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 sm:flex-row sm:justify-between">
-			<p class="text-xs text-gray-600">
-				Page <span class="font-semibold">{currentPage}</span> of <span class="font-semibold">{totalPages}</span>
-			</p>
-			<div class="overflow-x-auto">
-				<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-					<button
-						onclick={() => goToPage(currentPage - 1)}
-						disabled={currentPage === 1}
-						class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-						aria-label="Previous page"
-					>
-						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-						</svg>
-					</button>
-					{#each Array(totalPages) as _, i}
-						{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalPages}
-							<button
-								onclick={() => goToPage(i + 1)}
-								class="relative inline-flex items-center px-3 py-2 text-xs font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
-								aria-current={i + 1 === currentPage ? 'page' : undefined}
-							>{i + 1}</button>
-						{:else if Math.abs(i + 1 - currentPage) === 2}
-							<span class="relative inline-flex items-center px-3 py-2 text-xs text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
-						{/if}
-					{/each}
-					<button
-						onclick={() => goToPage(currentPage + 1)}
-						disabled={currentPage === totalPages}
-						class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
-						aria-label="Next page"
-					>
-						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-						</svg>
-					</button>
-				</nav>
+	{#if !isLoading && allItems.length > itemsPerPage}
+		<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6">
+			<div class="text-sm text-gray-500">
+				Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, allItems.length)} of {allItems.length} items
 			</div>
+			<nav class="flex items-center gap-1" aria-label="Pagination">
+				<button
+					onclick={() => goToPage(currentPage - 1)}
+					disabled={currentPage === 1}
+					class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+					aria-label="Previous page"
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+					</svg>
+				</button>
+
+				{#each Array.from({ length: totalPages }, (_, i) => i + 1) as page}
+					{#if totalPages <= 7 || page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1}
+						<button
+							onclick={() => goToPage(page)}
+							class="inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors {currentPage === page ? 'bg-pink-600 text-white shadow-sm' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
+							aria-label="Page {page}"
+							aria-current={currentPage === page ? 'page' : undefined}
+						>
+							{page}
+						</button>
+					{:else if (page === currentPage - 2 || page === currentPage + 2) && totalPages > 7}
+						<span class="inline-flex h-8 w-8 items-center justify-center text-sm text-gray-400">…</span>
+					{/if}
+				{/each}
+
+				<button
+					onclick={() => goToPage(currentPage + 1)}
+					disabled={currentPage === totalPages}
+					class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+					aria-label="Next page"
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+					</svg>
+				</button>
+			</nav>
 		</div>
 	{/if}
 </div>
