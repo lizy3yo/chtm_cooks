@@ -116,8 +116,8 @@ export const GET: RequestHandler = async (event) => {
 			pages: Math.ceil(total / limit)
 		};
 
-		// Cache for 5 minutes
-		await cacheService.set(cacheKey, response, { ttl: 300 });
+		// Cache for 1 hour to align with session timeout
+		await cacheService.set(cacheKey, response, { ttl: 3600 });
 
 		logger.info('Archived items retrieved', {
 			userId: decoded.userId,

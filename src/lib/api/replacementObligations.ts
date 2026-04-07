@@ -71,7 +71,7 @@ interface CacheEntry<T> {
 
 // ─── Client-side cache ───────────────────────────────────────────────────────
 
-const CLIENT_CACHE_TTL_MS = 60_000;
+const CLIENT_CACHE_TTL_MS = 3_600_000;
 const listCache = new Map<string, CacheEntry<ReplacementObligationsListResponse>>();
 const detailCache = new Map<string, CacheEntry<{ obligation: ReplacementObligation }>>();
 const inFlight = new Map<string, Promise<unknown>>();

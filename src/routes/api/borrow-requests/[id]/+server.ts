@@ -109,7 +109,7 @@ export const GET: RequestHandler = async (event) => {
 			} : undefined
 		};
 
-		await cacheService.set(cacheKey, response, { ttl: 120 });
+		await cacheService.set(cacheKey, response, { ttl: 3600 });
 		return json(response);
 	} catch (error) {
 		logger.error('Error fetching borrow request detail', { error });

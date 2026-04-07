@@ -69,7 +69,7 @@ export const GET: RequestHandler = async (event) => {
 
 		const response = { user: toUserResponse(user) };
 		await cacheService.set(key, response, {
-			ttl: 120,
+			ttl: 3600,
 			tags: [`profile:${authUser.userId}`, 'user-profile']
 		});
 

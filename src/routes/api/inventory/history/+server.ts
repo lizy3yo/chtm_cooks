@@ -118,8 +118,8 @@ export const GET: RequestHandler = async (event) => {
 			pages: Math.ceil(total / limit)
 		};
 
-		// Cache for 2 minutes
-		await cacheService.set(cacheKey, response, { ttl: 120 });
+		// Cache for 1 hour to align with session timeout
+		await cacheService.set(cacheKey, response, { ttl: 3600 });
 
 		logger.info('Inventory history retrieved', {
 			userId: decoded.userId,

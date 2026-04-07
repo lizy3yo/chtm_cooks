@@ -2,13 +2,13 @@
  * Client-side Statistics API module
  *
  * Provides a typed wrapper around GET /api/student-statistics with a
- * 60-second in-memory cache to prevent redundant network round-trips
+ * 1-hour in-memory cache to prevent redundant network round-trips
  * during the same browsing session (mirrors the pattern used in
  * borrowRequests.ts and replacementObligations.ts).
  *
  * Cache layers:
- *  1. Client memory cache (this module) â€” 60 s TTL, instant reads
- *  2. Server Redis cache (/api/student-statistics) â€” 300 s TTL
+ *  1. Client memory cache (this module) â€” 3600 s TTL, instant reads
+ *  2. Server Redis cache (/api/student-statistics) â€” 3600 s TTL
  *  3. MongoDB aggregation (computeStudentStatistics service) â€” source of truth
  */
 
@@ -130,7 +130,7 @@ interface CacheEntry {
 	expiresAt: number;
 }
 
-const CLIENT_CACHE_TTL_MS = 60 * 1000; // 60 seconds
+const CLIENT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const cacheByPeriod = new Map<StatisticsPeriod, CacheEntry>();
 const inFlightByPeriod = new Map<StatisticsPeriod, Promise<StudentStatisticsData>>();
 
