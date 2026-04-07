@@ -19,10 +19,14 @@ import {
 type StudentTab = 'my-request' | 'instructor-approved' | 'active' | 'history';
 type RequestViewMode = 'card' | 'list';
 
+// Pagination constants
+const PAGE_SIZE_CARD = 5;
+const PAGE_SIZE_LIST = 10;
+
 let activeTab = $state<StudentTab>('my-request');
 let searchQuery = $state('');
 let sortBy = $state('newest');
-let requestViewMode = $state<RequestViewMode>('card');
+let requestViewMode = $state<RequestViewMode>('list');
 let showDetailModal = $state(false);
 let selectedRequest = $state<any>(null);
 let qrDataUrl = $state<string | null>(null);
@@ -32,6 +36,7 @@ let requests = $state<any[]>([]);
 let loading = $state(true);
 let loadingReturn = $state<string | null>(null);
 let loadingCancel = $state<string | null>(null);
+let currentPage = $state(1);
 // itemId → picture URL, back-filled from catalog for legacy requests
 let itemPictureCache = $state<Map<string, string>>(new Map());
 
@@ -348,6 +353,27 @@ const filteredRequests = $derived.by(() => {
 	return result;
 });
 
+const totalPages = $derived(
+	Math.ceil(filteredRequests.length / (requestViewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST))
+);
+
+const paginatedRequests = $derived.by(() => {
+	const pageSize = requestViewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST;
+	const start = (currentPage - 1) * pageSize;
+	const end = start + pageSize;
+	return filteredRequests.slice(start, end);
+});
+
+// Reset to page 1 when filters or view mode changes
+$effect(() => {
+	activeTab;
+	searchQuery;
+	sortBy;
+	dateFilter;
+	requestViewMode;
+	currentPage = 1;
+});
+
 const tabCounts = $derived({
  'my-request': requests.filter((r) => r.status === 'pending').length,
  'instructor-approved': requests.filter((r) => ['approved', 'ready'].includes(r.status)).length,
@@ -479,6 +505,35 @@ timeline.push({ step: 'Request Rejected', status: 'rejected', date: request.requ
 
 return timeline;
 }
+
+function exportToCSV() {
+	const headers = ['Request ID', 'Status', 'Request Date', 'Borrow Date', 'Return Date', 'Purpose', 'Instructor', 'Items'];
+	const rows = filteredRequests.map(req => [
+		req.id,
+		getStatusLabel(req.status),
+		new Date(req.requestDate).toLocaleDateString('en-US'),
+		new Date(req.borrowDate).toLocaleDateString('en-US'),
+		new Date(req.returnDate).toLocaleDateString('en-US'),
+		req.purpose,
+		req.instructor,
+		req.items.map((item: any) => item.name).join('; ')
+	]);
+	
+	const csvContent = [
+		headers.join(','),
+		...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+	].join('\n');
+	
+	const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+	const link = document.createElement('a');
+	const url = URL.createObjectURL(blob);
+	link.setAttribute('href', url);
+	link.setAttribute('download', `my-requests-${new Date().toISOString().split('T')[0]}.csv`);
+	link.style.visibility = 'hidden';
+	document.body.appendChild(link);
+	link.click();
+	document.body.removeChild(link);
+}
 </script>
 
 <svelte:head>
@@ -589,8 +644,10 @@ return timeline;
 		</nav>
 	</div>
 	
+	<div class="rounded-lg bg-white shadow">
+		<div class="p-6">
 	<!-- Search and Filter Bar -->
-	<div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 		<div class="relative flex-1">
 			<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
 				<Search size={16} class="text-gray-400" />
@@ -599,13 +656,13 @@ return timeline;
 				type="text"
 				bind:value={searchQuery}
 				placeholder="Search by ID, item, or purpose…"
-				class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm placeholder-gray-400 focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+				class="block h-10 w-full rounded-xl border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm placeholder-gray-400 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-100"
 			/>
 		</div>
 		<div class="flex items-center gap-2 shrink-0">
 			<select
 				bind:value={sortBy}
-				class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+				class="h-10 min-w-[120px] rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-100"
 			>
 				<option value="newest">Newest</option>
 				<option value="oldest">Oldest</option>
@@ -613,7 +670,7 @@ return timeline;
 			</select>
 			<button
 				onclick={() => { searchQuery = ''; dateFilter = { from: '', to: '' }; sortBy = 'newest'; activeTab = 'my-request'; }}
-				class="text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors"
+				class="h-10 rounded-xl px-2 text-sm font-semibold text-pink-600 transition-colors hover:bg-pink-50 hover:text-pink-700"
 			>
 				Clear
 			</button>
@@ -621,22 +678,22 @@ return timeline;
 	</div>
 	
 	<!-- Requests List -->
-	<div class="space-y-4">
-		<div class="flex items-center justify-between rounded-lg bg-gray-50 p-3">
+	<div class="mt-6">
+		<div class="mb-4 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-4">
 			<div class="flex min-w-0 items-center gap-2">
-				<span class="text-sm font-medium text-gray-700">
+				<span class="text-sm font-semibold text-gray-700">
 					{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
 				</span>
 				<span class="hidden rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-500 ring-1 ring-gray-200 sm:inline-flex">
-					{requestViewMode === 'card' ? 'Card view' : 'List view'}
+					{requestViewMode === 'card' ? 'Card view' : 'Table view'}
 				</span>
 			</div>
-			<div class="flex items-center gap-2">
+			<div class="flex flex-wrap items-center justify-end gap-2">
 				<div class="flex overflow-hidden rounded-lg border border-gray-300">
 					<button
 						onclick={() => (requestViewMode = 'card')}
 						aria-label="Card view"
-						class="flex items-center px-2.5 py-1.5 text-sm transition-colors {requestViewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+						class="flex h-10 w-10 items-center justify-center text-sm transition-colors {requestViewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
 					>
 						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -644,15 +701,24 @@ return timeline;
 					</button>
 					<button
 						onclick={() => (requestViewMode = 'list')}
-						aria-label="List view"
-						class="flex items-center border-l border-gray-300 px-2.5 py-1.5 text-sm transition-colors {requestViewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+						aria-label="Table view"
+						class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {requestViewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
 					>
 						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
 						</svg>
 					</button>
 				</div>
-				<a href="/student/request" class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-pink-700 shrink-0">
+				<button 
+					onclick={exportToCSV}
+					class="inline-flex h-10 items-center gap-1.5 rounded-xl bg-pink-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700 shrink-0 sm:gap-2 sm:px-4 sm:text-sm"
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+					</svg>
+					<span class="hidden sm:inline">Export</span>
+				</button>
+				<a href="/student/request" class="inline-flex h-10 items-center gap-1.5 rounded-xl bg-pink-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700 shrink-0 sm:px-4 sm:text-sm">
 					<Plus size={13} />
 					New
 				</a>
@@ -661,6 +727,7 @@ return timeline;
 		
 		<!-- Loading skeletons only show on first load when no requests exist -->
 		{#if loading && requests.length === 0}
+			<div class="space-y-4">
 			{#each Array(3) as _, i}
 				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 border-l-4 border-gray-200">
 					<div class="p-4 space-y-3">
@@ -694,9 +761,13 @@ return timeline;
 					</div>
 				</div>
 			{/each}
+			</div>
 		{:else}
 		{#if requestViewMode === 'card'}
-		{#each filteredRequests as request}
+		<div style="min-height: 600px;">
+		{#if paginatedRequests.length > 0}
+		<div class="space-y-4">
+		{#each paginatedRequests as request}
 			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md border-l-4 {getStatusBorderColor(request.status)}">
 
 				<!-- Card Body -->
@@ -865,17 +936,36 @@ return timeline;
 				</div>
 			</div>
 		{/each}
+		</div>
 		{:else}
+			<div style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
+				<div class="text-center">
+					<ClipboardX size={40} class="mx-auto text-gray-400" />
+					<h3 class="mt-2 text-sm font-medium text-gray-900">No requests found</h3>
+					<p class="mt-1 text-sm text-gray-500">Get started by creating a new request.</p>
+					<div class="mt-4">
+						<a href="/student/request" class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
+							<Plus size={16} />
+							New Request
+						</a>
+					</div>
+				</div>
+			</div>
+		{/if}
+		</div>
+		{:else}
+		<div style="min-height: 600px;">
+		{#if paginatedRequests.length > 0}
 			<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-				<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.1fr_1.2fr_1fr_auto] md:items-center md:gap-3">
+				<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
 					<span>Request</span>
-					<span>Purpose</span>
+					<span>Items & Purpose</span>
 					<span>Status</span>
 					<span class="text-right">Actions</span>
 				</div>
 				<div class="divide-y divide-gray-100">
-					{#each filteredRequests as request}
-						<div class="grid gap-3 p-4 md:grid-cols-[1.1fr_1.2fr_1fr_auto] md:items-center md:gap-3">
+					{#each paginatedRequests as request}
+						<div class="grid gap-3 p-4 md:grid-cols-[1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
 							<div class="min-w-0">
 								<p class="font-mono text-xs font-bold tracking-wider text-gray-900">{request.id}</p>
 								<p class="mt-1 text-xs text-gray-500">{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
@@ -887,29 +977,45 @@ return timeline;
 							</div>
 
 							<div class="min-w-0">
-								<p class="truncate text-sm font-medium text-gray-900">{request.purpose}</p>
-								<p class="mt-1 truncate text-xs text-gray-500">{request.instructor}</p>
-								<div class="mt-1 flex flex-wrap gap-1.5">
-									{#each request.items.slice(0, 2) as item}
-										<span class="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-600">
-											<span class="truncate max-w-[120px]">{item.name}</span>
+								<div class="flex flex-wrap gap-1.5 mb-2">
+									{#each request.items.slice(0, 3) as item}
+										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+										<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700">
+											{#if pic}
+												<img src={pic} alt={item.name} class="h-4 w-4 rounded object-cover shrink-0" />
+											{:else}
+												<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
+											{/if}
+											<span class="truncate max-w-[100px]">{item.name}</span>
 										</span>
 									{/each}
-									{#if request.items.length > 2}
-										<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">+{request.items.length - 2} more</span>
+									{#if request.items.length > 3}
+										<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">+{request.items.length - 3}</span>
 									{/if}
 								</div>
+								<p class="truncate text-sm font-medium text-gray-900">{request.purpose}</p>
+								<p class="mt-0.5 truncate text-xs text-gray-500">{request.instructor}</p>
 							</div>
 
 							<div class="min-w-0">
-								<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusColor(request.status)}">
+								<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold {getStatusColor(request.status)}">
 									<svelte:component this={getStatusIconComponent(request.status)} size={11} />
 									{getStatusLabel(request.status)}
 								</span>
 								{#if request.status === 'ready'}
-									<p class="mt-1 text-xs font-medium text-emerald-700">Ready for pickup</p>
+									<p class="mt-1.5 flex items-center gap-1 text-xs font-medium text-emerald-700">
+										<Info size={12} />
+										Ready for pickup
+									</p>
 								{:else if request.status === 'pending-return'}
-									<p class="mt-1 text-xs font-medium text-orange-600">Awaiting confirmation</p>
+									<p class="mt-1.5 flex items-center gap-1 text-xs font-medium text-orange-600">
+										<Clock size={12} />
+										Awaiting confirmation
+									</p>
+								{:else if request.status === 'rejected' && request.rejectionReason}
+									<p class="mt-1.5 text-xs text-red-600 line-clamp-1" title={request.rejectionReason}>
+										{request.rejectionReason}
+									</p>
 								{/if}
 							</div>
 
@@ -937,7 +1043,7 @@ return timeline;
 									onclick={() => openDetailModal(request)}
 									class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
 								>
-									View Details
+									Details
 								</button>
 								{#if request.status === 'pending'}
 									<button
@@ -954,7 +1060,7 @@ return timeline;
 										disabled={loadingReturn === request.rawId}
 										class="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
 									>
-										{loadingReturn === request.rawId ? 'Processing...' : 'Return Items'}
+										{loadingReturn === request.rawId ? 'Processing...' : 'Return'}
 									</button>
 								{/if}
 								{#if request.status === 'rejected'}
@@ -967,22 +1073,153 @@ return timeline;
 					{/each}
 				</div>
 			</div>
-		{/if}
-		{/if}
-		
-		{#if filteredRequests.length === 0}
-			<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-8 text-center sm:p-12">
-				<ClipboardX size={40} class="mx-auto text-gray-400" />
-				<h3 class="mt-2 text-sm font-medium text-gray-900">No requests found</h3>
-				<p class="mt-1 text-sm text-gray-500">Get started by creating a new request.</p>
-				<div class="mt-4">
-					<a href="/student/request" class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
-						<Plus size={16} />
-						New Request
-					</a>
+		{:else}
+			<div style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
+				<div class="text-center">
+					<ClipboardX size={40} class="mx-auto text-gray-400" />
+					<h3 class="mt-2 text-sm font-medium text-gray-900">
+						{#if activeTab === 'my-request'}
+							No pending requests
+						{:else if activeTab === 'instructor-approved'}
+							No approved requests
+						{:else if activeTab === 'active'}
+							No active requests
+						{:else}
+							No request history
+						{/if}
+					</h3>
+					<p class="mt-1 text-sm text-gray-500">
+						{#if activeTab === 'my-request'}
+							Your newly submitted requests will appear here while waiting for instructor review.
+						{:else if activeTab === 'instructor-approved'}
+							Instructor-approved and ready-for-pickup requests will appear here.
+						{:else if activeTab === 'active'}
+							Borrowed and return-initiated requests will appear here.
+						{:else}
+							Returned, cancelled, and rejected requests are archived here.
+						{/if}
+					</p>
+					{#if activeTab === 'my-request'}
+						<div class="mt-4">
+							<a href="/student/request" class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
+								<Plus size={16} />
+								New Request
+							</a>
+						</div>
+					{/if}
 				</div>
 			</div>
 		{/if}
+		</div>
+		{/if}
+		{/if}
+		
+		<!-- Pagination -->
+		{#if filteredRequests.length > 0 && totalPages > 1}
+			<div class="mt-4 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 sm:px-6">
+				<div class="flex flex-1 justify-between sm:hidden">
+					<button
+						onclick={() => currentPage = Math.max(1, currentPage - 1)}
+						disabled={currentPage === 1}
+						class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						Previous
+					</button>
+					<button
+						onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
+						disabled={currentPage === totalPages}
+						class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						Next
+					</button>
+				</div>
+				<div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+					<div>
+						<p class="text-sm text-gray-700">
+							Showing
+							<span class="font-medium">{(currentPage - 1) * (requestViewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST) + 1}</span>
+							to
+							<span class="font-medium">{Math.min(currentPage * (requestViewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST), filteredRequests.length)}</span>
+							of
+							<span class="font-medium">{filteredRequests.length}</span>
+							results
+						</p>
+					</div>
+					<div>
+						<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+							<button
+								onclick={() => currentPage = Math.max(1, currentPage - 1)}
+								disabled={currentPage === 1}
+								class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								<span class="sr-only">Previous</span>
+								<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+									<path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
+								</svg>
+							</button>
+							
+							{#if totalPages <= 7}
+								{#each Array(totalPages) as _, i}
+									<button
+										onclick={() => currentPage = i + 1}
+										class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === i + 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+									>
+										{i + 1}
+									</button>
+								{/each}
+							{:else}
+								<button
+									onclick={() => currentPage = 1}
+									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+								>
+									1
+								</button>
+								
+								{#if currentPage > 3}
+									<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>
+								{/if}
+								
+								{#each Array(totalPages) as _, i}
+									{@const page = i + 1}
+									{#if page > 1 && page < totalPages && Math.abs(page - currentPage) <= 1}
+										<button
+											onclick={() => currentPage = page}
+											class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === page ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+										>
+											{page}
+										</button>
+									{/if}
+								{/each}
+								
+								{#if currentPage < totalPages - 2}
+									<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>
+								{/if}
+								
+								<button
+									onclick={() => currentPage = totalPages}
+									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === totalPages ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+								>
+									{totalPages}
+								</button>
+							{/if}
+							
+							<button
+								onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
+								disabled={currentPage === totalPages}
+								class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								<span class="sr-only">Next</span>
+								<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+									<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+								</svg>
+							</button>
+						</nav>
+					</div>
+				</div>
+			</div>
+		{/if}
+	</div>
+		</div>
 	</div>
 </div>
 
