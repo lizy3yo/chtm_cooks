@@ -836,7 +836,7 @@ return { text: '', color: 'text-gray-500' };
 	</div>
 	
 	<!-- Request Cards in Professional Card Container -->
-	<div class="bg-white rounded-lg shadow">
+	<div class="bg-white rounded-xl shadow-sm">
 		<div class="p-6">
 			<!-- History Sub-tabs inside card -->
 			{#if activeTab === 'history'}
@@ -863,70 +863,75 @@ return { text: '', color: 'text-gray-500' };
 			{/if}
 			
 			<!-- Search and Filter Bar -->
-			<div class="flex flex-col gap-2 mb-6 sm:flex-row sm:items-center sm:justify-between">
-				<div class="flex-1 max-w-md">
-					<div class="relative">
-						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-							<svg class="h-4 w-4 text-gray-400 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-							</svg>
-						</div>
-						<input
-							type="text"
-							bind:value={searchQuery}
-							placeholder="Search by student, request ID, or item..."
-							class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm placeholder-gray-400 focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500 sm:pl-10"
-						/>
+			<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+				<div class="relative flex-1">
+					<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+						<svg class="h-4 w-4 text-gray-400 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+						</svg>
 					</div>
+					<input
+						type="text"
+						bind:value={searchQuery}
+						placeholder="Search by student, request ID, or item..."
+						class="block h-10 w-full rounded-xl border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm placeholder-gray-400 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-100 sm:pl-10"
+					/>
 				</div>
-				
-				<div class="flex shrink-0 items-center gap-2">
+				<div class="flex items-center gap-2 shrink-0">
 					<select
 						bind:value={sortBy}
-						class="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+						class="h-10 min-w-[120px] rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-100"
 					>
 						<option value="date">Date</option>
 						<option value="student">Student</option>
 						<option value="status">Status</option>
 					</select>
-
-					<div class="flex overflow-hidden rounded-lg border border-gray-300">
-						<button
-							onclick={() => (viewMode = 'card')}
-							aria-label="Card view"
-							class="flex items-center px-2.5 py-2 text-sm transition-colors {viewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
-						>
-							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-							</svg>
-						</button>
-						<button
-							onclick={() => (viewMode = 'list')}
-							aria-label="List view"
-							class="flex items-center border-l border-gray-300 px-2.5 py-2 text-sm transition-colors {viewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
-						>
-							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-							</svg>
-						</button>
-					</div>
-					
-					<button class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white hover:bg-pink-700 sm:gap-2 sm:px-4">
-						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-						</svg>
-						<span class="hidden sm:inline">Export</span>
+					<button
+						onclick={() => { searchQuery = ''; sortBy = 'date'; activeTab = 'pending'; }}
+						class="h-10 rounded-xl px-2 text-sm font-semibold text-pink-600 transition-colors hover:bg-pink-50 hover:text-pink-700"
+					>
+						Clear
 					</button>
 				</div>
 			</div>
 			<div class="space-y-4">
-				<div class="flex items-center justify-between rounded-lg bg-gray-50 p-3">
-					<span class="text-sm font-medium text-gray-700">
-						{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
-					</span>
-					<span class="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-gray-500 ring-1 ring-gray-200">
-						{viewMode === 'card' ? 'Card view' : 'List view'}
-					</span>
+				<div class="mb-4 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-4">
+					<div class="flex min-w-0 items-center gap-2">
+						<span class="text-sm font-semibold text-gray-700">
+							{filteredRequests.length} {filteredRequests.length === 1 ? 'request' : 'requests'} found
+						</span>
+						<span class="hidden rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200 sm:inline-flex">
+							{viewMode === 'card' ? 'Card view' : 'Table view'}
+						</span>
+					</div>
+					<div class="flex flex-wrap items-center justify-end gap-2">
+						<div class="flex overflow-hidden rounded-lg border border-gray-300">
+							<button
+								onclick={() => (viewMode = 'card')}
+								aria-label="Card view"
+								class="flex h-10 w-10 items-center justify-center text-sm transition-colors {viewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+							>
+								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+								</svg>
+							</button>
+							<button
+								onclick={() => (viewMode = 'list')}
+								aria-label="Table view"
+								class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {viewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+							>
+								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+								</svg>
+							</button>
+						</div>
+						<button class="inline-flex h-10 items-center gap-1.5 rounded-xl bg-pink-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700 shrink-0 sm:gap-2 sm:px-4 sm:text-sm">
+							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+							</svg>
+							<span class="hidden sm:inline">Export</span>
+						</button>
+					</div>
 				</div>
 
 				{#if viewMode === 'card'}
