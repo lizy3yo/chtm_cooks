@@ -2085,7 +2085,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				
 				{#if displayItems.length === 0}
 					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
 						</svg>
 						<h3 class="mt-4 text-lg font-medium text-gray-900">No items found</h3>
@@ -2276,7 +2276,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				
 				{#if categories.length === 0}
 					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
 						</svg>
 						<h3 class="mt-4 text-lg font-medium text-gray-900">No categories yet</h3>
@@ -2550,7 +2550,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				
 				{#if constantItems.length === 0}
 					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
 						</svg>
 						<h3 class="mt-4 text-lg font-medium text-gray-900">No constant items configured</h3>
@@ -2698,7 +2698,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				
 				{#if lowStockItems.length === 0}
 					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
 						</svg>
 						<h3 class="mt-4 text-lg font-medium text-gray-900">All items are adequately stocked</h3>

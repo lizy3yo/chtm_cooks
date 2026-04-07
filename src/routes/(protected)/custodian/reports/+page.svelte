@@ -1090,7 +1090,7 @@
 
 						{#if conditionItemRows.length === 0}
 							<div class="rounded-lg border-2 border-dashed border-gray-200 py-12 text-center">
-								<svg class="mx-auto mb-3 h-10 w-10 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<svg class="mx-auto mb-3 h-10 w-10 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
 								</svg>
 								<p class="text-sm text-gray-400">No inventory data available for this period.</p>
