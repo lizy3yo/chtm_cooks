@@ -57,7 +57,7 @@ interface CatalogCacheEntry {
 	expiresAt: number;
 }
 
-const CATALOG_CLIENT_CACHE_TTL_MS = 60 * 1000;
+const CATALOG_CLIENT_CACHE_TTL_MS = 60 * 60 * 1000;
 const catalogResponseCache = new Map<string, CatalogCacheEntry>();
 const catalogInFlightRequests = new Map<string, Promise<CatalogResponse>>();
 

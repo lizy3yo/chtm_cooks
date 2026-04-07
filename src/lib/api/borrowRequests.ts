@@ -122,7 +122,7 @@ interface CacheEntry<T> {
 	expiresAt: number;
 }
 
-const CLIENT_CACHE_TTL_MS = 60 * 1000;
+const CLIENT_CACHE_TTL_MS = 60 * 60 * 1000;
 const listCache = new Map<string, CacheEntry<BorrowRequestListResponse>>();
 const detailCache = new Map<string, CacheEntry<BorrowRequestRecord>>();
 const inFlight = new Map<string, Promise<unknown>>();

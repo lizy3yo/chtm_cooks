@@ -188,7 +188,7 @@ interface CacheEntry {
 	expiresAt: number;
 }
 
-const CLIENT_CACHE_TTL_MS = 180_000; // 3 minutes - aligned with server cache
+const CLIENT_CACHE_TTL_MS = 3_600_000; // 1 hour - aligned with server cache and session timeout
 const cache = new Map<string, CacheEntry>();
 
 function getCached(key: string): AnalyticsReport | null {

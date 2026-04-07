@@ -205,7 +205,7 @@ export const GET: RequestHandler = async (event) => {
 			pages: Math.ceil(total / limit)
 		};
 
-		await cacheService.set(cacheKey, response, { ttl: 90 });
+		await cacheService.set(cacheKey, response, { ttl: 3600 });
 		return json(response);
 	} catch (error) {
 		logger.error('Error fetching borrow requests', { error });

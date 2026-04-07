@@ -53,7 +53,7 @@ export const GET: RequestHandler = async (event) => {
 		if (!donation) return json({ error: 'Donation not found' }, { status: 404 });
 
 		const response = { donation: toDonationResponse(donation) };
-		await cacheService.set(cacheKey, response, { ttl: 120, tags: [DONATIONS_CACHE_TAG] });
+		await cacheService.set(cacheKey, response, { ttl: 3600, tags: [DONATIONS_CACHE_TAG] });
 
 		return json(response);
 	} catch (error) {

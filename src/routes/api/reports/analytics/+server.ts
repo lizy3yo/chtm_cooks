@@ -21,7 +21,7 @@ import { logger } from '$lib/server/utils/logger';
 import { parallelAggregations, ANALYTICS_AGGREGATION_OPTIONS } from '$lib/server/utils/queryOptimizer';
 
 const ANALYTICS_CACHE_TAG = 'reports-analytics';
-const CACHE_TTL = 180; // 3 minutes - increased for better performance
+const CACHE_TTL = 3600; // 1 hour - aligned with session timeout
 
 const ALLOWED_ROLES = new Set(['custodian', 'superadmin']);
 

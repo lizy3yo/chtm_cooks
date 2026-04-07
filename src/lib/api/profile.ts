@@ -15,7 +15,7 @@ interface CacheEntry {
 	expiresAt: number;
 }
 
-const PROFILE_CACHE_TTL_MS = 60_000;
+const PROFILE_CACHE_TTL_MS = 3_600_000;
 let profileCache: CacheEntry | null = null;
 let inFlight: Promise<UserResponse> | null = null;
 

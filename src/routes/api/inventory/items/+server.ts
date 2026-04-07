@@ -151,8 +151,8 @@ export const GET: RequestHandler = async (event) => {
 			pages: Math.ceil(total / limit)
 		};
 
-		// Cache for 3 minutes — tagged so mutations can invalidate via invalidateByTags
-		await cacheService.set(cacheKey, response, { ttl: 180, tags: ['inventory-items'] });
+		// Cache for 1 hour — tagged so mutations can invalidate via invalidateByTags
+		await cacheService.set(cacheKey, response, { ttl: 3600, tags: ['inventory-items'] });
 
 		return json(response);
 
