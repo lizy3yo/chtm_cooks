@@ -19,7 +19,7 @@ export const AUTH_COOKIES = {
 
 // Token expiration durations (in seconds)
 export const TOKEN_EXPIRY = {
-	ACCESS: 15 * 60, // 15 minutes
+	ACCESS: 60 * 60, // 1 hour
 	REFRESH: 7 * 24 * 60 * 60, // 7 days
 } as const;
 
