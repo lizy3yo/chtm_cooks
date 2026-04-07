@@ -261,7 +261,7 @@ function getApprovalTimeline(request: any) {
 		</div>
 	{:else if !history || history.length === 0}
 		<div class="rounded-xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-gray-100">
-			<Clock size={48} class="mx-auto text-gray-300" />
+			<Clock size={48} class="mx-auto text-pink-600" />
 			<h3 class="mt-4 text-base font-semibold text-gray-900">No history found</h3>
 			<p class="mt-2 text-sm text-gray-500">You have no completed, cancelled, or rejected requests yet.</p>
 			<p class="mt-1 text-xs text-gray-400">Debug: {history?.length ?? 'null'} items, loading: {loading}</p>

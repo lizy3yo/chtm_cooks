@@ -720,7 +720,7 @@
 		{:else if filteredLoans.length === 0}
 			<div class="flex min-h-[360px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
 				<div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
-					<ClipboardX size={26} class="text-gray-400" />
+					<ClipboardX size={26} class="text-pink-600" />
 				</div>
 				<p class="mt-4 text-base font-semibold text-gray-800">No borrowed items found</p>
 				<p class="mt-1 text-sm text-gray-500">You have no active borrowed items in this view. Adjust filters or submit a new request.</p>

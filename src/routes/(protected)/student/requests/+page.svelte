@@ -940,7 +940,7 @@ function exportToCSV() {
 		{:else}
 			<div style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
 				<div class="text-center">
-					<ClipboardX size={40} class="mx-auto text-gray-400" />
+					<ClipboardX size={40} class="mx-auto text-pink-600" />
 					<h3 class="mt-2 text-sm font-medium text-gray-900">No requests found</h3>
 					<p class="mt-1 text-sm text-gray-500">Get started by creating a new request.</p>
 					<div class="mt-4">
@@ -1076,7 +1076,7 @@ function exportToCSV() {
 		{:else}
 			<div style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
 				<div class="text-center">
-					<ClipboardX size={40} class="mx-auto text-gray-400" />
+					<ClipboardX size={40} class="mx-auto text-pink-600" />
 					<h3 class="mt-2 text-sm font-medium text-gray-900">
 						{#if activeTab === 'my-request'}
 							No pending requests

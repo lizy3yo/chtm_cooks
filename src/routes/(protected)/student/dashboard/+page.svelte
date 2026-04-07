@@ -728,7 +728,7 @@
 
 					{#if activeRequests.length === 0}
 						<div class="flex min-h-48 flex-col items-center justify-center px-5 py-10 text-center">
-							<PackageCheck size={32} class="mx-auto text-gray-300" />
+							<PackageCheck size={32} class="mx-auto text-pink-600" />
 							<p class="mt-2 text-sm text-gray-500">No active loans</p>
 						</div>
 					{:else}
@@ -813,7 +813,7 @@
 
 					{#if pendingRequests.length === 0}
 						<div class="flex min-h-48 flex-col items-center justify-center px-5 py-10 text-center">
-							<CheckCircle2 size={32} class="mx-auto text-gray-300" />
+							<CheckCircle2 size={32} class="mx-auto text-pink-600" />
 							<p class="mt-2 text-sm text-gray-500">No pending requests</p>
 						</div>
 					{:else}
@@ -930,7 +930,7 @@
 
 					{#if dueSoon.length === 0}
 						<div class="flex min-h-36 flex-col items-center justify-center px-5 py-8 text-center">
-							<BellRing size={28} class="mx-auto text-gray-300" />
+							<BellRing size={28} class="mx-auto text-pink-600" />
 							<p class="mt-2 text-xs text-gray-400">No notifications at the moment</p>
 						</div>
 					{:else}
