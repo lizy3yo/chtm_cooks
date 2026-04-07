@@ -872,7 +872,7 @@
 						{:else if donations.length === 0}
 							<div class="py-12 text-center" style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
 								<div>
-									<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
 									</svg>
 									<h3 class="mt-4 text-lg font-medium text-gray-900">No donations yet</h3>
@@ -1030,7 +1030,7 @@
 					{:else if filteredObligations.length === 0}
 						<div class="rounded-lg border-2 border-dashed border-gray-200 py-14 text-center" style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
 							<div>
-								<svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<svg class="mx-auto h-12 w-12 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
 								</svg>
 								<p class="mt-3 text-sm font-medium text-gray-700">{replacementsFilter === 'all' ? 'No obligations recorded.' : `No ${replacementsFilter} obligations.`}</p>
@@ -1364,7 +1364,7 @@
 					{#if filteredPaymentHistory.length === 0}
 						<div class="rounded-lg border-2 border-dashed border-gray-200 py-14 text-center" style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
 							<div>
-								<svg class="mx-auto h-12 w-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<svg class="mx-auto h-12 w-12 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
 								</svg>
 								<p class="mt-3 text-sm font-medium text-gray-700">{historyFilter === 'all' ? 'No resolution records yet.' : `No ${historyFilter} records.`}</p>

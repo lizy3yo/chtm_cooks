@@ -228,17 +228,9 @@
 						<span class="text-xs font-bold text-amber-700">{requestsPending.length}</span>
 					</div>
 					{#if requestsPending.length === 0}
-						<div class="space-y-2">
-							{#each Array(2) as _}
-								<div class="flex items-center gap-3 rounded-lg border border-dashed border-gray-200 px-3 py-2.5">
-									<div class="h-8 w-8 shrink-0 rounded-full bg-gray-100"></div>
-									<div class="flex-1 space-y-1.5">
-										<div class="h-2.5 w-28 rounded-full bg-gray-100"></div>
-										<div class="h-2 w-20 rounded-full bg-gray-100"></div>
-									</div>
-								</div>
-							{/each}
-							<p class="pt-1 text-center text-xs text-gray-400">No pending requests</p>
+						<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+							<Clock size={18} class="text-pink-600" />
+							<p class="mt-2 text-xs font-medium text-gray-500">No pending requests</p>
 						</div>
 					{:else}
 						<ul class="space-y-2">
@@ -276,17 +268,9 @@
 						<span class="text-xs font-bold text-blue-700">{requestsFulfillment.length}</span>
 					</div>
 					{#if requestsFulfillment.length === 0}
-						<div class="space-y-2">
-							{#each Array(2) as _}
-								<div class="flex items-center gap-3 rounded-lg border border-dashed border-gray-200 px-3 py-2.5">
-									<div class="h-8 w-8 shrink-0 rounded-full bg-gray-100"></div>
-									<div class="flex-1 space-y-1.5">
-										<div class="h-2.5 w-28 rounded-full bg-gray-100"></div>
-										<div class="h-2 w-20 rounded-full bg-gray-100"></div>
-									</div>
-								</div>
-							{/each}
-							<p class="pt-1 text-center text-xs text-gray-400">All clear</p>
+						<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+							<PackageOpen size={18} class="text-pink-600" />
+							<p class="mt-2 text-xs font-medium text-gray-500">All clear</p>
 						</div>
 					{:else}
 						<ul class="space-y-2">
@@ -324,17 +308,9 @@
 						<span class="text-xs font-bold text-violet-700">{requestsActive.length}</span>
 					</div>
 					{#if requestsActive.length === 0}
-						<div class="space-y-2">
-							{#each Array(2) as _}
-								<div class="flex items-center gap-3 rounded-lg border border-dashed border-gray-200 px-3 py-2.5">
-									<div class="h-8 w-8 shrink-0 rounded-full bg-gray-100"></div>
-									<div class="flex-1 space-y-1.5">
-										<div class="h-2.5 w-28 rounded-full bg-gray-100"></div>
-										<div class="h-2 w-20 rounded-full bg-gray-100"></div>
-									</div>
-								</div>
-							{/each}
-							<p class="pt-1 text-center text-xs text-gray-400">No active loans</p>
+						<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+							<Package size={18} class="text-pink-600" />
+							<p class="mt-2 text-xs font-medium text-gray-500">No active loans</p>
 						</div>
 					{:else}
 						<ul class="space-y-2">
@@ -403,8 +379,11 @@
 					</a>
 				</div>
 				{#if mostBorrowedItems.length === 0}
-					<div class="flex h-48 items-center justify-center">
-						<p class="text-sm text-gray-400">No borrow data for this period.</p>
+					<div class="flex h-[18rem] items-center justify-center">
+						<div class="text-center">
+							<TrendingUp size={28} class="mx-auto text-pink-600" />
+							<p class="mt-3 text-sm text-gray-500">No borrow data for this period.</p>
+						</div>
 					</div>
 				{:else}
 					<div class="divide-y divide-gray-50 px-5 py-2">
@@ -442,8 +421,11 @@
 					</a>
 				</div>
 				{#if stockAlerts.length === 0}
-					<div class="flex h-48 items-center justify-center gap-2 text-sm text-gray-400">
-						<CheckCircle2 size={16} class="text-emerald-400" /> All equipment is well-stocked
+					<div class="flex h-[18rem] items-center justify-center">
+						<div class="text-center">
+							<CheckCircle2 size={28} class="mx-auto text-pink-600" />
+							<p class="mt-3 text-sm text-gray-500">All equipment is well-stocked</p>
+						</div>
 					</div>
 				{:else}
 					<div class="divide-y divide-gray-50">

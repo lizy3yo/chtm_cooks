@@ -61,6 +61,8 @@
 	let importPreviewImageUrl = $state<string | null>(null); // lightbox for import preview
 	let importPreviewImageName = $state<string>('');
 	let showFormatGuide = $state(false); // collapsible format guide
+	const INVENTORY_FETCH_PAGE_SIZE = 500;
+	const IMPORT_BATCH_SIZE = 100;
 
 	// Load data on component mount
 	onMount(async () => {
@@ -108,6 +110,54 @@
 		return () => unsub();
 	});
 
+	function delay(ms: number): Promise<void> {
+		return new Promise(resolve => setTimeout(resolve, ms));
+	}
+
+	async function fetchAllInventoryItems(includeArchived = true): Promise<InventoryItem[]> {
+		const allItems: InventoryItem[] = [];
+		let page = 1;
+
+		while (true) {
+			const response = await inventoryItemsAPI.getAll({
+				page,
+				limit: INVENTORY_FETCH_PAGE_SIZE,
+				includeArchived
+			});
+
+			allItems.push(...response.items);
+
+			if (page >= response.pages || response.items.length === 0) {
+				break;
+			}
+
+			page += 1;
+		}
+
+		return allItems;
+	}
+
+	async function createInventoryItemWithRetry(itemData: any, maxRetries = 5): Promise<InventoryItem> {
+		let attempt = 0;
+
+		while (true) {
+			try {
+				return await inventoryItemsAPI.create(itemData);
+			} catch (err: any) {
+				const message = err?.message || '';
+				const isRateLimited = /429|too many requests/i.test(message);
+
+				if (!isRateLimited || attempt >= maxRetries) {
+					throw err;
+				}
+
+				const backoffMs = Math.min(8000, 400 * Math.pow(2, attempt));
+				await delay(backoffMs);
+				attempt += 1;
+			}
+		}
+	}
+
 	/**
 	 * Load all items from API (with client-side caching)
 	 */
@@ -124,11 +174,10 @@
 			loading = true;
 			inventoryStore.setLoading(true);
 
-			const response = await inventoryItemsAPI.getAll({ limit: 1000, includeArchived: true });
-			items = response.items;
+			items = await fetchAllInventoryItems(true);
 
 			// Update cache
-			inventoryStore.setItems(response.items);
+			inventoryStore.setItems(items);
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to load items');
 			console.error('Error loading items:', err);
@@ -893,14 +942,26 @@ $effect(() => {
 				const csvText = await dataFile.async('text');
 				await parseCSVText(csvText);
 			} else {
-				// Parse Excel
+				// Parse all sheets in Excel file
 				const XLSX = await import('xlsx');
 				const arrayBuffer = await dataFile.async('arraybuffer');
 				const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-				const firstSheetName = workbook.SheetNames[0];
-				const worksheet = workbook.Sheets[firstSheetName];
-				const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
-				await parseCSVText(csvText, firstSheetName);
+
+				let appended = false;
+				for (const sheetName of workbook.SheetNames) {
+					const worksheet = workbook.Sheets[sheetName];
+					if (!worksheet || !worksheet['!ref']) continue;
+
+					const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
+					if (!csvText.trim()) continue;
+
+					await parseCSVText(csvText, sheetName, undefined, { append: appended, silent: true });
+					appended = true;
+				}
+
+				if (importPreviewData.length > 0) {
+					toastStore.success(`Parsed ${importPreviewData.length} items from ${workbook.SheetNames.length} sheet(s). ${importErrors.length > 0 ? `${importErrors.length} rows have errors.` : 'Click Continue to preview.'}`);
+				}
 			}
 
 			toastStore.success(`Found ${importImageFiles.size} image(s) in ZIP file`);
@@ -996,49 +1057,59 @@ $effect(() => {
 				const data = await file.arrayBuffer();
 				const workbook = XLSX.read(data, { type: 'array' });
 
-				const firstSheetName = workbook.SheetNames[0];
-				const worksheet = workbook.Sheets[firstSheetName];
+				let appended = false;
+				for (const sheetName of workbook.SheetNames) {
+					const worksheet = workbook.Sheets[sheetName];
+					if (!worksheet || !worksheet['!ref']) continue;
 
-				// Build the ordered list of non-empty row numbers using XLSX's own cell data.
-				// This MUST use XLSX (not ExcelJS) so it matches the row order of sheet_to_csv output exactly.
-				const xlsxRowSet = new Set<number>();
-				for (const addr of Object.keys(worksheet)) {
-					if (addr.startsWith('!')) continue;
-					const cell = worksheet[addr];
-					if (cell && cell.v !== null && cell.v !== undefined && String(cell.v).trim() !== '') {
-						const { r } = XLSX.utils.decode_cell(addr);
-						xlsxRowSet.add(r + 1); // store as 1-based row number
-					}
-				}
-				const xlsxNonEmptyRows = [...xlsxRowSet].sort((a, b) => a - b);
-				console.log('XLSX non-empty rows:', xlsxNonEmptyRows);
-
-				// Extract images from ExcelJS keyed by their actual 1-based Excel row number
-				const imagesByExcelRow = await extractEmbeddedImagesFromExcel(data, firstSheetName);
-
-				// Correlate: map each image's Excel row → its index in XLSX's own row list.
-				// Using the same library (XLSX) for row ordering as for CSV output guarantees alignment.
-				const embeddedImagesByLine = new Map<number, File>();
-				for (const [excelRow, imgFile] of imagesByExcelRow) {
-					let lineIdx = xlsxNonEmptyRows.indexOf(excelRow);
-					if (lineIdx < 0) {
-						// Fallback: image anchor may be positioned one row above the data row
-						lineIdx = xlsxNonEmptyRows.indexOf(excelRow + 1);
-						if (lineIdx >= 0) {
-							console.log(`Image at Excel row ${excelRow}: anchor offset, using row ${excelRow + 1} → line ${lineIdx}`);
+					// Build the ordered list of non-empty row numbers using XLSX's own cell data.
+					// This MUST use XLSX (not ExcelJS) so it matches the row order of sheet_to_csv output exactly.
+					const xlsxRowSet = new Set<number>();
+					for (const addr of Object.keys(worksheet)) {
+						if (addr.startsWith('!')) continue;
+						const cell = worksheet[addr];
+						if (cell && cell.v !== null && cell.v !== undefined && String(cell.v).trim() !== '') {
+							const { r } = XLSX.utils.decode_cell(addr);
+							xlsxRowSet.add(r + 1); // store as 1-based row number
 						}
 					}
-					if (lineIdx >= 0 && !embeddedImagesByLine.has(lineIdx)) {
-						embeddedImagesByLine.set(lineIdx, imgFile);
-						console.log(`Image for Excel row ${excelRow} → CSV line index ${lineIdx}`);
-					} else if (lineIdx < 0) {
-						console.warn(`Image at Excel row ${excelRow}: no matching XLSX row found, skipping`);
+					const xlsxNonEmptyRows = [...xlsxRowSet].sort((a, b) => a - b);
+					console.log(`XLSX non-empty rows (${sheetName}):`, xlsxNonEmptyRows);
+
+					// Extract images from ExcelJS keyed by their actual 1-based Excel row number
+					const imagesByExcelRow = await extractEmbeddedImagesFromExcel(data, sheetName);
+
+					// Correlate: map each image's Excel row → its index in XLSX's own row list.
+					// Using the same library (XLSX) for row ordering as for CSV output guarantees alignment.
+					const embeddedImagesByLine = new Map<number, File>();
+					for (const [excelRow, imgFile] of imagesByExcelRow) {
+						let lineIdx = xlsxNonEmptyRows.indexOf(excelRow);
+						if (lineIdx < 0) {
+							// Fallback: image anchor may be positioned one row above the data row
+							lineIdx = xlsxNonEmptyRows.indexOf(excelRow + 1);
+							if (lineIdx >= 0) {
+								console.log(`Image at Excel row ${excelRow}: anchor offset, using row ${excelRow + 1} → line ${lineIdx}`);
+							}
+						}
+						if (lineIdx >= 0 && !embeddedImagesByLine.has(lineIdx)) {
+							embeddedImagesByLine.set(lineIdx, imgFile);
+							console.log(`Image for Excel row ${excelRow} → CSV line index ${lineIdx}`);
+						} else if (lineIdx < 0) {
+							console.warn(`Image at Excel row ${excelRow}: no matching XLSX row found, skipping`);
+						}
 					}
+
+					// Convert to CSV and parse
+					const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
+					if (!csvText.trim()) continue;
+
+					await parseCSVText(csvText, sheetName, embeddedImagesByLine, { append: appended, silent: true });
+					appended = true;
 				}
 
-				// Convert to CSV and parse
-				const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
-				await parseCSVText(csvText, firstSheetName, embeddedImagesByLine);
+				if (importPreviewData.length > 0) {
+					toastStore.success(`Parsed ${importPreviewData.length} items from ${workbook.SheetNames.length} sheet(s). ${importErrors.length > 0 ? `${importErrors.length} rows have errors.` : 'Click Continue to preview.'}`);
+				}
 			} else {
 				// Handle CSV files
 				const text = await file.text();
@@ -1106,11 +1177,24 @@ $effect(() => {
 		}
 	}
 
-	async function parseCSVText(text: string, categoryFromSheet?: string, embeddedImagesByLine?: Map<number, File>) {
+	async function parseCSVText(
+		text: string,
+		categoryFromSheet?: string,
+		embeddedImagesByLine?: Map<number, File>,
+		options?: { append?: boolean; silent?: boolean }
+	) {
 		try {
 			importing = true;
-			importErrors = [];
-			importPreviewData = [];
+
+			const append = options?.append === true;
+			const silent = options?.silent === true;
+			const existingPreview = append ? importPreviewData : [];
+			const existingErrors = append ? importErrors : [];
+
+			if (!append) {
+				importErrors = [];
+				importPreviewData = [];
+			}
 
 			const lines = text
 				.split(/\r?\n/)
@@ -1220,9 +1304,11 @@ $effect(() => {
 				return;
 			}
 		
-		const parsedData: any[] = [];
-		const errors: string[] = [];
-		const seenKeys = new Set<string>(); // track name+specification composites within this file for duplicate detection
+		const parsedData: any[] = [...existingPreview];
+		const errors: string[] = [...existingErrors];
+		const seenKeys = new Set<string>(
+			existingPreview.map((row: any) => `${(row.name || '').toLowerCase().trim()}|${(row.specification || '').toLowerCase().trim()}`)
+		); // track name+specification composites across the full import preview
 
 		// Start from the line after the header row
 		for (let i = headerLineIndex + 1; i < lines.length; i++) {
@@ -1357,7 +1443,7 @@ $effect(() => {
 		importErrors = errors;
 
 		// Show success toast
-		if (parsedData.length > 0) {
+		if (parsedData.length > 0 && !silent) {
 			toastStore.success(`Parsed ${parsedData.length} items. ${errors.length > 0 ? `${errors.length} rows have errors.` : 'Click Continue to preview.'}`);
 		}
 
@@ -1458,10 +1544,12 @@ $effect(() => {
 				}
 			}
 
+			const preparedImportItems: Array<{ rowNumber: number; name: string; data: any }> = [];
+
 			for (const item of validItems) {
 				try {
 					importProgress.current++;
-					importProgress.message = `Processing ${item.name} (${importProgress.current}/${importProgress.total})`;
+					importProgress.message = `Preparing ${item.name} (${importProgress.current}/${importProgress.total})`;
 
 					// Get category from map (already exists or just created)
 					const category = categoryMap.get(item.category.toLowerCase());
@@ -1510,13 +1598,51 @@ $effect(() => {
 						location: item.location || ''
 					};
 
-					console.log('Creating item:', itemData.name, itemData);
-					const result = await inventoryItemsAPI.create(itemData);
-					console.log('Created successfully:', result);
-					successCount++;
+					preparedImportItems.push({
+						rowNumber: item._rowNumber,
+						name: itemData.name,
+						data: itemData
+					});
 				} catch (err: any) {
 					console.error(`Failed to import row ${item._rowNumber}:`, err);
 					failCount++;
+				}
+			}
+
+			for (let i = 0; i < preparedImportItems.length; i += IMPORT_BATCH_SIZE) {
+				const batch = preparedImportItems.slice(i, i + IMPORT_BATCH_SIZE);
+				const batchNumber = Math.floor(i / IMPORT_BATCH_SIZE) + 1;
+				const totalBatches = Math.ceil(preparedImportItems.length / IMPORT_BATCH_SIZE);
+				importProgress.message = `Importing batch ${batchNumber}/${totalBatches}...`;
+
+				try {
+					const response = await inventoryItemsAPI.bulkCreate({
+						items: batch.map(entry => entry.data)
+					});
+
+					successCount += response.createdCount;
+					failCount += response.failedCount;
+
+					if (response.failures.length > 0) {
+						for (const failure of response.failures) {
+							const failedItem = batch[failure.index];
+							console.error(
+								`Failed to import row ${failedItem?.rowNumber ?? '?'} (${failedItem?.name ?? 'unknown'}): ${failure.error}`
+							);
+						}
+					}
+				} catch (batchErr: any) {
+					console.error(`Bulk batch ${batchNumber} failed, falling back to per-item import`, batchErr);
+
+					for (const entry of batch) {
+						try {
+							await createInventoryItemWithRetry(entry.data);
+							successCount++;
+						} catch (singleErr: any) {
+							console.error(`Fallback failed for row ${entry.rowNumber} (${entry.name}):`, singleErr);
+							failCount++;
+						}
+					}
 				}
 			}
 
@@ -1543,19 +1669,19 @@ $effect(() => {
 					
 					// Direct API calls bypassing cache
 					console.log('Fetching from API...');
-					const [itemsResponse, categoriesResponse] = await Promise.all([
-						inventoryItemsAPI.getAll({ limit: 1000, includeArchived: true }),
+					const [allFetchedItems, categoriesResponse] = await Promise.all([
+						fetchAllInventoryItems(true),
 						inventoryCategoriesAPI.getAll({ limit: 1000, includeArchived: true })
 					]);
 					
-					console.log('API Response - Items:', itemsResponse);
+					console.log('API Response - Items:', allFetchedItems.length);
 					console.log('API Response - Categories:', categoriesResponse);
 					
-					items = itemsResponse.items;
+					items = allFetchedItems;
 					categories = categoriesResponse.categories;
 					
 					// Update store cache
-					inventoryStore.setItems(itemsResponse.items);
+					inventoryStore.setItems(allFetchedItems);
 					inventoryStore.setCategories(categoriesResponse.categories);
 					
 					console.log('Items after reload:', items.length);
@@ -2085,7 +2211,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				
 				{#if displayItems.length === 0}
 					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
 						</svg>
 						<h3 class="mt-4 text-lg font-medium text-gray-900">No items found</h3>
@@ -2276,7 +2402,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				
 				{#if categories.length === 0}
 					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
 						</svg>
 						<h3 class="mt-4 text-lg font-medium text-gray-900">No categories yet</h3>
@@ -2550,7 +2676,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				
 				{#if constantItems.length === 0}
 					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
 						</svg>
 						<h3 class="mt-4 text-lg font-medium text-gray-900">No constant items configured</h3>
@@ -2698,7 +2824,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				
 				{#if lowStockItems.length === 0}
 					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
 						</svg>
 						<h3 class="mt-4 text-lg font-medium text-gray-900">All items are adequately stocked</h3>

@@ -80,7 +80,7 @@
 		<div class="rounded-lg border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">Loading notifications...</div>
 	{:else if notifications.length === 0}
 		<div class="rounded-lg border border-gray-200 bg-white p-12 text-center">
-			<Bell size={40} class="mx-auto text-gray-300" />
+			<Bell size={40} class="mx-auto text-pink-600" />
 			<h3 class="mt-4 text-lg font-medium text-gray-900">No notifications yet</h3>
 			<p class="mt-2 text-sm text-gray-500">You are all caught up.</p>
 		</div>

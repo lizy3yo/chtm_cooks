@@ -110,7 +110,7 @@
 	async function loadDashboard(force = false) {
 		const [requestsResult, statsResult] = await Promise.allSettled([
 			borrowRequestsAPI.list({ limit: 100 }, { forceRefresh: force }),
-			statisticsAPI.get({ forceRefresh: force, period: '180d' })
+			statisticsAPI.get({ forceRefresh: force, period: 'all' })
 		]);
 
 		if (requestsResult.status === 'fulfilled') {
@@ -576,7 +576,30 @@
 						<h3 class="font-semibold text-gray-900">Item Health</h3>
 					</div>
 					{#if performanceStats.itemHealth.totalInspected === 0}
-						<p class="text-sm text-gray-400 italic">No inspections recorded yet.</p>
+						<div class="space-y-3">
+							<div class="flex items-center justify-between text-sm">
+								<span class="text-gray-500">Good condition rate</span>
+								<span class="font-bold text-gray-500">N/A</span>
+							</div>
+							<div class="h-2 w-full overflow-hidden rounded-full bg-gray-100">
+								<div class="h-2 rounded-full bg-gray-300" style="width: 0%"></div>
+							</div>
+							<div class="grid grid-cols-3 gap-2 pt-1">
+								<div class="rounded-lg bg-emerald-50 p-2 text-center">
+									<p class="text-2xl font-bold text-emerald-700">0</p>
+									<p class="text-xs text-emerald-500">Good</p>
+								</div>
+								<div class="rounded-lg bg-orange-50 p-2 text-center">
+									<p class="text-2xl font-bold text-orange-700">0</p>
+									<p class="text-xs text-orange-500">Damaged</p>
+								</div>
+								<div class="rounded-lg bg-red-50 p-2 text-center">
+									<p class="text-2xl font-bold text-red-700">0</p>
+									<p class="text-xs text-red-500">Missing</p>
+								</div>
+							</div>
+							<p class="text-xs text-gray-400">No inspections recorded yet.</p>
+						</div>
 					{:else}
 						<div class="space-y-3">
 							<div class="flex items-center justify-between text-sm">
@@ -616,7 +639,37 @@
 						<h3 class="font-semibold text-gray-900">Replacement Record</h3>
 					</div>
 					{#if performanceStats.replacement.totalObligations === 0}
-						<p class="text-sm text-gray-400 italic">No replacement records yet.</p>
+						<div class="space-y-3">
+							<div class="flex items-center justify-between text-sm">
+								<span class="text-gray-500">Outstanding items</span>
+								<span class="font-bold text-gray-500">0 items</span>
+							</div>
+							<div class="grid grid-cols-2 gap-2">
+								<div class="rounded-lg bg-red-50 p-2 text-center">
+									<p class="text-2xl font-bold text-red-700">0</p>
+									<p class="text-xs text-red-500">Pending cases</p>
+								</div>
+								<div class="rounded-lg bg-emerald-50 p-2 text-center">
+									<p class="text-2xl font-bold text-emerald-700">0</p>
+									<p class="text-xs text-emerald-500">Resolved cases</p>
+								</div>
+							</div>
+							<div class="space-y-1 text-xs text-gray-400">
+								<div class="flex justify-between">
+									<span>Recorded ({performanceStats.periodLabel})</span>
+									<span>0 items</span>
+								</div>
+								<div class="flex justify-between">
+									<span>Total items affected</span>
+									<span>0 items</span>
+								</div>
+								<div class="flex justify-between">
+									<span>Items replaced</span>
+									<span>0 items</span>
+								</div>
+							</div>
+							<p class="text-xs text-gray-400">No replacement records yet.</p>
+						</div>
 					{:else}
 						<div class="space-y-3">
 							<div class="flex items-center justify-between text-sm">
@@ -674,8 +727,8 @@
 					</div>
 
 					{#if activeRequests.length === 0}
-						<div class="px-5 py-10 text-center">
-							<PackageCheck size={32} class="mx-auto text-gray-300" />
+						<div class="flex min-h-48 flex-col items-center justify-center px-5 py-10 text-center">
+							<PackageCheck size={32} class="mx-auto text-pink-600" />
 							<p class="mt-2 text-sm text-gray-500">No active loans</p>
 						</div>
 					{:else}
@@ -759,8 +812,8 @@
 					</div>
 
 					{#if pendingRequests.length === 0}
-						<div class="px-5 py-10 text-center">
-							<CheckCircle2 size={32} class="mx-auto text-gray-300" />
+						<div class="flex min-h-48 flex-col items-center justify-center px-5 py-10 text-center">
+							<CheckCircle2 size={32} class="mx-auto text-pink-600" />
 							<p class="mt-2 text-sm text-gray-500">No pending requests</p>
 						</div>
 					{:else}
@@ -876,8 +929,8 @@
 					</div>
 
 					{#if dueSoon.length === 0}
-						<div class="px-5 py-8 text-center">
-							<BellRing size={28} class="mx-auto text-gray-300" />
+						<div class="flex min-h-36 flex-col items-center justify-center px-5 py-8 text-center">
+							<BellRing size={28} class="mx-auto text-pink-600" />
 							<p class="mt-2 text-xs text-gray-400">No notifications at the moment</p>
 						</div>
 					{:else}

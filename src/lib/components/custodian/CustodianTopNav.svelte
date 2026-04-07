@@ -276,7 +276,7 @@
 						<div class="py-8 text-center text-sm text-gray-500">Loading notifications...</div>
 					{:else if recentNotifications.length === 0}
 						<div class="py-8 text-center">
-							<Bell size={28} class="mx-auto mb-2 text-gray-300" />
+							<Bell size={28} class="mx-auto mb-2 text-pink-600" />
 							<p class="text-sm text-gray-500">No new notifications</p>
 						</div>
 					{:else}

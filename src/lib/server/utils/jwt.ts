@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-producti
 const JWT_REFRESH_SECRET = process.env.REFRESH_SECRET || 'fallback-refresh-secret';
 
 // Industry-standard token lifetimes
-const ACCESS_TOKEN_EXPIRES_IN = '15m'; // 15 minutes - short-lived for security
+const ACCESS_TOKEN_EXPIRES_IN = '1h'; // 1 hour session timeout
 const REFRESH_TOKEN_EXPIRES_IN = '7d'; // 7 days - allows session renewal
 
 export interface JWTPayload {
@@ -16,7 +16,7 @@ export interface JWTPayload {
 }
 
 /**
- * Generate short-lived access token (15 minutes)
+ * Generate access token (1 hour)
  * Used for API authentication
  */
 export function generateAccessToken(payload: JWTPayload): string {

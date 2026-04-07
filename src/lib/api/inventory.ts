@@ -52,6 +52,20 @@ export interface UpdateItemRequest extends Partial<CreateItemRequest> {
 	archived?: boolean;
 }
 
+export interface BulkCreateItemsRequest {
+	items: CreateItemRequest[];
+}
+
+export interface BulkCreateItemsResponse {
+	createdCount: number;
+	failedCount: number;
+	failures: Array<{
+		index: number;
+		name?: string;
+		error: string;
+	}>;
+}
+
 export interface CreateCategoryRequest {
 	name: string;
 	description?: string;
@@ -137,6 +151,15 @@ export const inventoryItemsAPI = {
 	 */
 	async create(data: CreateItemRequest): Promise<InventoryItem> {
 		const response = await fetch('/api/inventory/items', getFetchOptions('POST', data));
+
+		return handleResponse(response);
+	},
+
+	/**
+	 * Bulk create inventory items
+	 */
+	async bulkCreate(data: BulkCreateItemsRequest): Promise<BulkCreateItemsResponse> {
+		const response = await fetch('/api/inventory/items/bulk', getFetchOptions('POST', data));
 
 		return handleResponse(response);
 	},

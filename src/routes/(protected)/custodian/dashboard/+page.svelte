@@ -280,17 +280,9 @@
 							<span class="text-xs font-bold text-amber-700">{requestsPendingApproval.length}</span>
 						</div>
 						{#if requestsPendingApproval.length === 0}
-							<div class="space-y-2">
-								{#each Array(2) as _}
-									<div class="flex items-center gap-3 rounded-lg border border-dashed border-gray-200 px-3 py-2.5">
-										<div class="h-8 w-8 shrink-0 rounded-full bg-gray-100"></div>
-										<div class="flex-1 space-y-1.5">
-											<div class="h-2.5 w-28 rounded-full bg-gray-100"></div>
-											<div class="h-2 w-20 rounded-full bg-gray-100"></div>
-										</div>
-									</div>
-								{/each}
-								<p class="pt-1 text-center text-xs text-gray-400">All clear</p>
+							<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+								<Clock size={18} class="text-pink-600" />
+								<p class="mt-2 text-xs font-medium text-gray-500">No pending requests</p>
 							</div>
 						{:else}
 							<ul class="space-y-2 overflow-y-auto">
@@ -328,17 +320,9 @@
 							<span class="text-xs font-bold text-indigo-700">{requestsReadyPickup.length}</span>
 						</div>
 						{#if requestsReadyPickup.length === 0}
-							<div class="space-y-2">
-								{#each Array(2) as _}
-									<div class="flex items-center gap-3 rounded-lg border border-dashed border-gray-200 px-3 py-2.5">
-										<div class="h-8 w-8 shrink-0 rounded-full bg-gray-100"></div>
-										<div class="flex-1 space-y-1.5">
-											<div class="h-2.5 w-28 rounded-full bg-gray-100"></div>
-											<div class="h-2 w-20 rounded-full bg-gray-100"></div>
-										</div>
-									</div>
-								{/each}
-								<p class="pt-1 text-center text-xs text-gray-400">All clear</p>
+							<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+								<PackageOpen size={18} class="text-pink-600" />
+								<p class="mt-2 text-xs font-medium text-gray-500">No items ready for pickup</p>
 							</div>
 						{:else}
 							<ul class="space-y-2 overflow-y-auto">
@@ -378,17 +362,9 @@
 							<span class="text-xs font-bold text-violet-700">{requestsActive.length}</span>
 						</div>
 						{#if requestsActive.length === 0}
-							<div class="space-y-2">
-								{#each Array(2) as _}
-									<div class="flex items-center gap-3 rounded-lg border border-dashed border-gray-200 px-3 py-2.5">
-										<div class="h-8 w-8 shrink-0 rounded-full bg-gray-100"></div>
-										<div class="flex-1 space-y-1.5">
-											<div class="h-2.5 w-28 rounded-full bg-gray-100"></div>
-											<div class="h-2 w-20 rounded-full bg-gray-100"></div>
-										</div>
-									</div>
-								{/each}
-								<p class="pt-1 text-center text-xs text-gray-400">No active loans</p>
+							<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+								<Package size={18} class="text-pink-600" />
+								<p class="mt-2 text-xs font-medium text-gray-500">No active loans</p>
 							</div>
 						{:else}
 							<ul class="space-y-2 overflow-y-auto">
@@ -457,6 +433,7 @@
 						Manage <ArrowRight size={13} />
 					</a>
 				</div>
+				<div>
 				{#if report}
 					{@const total = report.borrowRequests.statusBreakdown.reduce((s, i) => s + i.count, 0)}
 					{@const statusMeta: Record<string, string> = {
@@ -471,18 +448,52 @@
 						cancelled: 'bg-gray-100 text-gray-600',
 						rejected: 'bg-rose-100 text-rose-800'
 					}}
-					<p class="mb-3 text-2xl font-bold text-gray-900">{total}</p>
-					<div class="space-y-2">
-						{#each report.borrowRequests.statusBreakdown.filter(s => s.count > 0) as item}
-							<div class="flex items-center justify-between">
-								<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium {statusMeta[item.status] ?? 'bg-gray-100 text-gray-600'}">
-									{item.status.replace(/_/g, ' ')}
-								</span>
-								<span class="text-sm font-semibold text-gray-700">{item.count}</span>
+					{@const emptyRows = [
+						{ key: 'pending_instructor', label: 'pending instructor' },
+						{ key: 'approved_instructor', label: 'approved instructor' },
+						{ key: 'ready_for_pickup', label: 'ready for pickup' },
+						{ key: 'borrowed', label: 'borrowed' },
+						{ key: 'pending_return', label: 'pending return' }
+					]}
+					{#if total > 0}
+						<p class="mb-3 text-3xl font-bold leading-none text-gray-900">{total}</p>
+						<div class="space-y-4">
+							{#each report.borrowRequests.statusBreakdown.filter(s => s.count > 0) as item}
+								<div class="flex items-center justify-between py-0.5">
+									<span class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium {statusMeta[item.status] ?? 'bg-gray-100 text-gray-600'}">
+										{item.status.replace(/_/g, ' ')}
+									</span>
+									<span class="text-base font-semibold text-gray-700">{item.count}</span>
+								</div>
+							{/each}
+						</div>
+					{:else}
+						<p class="mb-3 text-3xl font-bold leading-none text-gray-900">0</p>
+						<div class="space-y-4">
+							{#each emptyRows as row}
+								<div class="flex items-center justify-between py-0.5">
+									<span class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium {statusMeta[row.key] ?? 'bg-gray-100 text-gray-600'}">
+										{row.label}
+									</span>
+									<span class="text-base font-semibold text-gray-700">0</span>
+								</div>
+							{/each}
+						</div>
+						<p class="mt-3 text-sm text-gray-400">No requests recorded for this period.</p>
+					{/if}
+				{:else}
+					<p class="mb-3 text-3xl font-bold leading-none text-gray-900">0</p>
+					<div class="space-y-4">
+						{#each ['pending instructor', 'approved instructor', 'ready for pickup', 'borrowed', 'pending return'] as label}
+							<div class="flex items-center justify-between py-0.5">
+								<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-sm font-medium text-gray-600">{label}</span>
+								<span class="text-base font-semibold text-gray-700">0</span>
 							</div>
 						{/each}
 					</div>
+					<p class="mt-3 text-sm text-gray-400">No request data available.</p>
 				{/if}
+				</div>
 			</div>
 
 			<!-- Inventory condition distribution -->
@@ -496,6 +507,7 @@
 						Details <ArrowRight size={13} />
 					</a>
 				</div>
+				<div>
 				{#if report && totalConditionItems > 0}
 					<!-- Stacked bar -->
 					<div class="mb-3 flex h-3 w-full overflow-hidden rounded-full bg-gray-100">
@@ -507,28 +519,44 @@
 							{/if}
 						{/each}
 					</div>
-					<div class="space-y-2">
+					<div class="space-y-4">
 						{#each conditionOrder as cond}
 							{@const entry = report.inventory.conditionDistribution.find(c => c.condition === cond)}
 							{@const count = entry?.count ?? 0}
 							{@const pct = totalConditionItems > 0 ? Math.round((count / totalConditionItems) * 100) : 0}
 							{#if count > 0}
-								<div class="flex items-center justify-between">
-									<div class="flex items-center gap-2">
-										<div class="h-2.5 w-2.5 rounded-full {conditionMeta[cond].bar}"></div>
-										<span class="text-xs text-gray-600">{cond}</span>
+								<div class="flex items-center justify-between py-0.5">
+									<div class="flex items-center gap-2.5">
+										<div class="h-3 w-3 rounded-full {conditionMeta[cond].bar}"></div>
+										<span class="text-sm font-medium text-gray-700">{cond}</span>
 									</div>
-									<div class="flex items-center gap-2">
-										<span class="text-xs text-gray-400">{pct}%</span>
-										<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold {conditionMeta[cond].badge}">{count}</span>
+									<div class="flex items-center gap-2.5">
+										<span class="text-sm font-medium text-gray-500">{pct}%</span>
+										<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold {conditionMeta[cond].badge}">{count}</span>
 									</div>
 								</div>
 							{/if}
 						{/each}
 					</div>
 				{:else}
-					<p class="text-sm text-gray-400 italic">No condition data available.</p>
+					<div class="mb-3 h-3 w-full overflow-hidden rounded-full bg-gray-100"></div>
+					<div class="space-y-4">
+						{#each conditionOrder as cond}
+							<div class="flex items-center justify-between py-0.5">
+								<div class="flex items-center gap-2.5">
+									<div class="h-3 w-3 rounded-full bg-gray-300"></div>
+									<span class="text-sm font-medium text-gray-700">{cond}</span>
+								</div>
+								<div class="flex items-center gap-2.5">
+									<span class="text-sm font-medium text-gray-500">0%</span>
+									<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-sm font-semibold text-gray-600">0</span>
+								</div>
+							</div>
+						{/each}
+					</div>
+					<p class="mt-3 text-sm text-gray-400">No condition data available.</p>
 				{/if}
+				</div>
 			</div>
 
 			<!-- Student risk snapshot -->
@@ -594,7 +622,10 @@
 				</div>
 				{#if !report || report.inventory.mostBorrowedItems.length === 0}
 					<div class="flex h-[18rem] items-center justify-center">
-						<p class="text-sm text-gray-400">No borrow data for this period.</p>
+						<div class="text-center">
+							<TrendingUp size={28} class="mx-auto text-pink-600" />
+							<p class="mt-3 text-sm text-gray-500">No borrow data for this period.</p>
+						</div>
 					</div>
 				{:else}
 					<div class="h-[18rem] divide-y divide-gray-50 overflow-hidden px-5 py-2">
@@ -630,7 +661,10 @@
 				</div>
 				{#if !report || report.inventory.itemsCurrentlyOut.length === 0}
 					<div class="flex h-[18rem] items-center justify-center">
-						<p class="text-sm text-gray-400">No items currently out.</p>
+						<div class="text-center">
+							<PackageOpen size={28} class="mx-auto text-pink-600" />
+							<p class="mt-3 text-sm text-gray-500">No items currently out.</p>
+						</div>
 					</div>
 				{:else}
 					<ul class="h-[18rem] divide-y divide-gray-50 overflow-hidden">

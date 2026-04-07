@@ -11,7 +11,9 @@
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
-		"format": "prettier --write ."
+		"format": "prettier --write .",
+		"db:purge-catalog-requests": "node scripts/purge-catalog-and-requests.cjs",
+		"db:purge-catalog-requests:yes": "node scripts/purge-catalog-and-requests.cjs --yes"
 	},
 	"dependencies": {
 		"@google/genai": "^1.48.0",

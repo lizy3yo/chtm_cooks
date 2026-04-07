@@ -146,7 +146,7 @@ function hasTextSearch(filter: Record<string, any>): boolean {
  * - condition: Filter by condition (Excellent, Good, Fair, Poor, Damaged, all)
  * - sortBy: Sort order (name, category, availability, condition, recent, updated)
  * - page: Page number (default: 1)
- * - limit: Items per page (default: 50, max: 200)
+ * - limit: Items per page (default: 50)
  */
 export const GET: RequestHandler = async (event) => {
 	const { request, getClientAddress } = event;
@@ -184,7 +184,7 @@ export const GET: RequestHandler = async (event) => {
 		const condition = url.searchParams.get('condition') || 'all';
 		const sortBy = url.searchParams.get('sortBy') || 'name';
 		const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
-		const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit') || '50')));
+		const limit = Math.max(1, parseInt(url.searchParams.get('limit') || '50'));
 		const skip = (page - 1) * limit;
 
 		// Build cache key based on query parameters and user role

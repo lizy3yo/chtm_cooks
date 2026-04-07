@@ -76,6 +76,17 @@ export const RateLimitPresets = {
 	} as RateLimitConfig,
 
 	/**
+	 * Inventory import endpoint - tighter limits than general API
+	 * - Prevents repeated high-cost bulk imports from overwhelming the system
+	 */
+	INVENTORY_IMPORT: {
+		windowMs: 60 * 1000, // 1 minute
+		maxRequests: 6, // 6 import requests per minute
+		blockDurationMs: 5 * 60 * 1000, // Block for 5 minutes when exceeded
+		keyPrefix: 'ratelimit:inventory-import'
+	} as RateLimitConfig,
+
+	/**
 	 * Password reset endpoint - Strict limits
 	 * - Prevents abuse of password reset functionality
 	 */

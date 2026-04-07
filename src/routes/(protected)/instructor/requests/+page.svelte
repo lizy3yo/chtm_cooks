@@ -1004,7 +1004,7 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 					{@const emptyState = getEmptyState(activeTab, Boolean(searchQuery.trim()))}
 					<div class="py-16 text-center">
 						<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-gray-100">
-							<emptyState.icon class="h-8 w-8 text-gray-400" />
+							<emptyState.icon class="h-8 w-8 text-pink-600" />
 						</div>
 						<h3 class="mt-4 text-sm font-semibold text-gray-900">{emptyState.title}</h3>
 						<p class="mx-auto mt-1.5 max-w-sm text-xs text-gray-500">{emptyState.description}</p>
