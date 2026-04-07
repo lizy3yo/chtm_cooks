@@ -405,7 +405,7 @@
 				</div>
 			</div>
 
-			<div class="px-5 py-5 sm:px-8 sm:py-6" id="catalog-item-details-description">
+			<div class="px-4 py-4 sm:px-8 sm:py-6" id="catalog-item-details-description">
 				<div class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/70 p-3 sm:p-4">
 					<div class="relative aspect-[21/8] overflow-hidden rounded-xl bg-gray-100">
 						{#if selectedItem.picture}
@@ -429,22 +429,22 @@
 					</div>
 				</div>
 
-				<div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+				<div class="mt-5 grid grid-cols-2 gap-3">
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Item Name</p>
-						<p class="mt-1.5 text-base font-semibold text-gray-900">{selectedItem.name}</p>
+						<p class="mt-1.5 break-words text-sm font-semibold text-gray-900 sm:text-base">{selectedItem.name}</p>
 					</div>
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Category</p>
-						<p class="mt-1.5 text-base font-semibold text-gray-900">{getCategoryName(selectedItem.categoryId)}</p>
+						<p class="mt-1.5 break-words text-sm font-semibold text-gray-900 sm:text-base">{getCategoryName(selectedItem.categoryId)}</p>
 					</div>
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Specification</p>
-						<p class="mt-1.5 text-sm font-medium text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
+						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
 					</div>
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Storage Location</p>
-						<p class="mt-1.5 text-sm font-medium text-gray-900">{selectedItem.location || 'Not specified'}</p>
+						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.location || 'Not specified'}</p>
 					</div>
 				</div>
 
@@ -456,20 +456,20 @@
 
 			</div>
 
-			<div class="sticky bottom-0 z-10 border-t border-gray-200 bg-white/95 px-5 py-4 backdrop-blur-sm sm:px-8">
+			<div class="sticky bottom-0 z-10 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8">
 				<div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
 					<p class="text-xs text-gray-500">Review details carefully before adding this item to your request list.</p>
-					<div class="flex items-center gap-2">
+					<div class="flex w-full items-center gap-2 sm:w-auto">
 						<button
 							onclick={closeDetailsModal}
-							class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+							class="shrink-0 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
 						>
 							Close
 						</button>
 						<button
 							onclick={() => selectedItem && requestItem(selectedItem)}
 							disabled={selectedItem.status === 'Out of Stock'}
-							class="rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50"
+							class="min-w-0 flex-1 rounded-lg bg-pink-600 px-4 py-2 text-center text-sm font-semibold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
 						>
 							{selectedItem.status === 'Out of Stock' ? 'Out of Stock' : 'Add to Request List'}
 						</button>
