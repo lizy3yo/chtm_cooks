@@ -406,10 +406,6 @@
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Specification</p>
 						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
 					</div>
-					<div class="rounded-2xl border border-gray-200 bg-white p-4">
-						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Storage Location</p>
-						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.location || 'Not specified'}</p>
-					</div>
 				</div>
 
 				<div class="mt-3 rounded-2xl border border-gray-200 bg-white p-4">

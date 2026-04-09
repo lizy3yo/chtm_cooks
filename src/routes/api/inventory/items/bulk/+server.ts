@@ -94,7 +94,6 @@ export const POST: RequestHandler = async (event) => {
 				const category = sanitizeInput(item.category.trim());
 				const specification = item.specification ? sanitizeInput(item.specification.trim()) : '';
 				const toolsOrEquipment = item.toolsOrEquipment ? sanitizeInput(item.toolsOrEquipment.trim()) : '';
-				const location = item.location ? sanitizeInput(item.location.trim()) : undefined;
 				const quantity = Math.max(0, item.quantity);
 				const donations = item.donations !== undefined ? Math.max(0, item.donations) : 0;
 				const eomCount = item.eomCount !== undefined ? Math.max(0, item.eomCount) : 0;
@@ -118,7 +117,6 @@ export const POST: RequestHandler = async (event) => {
 					quantity,
 					donations,
 					eomCount,
-					location,
 					status: determineStatus(getCurrentCount(quantity, donations), false),
 					isConstant: item.isConstant || false,
 					maxQuantityPerRequest: item.isConstant && item.maxQuantityPerRequest

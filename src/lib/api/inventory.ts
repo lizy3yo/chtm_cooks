@@ -13,7 +13,6 @@ export interface InventoryItem {
 	eomCount: number;
 	currentCount?: number;
 	variance: number;
-	location?: string;
 	description?: string;
 	status: string;
 	archived: boolean;
@@ -44,7 +43,6 @@ export interface CreateItemRequest {
 	quantity: number;
 	donations?: number;
 	eomCount?: number;
-	location?: string;
 	isConstant?: boolean;
 	maxQuantityPerRequest?: number;
 }

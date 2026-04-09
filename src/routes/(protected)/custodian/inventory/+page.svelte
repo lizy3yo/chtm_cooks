@@ -39,7 +39,6 @@
 		pictureFile: null as File | null,
 		quantity: 0,
 		eomCount: 0,
-		location: '',
 		isConstant: false,
 		maxQuantityPerRequest: undefined as number | undefined
 	});
@@ -450,7 +449,6 @@ $effect(() => {
 				picture: imageUrl,
 				quantity: newItem.quantity,
 				eomCount: newItem.eomCount,
-				location: newItem.location,
 				isConstant: newItem.isConstant,
 				maxQuantityPerRequest: newItem.isConstant && newItem.maxQuantityPerRequest 
 					? Number(newItem.maxQuantityPerRequest) 
@@ -517,7 +515,6 @@ $effect(() => {
 			pictureFile: null,
 			quantity: 0,
 			eomCount: 0,
-			location: '',
 			isConstant: false,
 			maxQuantityPerRequest: undefined
 		};
@@ -536,7 +533,6 @@ $effect(() => {
 			pictureFile: null,
 			quantity: item.quantity,
 			eomCount: item.eomCount,
-			location: item.location || '',
 			isConstant: item.isConstant || false,
 			maxQuantityPerRequest: item.maxQuantityPerRequest
 		};
@@ -2121,17 +2117,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
 													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-													</svg>
-													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Location</p>
-												</div>
-												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.location || '—'}</p>
-											</div>
-
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
-													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
 													</svg>
 													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Status</p>
@@ -3209,11 +3194,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							<div>
 								<label for="modalEomCount" class="block text-sm font-medium text-gray-700">EOM Count</label>
 								<input type="number" id="modalEomCount" bind:value={newItem.eomCount} min="0" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="0" />
-							</div>
-
-							<div class="sm:col-span-2">
-								<label for="modalLocation" class="block text-sm font-medium text-gray-700">Storage Location</label>
-								<input type="text" id="modalLocation" bind:value={newItem.location} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="e.g., Cabinet A, Shelf 2" />
 							</div>
 						</div>
 

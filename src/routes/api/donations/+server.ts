@@ -155,7 +155,6 @@ export const POST: RequestHandler = async (event) => {
 			const category = sanitizeInput(body.category.trim()).slice(0, 100);
 			const specification = body.specification ? sanitizeInput(body.specification.trim()).slice(0, 500) : '';
 			const toolsOrEquipment = body.toolsOrEquipment ? sanitizeInput(body.toolsOrEquipment.trim()).slice(0, 200) : '';
-			const location = body.location ? sanitizeInput(body.location.trim()).slice(0, 200) : undefined;
 
 			let categoryId: ObjectId | undefined;
 			if (body.categoryId && ObjectId.isValid(body.categoryId)) {
@@ -177,7 +176,6 @@ export const POST: RequestHandler = async (event) => {
 				quantity: 0,
 				donations: body.quantity,
 				eomCount: 0,
-				location,
 				status,
 				archived: false,
 				createdAt: now,

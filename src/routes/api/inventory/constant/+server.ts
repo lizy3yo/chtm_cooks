@@ -49,7 +49,6 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		eomCount: item.eomCount,
 		currentCount,
 		variance: currentCount - item.eomCount,
-		location: item.location,
 		description: item.description,
 		status: item.status,
 		isConstant: item.isConstant || false,

@@ -18,7 +18,6 @@ export interface InventoryItem {
 	quantity: number;
 	donations?: number;
 	eomCount: number; // End of Month Count
-	location?: string;
 	description?: string;
 	status: ItemStatus;
 	unitPrice?: number; // Price per unit for replacement tracking
@@ -44,7 +43,6 @@ export interface InventoryItemResponse {
 	eomCount: number;
 	currentCount?: number;
 	variance: number;
-	location?: string;
 	description?: string;
 	status: ItemStatus;
 	unitPrice?: number;
@@ -65,7 +63,6 @@ export interface CreateInventoryItemRequest {
 	quantity: number;
 	donations?: number;
 	eomCount?: number;
-	location?: string;
 	unitPrice?: number;
 	description?: string;
 	isConstant?: boolean;

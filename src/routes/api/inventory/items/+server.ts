@@ -47,7 +47,6 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		eomCount: item.eomCount,
 		currentCount: getCurrentCount(item.quantity, item.donations ?? 0),
 		variance: getCurrentCount(item.quantity, item.donations ?? 0) - item.eomCount,
-		location: item.location,
 		description: item.description,
 		status: item.status,
 		isConstant: item.isConstant,
@@ -215,7 +214,6 @@ export const POST: RequestHandler = async (event) => {
 		const category = sanitizeInput(body.category.trim());
 		const specification = body.specification ? sanitizeInput(body.specification.trim()) : '';
 		const toolsOrEquipment = body.toolsOrEquipment ? sanitizeInput(body.toolsOrEquipment.trim()) : '';
-		const location = body.location ? sanitizeInput(body.location.trim()) : undefined;
 		const quantity = Math.max(0, body.quantity);
 		const donations = body.donations !== undefined ? Math.max(0, body.donations) : 0;
 		const eomCount = body.eomCount !== undefined ? Math.max(0, body.eomCount) : 0;
@@ -249,7 +247,6 @@ export const POST: RequestHandler = async (event) => {
 			quantity,
 			donations,
 			eomCount,
-			location,
 			status,
 			isConstant: body.isConstant || false,
 			maxQuantityPerRequest: body.isConstant && body.maxQuantityPerRequest 

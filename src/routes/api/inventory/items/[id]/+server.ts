@@ -17,6 +17,7 @@ import { logInventoryActivity, getObjectChanges } from '$lib/server/utils/invent
 import { InventoryAction } from '$lib/server/models/InventoryHistory';
 import { cacheService } from '$lib/server/cache';
 import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
+import type { InventoryRealtimeEvent } from '$lib/server/realtime/inventoryEvents';
 import { storageService } from '$lib/server/services/storage';
 import type { DeleteOptions } from '$lib/server/services/storage/types';
 import path from 'path';
@@ -51,7 +52,6 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		eomCount: item.eomCount,
 		currentCount: getCurrentCount(item.quantity, item.donations ?? 0),
 		variance: getCurrentCount(item.quantity, item.donations ?? 0) - item.eomCount,
-		location: item.location,
 		description: item.description,
 		status: item.status,
 		isConstant: item.isConstant,
@@ -240,9 +240,6 @@ export const PATCH: RequestHandler = async (event) => {
 		if (body.eomCount !== undefined) {
 			updateFields.eomCount = Math.max(0, body.eomCount);
 		}
-		if (body.location !== undefined) {
-			updateFields.location = sanitizeInput(body.location.trim());
-		}
 		if (body.archived !== undefined) {
 			updateFields.archived = body.archived;
 		}
@@ -342,9 +339,8 @@ export const PATCH: RequestHandler = async (event) => {
 		await cacheService.deletePattern('inventory:archived:*');
 		await cacheService.deletePattern('inventory:history:*');
 
-		const sseAction = action === InventoryAction.ARCHIVED ? 'item_archived' : action === InventoryAction.RESTORED ? 'item_restored' : 'item_updated';
-		const sseEvent = {
-			action: sseAction,
+		const sseEvent: InventoryRealtimeEvent = {
+			action: action === InventoryAction.ARCHIVED ? 'item_archived' : action === InventoryAction.RESTORED ? 'item_restored' : 'item_updated',
 			entityType: 'item' as const,
 			entityId: result._id!.toString(),
 			entityName: result.name,

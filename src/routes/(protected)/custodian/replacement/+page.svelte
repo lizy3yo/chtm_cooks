@@ -60,7 +60,6 @@
 		categoryId: '',
 		specification: '',
 		toolsOrEquipment: '',
-		location: '',
 		quantity: 1,
 		unit: '',
 		purpose: '',
@@ -468,7 +467,6 @@
 					categoryId: newItemForm.categoryId || undefined,
 					specification: newItemForm.specification.trim() || undefined,
 					toolsOrEquipment: newItemForm.toolsOrEquipment.trim() || undefined,
-					location: newItemForm.location.trim() || undefined,
 					quantity: newItemForm.quantity,
 					unit: newItemForm.unit.trim() || undefined,
 					purpose: newItemForm.purpose.trim(),
@@ -520,7 +518,7 @@
 
 	function resetDonationForms(): void {
 		const today = new Date().toISOString().split('T')[0];
-		newItemForm = { donorName: '', itemName: '', category: '', categoryId: '', specification: '', toolsOrEquipment: '', location: '', quantity: 1, unit: '', purpose: '', date: today, notes: '' };
+		newItemForm = { donorName: '', itemName: '', category: '', categoryId: '', specification: '', toolsOrEquipment: '', quantity: 1, unit: '', purpose: '', date: today, notes: '' };
 		addToExistingForm = { donorName: '', inventoryItemId: '', quantity: 1, purpose: '', date: today, notes: '' };
 		inventorySearch = '';
 	}
@@ -1756,11 +1754,6 @@
 							<div>
 								<label for="ni-unit" class="block text-sm font-medium text-gray-700 mb-1">Unit <span class="text-gray-400 font-normal">(optional)</span></label>
 								<input id="ni-unit" type="text" bind:value={newItemForm.unit} maxlength="50" placeholder="pcs, kg, sets"
-									class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-							</div>
-							<div>
-								<label for="ni-location" class="block text-sm font-medium text-gray-700 mb-1">Location <span class="text-gray-400 font-normal">(optional)</span></label>
-								<input id="ni-location" type="text" bind:value={newItemForm.location} maxlength="200" placeholder="e.g. Storage Room A"
 									class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />
 							</div>
 						</div>
