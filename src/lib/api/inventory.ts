@@ -50,6 +50,7 @@ export interface CreateItemRequest {
 
 export interface UpdateItemRequest extends Partial<CreateItemRequest> {
 	archived?: boolean;
+	replacePicture?: boolean;
 }
 
 export interface BulkCreateItemsRequest {
