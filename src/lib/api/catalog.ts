@@ -15,8 +15,7 @@ export interface CatalogFilters {
 	search?: string;
 	category?: string;
 	availability?: 'all' | 'available' | 'borrowed' | 'maintenance' | 'outofstock';
-	condition?: 'all' | 'Excellent' | 'Good' | 'Fair' | 'Poor' | 'Damaged';
-	sortBy?: 'name' | 'category' | 'availability' | 'condition' | 'recent' | 'updated';
+	sortBy?: 'name' | 'category' | 'availability' | 'recent' | 'updated';
 	page?: number;
 	limit?: number;
 }

@@ -16,7 +16,7 @@ import {
 	toDonationResponse,
 	DONATIONS_COLLECTION
 } from '$lib/server/models/Donation';
-import type { InventoryItem, ItemCondition, ItemStatus } from '$lib/server/models/InventoryItem';
+import type { InventoryItem, ItemStatus } from '$lib/server/models/InventoryItem';
 import { sanitizeInput } from '$lib/server/utils/validation';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
@@ -156,7 +156,6 @@ export const POST: RequestHandler = async (event) => {
 			const specification = body.specification ? sanitizeInput(body.specification.trim()).slice(0, 500) : '';
 			const toolsOrEquipment = body.toolsOrEquipment ? sanitizeInput(body.toolsOrEquipment.trim()).slice(0, 200) : '';
 			const location = body.location ? sanitizeInput(body.location.trim()).slice(0, 200) : undefined;
-			const condition = body.condition || 'Good';
 
 			let categoryId: ObjectId | undefined;
 			if (body.categoryId && ObjectId.isValid(body.categoryId)) {
@@ -178,7 +177,6 @@ export const POST: RequestHandler = async (event) => {
 				quantity: 0,
 				donations: body.quantity,
 				eomCount: 0,
-				condition: condition as ItemCondition,
 				location,
 				status,
 				archived: false,
@@ -202,7 +200,7 @@ export const POST: RequestHandler = async (event) => {
 				userId: new ObjectId(user.userId),
 				userName: user.email,
 				userRole: user.role,
-				metadata: { source: 'donation', donorName, quantity: body.quantity, condition, category },
+				metadata: { source: 'donation', donorName, quantity: body.quantity, category },
 				ipAddress: event.getClientAddress(),
 				userAgent: event.request.headers.get('user-agent') || undefined
 			});

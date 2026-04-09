@@ -39,7 +39,6 @@
 		pictureFile: null as File | null,
 		quantity: 0,
 		eomCount: 0,
-		condition: 'Good',
 		location: '',
 		isConstant: false,
 		maxQuantityPerRequest: undefined as number | undefined
@@ -124,19 +123,6 @@
 
 	function getCurrentCount(quantity: number, donations = 0): number {
 		return quantity + donations;
-	}
-
-	function normalizeImportedCondition(value: string | undefined | null): string | null {
-		const normalized = normalizeKeyPart(value).replace(/[\s_-]+/g, '');
-		if (!normalized) return null;
-
-		if (normalized === 'excellent') return 'Excellent';
-		if (normalized === 'good') return 'Good';
-		if (normalized === 'fair') return 'Fair';
-		if (normalized === 'poor') return 'Poor';
-		if (normalized === 'damaged') return 'Damaged';
-
-		return null;
 	}
 
 	async function fetchAllInventoryItems(includeArchived = true): Promise<InventoryItem[]> {
@@ -464,7 +450,6 @@ $effect(() => {
 				picture: imageUrl,
 				quantity: newItem.quantity,
 				eomCount: newItem.eomCount,
-				condition: newItem.condition,
 				location: newItem.location,
 				isConstant: newItem.isConstant,
 				maxQuantityPerRequest: newItem.isConstant && newItem.maxQuantityPerRequest 
@@ -532,7 +517,6 @@ $effect(() => {
 			pictureFile: null,
 			quantity: 0,
 			eomCount: 0,
-			condition: 'Good',
 			location: '',
 			isConstant: false,
 			maxQuantityPerRequest: undefined
@@ -552,7 +536,6 @@ $effect(() => {
 			pictureFile: null,
 			quantity: item.quantity,
 			eomCount: item.eomCount,
-			condition: item.condition,
 			location: item.location || '',
 			isConstant: item.isConstant || false,
 			maxQuantityPerRequest: item.maxQuantityPerRequest
@@ -1286,8 +1269,6 @@ $effect(() => {
 					v === 'donations' ||
 					v === 'donation' ||
 					v === 'eom count' ||
-					v === 'condition' ||
-					v === 'item condition' ||
 					v === 'status' ||
 					v === 'location' ||
 					v === 'storage location' ||
@@ -1380,8 +1361,6 @@ $effect(() => {
 					headerMap.picture = index;
 				} else if ((header === 'remarks' || header === 'remark' || header === 'notes' || header === 'note') && headerMap.remarks === undefined) {
 					headerMap.remarks = index;
-				} else if ((header === 'condition' || header === 'item condition' || header === 'status') && headerMap.condition === undefined) {
-					headerMap.condition = index;
 				} else if ((header === 'location' || header === 'storage location' || header === 'storage') && headerMap.location === undefined) {
 					headerMap.location = index;
 				} else if (
@@ -1433,7 +1412,6 @@ $effect(() => {
 			const eomcount = valueAt('eomcount');
 			const donationsValue = valueAt('donations');
 			const minStockValue = valueAt('minstock');
-			const conditionValue = valueAt('condition');
 			const locationValue = valueAt('location');
 			let pictureRef = valueAt('picture');
 			const remarks = valueAt('remarks');
@@ -1447,7 +1425,6 @@ $effect(() => {
 				eomCount: headerMap['eomcount'] !== undefined && eomcount !== '',
 				donations: headerMap['donations'] !== undefined && donationsValue !== '',
 				minStock: headerMap['minstock'] !== undefined && minStockValue !== '',
-				condition: headerMap['condition'] !== undefined && conditionValue !== '',
 				location: headerMap['location'] !== undefined && locationValue !== '',
 				picture: headerMap['picture'] !== undefined && pictureRef !== '',
 				remarks: headerMap['remarks'] !== undefined && remarks !== ''
@@ -1501,11 +1478,6 @@ $effect(() => {
 			const parsedMinStock = providedFlags.minStock ? parseInt(minStockValue, 10) : 0;
 			if (providedFlags.minStock && (isNaN(parsedMinStock) || parsedMinStock < 0)) {
 				rowErrors.push('Min Stock must be a valid number');
-			}
-
-			const parsedCondition = providedFlags.condition ? normalizeImportedCondition(conditionValue) : 'Good';
-			if (providedFlags.condition && !parsedCondition) {
-				rowErrors.push('Condition must be one of: Excellent, Good, Fair, Poor, Damaged');
 			}
 
 			const parsedLocation = providedFlags.location ? locationValue : '';
@@ -1599,7 +1571,6 @@ $effect(() => {
 				if (providedFlags.eomCount && (existingInventoryItem.eomCount ?? 0) !== parsedEomCount) changedFields.push('eomCount');
 				if (providedFlags.donations && (existingInventoryItem.donations ?? 0) !== parsedDonations) changedFields.push('donations');
 				if (providedFlags.minStock && (existingInventoryItem.minStock ?? 0) !== parsedMinStock) changedFields.push('minStock');
-				if (providedFlags.condition && normalizeKeyPart(existingInventoryItem.condition || '') !== normalizeKeyPart(parsedCondition || '')) changedFields.push('condition');
 				if (providedFlags.location && normalizeKeyPart(existingInventoryItem.location || '') !== normalizedLocation) changedFields.push('location');
 				if (existingInventoryItem.archived) changedFields.push('archived->active');
 
@@ -1625,7 +1596,6 @@ $effect(() => {
 				eomCount: providedFlags.eomCount ? parsedEomCount : undefined,
 				minStock: providedFlags.minStock ? parsedMinStock : 0,
 				remarks: remarks || '',
-				condition: parsedCondition || 'Good',
 				location: parsedLocation,
 				currentCount: getCurrentCount(quantity, parsedDonations),
 				_rowNumber: sourceRowNumber,
@@ -1824,7 +1794,6 @@ $effect(() => {
 						donations: item.donations ?? 0,
 						eomCount: item.eomCount,
 						minStock: item.minStock,
-						condition: item.condition,
 						location: item.location || ''
 					};
 
@@ -1842,7 +1811,6 @@ $effect(() => {
 						if (provided.eomCount && (existingItem.eomCount ?? 0) !== (itemData.eomCount ?? 0)) updateData.eomCount = itemData.eomCount;
 						if (provided.donations && (existingItem.donations ?? 0) !== (itemData.donations ?? 0)) updateData.donations = itemData.donations;
 						if (provided.minStock && (existingItem.minStock ?? 0) !== (itemData.minStock ?? 0)) updateData.minStock = itemData.minStock;
-						if (provided.condition && (existingItem.condition || '') !== (itemData.condition || '')) updateData.condition = itemData.condition;
 						if (provided.location && (existingItem.location || '') !== (itemData.location || '')) updateData.location = itemData.location;
 
 						if (existingItem.archived) {
@@ -2007,7 +1975,7 @@ $effect(() => {
 	function downloadTemplate() {
 		const template = `Name,Specification,Tools or Equipment,Picture,Current Count,Donations,EOM Count,Remarks
 Chef Knife,8-inch stainless steel,Knife sheath,https://example.com/knife.jpg,10,2,10,Sharp and ready
-Mixing Bowl,Stainless steel 5L,,,5,0,5,Good condition
+Mixing Bowl,Stainless steel 5L,,,5,0,5,Ready to use
 Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 		const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
@@ -2159,16 +2127,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Location</p>
 												</div>
 												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.location || '—'}</p>
-											</div>
-
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
-													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-													</svg>
-													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Condition</p>
-												</div>
-												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.condition}</p>
 											</div>
 
 											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
@@ -2568,7 +2526,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">EOM Count</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Variance</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Condition</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-200 bg-white">
@@ -2608,9 +2565,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													</span>
 												{/if}
 											</div>
-										</td>
-										<td class="whitespace-nowrap px-6 py-4">
-											<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {item.condition === 'Good' ? 'bg-pink-100 text-pink-800' : 'bg-yellow-100 text-yellow-800'}">{item.condition}</span>
 										</td>
 									</tr>
 								{/each}
@@ -3231,17 +3185,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 								<input type="number" id="modalEomCount" bind:value={newItem.eomCount} min="0" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="0" />
 							</div>
 
-							<div>
-								<label for="modalCondition" class="block text-sm font-medium text-gray-700">Condition</label>
-								<select id="modalCondition" bind:value={newItem.condition} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
-									<option value="Excellent">Excellent</option>
-									<option value="Good">Good</option>
-									<option value="Fair">Fair</option>
-									<option value="Poor">Poor</option>
-									<option value="Damaged">Damaged</option>
-								</select>
-							</div>
-
 							<div class="sm:col-span-2">
 								<label for="modalLocation" class="block text-sm font-medium text-gray-700">Storage Location</label>
 								<input type="text" id="modalLocation" bind:value={newItem.location} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="e.g., Cabinet A, Shelf 2" />
@@ -3738,7 +3681,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Count</th>
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Donations</th>
-												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condition</th>
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image</th>
 											</tr>
 										</thead>
@@ -3792,7 +3734,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											</td>
 													<td class="px-4 py-3 text-sm text-gray-900">{getCurrentCount(item.quantity, item.donations ?? 0)}</td>
 													<td class="px-4 py-3 text-sm text-gray-900">{item.donations ?? 0}</td>
-													<td class="px-4 py-3 text-sm text-gray-600">{item.condition}</td>
 													<td class="px-4 py-3 whitespace-nowrap">
 														{#if item._hasImage}
 															{#if item._imageSource === 'url'}

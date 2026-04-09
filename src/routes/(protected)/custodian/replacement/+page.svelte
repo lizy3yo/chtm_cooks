@@ -60,7 +60,6 @@
 		categoryId: '',
 		specification: '',
 		toolsOrEquipment: '',
-		condition: 'Good',
 		location: '',
 		quantity: 1,
 		unit: '',
@@ -469,7 +468,6 @@
 					categoryId: newItemForm.categoryId || undefined,
 					specification: newItemForm.specification.trim() || undefined,
 					toolsOrEquipment: newItemForm.toolsOrEquipment.trim() || undefined,
-					condition: newItemForm.condition,
 					location: newItemForm.location.trim() || undefined,
 					quantity: newItemForm.quantity,
 					unit: newItemForm.unit.trim() || undefined,
@@ -522,7 +520,7 @@
 
 	function resetDonationForms(): void {
 		const today = new Date().toISOString().split('T')[0];
-		newItemForm = { donorName: '', itemName: '', category: '', categoryId: '', specification: '', toolsOrEquipment: '', condition: 'Good', location: '', quantity: 1, unit: '', purpose: '', date: today, notes: '' };
+		newItemForm = { donorName: '', itemName: '', category: '', categoryId: '', specification: '', toolsOrEquipment: '', location: '', quantity: 1, unit: '', purpose: '', date: today, notes: '' };
 		addToExistingForm = { donorName: '', inventoryItemId: '', quantity: 1, purpose: '', date: today, notes: '' };
 		inventorySearch = '';
 	}
@@ -1734,17 +1732,6 @@
 									{#each inventoryCategories as cat}<option value={cat.id}>{cat.name}</option>{/each}
 								</select>
 							</div>
-							<div>
-								<label for="ni-condition" class="block text-sm font-medium text-gray-700 mb-1">Condition <span class="text-red-500">*</span></label>
-								<select id="ni-condition" bind:value={newItemForm.condition}
-									class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500">
-									<option value="Excellent">Excellent</option>
-									<option value="Good">Good</option>
-									<option value="Fair">Fair</option>
-									<option value="Poor">Poor</option>
-									<option value="Damaged">Damaged</option>
-								</select>
-							</div>
 						</div>
 
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1821,7 +1808,7 @@
 											class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors {addToExistingForm.inventoryItemId === item.id ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : ''}">
 											<div>
 												<p class="text-sm font-medium text-gray-900">{item.name}</p>
-												<p class="text-xs text-gray-500">{item.category} · {item.condition}</p>
+												<p class="text-xs text-gray-500">{item.category}</p>
 											</div>
 											<div class="text-right shrink-0 ml-4">
 												<p class="text-sm font-semibold text-gray-700">{getInventoryCurrentStock(item).toLocaleString()}</p>

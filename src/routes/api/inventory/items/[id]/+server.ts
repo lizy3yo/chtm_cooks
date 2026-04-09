@@ -6,7 +6,6 @@ import type {
 	InventoryItem,
 	InventoryItemResponse,
 	UpdateInventoryItemRequest,
-	ItemCondition,
 	ItemStatus
 } from '$lib/server/models/InventoryItem';
 import type { DeletedInventoryItem } from '$lib/server/models/InventoryDeleted';
@@ -52,7 +51,6 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		eomCount: item.eomCount,
 		currentCount: getCurrentCount(item.quantity, item.donations ?? 0),
 		variance: getCurrentCount(item.quantity, item.donations ?? 0) - item.eomCount,
-		condition: item.condition,
 		location: item.location,
 		description: item.description,
 		status: item.status,
@@ -241,9 +239,6 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 		if (body.eomCount !== undefined) {
 			updateFields.eomCount = Math.max(0, body.eomCount);
-		}
-		if (body.condition !== undefined) {
-			updateFields.condition = body.condition as ItemCondition;
 		}
 		if (body.location !== undefined) {
 			updateFields.location = sanitizeInput(body.location.trim());

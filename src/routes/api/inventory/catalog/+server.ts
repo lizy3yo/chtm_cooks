@@ -29,7 +29,6 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		eomCount: item.eomCount,
 		currentCount,
 		variance: currentCount - item.eomCount,
-		condition: item.condition,
 		location: item.location,
 		description: item.description,
 		status: item.status,
@@ -62,7 +61,6 @@ function toCategoryResponse(category: InventoryCategory): InventoryCategoryRespo
 function buildItemFilter(params: {
 	search?: string;
 	availability?: string;
-	condition?: string;
 	categoryId?: string;
 }): Record<string, any> {
 	const filter: Record<string, any> = {
@@ -99,11 +97,6 @@ function buildItemFilter(params: {
 		}
 	}
 
-	// Add condition filter
-	if (params.condition && params.condition !== 'all') {
-		filter.condition = params.condition;
-	}
-
 	// Add category filter
 	if (params.categoryId && params.categoryId !== 'all') {
 		try {
@@ -124,7 +117,6 @@ function applySorting(sortBy: string): Record<string, 1 | -1> {
 		name: { name: 1 },
 		category: { category: 1, name: 1 },
 		availability: { status: 1, name: 1 },
-		condition: { condition: 1, name: 1 },
 		recent: { createdAt: -1 },
 		updated: { updatedAt: -1 }
 	};
@@ -148,8 +140,7 @@ function hasTextSearch(filter: Record<string, any>): boolean {
  * - search: Search term for items
  * - category: Filter by category ID or name
  * - availability: Filter by availability (available, borrowed, maintenance, outofstock, all)
- * - condition: Filter by condition (Excellent, Good, Fair, Poor, Damaged, all)
- * - sortBy: Sort order (name, category, availability, condition, recent, updated)
+ * - sortBy: Sort order (name, category, availability, recent, updated)
  * - page: Page number (default: 1)
  * - limit: Items per page (default: 50)
  */
@@ -186,7 +177,6 @@ export const GET: RequestHandler = async (event) => {
 		const search = url.searchParams.get('search') || '';
 		const category = url.searchParams.get('category') || 'all';
 		const availability = url.searchParams.get('availability') || 'all';
-		const condition = url.searchParams.get('condition') || 'all';
 		const sortBy = url.searchParams.get('sortBy') || 'name';
 		const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'));
 		const limit = Math.max(1, parseInt(url.searchParams.get('limit') || '50'));
@@ -195,7 +185,7 @@ export const GET: RequestHandler = async (event) => {
 		// Build cache key based on query parameters and user role
 		// Students should get cached catalog filtered to available items only
 		const cachePartition = decoded.role === 'student' ? 'student' : 'staff';
-		const cacheKey = `inventory:catalog:${cachePartition}:${search}:${category}:${availability}:${condition}:${sortBy}:${page}:${limit}`;
+		const cacheKey = `inventory:catalog:${cachePartition}:${search}:${category}:${availability}:${sortBy}:${page}:${limit}`;
 
 		// Check cache first - 5 minute TTL for public catalog (balance freshness vs performance)
 		const cached = await cacheService.get<any>(cacheKey);
@@ -249,7 +239,6 @@ export const GET: RequestHandler = async (event) => {
 		const itemFilter = buildItemFilter({
 			search,
 			availability,
-			condition,
 			categoryId: category
 		});
 

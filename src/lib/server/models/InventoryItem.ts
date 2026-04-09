@@ -1,13 +1,5 @@
 import type { ObjectId } from 'mongodb';
 
-export enum ItemCondition {
-	EXCELLENT = 'Excellent',
-	GOOD = 'Good',
-	FAIR = 'Fair',
-	POOR = 'Poor',
-	DAMAGED = 'Damaged'
-}
-
 export enum ItemStatus {
 	IN_STOCK = 'In Stock',
 	LOW_STOCK = 'Low Stock',
@@ -26,7 +18,6 @@ export interface InventoryItem {
 	quantity: number;
 	donations?: number;
 	eomCount: number; // End of Month Count
-	condition: ItemCondition;
 	location?: string;
 	description?: string;
 	status: ItemStatus;
@@ -53,7 +44,6 @@ export interface InventoryItemResponse {
 	eomCount: number;
 	currentCount?: number;
 	variance: number;
-	condition: ItemCondition;
 	location?: string;
 	description?: string;
 	status: ItemStatus;
@@ -75,7 +65,6 @@ export interface CreateInventoryItemRequest {
 	quantity: number;
 	donations?: number;
 	eomCount?: number;
-	condition: ItemCondition;
 	location?: string;
 	unitPrice?: number;
 	description?: string;

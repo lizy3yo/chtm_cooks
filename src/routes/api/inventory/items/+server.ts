@@ -6,7 +6,6 @@ import type {
 	InventoryItem,
 	InventoryItemResponse,
 	CreateInventoryItemRequest,
-	ItemCondition,
 	ItemStatus
 } from '$lib/server/models/InventoryItem';
 import { sanitizeInput } from '$lib/server/utils/validation';
@@ -48,7 +47,6 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		eomCount: item.eomCount,
 		currentCount: getCurrentCount(item.quantity, item.donations ?? 0),
 		variance: getCurrentCount(item.quantity, item.donations ?? 0) - item.eomCount,
-		condition: item.condition,
 		location: item.location,
 		description: item.description,
 		status: item.status,
@@ -221,7 +219,6 @@ export const POST: RequestHandler = async (event) => {
 		const quantity = Math.max(0, body.quantity);
 		const donations = body.donations !== undefined ? Math.max(0, body.donations) : 0;
 		const eomCount = body.eomCount !== undefined ? Math.max(0, body.eomCount) : 0;
-		const condition = body.condition || 'Good' as ItemCondition;
 
 		// Connect to database
 		const db = await getDatabase();
@@ -252,7 +249,6 @@ export const POST: RequestHandler = async (event) => {
 			quantity,
 			donations,
 			eomCount,
-			condition,
 			location,
 			status,
 			isConstant: body.isConstant || false,
@@ -290,7 +286,6 @@ export const POST: RequestHandler = async (event) => {
 				categoryId: categoryId?.toString(),
 				quantity,
 				donations,
-				condition,
 				status
 			},
 			ipAddress: getClientAddress(),

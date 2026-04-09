@@ -273,8 +273,7 @@ export const GET: RequestHandler = async (event) => {
 					name: 1,
 					category: 1,
 					quantityOut: 1,
-					totalStock: { $ifNull: ['$inventoryDoc.quantity', 0] },
-					condition: { $ifNull: ['$inventoryDoc.condition', 'Unknown'] }
+					totalStock: { $ifNull: ['$inventoryDoc.quantity', 0] }
 				}
 			}
 		], { allowDiskUse: true }).toArray();
@@ -323,18 +322,11 @@ export const GET: RequestHandler = async (event) => {
 					category: 1,
 					quantity: 1,
 					eomCount: { $ifNull: ['$eomCount', 0] },
-					variance: { $subtract: ['$quantity', { $ifNull: ['$eomCount', 0] }] },
-					condition: 1
+					variance: { $subtract: ['$quantity', { $ifNull: ['$eomCount', 0] }] }
 				}
 			},
 			{ $sort: { variance: 1 } },
 			{ $limit: 20 }
-		]).toArray();
-
-		// Condition distribution
-		const conditionDistribution = await inventory.aggregate([
-			{ $match: { archived: false } },
-			{ $group: { _id: '$condition', count: { $sum: 1 } } }
 		]).toArray();
 
 		// Low stock / out of stock alerts
@@ -346,8 +338,7 @@ export const GET: RequestHandler = async (event) => {
 					name: 1,
 					category: 1,
 					quantity: 1,
-					status: 1,
-					condition: 1
+					status: 1
 				}
 			},
 			{ $sort: { quantity: 1 } },
@@ -723,7 +714,6 @@ export const GET: RequestHandler = async (event) => {
 					incidentRate: Math.round(i.incidentRate * 10) / 10
 				})),
 				eomVariance,
-				conditionDistribution: conditionDistribution.map((c) => ({ condition: c._id, count: c.count })),
 				stockAlerts
 			},
 			replacement: {

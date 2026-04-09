@@ -38,7 +38,6 @@ export interface CreateDonationNewItemRequest {
 	categoryId?: string;
 	specification?: string;
 	toolsOrEquipment?: string;
-	condition: string;
 	location?: string;
 }
 

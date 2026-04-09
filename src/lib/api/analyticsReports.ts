@@ -53,7 +53,6 @@ export interface ItemCurrentlyOut {
 	category: string;
 	quantityOut: number;
 	totalStock: number;
-	condition: string;
 }
 
 export interface DamageRateItem {
@@ -73,12 +72,6 @@ export interface EomVarianceItem {
 	quantity: number;
 	eomCount: number;
 	variance: number;
-	condition: string;
-}
-
-export interface ConditionDistributionItem {
-	condition: string;
-	count: number;
 }
 
 export interface StockAlert {
@@ -87,7 +80,6 @@ export interface StockAlert {
 	category: string;
 	quantity: number;
 	status: string;
-	condition: string;
 }
 
 export interface ReplacementSummary {
@@ -162,7 +154,6 @@ export interface AnalyticsReport {
 		itemsCurrentlyOut: ItemCurrentlyOut[];
 		damageRateItems: DamageRateItem[];
 		eomVariance: EomVarianceItem[];
-		conditionDistribution: ConditionDistributionItem[];
 		stockAlerts: StockAlert[];
 	};
 	replacement: {

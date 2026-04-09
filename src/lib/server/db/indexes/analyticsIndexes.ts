@@ -209,29 +209,6 @@ export const analyticsIndexes: IndexDefinition[] = [
 	// ── Inventory ─────────────────────────────────────────────────────────────
 
 	/**
-	 * EOM variance and condition distribution.
-	 * Query: { archived: false }  →  project variance fields
-	 */
-	{
-		collection: 'inventory_items',
-		type: 'compound',
-		fields: { archived: 1, condition: 1 },
-		options: {
-			name: 'idx_inventory_items_analytics_condition',
-			background: true,
-			partialFilterExpression: { archived: false }
-		},
-		description: 'Active items by condition for distribution analytics',
-		priority: 'medium',
-		usedFor: ['Analytics: conditionDistribution', 'Analytics: eomVariance'],
-		impact: {
-			readImprovement: '45x faster for condition aggregations',
-			writeImpact: '~1% on item updates',
-			storageSize: '~10KB (partial index)'
-		}
-	},
-
-	/**
 	 * Stock alerts: low stock / out of stock active items.
 	 * Query: { archived: false, status: { $in: ["Low Stock","Out of Stock"] } }
 	 */
