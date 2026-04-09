@@ -9,7 +9,9 @@ export interface InventoryItem {
 	toolsOrEquipment: string;
 	picture?: string;
 	quantity: number;
+	donations?: number;
 	eomCount: number;
+	currentCount?: number;
 	variance: number;
 	condition: string;
 	location?: string;
@@ -41,6 +43,7 @@ export interface CreateItemRequest {
 	toolsOrEquipment?: string;
 	picture?: string;
 	quantity: number;
+	donations?: number;
 	eomCount?: number;
 	condition: string;
 	location?: string;

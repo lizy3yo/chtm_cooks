@@ -122,6 +122,10 @@
 		return `${normalizeKeyPart(name)}|${normalizeKeyPart(specification)}`;
 	}
 
+	function getCurrentCount(quantity: number, donations = 0): number {
+		return quantity + donations;
+	}
+
 	function normalizeImportedCondition(value: string | undefined | null): string | null {
 		const normalized = normalizeKeyPart(value).replace(/[\s_-]+/g, '');
 		if (!normalized) return null;
@@ -1279,6 +1283,8 @@ $effect(() => {
 					v === 'qty' ||
 					v === 'count' ||
 					v === 'current count' ||
+					v === 'donations' ||
+					v === 'donation' ||
 					v === 'eom count' ||
 					v === 'condition' ||
 					v === 'item condition' ||
@@ -1318,8 +1324,8 @@ $effect(() => {
 				}
 			}
 
-			if (headerLineIndex === -1) {
-				importErrors = ['Could not detect the header row. Ensure one row contains columns like Name, Specification, Current Count.'];
+				if (headerLineIndex === -1) {
+					importErrors = ['Could not detect the header row. Ensure one row contains columns like Name, Specification, Current Count, and Donations.'];
 				toastStore.error('Could not detect header row in file');
 				return;
 			}
@@ -1356,6 +1362,8 @@ $effect(() => {
 					headerMap.category = index;
 				} else if ((header === 'eom count' || header.replace(/\s+/g, '') === 'eomcount') && headerMap.eomcount === undefined) {
 					headerMap.eomcount = index;
+				} else if ((header === 'donations' || header === 'donation') && headerMap.donations === undefined) {
+					headerMap.donations = index;
 				} else if (
 					(header === 'current count' || header.replace(/\s+/g, '') === 'currentcount' || header === 'quantity' || header === 'qty' || header === 'count') &&
 					headerMap.quantity === undefined
@@ -1423,6 +1431,7 @@ $effect(() => {
 			const specification = valueAt('specification');
 			const toolsorequipment = valueAt('toolsorequipment');
 			const eomcount = valueAt('eomcount');
+			const donationsValue = valueAt('donations');
 			const minStockValue = valueAt('minstock');
 			const conditionValue = valueAt('condition');
 			const locationValue = valueAt('location');
@@ -1436,6 +1445,7 @@ $effect(() => {
 				specification: headerMap['specification'] !== undefined && specification !== '',
 				toolsOrEquipment: headerMap['toolsorequipment'] !== undefined && toolsorequipment !== '',
 				eomCount: headerMap['eomcount'] !== undefined && eomcount !== '',
+				donations: headerMap['donations'] !== undefined && donationsValue !== '',
 				minStock: headerMap['minstock'] !== undefined && minStockValue !== '',
 				condition: headerMap['condition'] !== undefined && conditionValue !== '',
 				location: headerMap['location'] !== undefined && locationValue !== '',
@@ -1481,6 +1491,11 @@ $effect(() => {
 			const parsedEomCount = providedFlags.eomCount ? parseInt(eomcount, 10) : 0;
 			if (providedFlags.eomCount && (isNaN(parsedEomCount) || parsedEomCount < 0)) {
 				rowErrors.push('EOM Count must be a valid number');
+			}
+
+			const parsedDonations = providedFlags.donations ? parseInt(donationsValue, 10) : 0;
+			if (providedFlags.donations && (isNaN(parsedDonations) || parsedDonations < 0)) {
+				rowErrors.push('Donations must be a valid number');
 			}
 
 			const parsedMinStock = providedFlags.minStock ? parseInt(minStockValue, 10) : 0;
@@ -1582,6 +1597,7 @@ $effect(() => {
 				if (providedFlags.toolsOrEquipment && normalizeKeyPart(existingInventoryItem.toolsOrEquipment || '') !== normalizedTools) changedFields.push('tools/equipment');
 				if (providedFlags.quantity && (existingInventoryItem.quantity ?? 0) !== quantity) changedFields.push('quantity');
 				if (providedFlags.eomCount && (existingInventoryItem.eomCount ?? 0) !== parsedEomCount) changedFields.push('eomCount');
+				if (providedFlags.donations && (existingInventoryItem.donations ?? 0) !== parsedDonations) changedFields.push('donations');
 				if (providedFlags.minStock && (existingInventoryItem.minStock ?? 0) !== parsedMinStock) changedFields.push('minStock');
 				if (providedFlags.condition && normalizeKeyPart(existingInventoryItem.condition || '') !== normalizeKeyPart(parsedCondition || '')) changedFields.push('condition');
 				if (providedFlags.location && normalizeKeyPart(existingInventoryItem.location || '') !== normalizedLocation) changedFields.push('location');
@@ -1603,6 +1619,7 @@ $effect(() => {
 				name: name,
 				category: category,
 				quantity: quantity,
+				donations: parsedDonations,
 				specification: specification || '',
 				toolsOrEquipment: toolsorequipment || '',
 				eomCount: providedFlags.eomCount ? parsedEomCount : undefined,
@@ -1610,6 +1627,7 @@ $effect(() => {
 				remarks: remarks || '',
 				condition: parsedCondition || 'Good',
 				location: parsedLocation,
+				currentCount: getCurrentCount(quantity, parsedDonations),
 				_rowNumber: sourceRowNumber,
 				_errors: rowErrors,
 				_valid: rowErrors.length === 0,
@@ -1803,6 +1821,7 @@ $effect(() => {
 						specification: item.specification || '',
 						toolsOrEquipment: item.toolsOrEquipment || '',
 						quantity: item.quantity,
+						donations: item.donations ?? 0,
 						eomCount: item.eomCount,
 						minStock: item.minStock,
 						condition: item.condition,
@@ -1821,6 +1840,7 @@ $effect(() => {
 						if (provided.toolsOrEquipment && (existingItem.toolsOrEquipment || '') !== (itemData.toolsOrEquipment || '')) updateData.toolsOrEquipment = itemData.toolsOrEquipment;
 						if (provided.quantity && (existingItem.quantity ?? 0) !== (itemData.quantity ?? 0)) updateData.quantity = itemData.quantity;
 						if (provided.eomCount && (existingItem.eomCount ?? 0) !== (itemData.eomCount ?? 0)) updateData.eomCount = itemData.eomCount;
+						if (provided.donations && (existingItem.donations ?? 0) !== (itemData.donations ?? 0)) updateData.donations = itemData.donations;
 						if (provided.minStock && (existingItem.minStock ?? 0) !== (itemData.minStock ?? 0)) updateData.minStock = itemData.minStock;
 						if (provided.condition && (existingItem.condition || '') !== (itemData.condition || '')) updateData.condition = itemData.condition;
 						if (provided.location && (existingItem.location || '') !== (itemData.location || '')) updateData.location = itemData.location;
@@ -1985,10 +2005,10 @@ $effect(() => {
 	}
 
 	function downloadTemplate() {
-		const template = `Name,Specification,Tools or Equipment,Picture,Current Count,EOM Count,Remarks
-Chef Knife,8-inch stainless steel,Knife sheath,https://example.com/knife.jpg,10,10,Sharp and ready
-Mixing Bowl,Stainless steel 5L,,,5,5,Good condition
-Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
+		const template = `Name,Specification,Tools or Equipment,Picture,Current Count,Donations,EOM Count,Remarks
+Chef Knife,8-inch stainless steel,Knife sheath,https://example.com/knife.jpg,10,2,10,Sharp and ready
+Mixing Bowl,Stainless steel 5L,,,5,0,5,Good condition
+Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 		const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
 		const link = document.createElement('a');
@@ -2544,6 +2564,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Specification</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tools / Equipment</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Current Count</th>
+									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Donations</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">EOM Count</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Variance</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
@@ -2564,7 +2585,8 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 										</td>
 										<td class="px-6 py-4 text-sm text-gray-700">{item.specification}</td>
 										<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment}</td>
-										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.quantity}</td>
+										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.currentCount ?? getCurrentCount(item.quantity, item.donations ?? 0)}</td>
+										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.donations ?? 0}</td>
 										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.eomCount}</td>
 										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{item.variance}</td>
 										<td class="whitespace-nowrap px-6 py-4">
@@ -3423,7 +3445,12 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 														<tr>
 															<td class="px-3 py-2 font-medium text-gray-800">Current Count</td>
 															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
-															<td class="px-3 py-2 text-gray-600">Current stock quantity — defaults to 1</td>
+															<td class="px-3 py-2 text-gray-600">Current stock quantity before donations — defaults to 1</td>
+														</tr>
+														<tr class="bg-gray-50">
+															<td class="px-3 py-2 font-medium text-gray-800">Donations</td>
+															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
+															<td class="px-3 py-2 text-gray-600">Donated quantity added to the current count — defaults to 0</td>
 														</tr>
 														<tr class="bg-gray-50">
 															<td class="px-3 py-2 font-medium text-gray-800">EOM Count</td>
@@ -3709,7 +3736,8 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
+												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Count</th>
+												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Donations</th>
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condition</th>
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image</th>
 											</tr>
@@ -3762,7 +3790,8 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 													<span class="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">new</span>
 												{/if}
 											</td>
-													<td class="px-4 py-3 text-sm text-gray-900">{item.quantity}</td>
+													<td class="px-4 py-3 text-sm text-gray-900">{getCurrentCount(item.quantity, item.donations ?? 0)}</td>
+													<td class="px-4 py-3 text-sm text-gray-900">{item.donations ?? 0}</td>
 													<td class="px-4 py-3 text-sm text-gray-600">{item.condition}</td>
 													<td class="px-4 py-3 whitespace-nowrap">
 														{#if item._hasImage}

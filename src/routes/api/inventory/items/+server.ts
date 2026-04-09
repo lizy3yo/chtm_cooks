@@ -27,6 +27,10 @@ function determineStatus(quantity: number, archived: boolean): ItemStatus {
 	return 'In Stock' as ItemStatus;
 }
 
+function getCurrentCount(quantity: number, donations = 0): number {
+	return quantity + donations;
+}
+
 /**
  * Convert InventoryItem to InventoryItemResponse
  */
@@ -40,8 +44,10 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		toolsOrEquipment: item.toolsOrEquipment,
 		picture: item.picture,
 		quantity: item.quantity,
+		donations: item.donations ?? 0,
 		eomCount: item.eomCount,
-		variance: item.quantity - item.eomCount,
+		currentCount: getCurrentCount(item.quantity, item.donations ?? 0),
+		variance: getCurrentCount(item.quantity, item.donations ?? 0) - item.eomCount,
 		condition: item.condition,
 		location: item.location,
 		description: item.description,
@@ -213,6 +219,7 @@ export const POST: RequestHandler = async (event) => {
 		const toolsOrEquipment = body.toolsOrEquipment ? sanitizeInput(body.toolsOrEquipment.trim()) : '';
 		const location = body.location ? sanitizeInput(body.location.trim()) : undefined;
 		const quantity = Math.max(0, body.quantity);
+		const donations = body.donations !== undefined ? Math.max(0, body.donations) : 0;
 		const eomCount = body.eomCount !== undefined ? Math.max(0, body.eomCount) : 0;
 		const condition = body.condition || 'Good' as ItemCondition;
 
@@ -232,7 +239,7 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		// Determine status
-		const status = determineStatus(quantity, false);
+		const status = determineStatus(getCurrentCount(quantity, donations), false);
 
 		// Create item
 		const newItem: InventoryItem = {
@@ -243,6 +250,7 @@ export const POST: RequestHandler = async (event) => {
 			toolsOrEquipment,
 			picture: body.picture,
 			quantity,
+			donations,
 			eomCount,
 			condition,
 			location,
@@ -281,6 +289,7 @@ export const POST: RequestHandler = async (event) => {
 				category,
 				categoryId: categoryId?.toString(),
 				quantity,
+				donations,
 				condition,
 				status
 			},

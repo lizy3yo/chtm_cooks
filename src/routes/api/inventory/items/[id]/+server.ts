@@ -31,6 +31,10 @@ function determineStatus(quantity: number, archived: boolean): ItemStatus {
 	return 'In Stock' as ItemStatus;
 }
 
+function getCurrentCount(quantity: number, donations = 0): number {
+	return quantity + donations;
+}
+
 /**
  * Convert InventoryItem to InventoryItemResponse
  */
@@ -44,8 +48,10 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		toolsOrEquipment: item.toolsOrEquipment,
 		picture: item.picture,
 		quantity: item.quantity,
+		donations: item.donations ?? 0,
 		eomCount: item.eomCount,
-		variance: item.quantity - item.eomCount,
+		currentCount: getCurrentCount(item.quantity, item.donations ?? 0),
+		variance: getCurrentCount(item.quantity, item.donations ?? 0) - item.eomCount,
 		condition: item.condition,
 		location: item.location,
 		description: item.description,
@@ -230,6 +236,9 @@ export const PATCH: RequestHandler = async (event) => {
 		if (body.quantity !== undefined) {
 			updateFields.quantity = Math.max(0, body.quantity);
 		}
+		if (body.donations !== undefined) {
+			updateFields.donations = Math.max(0, body.donations);
+		}
 		if (body.eomCount !== undefined) {
 			updateFields.eomCount = Math.max(0, body.eomCount);
 		}
@@ -257,8 +266,9 @@ export const PATCH: RequestHandler = async (event) => {
 
 		// Recalculate status if quantity changed
 		const newQuantity = updateFields.quantity ?? currentItem.quantity;
+		const newDonations = updateFields.donations ?? currentItem.donations ?? 0;
 		const newArchived = updateFields.archived ?? currentItem.archived;
-		updateFields.status = determineStatus(newQuantity, newArchived);
+		updateFields.status = determineStatus(getCurrentCount(newQuantity, newDonations), newArchived);
 
 		// Update category counts if category changed
 		if (updateFields.categoryId !== undefined) {

@@ -13,6 +13,9 @@ import { cacheService } from '$lib/server/cache';
  * Convert InventoryItem to InventoryItemResponse
  */
 function toItemResponse(item: InventoryItem): InventoryItemResponse {
+	const donations = item.donations ?? 0;
+	const currentCount = item.quantity + donations;
+
 	return {
 		id: item._id!.toString(),
 		name: item.name,
@@ -22,8 +25,10 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		toolsOrEquipment: item.toolsOrEquipment,
 		picture: item.picture,
 		quantity: item.quantity,
+		donations,
 		eomCount: item.eomCount,
-		variance: item.quantity - item.eomCount,
+		currentCount,
+		variance: currentCount - item.eomCount,
 		condition: item.condition,
 		location: item.location,
 		description: item.description,

@@ -83,6 +83,10 @@
 		inventoryItems.find((i) => i.id === addToExistingForm.inventoryItemId) ?? null
 	);
 
+	function getInventoryCurrentStock(item: InventoryItem): number {
+		return item.currentCount ?? (item.quantity + (item.donations ?? 0));
+	}
+
 	const filteredInventoryItems = $derived(
 		inventorySearch.trim()
 			? inventoryItems.filter(
@@ -1820,7 +1824,7 @@
 												<p class="text-xs text-gray-500">{item.category} · {item.condition}</p>
 											</div>
 											<div class="text-right shrink-0 ml-4">
-												<p class="text-sm font-semibold text-gray-700">{item.quantity.toLocaleString()}</p>
+												<p class="text-sm font-semibold text-gray-700">{getInventoryCurrentStock(item).toLocaleString()}</p>
 												<p class="text-xs text-gray-400">in stock</p>
 											</div>
 										</button>
@@ -1830,7 +1834,7 @@
 							{#if selectedInventoryItem}
 								<div class="mt-2 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700 flex items-center gap-2">
 									<svg class="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-									Selected: <span class="font-semibold">{selectedInventoryItem.name}</span> — current stock: {selectedInventoryItem.quantity}
+									Selected: <span class="font-semibold">{selectedInventoryItem.name}</span> — current stock: {getInventoryCurrentStock(selectedInventoryItem)}
 								</div>
 							{/if}
 						</div>
@@ -1841,7 +1845,7 @@
 								<input id="ae-qty" type="number" bind:value={addToExistingForm.quantity} min="1" step="1"
 									class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
 								{#if selectedInventoryItem}
-									<p class="mt-1 text-xs text-gray-400">New total: {(selectedInventoryItem.quantity + (addToExistingForm.quantity || 0)).toLocaleString()}</p>
+									<p class="mt-1 text-xs text-gray-400">New total: {(getInventoryCurrentStock(selectedInventoryItem) + (addToExistingForm.quantity || 0)).toLocaleString()}</p>
 								{/if}
 							</div>
 							<div>

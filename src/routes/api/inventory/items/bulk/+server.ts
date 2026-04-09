@@ -28,6 +28,10 @@ function determineStatus(quantity: number, archived: boolean): ItemStatus {
 	return 'In Stock' as ItemStatus;
 }
 
+function getCurrentCount(quantity: number, donations = 0): number {
+	return quantity + donations;
+}
+
 export const POST: RequestHandler = async (event) => {
 	const { request, getClientAddress } = event;
 
@@ -92,6 +96,7 @@ export const POST: RequestHandler = async (event) => {
 				const toolsOrEquipment = item.toolsOrEquipment ? sanitizeInput(item.toolsOrEquipment.trim()) : '';
 				const location = item.location ? sanitizeInput(item.location.trim()) : undefined;
 				const quantity = Math.max(0, item.quantity);
+				const donations = item.donations !== undefined ? Math.max(0, item.donations) : 0;
 				const eomCount = item.eomCount !== undefined ? Math.max(0, item.eomCount) : 0;
 				const condition = (item.condition || 'Good') as ItemCondition;
 
@@ -112,10 +117,11 @@ export const POST: RequestHandler = async (event) => {
 					toolsOrEquipment,
 					picture: item.picture,
 					quantity,
+					donations,
 					eomCount,
 					condition,
 					location,
-					status: determineStatus(quantity, false),
+					status: determineStatus(getCurrentCount(quantity, donations), false),
 					isConstant: item.isConstant || false,
 					maxQuantityPerRequest: item.isConstant && item.maxQuantityPerRequest
 						? Math.max(1, Math.floor(item.maxQuantityPerRequest))

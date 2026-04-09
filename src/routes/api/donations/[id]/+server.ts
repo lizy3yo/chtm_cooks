@@ -9,11 +9,13 @@ import type { RequestHandler } from './$types';
 import { getDatabase } from '$lib/server/db/mongodb';
 import type { Donation, AddDonationQuantityRequest } from '$lib/server/models/Donation';
 import { toDonationResponse, DONATIONS_COLLECTION } from '$lib/server/models/Donation';
+import type { InventoryItem, ItemStatus } from '$lib/server/models/InventoryItem';
 import { sanitizeInput } from '$lib/server/utils/validation';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
 import { cacheService } from '$lib/server/cache';
 import { publishDonationChange, DONATION_CHANNEL } from '$lib/server/realtime/donationEvents';
+import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
 import {
 	getAuthenticatedUser,
 	buildDonationDetailCacheKey,
@@ -24,6 +26,10 @@ import {
 
 const ALLOWED_ROLES = ['custodian', 'superadmin'];
 const MAX_NOTES_LENGTH = 1000;
+
+function getCurrentCount(quantity: number, donations = 0): number {
+	return quantity + donations;
+}
 
 // ─── GET ─────────────────────────────────────────────────────────────────────
 
@@ -110,6 +116,39 @@ export const PATCH: RequestHandler = async (event) => {
 		);
 
 		if (!result) return json({ error: 'Donation not found' }, { status: 404 });
+
+		if (result.inventoryItemId) {
+			const inventoryItemsCol = db.collection<InventoryItem>('inventory_items');
+			const linkedInventoryItem = await inventoryItemsCol.findOne({
+				_id: result.inventoryItemId,
+				archived: false
+			});
+
+			if (linkedInventoryItem) {
+				const newDonations = (linkedInventoryItem.donations ?? 0) + body.quantityToAdd;
+				const newStatus: ItemStatus = getCurrentCount(linkedInventoryItem.quantity, newDonations) > 0
+					? 'In Stock' as ItemStatus
+					: 'Out of Stock' as ItemStatus;
+
+				await inventoryItemsCol.updateOne(
+					{ _id: result.inventoryItemId, archived: false },
+					{
+						$inc: { donations: body.quantityToAdd },
+						$set: { updatedAt: now, status: newStatus }
+					}
+				);
+			}
+
+			await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog']);
+
+			publishInventoryChange([INVENTORY_CHANNEL], {
+				action: 'item_updated',
+				entityType: 'item',
+				entityId: result.inventoryItemId.toString(),
+				entityName: result.itemName,
+				occurredAt: now.toISOString()
+			});
+		}
 
 		await invalidateDonationCaches();
 

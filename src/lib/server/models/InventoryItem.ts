@@ -24,6 +24,7 @@ export interface InventoryItem {
 	toolsOrEquipment: string;
 	picture?: string;
 	quantity: number;
+	donations?: number;
 	eomCount: number; // End of Month Count
 	condition: ItemCondition;
 	location?: string;
@@ -48,7 +49,9 @@ export interface InventoryItemResponse {
 	toolsOrEquipment: string;
 	picture?: string;
 	quantity: number;
+	donations?: number;
 	eomCount: number;
+	currentCount?: number;
 	variance: number;
 	condition: ItemCondition;
 	location?: string;
@@ -70,6 +73,7 @@ export interface CreateInventoryItemRequest {
 	toolsOrEquipment?: string;
 	picture?: string;
 	quantity: number;
+	donations?: number;
 	eomCount?: number;
 	condition: ItemCondition;
 	location?: string;
