@@ -39,75 +39,63 @@
 				</div>
 			</div>
 			
-			<!-- Table Content Skeleton -->
-			<div class="overflow-x-auto">
+			<!-- Table Content Skeleton - 600px height -->
+			<div class="overflow-x-auto" style="min-height: 600px;">
 				<table class="min-w-full divide-y divide-gray-200">
-					<!-- Table Header Skeleton -->
+					<!-- Table Header Skeleton - 6 Columns -->
 					<thead class="bg-gray-50">
 						<tr>
 							<th class="px-6 py-3">
-								<Skeleton class="h-3 w-20" />
-							</th>
-							<th class="px-6 py-3 hidden sm:table-cell">
-								<Skeleton class="h-3 w-16" />
-							</th>
-							<th class="px-6 py-3 hidden md:table-cell">
 								<Skeleton class="h-3 w-24" />
 							</th>
-							<th class="px-6 py-3 hidden lg:table-cell">
+							<th class="px-6 py-3">
+								<Skeleton class="h-3 w-20" />
+							</th>
+							<th class="px-6 py-3">
 								<Skeleton class="h-3 w-28" />
 							</th>
-							<th class="px-6 py-3 hidden lg:table-cell">
-								<Skeleton class="h-3 w-20" />
+							<th class="px-6 py-3">
+								<Skeleton class="h-3 w-32" />
 							</th>
-							<th class="px-6 py-3 hidden xl:table-cell">
-								<Skeleton class="h-3 w-20" />
+							<th class="px-6 py-3">
+								<Skeleton class="h-3 w-24" />
 							</th>
-							<th class="px-6 py-3 hidden xl:table-cell">
-								<Skeleton class="h-3 w-18" />
-							</th>
-							<th class="px-6 py-3 hidden xl:table-cell">
+							<th class="px-6 py-3">
 								<Skeleton class="h-3 w-16" />
-							</th>
-							<th class="px-6 py-3 hidden xl:table-cell">
-								<Skeleton class="h-3 w-18" />
 							</th>
 						</tr>
 					</thead>
 					
-					<!-- Table Rows Skeleton -->
+					<!-- Table Rows Skeleton - 6 Columns -->
 					<tbody class="divide-y divide-gray-200 bg-white">
 						{#each Array(10) as _, i}
 							<tr class="hover:bg-gray-50">
+								<!-- Item Name -->
 								<td class="px-6 py-4">
 									<div class="flex items-center gap-3">
 										<Skeleton variant="circle" class="h-6 w-6 flex-shrink-0" />
-										<Skeleton class="h-4 w-32 sm:w-40" />
+										<Skeleton class="h-4 w-40" />
 									</div>
 								</td>
-								<td class="px-6 py-4 hidden sm:table-cell">
-									<Skeleton class="h-6 w-20" />
+								<!-- Category -->
+								<td class="px-6 py-4">
+									<Skeleton class="h-6 w-24 rounded-full" />
 								</td>
-								<td class="px-6 py-4 hidden md:table-cell">
-									<Skeleton class="h-4 w-28" />
-								</td>
-								<td class="px-6 py-4 hidden lg:table-cell">
+								<!-- Specification -->
+								<td class="px-6 py-4">
 									<Skeleton class="h-4 w-32" />
 								</td>
-								<td class="px-6 py-4 hidden lg:table-cell">
+								<!-- Tools / Equipment -->
+								<td class="px-6 py-4">
+									<Skeleton class="h-4 w-28" />
+								</td>
+								<!-- Current Count -->
+								<td class="px-6 py-4">
 									<Skeleton class="h-4 w-12" />
 								</td>
-								<td class="px-6 py-4 hidden xl:table-cell">
-									<Skeleton class="h-4 w-12" />
-								</td>
-								<td class="px-6 py-4 hidden xl:table-cell">
-									<Skeleton class="h-4 w-12" />
-								</td>
-								<td class="px-6 py-4 hidden xl:table-cell">
-									<Skeleton class="h-6 w-16" />
-								</td>
-								<td class="px-6 py-4 hidden xl:table-cell">
-									<Skeleton class="h-6 w-16" />
+								<!-- Status -->
+								<td class="px-6 py-4">
+									<Skeleton class="h-6 w-20 rounded-full" />
 								</td>
 							</tr>
 						{/each}
