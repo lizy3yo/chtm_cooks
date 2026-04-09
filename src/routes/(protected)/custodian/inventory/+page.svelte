@@ -2450,31 +2450,43 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				</div>
 				
 				{#if displayItems.length === 0}
-					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-						</svg>
-						<h3 class="mt-4 text-lg font-medium text-gray-900">No items found</h3>
-						<p class="mt-2 text-sm text-gray-500">
-							{#if selectedCategory}
-								No items in this category. Try selecting a different category or clear the filter.
-							{:else if query}
-								No items match your search. Try different keywords.
-							{:else}
-								Get started by adding your first inventory item.
-							{/if}
-						</p>
-						{#if !selectedCategory && !query}
-							<button 
-								onclick={() => switchTab('add-item')}
-								class="mt-4 inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700"
-							>
-								<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+					<div class="flex items-center justify-center bg-gray-50" style="min-height: 600px;">
+						<div class="text-center px-4">
+							<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-pink-100">
+								<svg class="h-8 w-8 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
 								</svg>
-								Add Your First Item
-							</button>
-						{/if}
+							</div>
+							<h3 class="mt-6 text-lg font-semibold text-gray-900">No items found</h3>
+							<p class="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
+								{#if selectedCategory}
+									No items in this category. Try selecting a different category or clear the filter.
+								{:else if query}
+									No items match your search. Try adjusting your search terms.
+								{:else}
+									Get started by adding your first inventory item to begin tracking your stock.
+								{/if}
+							</p>
+							{#if !selectedCategory && !query}
+								<button 
+									onclick={openAddItemModal}
+									class="mt-6 inline-flex items-center gap-2 rounded-lg bg-pink-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+									</svg>
+									Add Your First Item
+								</button>
+							{/if}
+							{#if selectedCategory}
+								<button 
+									onclick={clearCategoryFilter}
+									class="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+								>
+									Clear Filter
+								</button>
+							{/if}
+						</div>
 					</div>
 				{:else}
 					<!-- Mobile card list — hidden on sm+ -->
@@ -2513,7 +2525,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					</div>
 
 					<!-- Desktop table — hidden on mobile -->
-					<div class="hidden overflow-x-auto sm:block">
+					<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
 						<table class="min-w-full divide-y divide-gray-200">
 							<thead class="bg-gray-50">
 								<tr>
@@ -2905,21 +2917,29 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				</div>
 				
 				{#if constantItems.length === 0}
-					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-						</svg>
-						<h3 class="mt-4 text-lg font-medium text-gray-900">No constant items configured</h3>
-						<p class="mt-2 text-sm text-gray-500">Mark items as constant from the Items tab to have them always appear on student request forms.</p>
-						<button 
-							onclick={() => switchTab('all-items')}
-							class="mt-4 inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-						>
-							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-							</svg>
-							Go to Items
-						</button>
+					<div class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white" style="min-height: 600px;">
+						<div class="text-center px-4">
+							<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+								<svg class="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+								</svg>
+							</div>
+							<h3 class="mt-6 text-lg font-semibold text-gray-900">No constant items configured</h3>
+							<p class="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
+								Mark items as constant from the Items tab to have them always appear on student request forms, regardless of stock availability.
+							</p>
+							<div class="mt-6 flex items-center justify-center gap-3">
+								<button 
+									onclick={() => switchTab('all-items')}
+									class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+									</svg>
+									Go to Items
+								</button>
+							</div>
+						</div>
 					</div>
 				{:else}
 					<!-- Mobile card list -->
@@ -2956,7 +2976,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					</div>
 
 					<!-- Desktop table -->
-					<div class="hidden overflow-x-auto sm:block">
+					<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
 						<table class="min-w-full divide-y divide-gray-200">
 							<thead class="bg-gray-50">
 								<tr>
@@ -2971,7 +2991,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							</thead>
 							<tbody class="divide-y divide-gray-200 bg-white">
 								{#each constantItems as item, i}
-									<tr class="hover:bg-gray-50">
+									<tr class="hover:bg-gray-50 transition-colors">
 										<td class="whitespace-nowrap px-6 py-4">
 											<div class="flex items-center gap-3">
 												{#if item.picture}
@@ -2985,14 +3005,14 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											</div>
 										</td>
 										<td class="whitespace-nowrap px-6 py-4">
-											<span class="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
+											<span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
 										</td>
-										<td class="px-6 py-4 text-sm text-gray-700">{item.specification}</td>
-										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.quantity}</td>
+										<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
+										<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{item.quantity}</td>
 										<td class="whitespace-nowrap px-6 py-4">
 											{#if item.maxQuantityPerRequest}
-												<span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-800">
-													<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<span class="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-800">
+													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
 													</svg>
 													{item.maxQuantityPerRequest}
@@ -3003,13 +3023,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										</td>
 										<td class="whitespace-nowrap px-6 py-4">
 											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-												<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
-													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+												<span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
+													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
 													{item.status}
 												</span>
 											{:else}
-												<span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
-													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+												<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
 													Constant
 												</span>
 											{/if}
@@ -3018,7 +3038,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											<div class="flex items-center gap-2">
 												<button
 													onclick={() => editItem(item)}
-													class="text-pink-600 hover:text-pink-800"
+													class="rounded p-1 text-pink-600 transition-colors hover:bg-pink-50 hover:text-pink-800"
 													title="Edit item"
 												>
 													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3027,7 +3047,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												</button>
 												<button
 													onclick={() => toggleConstantStatus(item)}
-													class="text-gray-600 hover:text-gray-800"
+													class="rounded p-1 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-800"
 													title="Remove from constant items"
 												>
 													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -3053,12 +3073,26 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				</div>
 				
 				{#if lowStockItems.length === 0}
-					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-						</svg>
-						<h3 class="mt-4 text-lg font-medium text-gray-900">All items are adequately stocked</h3>
-						<p class="mt-2 text-sm text-gray-500">No items require immediate restocking.</p>
+					<div class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white" style="min-height: 600px;">
+						<div class="text-center px-4">
+							<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+								<svg class="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+								</svg>
+							</div>
+							<h3 class="mt-6 text-lg font-semibold text-gray-900">All items adequately stocked</h3>
+							<p class="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
+								No items require immediate restocking. Your inventory levels are healthy.
+							</p>
+							<div class="mt-6 flex items-center justify-center gap-3">
+								<button 
+									onclick={() => switchTab('all-items')}
+									class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+								>
+									View All Items
+								</button>
+							</div>
+						</div>
 					</div>
 				{:else}
 					<div class="space-y-3">
