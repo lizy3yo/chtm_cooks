@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Level 1 DFD - CHTM Cooks System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 40px;
+            font-size: 1.1em;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9em;
+        }
+
+        .legend-box {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            border: 2px solid #34495e;
+        }
+
+        .process { background: #ffd7a8; }
+        .entity { background: #ffe4cc; }
+        .datastore { background: #ffeedd; }
+
+        svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .process-box {
+            fill: #ffd7a8;
+            stroke: #e67e22;
+            stroke-width: 2;
+            rx: 8;
+        }
+
+        .entity-box {
+            fill: #ffe4cc;
+            stroke: #d68910;
+            stroke-width: 2;
+            rx: 6;
+        }
+
+        .datastore-box {
+            fill: #ffeedd;
+            stroke: #f39c12;
+            stroke-width: 2;
+            rx: 4;
+        }
+
+        .process-text, .entity-text, .datastore-text {
+            fill: #2c3e50;
+            font-size: 14px;
+            font-weight: 600;
+            text-anchor: middle;
+        }
+
+        .process-label {
+            fill: #7f8c8d;
+            font-size: 11px;
+            text-anchor: middle;
+        }
+
+        .dataflow {
+            fill: none;
+            stroke: #34495e;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+
+        .dataflow-label {
+            fill: #5d6d7e;
+            font-size: 11px;
+            font-style: italic;
+        }
+
+        .datastore-number {
+            fill: #e67e22;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Level 1 Data Flow Diagram</h1>
+        <p class="subtitle">CHTM Cooks - Inventory Management System</p>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-box process"></div>
+                <span>Process</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box entity"></div>
+                <span>External Entity</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box datastore"></div>
+                <span>Data Store</span>
+            </div>
+        </div>
+
+        <svg viewBox="0 0 1400 1800" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#34495e" />
+                </marker>
+            </defs>
+
+            <!-- Data Stores -->
+            <!-- D1: User Table -->
+            <rect x="20" y="50" width="180" height="60" class="datastore-box"/>
+            <text x="30" y="75" class="datastore-number">D1</text>
+            <text x="110" y="85" class="datastore-text">User Table</text>
+
+            <!-- D2: Student Table -->
+            <rect x="20" y="300" width="180" height="60" class="datastore-box"/>
+            <text x="30" y="325" class="datastore-number">D2</text>
+            <text x="110" y="335" class="datastore-text">Student Table</text>
+
+            <!-- D3: Inventory Table -->
+            <rect x="20" y="550" width="180" height="60" class="datastore-box"/>
+            <text x="30" y="575" class="datastore-number">D3</text>
+            <text x="110" y="585" class="datastore-text">Inventory Table</text>
+
+            <!-- D4: Request Table -->
+            <rect x="20" y="800" width="180" height="60" class="datastore-box"/>
+            <text x="30" y="825" class="datastore-number">D4</text>
+            <text x="110" y="835" class="datastore-text">Request Table</text>
+
+            <!-- D5: Donation Table -->
+            <rect x="20" y="1050" width="180" height="60" class="datastore-box"/>
+            <text x="30" y="1075" class="datastore-number">D5</text>
+            <text x="110" y="1085" class="datastore-text">Donation Table</text>
+
+            <!-- D6: Inspection Table -->
+            <rect x="20" y="1300" width="180" height="60" class="datastore-box"/>
+            <text x="30" y="1325" class="datastore-number">D6</text>
+            <text x="110" y="1335" class="datastore-text">Inspection Table</text>
+
+            <!-- D7: Report Table -->
+            <rect x="20" y="1550" width="180" height="60" class="datastore-box"/>
+            <text x="30" y="1575" class="datastore-number">D7</text>
+            <text x="110" y="1585" class="datastore-text">Report Table</text>
+
+            <!-- Process 1.0: Authentication & Authorization -->
+            <rect x="450" y="40" width="200" height="100" class="process-box"/>
+            <text x="550" y="70" class="process-label">1.0</text>
+            <text x="550" y="95" class="process-text">Authentication &</text>
+            <text x="550" y="115" class="process-text">Authorization</text>
+
+            <!-- Process 2.0: Manage Users -->
+            <rect x="450" y="280" width="200" height="100" class="process-box"/>
+            <text x="550" y="310" class="process-label">2.0</text>
+            <text x="550" y="335" class="process-text">Manage Users</text>
+
+            <!-- Process 3.0: Manage Inventory -->
+            <rect x="450" y="530" width="200" height="100" class="process-box"/>
+            <text x="550" y="560" class="process-label">3.0</text>
+            <text x="550" y="585" class="process-text">Manage Inventory</text>
+
+            <!-- Process 4.0: Process Requests -->
+            <rect x="450" y="780" width="200" height="100" class="process-box"/>
+            <text x="550" y="810" class="process-label">4.0</text>
+            <text x="550" y="835" class="process-text">Process Requests</text>
+
+            <!-- Process 5.0: Manage Donations -->
+            <rect x="450" y="1030" width="200" height="100" class="process-box"/>
+            <text x="550" y="1060" class="process-label">5.0</text>
+            <text x="550" y="1085" class="process-text">Manage Donations</text>
+
+            <!-- Process 6.0: Item Inspection -->
+            <rect x="450" y="1280" width="200" height="100" class="process-box"/>
+            <text x="550" y="1310" class="process-label">6.0</text>
+            <text x="550" y="1335" class="process-text">Item Inspection</text>
+
+            <!-- Process 7.0: Generate Reports -->
+            <rect x="450" y="1530" width="200" height="100" class="process-box"/>
+            <text x="550" y="1560" class="process-label">7.0</text>
+            <text x="550" y="1585" class="process-text">Generate Reports</text>
+
+            <!-- External Entities -->
+            <!-- Superadmin -->
+            <rect x="1050" y="40" width="180" height="80" class="entity-box"/>
+            <text x="1140" y="85" class="entity-text">Superadmin</text>
+
+            <!-- Instructor -->
+            <rect x="1050" y="280" width="180" height="80" class="entity-box"/>
+            <text x="1140" y="325" class="entity-text">Instructor</text>
+
+            <!-- Custodian -->
+            <rect x="1050" y="780" width="180" height="80" class="entity-box"/>
+            <text x="1140" y="825" class="entity-text">Custodian</text>
+
+            <!-- Student -->
+            <rect x="1050" y="1280" width="180" height="80" class="entity-box"/>
+            <text x="1140" y="1325" class="entity-text">Student</text>
+
+            <!-- Data Flows -->
+            
+            <!-- D1 to Process 1.0 -->
+            <path d="M 200 80 L 450 80" class="dataflow"/>
+            <text x="300" y="70" class="dataflow-label">User credentials</text>
+
+            <!-- Process 1.0 to D1 -->
+            <path d="M 450 100 L 200 100" class="dataflow"/>
+            <text x="300" y="120" class="dataflow-label">Authentication status</text>
+
+            <!-- Process 1.0 to Superadmin -->
+            <path d="M 650 70 L 1050 70" class="dataflow"/>
+            <text x="820" y="60" class="dataflow-label">Login confirmation</text>
+
+            <!-- Superadmin to Process 1.0 -->
+            <path d="M 1050 90 L 650 90" class="dataflow"/>
+            <text x="820" y="110" class="dataflow-label">Login details</text>
+
+            <!-- Process 1.0 to Instructor -->
+            <path d="M 650 140 Q 850 200 1050 300" class="dataflow"/>
+            <text x="820" y="210" class="dataflow-label">Access granted</text>
+
+            <!-- Instructor to Process 1.0 -->
+            <path d="M 1050 320 Q 850 240 650 160" class="dataflow"/>
+            <text x="820" y="250" class="dataflow-label">Login request</text>
+
+            <!-- Superadmin to Process 2.0 -->
+            <path d="M 1050 120 Q 850 200 650 310" class="dataflow"/>
+            <text x="820" y="180" class="dataflow-label">User management commands</text>
+
+            <!-- Process 2.0 to D2 -->
+            <path d="M 450 330 L 200 330" class="dataflow"/>
+            <text x="300" y="320" class="dataflow-label">Student data updates</text>
+
+            <!-- D2 to Process 2.0 -->
+            <path d="M 200 350 L 450 350" class="dataflow"/>
+            <text x="300" y="370" class="dataflow-label">Student information</text>
+
+            <!-- Process 2.0 to Superadmin -->
+            <path d="M 650 330 Q 850 200 1050 100" class="dataflow"/>
+            <text x="820" y="280" class="dataflow-label">User status report</text>
+
+            <!-- Instructor to Process 2.0 -->
+            <path d="M 1050 340 L 650 340" class="dataflow"/>
+            <text x="820" y="330" class="dataflow-label">Student queries</text>
+
+            <!-- Process 2.0 to Instructor -->
+            <path d="M 650 360 L 1050 360" class="dataflow"/>
+            <text x="820" y="380" class="dataflow-label">Student details</text>
+
+            <!-- Custodian to Process 3.0 -->
+            <path d="M 1050 800 Q 850 700 650 600" class="dataflow"/>
+            <text x="820" y="720" class="dataflow-label">Inventory updates</text>
+
+            <!-- Process 3.0 to D3 -->
+            <path d="M 450 580 L 200 580" class="dataflow"/>
+            <text x="300" y="570" class="dataflow-label">Item details</text>
+
+            <!-- D3 to Process 3.0 -->
+            <path d="M 200 600 L 450 600" class="dataflow"/>
+            <text x="300" y="620" class="dataflow-label">Inventory data</text>
+
+            <!-- Process 3.0 to Custodian -->
+            <path d="M 650 620 Q 850 720 1050 820" class="dataflow"/>
+            <text x="820" y="750" class="dataflow-label">Inventory status</text>
+
+            <!-- Instructor to Process 3.0 -->
+            <path d="M 1050 360 Q 850 450 650 560" class="dataflow"/>
+            <text x="820" y="450" class="dataflow-label">View inventory</text>
+
+            <!-- Process 3.0 to Instructor -->
+            <path d="M 650 580 Q 850 470 1050 340" class="dataflow"/>
+            <text x="820" y="480" class="dataflow-label">Inventory list</text>
+
+            <!-- Student to Process 4.0 -->
+            <path d="M 1050 1300 Q 850 1050 650 850" class="dataflow"/>
+            <text x="820" y="1100" class="dataflow-label">Item request</text>
+
+            <!-- Process 4.0 to D4 -->
+            <path d="M 450 830 L 200 830" class="dataflow"/>
+            <text x="300" y="820" class="dataflow-label">Request details</text>
+
+            <!-- D4 to Process 4.0 -->
+            <path d="M 200 850 L 450 850" class="dataflow"/>
+            <text x="300" y="870" class="dataflow-label">Request data</text>
+
+            <!-- Process 4.0 to Student -->
+            <path d="M 650 870 Q 850 1070 1050 1320" class="dataflow"/>
+            <text x="820" y="1120" class="dataflow-label">Request status</text>
+
+            <!-- Custodian to Process 4.0 -->
+            <path d="M 1050 840 L 650 840" class="dataflow"/>
+            <text x="820" y="830" class="dataflow-label">Approve/reject request</text>
+
+            <!-- Process 4.0 to Custodian -->
+            <path d="M 650 820 L 1050 820" class="dataflow"/>
+            <text x="820" y="810" class="dataflow-label">Pending requests</text>
+
+            <!-- Instructor to Process 4.0 -->
+            <path d="M 1050 360 Q 900 550 650 810" class="dataflow"/>
+            <text x="850" y="580" class="dataflow-label">Monitor requests</text>
+
+            <!-- Process 4.0 to Instructor -->
+            <path d="M 650 860 Q 900 570 1050 340" class="dataflow"/>
+            <text x="850" y="600" class="dataflow-label">Request reports</text>
+
+            <!-- Custodian to Process 5.0 -->
+            <path d="M 1050 860 Q 850 950 650 1070" class="dataflow"/>
+            <text x="820" y="970" class="dataflow-label">Record donation</text>
+
+            <!-- Process 5.0 to D5 -->
+            <path d="M 450 1080 L 200 1080" class="dataflow"/>
+            <text x="300" y="1070" class="dataflow-label">Donation details</text>
+
+            <!-- D5 to Process 5.0 -->
+            <path d="M 200 1100 L 450 1100" class="dataflow"/>
+            <text x="300" y="1120" class="dataflow-label">Donation records</text>
+
+            <!-- Process 5.0 to Custodian -->
+            <path d="M 650 1120 Q 850 970 1050 840" class="dataflow"/>
+            <text x="820" y="1000" class="dataflow-label">Donation confirmation</text>
+
+            <!-- Instructor to Process 5.0 -->
+            <path d="M 1050 360 Q 950 700 650 1060" class="dataflow"/>
+            <text x="900" y="710" class="dataflow-label">View donations</text>
+
+            <!-- Process 5.0 to Instructor -->
+            <path d="M 650 1080 Q 950 720 1050 340" class="dataflow"/>
+            <text x="900" y="730" class="dataflow-label">Donation list</text>
+
+            <!-- Custodian to Process 6.0 -->
+            <path d="M 1050 860 Q 900 1050 650 1320" class="dataflow"/>
+            <text x="850" y="1100" class="dataflow-label">Inspection request</text>
+
+            <!-- Process 6.0 to D6 -->
+            <path d="M 450 1330 L 200 1330" class="dataflow"/>
+            <text x="300" y="1320" class="dataflow-label">Inspection results</text>
+
+            <!-- D6 to Process 6.0 -->
+            <path d="M 200 1350 L 450 1350" class="dataflow"/>
+            <text x="300" y="1370" class="dataflow-label">Inspection history</text>
+
+            <!-- Process 6.0 to Custodian -->
+            <path d="M 650 1370 Q 900 1070 1050 840" class="dataflow"/>
+            <text x="850" y="1120" class="dataflow-label">Inspection report</text>
+
+            <!-- Process 6.0 to Student -->
+            <path d="M 650 1330 L 1050 1330" class="dataflow"/>
+            <text x="820" y="1320" class="dataflow-label">Item condition</text>
+
+            <!-- Student to Process 6.0 -->
+            <path d="M 1050 1350 L 650 1350" class="dataflow"/>
+            <text x="820" y="1370" class="dataflow-label">Report damage</text>
+
+            <!-- Superadmin to Process 7.0 -->
+            <path d="M 1050 120 Q 950 800 650 1560" class="dataflow"/>
+            <text x="900" y="850" class="dataflow-label">Request reports</text>
+
+            <!-- Process 7.0 to D7 -->
+            <path d="M 450 1580 L 200 1580" class="dataflow"/>
+            <text x="300" y="1570" class="dataflow-label">Report data</text>
+
+            <!-- D7 to Process 7.0 -->
+            <path d="M 200 1600 L 450 1600" class="dataflow"/>
+            <text x="300" y="1620" class="dataflow-label">Historical reports</text>
+
+            <!-- Process 7.0 to Superadmin -->
+            <path d="M 650 1580 Q 950 820 1050 100" class="dataflow"/>
+            <text x="900" y="870" class="dataflow-label">System reports</text>
+
+            <!-- Instructor to Process 7.0 -->
+            <path d="M 1050 360 Q 1000 900 650 1570" class="dataflow"/>
+            <text x="950" y="950" class="dataflow-label">Generate analytics</text>
+
+            <!-- Process 7.0 to Instructor -->
+            <path d="M 650 1590 Q 1000 920 1050 340" class="dataflow"/>
+            <text x="950" y="970" class="dataflow-label">Analytics reports</text>
+
+            <!-- Custodian to Process 7.0 -->
+            <path d="M 1050 860 Q 900 1200 650 1550" class="dataflow"/>
+            <text x="850" y="1220" class="dataflow-label">Inventory reports request</text>
+
+            <!-- Process 7.0 to Custodian -->
+            <path d="M 650 1610 Q 900 1220 1050 840" class="dataflow"/>
+            <text x="850" y="1240" class="dataflow-label">Inventory reports</text>
+
+            <!-- Cross-process data flows -->
+            <!-- Process 3.0 to Process 4.0 -->
+            <path d="M 550 630 L 550 780" class="dataflow"/>
+            <text x="570" y="710" class="dataflow-label">Item availability</text>
+
+            <!-- Process 4.0 to Process 3.0 -->
+            <path d="M 530 780 L 530 630" class="dataflow"/>
+            <text x="420" y="710" class="dataflow-label">Update stock</text>
+
+            <!-- Process 5.0 to Process 3.0 -->
+            <path d="M 530 1030 L 530 630" class="dataflow"/>
+            <text x="420" y="830" class="dataflow-label">Add donated items</text>
+
+            <!-- Process 6.0 to Process 3.0 -->
+            <path d="M 570 1280 L 570 630" class="dataflow"/>
+            <text x="590" y="950" class="dataflow-label">Item status update</text>
+
+        </svg>
+
+        <div style="margin-top: 40px; padding: 20px; background: #ecf0f1; border-radius: 8px;">
+            <h3 style="color: #2c3e50; margin-bottom: 15px;">Process Descriptions</h3>
+            <ul style="color: #34495e; line-height: 1.8;">
+                <li><strong>1.0 Authentication & Authorization:</strong> Validates user credentials and manages access control for all user roles</li>
+                <li><strong>2.0 Manage Users:</strong> Handles user account creation, updates, and student information management</li>
+                <li><strong>3.0 Manage Inventory:</strong> Controls inventory items including adding, updating, archiving, and tracking stock levels</li>
+                <li><strong>4.0 Process Requests:</strong> Manages student requests for items, approval workflows, and request fulfillment</li>
+                <li><strong>5.0 Manage Donations:</strong> Records and tracks donated items, integrates with inventory system</li>
+                <li><strong>6.0 Item Inspection:</strong> Handles item condition checks, damage reports, and quality assessments</li>
+                <li><strong>7.0 Generate Reports:</strong> Creates system-wide reports, analytics, and inventory summaries for different user roles</li>
+            </ul>
+        </div>
+
+        <div style="margin-top: 20px; padding: 20px; background: #e8f4f8; border-radius: 8px;">
+            <h3 style="color: #2c3e50; margin-bottom: 15px;">User Role Descriptions</h3>
+            <ul style="color: #34495e; line-height: 1.8;">
+                <li><strong>Superadmin:</strong> Full system access, manages users, views all reports, system configuration</li>
+                <li><strong>Instructor:</strong> Monitors inventory, views student data, accesses analytics and donation records</li>
+                <li><strong>Custodian:</strong> Manages inventory, processes requests, records donations, conducts inspections</li>
+                <li><strong>Student:</strong> Submits item requests, views request status, reports item damage or issues</li>
+            </ul>
+        </div>
+
+        <div style="margin-top: 20px; text-align: center; color: #7f8c8d; font-size: 0.9em;">
+            <p>CHTM Cooks Inventory Management System | Level 1 DFD</p>
+            <p>Generated: April 2026 | Industry Standard Documentation</p>
+        </div>
+    </div>
+</body>
+</html>

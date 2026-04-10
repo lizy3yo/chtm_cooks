@@ -1,7 +1,7 @@
 /**
  * GET /api/reports/analytics
  *
- * Custodian / superadmin analytics endpoint.
+ * Role-based analytics endpoint for staff dashboards.
  * Aggregates data from borrow_requests, replacement_obligations, donations,
  * and inventory_items into a single analytics payload.
  *
@@ -23,7 +23,7 @@ import { parallelAggregations, ANALYTICS_AGGREGATION_OPTIONS } from '$lib/server
 const ANALYTICS_CACHE_TAG = 'reports-analytics';
 const CACHE_TTL = 3600; // 1 hour - aligned with session timeout
 
-const ALLOWED_ROLES = new Set(['custodian', 'superadmin']);
+const ALLOWED_ROLES = new Set(['instructor', 'custodian', 'superadmin']);
 
 function getPeriodRange(period: string, from?: string, to?: string): { start: Date; end: Date } {
 	const end = to ? new Date(to) : new Date();

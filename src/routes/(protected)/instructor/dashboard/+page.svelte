@@ -115,13 +115,18 @@
 		}
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		if ($justLoggedIn) {
 			toastStore.success('Welcome back! You have successfully logged in.', 'Login Successful', 5000);
 			authStore.clearJustLoggedIn();
 		}
-		await Promise.all([load(), loadRequests()]);
-		const id = setInterval(() => { currentTime = new Date(); }, 60_000);
+
+		void Promise.all([load(true), loadRequests(true)]);
+
+		const id = setInterval(() => {
+			currentTime = new Date();
+		}, 60_000);
+
 		return () => clearInterval(id);
 	});
 </script>
@@ -372,7 +377,7 @@
 				<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
 					<div class="flex items-center gap-2">
 						<TrendingUp size={16} class="text-pink-500" />
-						<h2 class="text-sm font-semibold text-gray-900">Most Borrowed This Semester</h2>
+						<h2 class="text-sm font-semibold text-gray-900">Most Borrowed</h2>
 					</div>
 					<a href="/instructor/catalog" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
 						Catalog <ArrowRight size={13} />
@@ -433,7 +438,7 @@
 							{@const isOut = alert.status === 'Out of Stock' || alert.quantity === 0}
 							<div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
 								<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg {isOut ? 'bg-red-100' : 'bg-orange-100'}">
-									<Package size={14} class="{isOut ? 'text-red-600' : 'text-orange-600'}" />
+									<Package size={14} class={isOut ? 'text-red-600' : 'text-orange-600'} />
 								</div>
 								<div class="min-w-0 flex-1">
 									<p class="truncate text-xs font-semibold text-gray-900">{alert.name}</p>

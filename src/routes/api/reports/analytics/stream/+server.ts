@@ -3,7 +3,7 @@
  *
  * SSE endpoint that notifies the analytics page when underlying data changes
  * (borrow requests, replacement obligations, donations, inventory).
- * Custodian / superadmin only.
+ * Instructor / custodian / superadmin.
  */
 
 import { getUserFromToken } from '$lib/server/middleware/auth/verify';
@@ -15,7 +15,7 @@ import type { RequestHandler } from './$types';
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
 const RETRY_INTERVAL_MS = 3_000;
-const ALLOWED_ROLES = new Set(['custodian', 'superadmin']);
+const ALLOWED_ROLES = new Set(['instructor', 'custodian', 'superadmin']);
 
 export const GET: RequestHandler = async (event) => {
 	const user = getUserFromToken(event);
@@ -54,7 +54,8 @@ export const GET: RequestHandler = async (event) => {
 			const notify = () => send('analytics_change', { ts: new Date().toISOString() });
 
 			// Subscribe to all data sources that affect analytics
-			cleanupFns.push(subscribeToBorrowRequestChannel('role:custodian', notify));
+			const borrowRequestChannel = user.role === 'instructor' ? 'role:instructor' : 'role:custodian';
+			cleanupFns.push(subscribeToBorrowRequestChannel(borrowRequestChannel, notify));
 			cleanupFns.push(subscribeToReplacementObligationChannel('role:custodian', notify));
 			cleanupFns.push(subscribeToDonationChannel(DONATION_CHANNEL, notify));
 			cleanupFns.push(subscribeToInventoryChannel(INVENTORY_CHANNEL, notify));

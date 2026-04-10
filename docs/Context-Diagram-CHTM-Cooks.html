@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Context Diagram - CHTM Cooks System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.8em;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #7f8c8d;
+            margin-bottom: 40px;
+            font-size: 1.2em;
+        }
+
+        .diagram-type {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .type-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px 30px;
+            border-radius: 25px;
+            font-size: 1em;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 50px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1em;
+            font-weight: 500;
+        }
+
+        .legend-shape {
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .legend-circle {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: 3px solid #5a67d8;
+        }
+
+        .legend-rounded-rect {
+            width: 50px;
+            height: 40px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #48cae4 0%, #0096c7 100%);
+            border: 3px solid #0077b6;
+        }
+
+        .legend-rect {
+            width: 50px;
+            height: 40px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #a8dadc 0%, #457b9d 100%);
+            border: 3px solid #1d3557;
+        }
+
+        svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        /* Central System */
+        .system-circle {
+            fill: url(#systemGradient);
+            stroke: #5a67d8;
+            stroke-width: 4;
+        }
+
+        .system-text {
+            fill: white;
+            font-size: 20px;
+            font-weight: 700;
+            text-anchor: middle;
+        }
+
+        .system-icon {
+            fill: white;
+            opacity: 0.9;
+        }
+
+        /* External Entities */
+        .entity-box {
+            fill: url(#entityGradient);
+            stroke: #0077b6;
+            stroke-width: 3;
+            rx: 12;
+        }
+
+        .entity-text {
+            fill: white;
+            font-size: 16px;
+            font-weight: 600;
+            text-anchor: middle;
+        }
+
+        .entity-icon {
+            fill: white;
+            opacity: 0.9;
+        }
+
+        /* Data Stores */
+        .datastore-box {
+            fill: url(#datastoreGradient);
+            stroke: #1d3557;
+            stroke-width: 3;
+            rx: 8;
+        }
+
+        .datastore-text {
+            fill: white;
+            font-size: 14px;
+            font-weight: 600;
+            text-anchor: middle;
+        }
+
+        .datastore-icon {
+            fill: white;
+            opacity: 0.9;
+        }
+
+        /* Data Flows */
+        .dataflow {
+            fill: none;
+            stroke: #5d6d7e;
+            stroke-width: 2.5;
+            marker-end: url(#arrowhead);
+        }
+
+        .dataflow-label {
+            fill: #2c3e50;
+            font-size: 12px;
+            font-style: italic;
+            font-weight: 500;
+        }
+
+        .info-section {
+            margin-top: 50px;
+            padding: 30px;
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border-radius: 12px;
+            border-left: 6px solid #667eea;
+        }
+
+        .info-section h3 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .info-section ul {
+            color: #34495e;
+            line-height: 2;
+            list-style-position: inside;
+        }
+
+        .info-section li {
+            margin-bottom: 12px;
+        }
+
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.95em;
+            padding: 20px;
+            border-top: 2px solid #e9ecef;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            h1 {
+                font-size: 2em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Context Diagram</h1>
+        <p class="subtitle">CHTM Cooks - Inventory Management System</p>
+        
+        <div class="diagram-type">
+            <span class="type-badge">SYSTEM CONTEXT LEVEL</span>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-shape">
+                    <div class="legend-circle"></div>
+                </div>
+                <span>Central System</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-shape">
+                    <div class="legend-rounded-rect"></div>
+                </div>
+                <span>External Entity</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-shape">
+                    <div class="legend-rect"></div>
+                </div>
+                <span>Data Store</span>
+            </div>
+        </div>
+
+        <svg viewBox="0 0 1400 1400" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <!-- Gradients -->
+                <linearGradient id="systemGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+                </linearGradient>
+                
+                <linearGradient id="entityGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#48cae4;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#0096c7;stop-opacity:1" />
+                </linearGradient>
+
+                <linearGradient id="datastoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#a8dadc;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#457b9d;stop-opacity:1" />
+                </linearGradient>
+
+                <!-- Arrow marker -->
+                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#5d6d7e" />
+                </marker>
+            </defs>
+
+            <!-- Central System (Center) -->
+            <circle cx="700" cy="700" r="180" class="system-circle"/>
+            
+            <!-- System Icon (Inventory/Box) -->
+            <path d="M 670 640 L 730 640 L 730 680 L 670 680 Z M 675 685 L 725 685 L 725 720 L 675 720 Z" class="system-icon"/>
+            <rect x="680" y="650" width="40" height="25" class="system-icon"/>
+            
+            <text x="700" y="750" class="system-text">CHTM Cooks</text>
+            <text x="700" y="775" class="system-text">Inventory</text>
+            <text x="700" y="800" class="system-text">Management</text>
+
+            <!-- External Entities -->
+            
+            <!-- Superadmin (Top Left) -->
+            <rect x="80" y="80" width="200" height="100" class="entity-box"/>
+            <circle cx="180" cy="110" r="15" class="entity-icon"/>
+            <path d="M 165 125 Q 180 135 195 125" class="entity-icon" stroke="white" stroke-width="2" fill="none"/>
+            <text x="180" y="155" class="entity-text">Superadmin</text>
+
+            <!-- Instructor (Top Right) -->
+            <rect x="1120" y="80" width="200" height="100" class="entity-box"/>
+            <circle cx="1220" cy="110" r="15" class="entity-icon"/>
+            <path d="M 1205 125 Q 1220 135 1235 125" class="entity-icon" stroke="white" stroke-width="2" fill="none"/>
+            <text x="1220" y="155" class="entity-text">Instructor</text>
+
+            <!-- Custodian (Middle Right) -->
+            <rect x="1120" y="650" width="200" height="100" class="entity-box"/>
+            <circle cx="1220" cy="680" r="15" class="entity-icon"/>
+            <path d="M 1205 695 Q 1220 705 1235 695" class="entity-icon" stroke="white" stroke-width="2" fill="none"/>
+            <text x="1220" y="725" class="entity-text">Custodian</text>
+
+            <!-- Student (Bottom Right) -->
+            <rect x="1120" y="1220" width="200" height="100" class="entity-box"/>
+            <circle cx="1220" cy="1250" r="15" class="entity-icon"/>
+            <path d="M 1205 1265 Q 1220 1275 1235 1265" class="entity-icon" stroke="white" stroke-width="2" fill="none"/>
+            <text x="1220" y="1295" class="entity-text">Student</text>
+
+            <!-- Data Stores -->
+            
+            <!-- Database (Top) -->
+            <rect x="600" y="50" width="200" height="80" class="datastore-box"/>
+            <path d="M 670 75 L 670 95 M 680 75 L 680 95 M 690 75 L 690 95" class="datastore-icon" stroke="white" stroke-width="2"/>
+            <text x="700" y="110" class="datastore-text">Database Storage</text>
+
+            <!-- Inventory Storage (Left) -->
+            <rect x="80" y="650" width="200" height="80" class="datastore-box"/>
+            <rect x="150" y="670" width="60" height="40" class="datastore-icon" stroke="white" stroke-width="2" fill="none"/>
+            <text x="180" y="735" class="datastore-text">Inventory Storage</text>
+
+            <!-- Request Storage (Bottom) -->
+            <rect x="600" y="1270" width="200" height="80" class="datastore-box"/>
+            <path d="M 670 1295 L 730 1295 M 670 1305 L 730 1305 M 670 1315 L 730 1315 M 670 1325 L 730 1325" class="datastore-icon" stroke="white" stroke-width="2"/>
+            <text x="700" y="1340" class="datastore-text">Request Storage</text>
+
+            <!-- Data Flows -->
+            
+            <!-- Superadmin to System -->
+            <path d="M 280 130 L 540 600" class="dataflow"/>
+            <text x="380" y="340" class="dataflow-label">User management</text>
+            <text x="380" y="355" class="dataflow-label">System configuration</text>
+
+            <!-- System to Superadmin -->
+            <path d="M 560 580 L 260 150" class="dataflow"/>
+            <text x="380" y="380" class="dataflow-label">System reports</text>
+            <text x="380" y="395" class="dataflow-label">Analytics</text>
+
+            <!-- Instructor to System -->
+            <path d="M 1120 130 L 860 600" class="dataflow"/>
+            <text x="960" y="340" class="dataflow-label">View inventory</text>
+            <text x="960" y="355" class="dataflow-label">Monitor requests</text>
+
+            <!-- System to Instructor -->
+            <path d="M 840 580 L 1140 150" class="dataflow"/>
+            <text x="960" y="380" class="dataflow-label">Inventory reports</text>
+            <text x="960" y="395" class="dataflow-label">Student data</text>
+
+            <!-- Custodian to System -->
+            <path d="M 1120 700 L 880 700" class="dataflow"/>
+            <text x="970" y="690" class="dataflow-label">Manage inventory</text>
+            <text x="970" y="705" class="dataflow-label">Process requests</text>
+            <text x="970" y="720" class="dataflow-label">Record donations</text>
+
+            <!-- System to Custodian -->
+            <path d="M 880 720 L 1120 720" class="dataflow"/>
+            <text x="970" y="750" class="dataflow-label">Request notifications</text>
+            <text x="970" y="765" class="dataflow-label">Inventory status</text>
+
+            <!-- Student to System -->
+            <path d="M 1120 1270 L 860 800" class="dataflow"/>
+            <text x="960" y="1020" class="dataflow-label">Submit requests</text>
+            <text x="960" y="1035" class="dataflow-label">Browse catalog</text>
+
+            <!-- System to Student -->
+            <path d="M 840 820 L 1140 1250" class="dataflow"/>
+            <text x="960" y="1060" class="dataflow-label">Request status</text>
+            <text x="960" y="1075" class="dataflow-label">Item availability</text>
+
+            <!-- System to Database -->
+            <path d="M 700 520 L 700 130" class="dataflow"/>
+            <text x="720" y="320" class="dataflow-label">Store data</text>
+
+            <!-- Database to System -->
+            <path d="M 720 130 L 720 520" class="dataflow"/>
+            <text x="740" y="320" class="dataflow-label">Retrieve data</text>
+
+            <!-- System to Inventory Storage -->
+            <path d="M 540 700 L 280 690" class="dataflow"/>
+            <text x="380" y="680" class="dataflow-label">Update inventory</text>
+
+            <!-- Inventory Storage to System -->
+            <path d="M 280 710 L 540 720" class="dataflow"/>
+            <text x="380" y="730" class="dataflow-label">Inventory data</text>
+
+            <!-- System to Request Storage -->
+            <path d="M 700 880 L 700 1270" class="dataflow"/>
+            <text x="720" y="1070" class="dataflow-label">Store requests</text>
+
+            <!-- Request Storage to System -->
+            <path d="M 680 1270 L 680 880" class="dataflow"/>
+            <text x="620" y="1070" class="dataflow-label">Request data</text>
+
+        </svg>
+
+        <div class="info-section">
+            <h3>System Overview</h3>
+            <ul>
+                <li><strong>CHTM Cooks Inventory Management System:</strong> A comprehensive web-based platform for managing culinary equipment, tools, and supplies for the College of Hospitality and Tourism Management</li>
+                <li><strong>Purpose:</strong> Streamline inventory tracking, request processing, donation management, and reporting for educational culinary operations</li>
+                <li><strong>Architecture:</strong> Built with SvelteKit framework, utilizing server-side rendering and API routes for secure data management</li>
+                <li><strong>Database:</strong> Centralized data storage for users, inventory items, requests, donations, inspections, and reports</li>
+            </ul>
+        </div>
+
+        <div class="info-section">
+            <h3>External Entities</h3>
+            <ul>
+                <li><strong>Superadmin:</strong> System administrator with full access to user management, system configuration, and comprehensive reporting capabilities</li>
+                <li><strong>Instructor:</strong> Faculty member who monitors inventory usage, views student data, accesses analytics, and oversees donation records</li>
+                <li><strong>Custodian:</strong> Operational staff responsible for inventory management, request processing, donation recording, and item inspections</li>
+                <li><strong>Student:</strong> End-user who browses the catalog, submits item requests, tracks request status, and reports item issues</li>
+            </ul>
+        </div>
+
+        <div class="info-section">
+            <h3>Key System Functions</h3>
+            <ul>
+                <li><strong>Authentication & Authorization:</strong> Role-based access control ensuring appropriate permissions for each user type</li>
+                <li><strong>Inventory Management:</strong> Complete CRUD operations for items including categorization, stock tracking, and archival</li>
+                <li><strong>Request Processing:</strong> Workflow management for student requests with approval/rejection capabilities</li>
+                <li><strong>Donation Management:</strong> Recording and integration of donated items into the inventory system</li>
+                <li><strong>Item Inspection:</strong> Quality control and condition tracking for all inventory items</li>
+                <li><strong>Reporting & Analytics:</strong> Comprehensive reporting tools for inventory status, usage patterns, and operational insights</li>
+            </ul>
+        </div>
+
+        <div class="info-section">
+            <h3>Data Stores</h3>
+            <ul>
+                <li><strong>Database Storage:</strong> Primary relational database containing all system data with proper normalization and indexing</li>
+                <li><strong>Inventory Storage:</strong> Specialized storage for inventory item details, categories, quantities, and status information</li>
+                <li><strong>Request Storage:</strong> Repository for all student requests, approval workflows, and historical request data</li>
+            </ul>
+        </div>
+
+        <div class="footer">
+            <p><strong>CHTM Cooks Inventory Management System | Context Diagram</strong></p>
+            <p>Industry Standard Documentation | Generated: April 2026</p>
+            <p>Document Version: 1.0 | Classification: System Architecture</p>
+        </div>
+    </div>
+</body>
+</html>
