@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Level 1 DFD - CHTM Cooks System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1900px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #000;
+            margin-bottom: 40px;
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+
+        svg {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: white;
+        }
+
+        .process-box {
+            fill: white;
+            stroke: #000;
+            stroke-width: 2;
+        }
+
+        .process-text {
+            fill: #000;
+            font-size: 14px;
+            font-weight: normal;
+            text-anchor: middle;
+            font-family: Arial, sans-serif;
+        }
+
+        .process-number {
+            fill: #000;
+            font-size: 16px;
+            font-weight: bold;
+            text-anchor: middle;
+            font-family: Arial, sans-serif;
+        }
+
+        .entity-box {
+            fill: white;
+            stroke: #000;
+            stroke-width: 2;
+        }
+
+        .entity-text {
+            fill: #000;
+            font-size: 14px;
+            font-weight: normal;
+            text-anchor: middle;
+            font-family: Arial, sans-serif;
+        }
+
+        .datastore-box {
+            fill: white;
+            stroke: #000;
+            stroke-width: 2;
+        }
+
+        .datastore-text {
+            fill: #000;
+            font-size: 14px;
+            font-weight: normal;
+            text-anchor: start;
+            font-family: Arial, sans-serif;
+        }
+
+        .datastore-id {
+            fill: #000;
+            font-size: 14px;
+            font-weight: bold;
+            text-anchor: middle;
+            font-family: Arial, sans-serif;
+        }
+
+        .dataflow {
+            fill: none;
+            stroke: #000;
+            stroke-width: 1.5;
+            marker-end: url(#arrowhead);
+        }
+
+        .dataflow-label {
+            fill: #000;
+            font-size: 11px;
+            font-style: normal;
+            text-anchor: middle;
+            font-family: Arial, sans-serif;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Level 1 DFD Example</h1>
+
+        <svg viewBox="0 0 1800 1200" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#000" />
+                </marker>
+            </defs>
+
+            <!-- External Entities (Left Column) -->
+            <ellipse cx="120" cy="150" rx="90" ry="50" class="entity-box"/>
+            <text x="120" y="155" class="entity-text">Superadmin</text>
+
+            <ellipse cx="120" cy="400" rx="90" ry="50" class="entity-box"/>
+            <text x="120" y="405" class="entity-text">Instructor</text>
+
+            <ellipse cx="120" cy="700" rx="90" ry="50" class="entity-box"/>
+            <text x="120" y="705" class="entity-text">Custodian</text>
+
+            <ellipse cx="120" cy="1000" rx="90" ry="50" class="entity-box"/>
+            <text x="120" y="1005" class="entity-text">Student</text>
+
+            <!-- Processes (Center Area) -->
+            
+            <!-- Process 1: Authenticate User -->
+            <rect x="350" y="100" width="180" height="100" class="process-box"/>
+            <text x="365" y="125" class="process-number">1</text>
+            <text x="440" y="145" class="process-text">Authenticate</text>
+            <text x="440" y="165" class="process-text">User</text>
+
+            <!-- Process 2: Manage Inventory -->
+            <rect x="350" y="350" width="180" height="100" class="process-box"/>
+            <text x="365" y="375" class="process-number">2</text>
+            <text x="440" y="395" class="process-text">Manage</text>
+            <text x="440" y="415" class="process-text">Inventory</text>
+
+            <!-- Process 3: Process Requests -->
+            <rect x="350" y="650" width="180" height="100" class="process-box"/>
+            <text x="365" y="675" class="process-number">3</text>
+            <text x="440" y="695" class="process-text">Process</text>
+            <text x="440" y="715" class="process-text">Requests</text>
+
+            <!-- Process 4: Generate Reports -->
+            <rect x="750" y="100" width="180" height="100" class="process-box"/>
+            <text x="765" y="125" class="process-number">4</text>
+            <text x="840" y="145" class="process-text">Generate</text>
+            <text x="840" y="165" class="process-text">Reports</text>
+
+            <!-- Process 5: Manage Donations -->
+            <rect x="750" y="500" width="180" height="100" class="process-box"/>
+            <text x="765" y="525" class="process-number">5</text>
+            <text x="840" y="545" class="process-text">Manage</text>
+            <text x="840" y="565" class="process-text">Donations</text>
+
+            <!-- Process 6: Inspect Items -->
+            <rect x="750" y="800" width="180" height="100" class="process-box"/>
+            <text x="765" y="825" class="process-number">6</text>
+            <text x="840" y="845" class="process-text">Inspect</text>
+            <text x="840" y="865" class="process-text">Items</text>
+
+            <!-- Data Stores (Right Column) -->
+            
+            <!-- D1: User Database -->
+            <rect x="1200" y="120" width="50" height="60" class="datastore-box"/>
+            <text x="1225" y="155" class="datastore-id">D1</text>
+            <line x1="1250" y1="120" x2="1650" y2="120" stroke="#000" stroke-width="2"/>
+            <line x1="1250" y1="180" x2="1650" y2="180" stroke="#000" stroke-width="2"/>
+            <text x="1260" y="155" class="datastore-text">User Database</text>
+
+            <!-- D2: Inventory Database -->
+            <rect x="1200" y="370" width="50" height="60" class="datastore-box"/>
+            <text x="1225" y="405" class="datastore-id">D2</text>
+            <line x1="1250" y1="370" x2="1650" y2="370" stroke="#000" stroke-width="2"/>
+            <line x1="1250" y1="430" x2="1650" y2="430" stroke="#000" stroke-width="2"/>
+            <text x="1260" y="405" class="datastore-text">Inventory Database</text>
+
+            <!-- D3: Request Database -->
+            <rect x="1200" y="670" width="50" height="60" class="datastore-box"/>
+            <text x="1225" y="705" class="datastore-id">D3</text>
+            <line x1="1250" y1="670" x2="1650" y2="670" stroke="#000" stroke-width="2"/>
+            <line x1="1250" y1="730" x2="1650" y2="730" stroke="#000" stroke-width="2"/>
+            <text x="1260" y="705" class="datastore-text">Request Database</text>
+
+            <!-- D4: Donation Database -->
+            <rect x="1200" y="920" width="50" height="60" class="datastore-box"/>
+            <text x="1225" y="955" class="datastore-id">D4</text>
+            <line x1="1250" y1="920" x2="1650" y2="920" stroke="#000" stroke-width="2"/>
+            <line x1="1250" y1="980" x2="1650" y2="980" stroke="#000" stroke-width="2"/>
+            <text x="1260" y="955" class="datastore-text">Donation Database</text>
+
+            <!-- Data Flows - Clean routing with no overlaps -->
+            
+            <!-- Superadmin <-> Process 1 -->
+            <path d="M 210 140 L 350 140" class="dataflow"/>
+            <text x="270" y="130" class="dataflow-label">Login credentials</text>
+            
+            <path d="M 350 160 L 210 160" class="dataflow"/>
+            <text x="270" y="180" class="dataflow-label">Access granted</text>
+
+            <!-- Process 1 <-> D1 -->
+            <path d="M 530 140 L 1200 140" class="dataflow"/>
+            <text x="850" y="130" class="dataflow-label">Verify user</text>
+            
+            <path d="M 1200 160 L 530 160" class="dataflow"/>
+            <text x="850" y="180" class="dataflow-label">User data</text>
+
+            <!-- Instructor <-> Process 4 -->
+            <path d="M 210 390 L 280 350 L 280 60 L 750 60 L 750 100" class="dataflow"/>
+            <text x="480" y="50" class="dataflow-label">Request report</text>
+            
+            <path d="M 750 200 L 750 230 L 280 230 L 280 350 L 210 410" class="dataflow"/>
+            <text x="480" y="250" class="dataflow-label">Generated report</text>
+
+            <!-- Custodian <-> Process 2 -->
+            <path d="M 210 690 L 280 640 L 280 430 L 350 430" class="dataflow"/>
+            <text x="250" y="550" class="dataflow-label">Add/Update item</text>
+            
+            <path d="M 350 410 L 280 410 L 280 620 L 210 710" class="dataflow"/>
+            <text x="250" y="590" class="dataflow-label">Item status</text>
+
+            <!-- Process 2 <-> D2 -->
+            <path d="M 530 390 L 1200 390" class="dataflow"/>
+            <text x="850" y="380" class="dataflow-label">Store inventory</text>
+            
+            <path d="M 1200 410 L 530 410" class="dataflow"/>
+            <text x="850" y="430" class="dataflow-label">Inventory data</text>
+
+            <!-- Student <-> Process 3 -->
+            <path d="M 210 990 L 280 940 L 280 730 L 350 730" class="dataflow"/>
+            <text x="250" y="850" class="dataflow-label">Submit request</text>
+            
+            <path d="M 350 710 L 280 710 L 280 920 L 210 1010" class="dataflow"/>
+            <text x="250" y="890" class="dataflow-label">Request status</text>
+
+            <!-- Process 3 <-> D3 -->
+            <path d="M 530 690 L 1200 690" class="dataflow"/>
+            <text x="850" y="680" class="dataflow-label">Store request</text>
+            
+            <path d="M 1200 710 L 530 710" class="dataflow"/>
+            <text x="850" y="730" class="dataflow-label">Request records</text>
+
+            <!-- Custodian <-> Process 5 -->
+            <path d="M 210 700 L 650 600 L 650 580 L 750 560" class="dataflow"/>
+            <text x="480" y="620" class="dataflow-label">Record donation</text>
+            
+            <path d="M 750 540 L 650 520 L 650 580 L 210 700" class="dataflow"/>
+            <text x="480" y="660" class="dataflow-label">Donation confirmed</text>
+
+            <!-- Process 5 <-> D4 -->
+            <path d="M 930 570 L 1050 750 L 1200 940" class="dataflow"/>
+            <text x="1070" y="770" class="dataflow-label">Store donation</text>
+            
+            <path d="M 1200 960 L 1050 770 L 930 590" class="dataflow"/>
+            <text x="1070" y="810" class="dataflow-label">Donation data</text>
+
+            <!-- Custodian <-> Process 6 -->
+            <path d="M 210 710 L 650 780 L 650 830 L 750 830" class="dataflow"/>
+            <text x="480" y="760" class="dataflow-label">Conduct inspection</text>
+            
+            <path d="M 750 870 L 650 870 L 650 800 L 210 710" class="dataflow"/>
+            <text x="480" y="890" class="dataflow-label">Inspection report</text>
+
+            <!-- Inter-process flows (vertical spacing to avoid overlap) -->
+            
+            <!-- Process 2 <-> Process 3 -->
+            <path d="M 420 450 L 420 650" class="dataflow"/>
+            <text x="360" y="550" class="dataflow-label">Check availability</text>
+            
+            <path d="M 460 650 L 460 450" class="dataflow"/>
+            <text x="520" y="550" class="dataflow-label">Update stock</text>
+
+            <!-- Process 5 -> Process 2 -->
+            <path d="M 750 530 L 650 480 L 530 420" class="dataflow"/>
+            <text x="630" y="460" class="dataflow-label">Add donated items</text>
+
+            <!-- Process 6 -> Process 2 -->
+            <path d="M 750 820 L 650 750 L 600 600 L 530 440" class="dataflow"/>
+            <text x="620" y="720" class="dataflow-label">Update item status</text>
+
+            <!-- Process 2 -> Process 4 -->
+            <path d="M 530 370 L 650 280 L 750 170" class="dataflow"/>
+            <text x="630" y="260" class="dataflow-label">Inventory summary</text>
+
+            <!-- Process 3 -> Process 4 -->
+            <path d="M 530 670 L 650 450 L 750 190" class="dataflow"/>
+            <text x="630" y="450" class="dataflow-label">Request statistics</text>
+
+            <!-- Process 4 <-> D2 -->
+            <path d="M 930 160 L 1050 270 L 1200 390" class="dataflow"/>
+            <text x="1070" y="290" class="dataflow-label">Query data</text>
+            
+            <path d="M 1200 410 L 1070 310 L 930 180" class="dataflow"/>
+            <text x="1070" y="330" class="dataflow-label">Report data</text>
+
+        </svg>
+    </div>
+</body>
+</html>

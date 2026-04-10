@@ -9,10 +9,10 @@ export interface InventoryItem {
 	toolsOrEquipment: string;
 	picture?: string;
 	quantity: number;
+	donations?: number;
 	eomCount: number;
+	currentCount?: number;
 	variance: number;
-	condition: string;
-	location?: string;
 	description?: string;
 	status: string;
 	archived: boolean;
@@ -41,15 +41,15 @@ export interface CreateItemRequest {
 	toolsOrEquipment?: string;
 	picture?: string;
 	quantity: number;
+	donations?: number;
 	eomCount?: number;
-	condition: string;
-	location?: string;
 	isConstant?: boolean;
 	maxQuantityPerRequest?: number;
 }
 
 export interface UpdateItemRequest extends Partial<CreateItemRequest> {
 	archived?: boolean;
+	replacePicture?: boolean;
 }
 
 export interface BulkCreateItemsRequest {

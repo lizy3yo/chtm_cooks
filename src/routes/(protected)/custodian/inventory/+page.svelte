@@ -39,8 +39,6 @@
 		pictureFile: null as File | null,
 		quantity: 0,
 		eomCount: 0,
-		condition: 'Good',
-		location: '',
 		isConstant: false,
 		maxQuantityPerRequest: undefined as number | undefined
 	});
@@ -114,6 +112,18 @@
 		return new Promise(resolve => setTimeout(resolve, ms));
 	}
 
+	function normalizeKeyPart(value: string | undefined | null): string {
+		return (value || '').toLowerCase().trim();
+	}
+
+	function getItemCompositeKey(name: string, specification: string | undefined | null): string {
+		return `${normalizeKeyPart(name)}|${normalizeKeyPart(specification)}`;
+	}
+
+	function getCurrentCount(quantity: number, donations = 0): number {
+		return quantity + donations;
+	}
+
 	async function fetchAllInventoryItems(includeArchived = true): Promise<InventoryItem[]> {
 		const allItems: InventoryItem[] = [];
 		let page = 1;
@@ -143,6 +153,27 @@
 		while (true) {
 			try {
 				return await inventoryItemsAPI.create(itemData);
+			} catch (err: any) {
+				const message = err?.message || '';
+				const isRateLimited = /429|too many requests/i.test(message);
+
+				if (!isRateLimited || attempt >= maxRetries) {
+					throw err;
+				}
+
+				const backoffMs = Math.min(8000, 400 * Math.pow(2, attempt));
+				await delay(backoffMs);
+				attempt += 1;
+			}
+		}
+	}
+
+	async function updateInventoryItemWithRetry(itemId: string, itemData: any, maxRetries = 5): Promise<InventoryItem> {
+		let attempt = 0;
+
+		while (true) {
+			try {
+				return await inventoryItemsAPI.update(itemId, itemData);
 			} catch (err: any) {
 				const message = err?.message || '';
 				const isRateLimited = /429|too many requests/i.test(message);
@@ -418,8 +449,6 @@ $effect(() => {
 				picture: imageUrl,
 				quantity: newItem.quantity,
 				eomCount: newItem.eomCount,
-				condition: newItem.condition,
-				location: newItem.location,
 				isConstant: newItem.isConstant,
 				maxQuantityPerRequest: newItem.isConstant && newItem.maxQuantityPerRequest 
 					? Number(newItem.maxQuantityPerRequest) 
@@ -486,8 +515,6 @@ $effect(() => {
 			pictureFile: null,
 			quantity: 0,
 			eomCount: 0,
-			condition: 'Good',
-			location: '',
 			isConstant: false,
 			maxQuantityPerRequest: undefined
 		};
@@ -506,8 +533,6 @@ $effect(() => {
 			pictureFile: null,
 			quantity: item.quantity,
 			eomCount: item.eomCount,
-			condition: item.condition,
-			location: item.location || '',
 			isConstant: item.isConstant || false,
 			maxQuantityPerRequest: item.maxQuantityPerRequest
 		};
@@ -952,10 +977,15 @@ $effect(() => {
 					const worksheet = workbook.Sheets[sheetName];
 					if (!worksheet || !worksheet['!ref']) continue;
 
+					const xlsxNonEmptyRows = getNonEmptyExcelRows(worksheet, XLSX);
 					const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
 					if (!csvText.trim()) continue;
 
-					await parseCSVText(csvText, sheetName, undefined, { append: appended, silent: true });
+					await parseCSVText(csvText, sheetName, undefined, {
+						append: appended,
+						silent: true,
+						csvLineToExcelRows: xlsxNonEmptyRows
+					});
 					appended = true;
 				}
 
@@ -973,6 +1003,21 @@ $effect(() => {
 		} finally {
 			importing = false;
 		}
+	}
+
+	function getNonEmptyExcelRows(worksheet: any, XLSX: any): number[] {
+		const xlsxRowSet = new Set<number>();
+
+		for (const addr of Object.keys(worksheet)) {
+			if (addr.startsWith('!')) continue;
+			const cell = worksheet[addr];
+			if (cell && cell.v !== null && cell.v !== undefined && String(cell.v).trim() !== '') {
+				const { r } = XLSX.utils.decode_cell(addr);
+				xlsxRowSet.add(r + 1);
+			}
+		}
+
+		return [...xlsxRowSet].sort((a, b) => a - b);
 	}
 
 	async function extractEmbeddedImagesFromExcel(data: ArrayBuffer, sheetName: string): Promise<Map<number, File>> {
@@ -1000,11 +1045,19 @@ $effect(() => {
 
 			for (const img of images) {
 				const tl = img?.range?.tl;
-				const nativeRow = typeof tl?.nativeRow === 'number' ? tl.nativeRow : tl?.row;
-				if (typeof nativeRow !== 'number') continue;
+				const br = img?.range?.br;
+				const tlNativeRow = typeof tl?.nativeRow === 'number' ? tl.nativeRow : tl?.row;
+				if (typeof tlNativeRow !== 'number') continue;
 
-				// ExcelJS nativeRow is 0-based → convert to 1-based
-				const excelRowNumber = nativeRow + 1;
+				const brNativeRow = typeof br?.nativeRow === 'number' ? br.nativeRow : br?.row;
+				// Use vertical center of the image range to reduce off-by-one anchor effects.
+				const anchorNativeRow =
+					typeof brNativeRow === 'number'
+						? Math.floor((tlNativeRow + brNativeRow) / 2)
+						: tlNativeRow;
+
+				// ExcelJS nativeRow is 0-based -> convert to 1-based
+				const excelRowNumber = anchorNativeRow + 1;
 
 				const imageData = workbook.getImage(img.imageId) as any;
 				if (!imageData?.buffer) continue;
@@ -1062,48 +1115,22 @@ $effect(() => {
 					const worksheet = workbook.Sheets[sheetName];
 					if (!worksheet || !worksheet['!ref']) continue;
 
-					// Build the ordered list of non-empty row numbers using XLSX's own cell data.
-					// This MUST use XLSX (not ExcelJS) so it matches the row order of sheet_to_csv output exactly.
-					const xlsxRowSet = new Set<number>();
-					for (const addr of Object.keys(worksheet)) {
-						if (addr.startsWith('!')) continue;
-						const cell = worksheet[addr];
-						if (cell && cell.v !== null && cell.v !== undefined && String(cell.v).trim() !== '') {
-							const { r } = XLSX.utils.decode_cell(addr);
-							xlsxRowSet.add(r + 1); // store as 1-based row number
-						}
-					}
-					const xlsxNonEmptyRows = [...xlsxRowSet].sort((a, b) => a - b);
+					const xlsxNonEmptyRows = getNonEmptyExcelRows(worksheet, XLSX);
 					console.log(`XLSX non-empty rows (${sheetName}):`, xlsxNonEmptyRows);
 
-					// Extract images from ExcelJS keyed by their actual 1-based Excel row number
+					// Extract images keyed by their 1-based Excel row number.
+					// Later, parseCSVText resolves each CSV line back to this row number.
 					const imagesByExcelRow = await extractEmbeddedImagesFromExcel(data, sheetName);
-
-					// Correlate: map each image's Excel row → its index in XLSX's own row list.
-					// Using the same library (XLSX) for row ordering as for CSV output guarantees alignment.
-					const embeddedImagesByLine = new Map<number, File>();
-					for (const [excelRow, imgFile] of imagesByExcelRow) {
-						let lineIdx = xlsxNonEmptyRows.indexOf(excelRow);
-						if (lineIdx < 0) {
-							// Fallback: image anchor may be positioned one row above the data row
-							lineIdx = xlsxNonEmptyRows.indexOf(excelRow + 1);
-							if (lineIdx >= 0) {
-								console.log(`Image at Excel row ${excelRow}: anchor offset, using row ${excelRow + 1} → line ${lineIdx}`);
-							}
-						}
-						if (lineIdx >= 0 && !embeddedImagesByLine.has(lineIdx)) {
-							embeddedImagesByLine.set(lineIdx, imgFile);
-							console.log(`Image for Excel row ${excelRow} → CSV line index ${lineIdx}`);
-						} else if (lineIdx < 0) {
-							console.warn(`Image at Excel row ${excelRow}: no matching XLSX row found, skipping`);
-						}
-					}
 
 					// Convert to CSV and parse
 					const csvText = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false });
 					if (!csvText.trim()) continue;
 
-					await parseCSVText(csvText, sheetName, embeddedImagesByLine, { append: appended, silent: true });
+					await parseCSVText(csvText, sheetName, imagesByExcelRow, {
+						append: appended,
+						silent: true,
+						csvLineToExcelRows: xlsxNonEmptyRows
+					});
 					appended = true;
 				}
 
@@ -1180,8 +1207,8 @@ $effect(() => {
 	async function parseCSVText(
 		text: string,
 		categoryFromSheet?: string,
-		embeddedImagesByLine?: Map<number, File>,
-		options?: { append?: boolean; silent?: boolean }
+		embeddedImagesByExcelRow?: Map<number, File>,
+		options?: { append?: boolean; silent?: boolean; csvLineToExcelRows?: number[] }
 	) {
 		try {
 			importing = true;
@@ -1198,8 +1225,7 @@ $effect(() => {
 
 			const lines = text
 				.split(/\r?\n/)
-				.map(line => line.replace(/^\uFEFF/, ''))
-				.filter(line => line.trim());
+				.map(line => line.replace(/^\uFEFF/, ''));
 
 			if (lines.length < 2) {
 				importErrors = ['File is empty or contains no data rows'];
@@ -1236,7 +1262,17 @@ $effect(() => {
 					v === 'qty' ||
 					v === 'count' ||
 					v === 'current count' ||
+					v === 'donations' ||
+					v === 'donation' ||
 					v === 'eom count' ||
+					v === 'status' ||
+					v === 'location' ||
+					v === 'storage location' ||
+					v === 'storage' ||
+					v === 'min stock' ||
+					v === 'minimum stock' ||
+					v === 'reorder point' ||
+					v === 'reorder level' ||
 					v === 'remarks' ||
 					v === 'remark' ||
 					v === 'notes' ||
@@ -1265,9 +1301,33 @@ $effect(() => {
 				}
 			}
 
-			if (headerLineIndex === -1) {
-				importErrors = ['Could not detect the header row. Ensure one row contains columns like Name, Specification, Current Count.'];
+				if (headerLineIndex === -1) {
+					importErrors = ['Could not detect the header row. Ensure one row contains columns like Name, Specification, Current Count, and Donations.'];
 				toastStore.error('Could not detect header row in file');
+				return;
+			}
+
+			const dataLineIndexes = Array.from(
+				{ length: lines.length - (headerLineIndex + 1) },
+				(_, offset) => headerLineIndex + 1 + offset
+			).filter(lineIndex => {
+				const values = parseCSVLine(lines[lineIndex], separator);
+				return values.length > 0 && values.some(v => v.trim() !== '');
+			});
+
+			const nonEmptyLineIndexes = Array.from({ length: lines.length }, (_, lineIndex) => lineIndex).filter(lineIndex => {
+				const values = parseCSVLine(lines[lineIndex], separator);
+				return values.length > 0 && values.some(v => v.trim() !== '');
+			});
+
+			const lineIndexToNonEmptyPosition = new Map<number, number>();
+			nonEmptyLineIndexes.forEach((lineIndex, position) => {
+				lineIndexToNonEmptyPosition.set(lineIndex, position);
+			});
+
+			if (dataLineIndexes.length === 0) {
+				importErrors = ['File is empty or contains no data rows'];
+				toastStore.error('File is empty or contains no data rows');
 				return;
 			}
 
@@ -1279,6 +1339,8 @@ $effect(() => {
 					headerMap.category = index;
 				} else if ((header === 'eom count' || header.replace(/\s+/g, '') === 'eomcount') && headerMap.eomcount === undefined) {
 					headerMap.eomcount = index;
+				} else if ((header === 'donations' || header === 'donation') && headerMap.donations === undefined) {
+					headerMap.donations = index;
 				} else if (
 					(header === 'current count' || header.replace(/\s+/g, '') === 'currentcount' || header === 'quantity' || header === 'qty' || header === 'count') &&
 					headerMap.quantity === undefined
@@ -1295,6 +1357,13 @@ $effect(() => {
 					headerMap.picture = index;
 				} else if ((header === 'remarks' || header === 'remark' || header === 'notes' || header === 'note') && headerMap.remarks === undefined) {
 					headerMap.remarks = index;
+				} else if ((header === 'location' || header === 'storage location' || header === 'storage') && headerMap.location === undefined) {
+					headerMap.location = index;
+				} else if (
+					(header === 'min stock' || header === 'minimum stock' || header === 'reorder point' || header === 'reorder level') &&
+					headerMap.minstock === undefined
+				) {
+					headerMap.minstock = index;
 				}
 			});
 
@@ -1306,13 +1375,19 @@ $effect(() => {
 		
 		const parsedData: any[] = [...existingPreview];
 		const errors: string[] = [...existingErrors];
+		const consumedEmbeddedImageRows = new Set<number>();
 		const seenKeys = new Set<string>(
-			existingPreview.map((row: any) => `${(row.name || '').toLowerCase().trim()}|${(row.specification || '').toLowerCase().trim()}`)
+			existingPreview.map((row: any) => getItemCompositeKey(row.name, row.specification))
 		); // track name+specification composites across the full import preview
 
 		// Start from the line after the header row
 		for (let i = headerLineIndex + 1; i < lines.length; i++) {
 			const values = parseCSVLine(lines[i], separator);
+			const nonEmptyPosition = lineIndexToNonEmptyPosition.get(i);
+			const sourceRowNumber =
+				typeof nonEmptyPosition === 'number'
+					? options?.csvLineToExcelRows?.[nonEmptyPosition] ?? i + 1
+					: i + 1;
 			
 			// Skip completely empty lines
 			if (values.length === 0 || values.every(v => !v.trim())) {
@@ -1320,18 +1395,41 @@ $effect(() => {
 			}
 
 			// Extract values using header map
-			const name = headerMap['name'] !== undefined ? values[headerMap['name']]?.trim() : '';
-			const category = categoryFromSheet || (headerMap['category'] !== undefined ? values[headerMap['category']]?.trim() : '');
-			const quantityValue = headerMap['quantity'] !== undefined ? values[headerMap['quantity']]?.trim() : '';
-			const specification = headerMap['specification'] !== undefined ? values[headerMap['specification']]?.trim() : '';
-			const toolsorequipment = headerMap['toolsorequipment'] !== undefined ? values[headerMap['toolsorequipment']]?.trim() : '';
-			const eomcount = headerMap['eomcount'] !== undefined ? values[headerMap['eomcount']]?.trim() : '';
-			let pictureRef = headerMap['picture'] !== undefined ? values[headerMap['picture']]?.trim() : '';
-			const remarks = headerMap['remarks'] !== undefined ? values[headerMap['remarks']]?.trim() : '';
+			const valueAt = (key: string) => {
+				const idx = headerMap[key];
+				return idx !== undefined ? values[idx]?.trim() || '' : '';
+			};
+
+			const name = valueAt('name');
+			const rawCategory = valueAt('category');
+			const quantityValue = valueAt('quantity');
+			const specification = valueAt('specification');
+			const toolsorequipment = valueAt('toolsorequipment');
+			const eomcount = valueAt('eomcount');
+			const donationsValue = valueAt('donations');
+			const minStockValue = valueAt('minstock');
+			const locationValue = valueAt('location');
+			let pictureRef = valueAt('picture');
+			const remarks = valueAt('remarks');
+			const category = categoryFromSheet || rawCategory;
+
+			const providedFlags = {
+				category: !!categoryFromSheet || (headerMap['category'] !== undefined && rawCategory !== ''),
+				quantity: headerMap['quantity'] !== undefined && quantityValue !== '',
+				specification: headerMap['specification'] !== undefined && specification !== '',
+				toolsOrEquipment: headerMap['toolsorequipment'] !== undefined && toolsorequipment !== '',
+				eomCount: headerMap['eomcount'] !== undefined && eomcount !== '',
+				donations: headerMap['donations'] !== undefined && donationsValue !== '',
+				minStock: headerMap['minstock'] !== undefined && minStockValue !== '',
+				location: headerMap['location'] !== undefined && locationValue !== '',
+				picture: headerMap['picture'] !== undefined && pictureRef !== '',
+				remarks: headerMap['remarks'] !== undefined && remarks !== ''
+			};
 
 			// Skip rows without a name - they're not valid items
 			if (!name || name.trim() === '') {
-				console.log(`Skipping CSV line ${i}: No name found`);
+				errors.push(`Row ${sourceRowNumber}: Name is required`);
+				console.log(`Skipping source row ${sourceRowNumber}: No name found`);
 				continue;
 			}
 
@@ -1340,49 +1438,94 @@ $effect(() => {
 			if (!category) rowErrors.push('Category is required (use sheet name or Category column)');
 
 			// Check for duplicate using name+specification composite (same name with different spec = different item)
-			const nameLower = name.toLowerCase().trim();
-			const specLower = specification.toLowerCase().trim();
-			const compositeKey = `${nameLower}|${specLower}`;
+			const nameLower = normalizeKeyPart(name);
+			const specLower = normalizeKeyPart(specification);
+			const compositeKey = getItemCompositeKey(name, specification);
 			const isDuplicateInFile = seenKeys.has(compositeKey);
 			if (isDuplicateInFile) {
 				rowErrors.push('Duplicate: same name and specification appears earlier in this file');
 			}
 			seenKeys.add(compositeKey);
 
-			// Check if item already exists in inventory (same name + same spec, case-insensitive, ignore archived)
-			const alreadyExistsInInventory = items.some(
+			// Check if item already exists in inventory (same name + same spec, case-insensitive).
+			// Existing items are allowed and will be updated during import.
+			const existingInventoryItem = items.find(
 				i => i.name.toLowerCase().trim() === nameLower &&
-				     (i.specification ?? '').toLowerCase().trim() === specLower &&
-				     !i.archived
+				     (i.specification ?? '').toLowerCase().trim() === specLower
 			);
-			if (alreadyExistsInInventory) {
-				rowErrors.push('Already exists in inventory');
-			}
+			const alreadyExistsInInventory = !!existingInventoryItem;
 
 			// Parse quantity - default to 1 if not provided
-			const quantity = quantityValue ? parseInt(quantityValue) : 1;
-			if (quantityValue && (isNaN(quantity) || quantity < 0)) {
+			const quantity = providedFlags.quantity ? parseInt(quantityValue, 10) : 1;
+			if (providedFlags.quantity && (isNaN(quantity) || quantity < 0)) {
 				rowErrors.push('Quantity/Current Count must be a valid number');
 			}
+
+			const parsedEomCount = providedFlags.eomCount ? parseInt(eomcount, 10) : 0;
+			if (providedFlags.eomCount && (isNaN(parsedEomCount) || parsedEomCount < 0)) {
+				rowErrors.push('EOM Count must be a valid number');
+			}
+
+			const parsedDonations = providedFlags.donations ? parseInt(donationsValue, 10) : 0;
+			if (providedFlags.donations && (isNaN(parsedDonations) || parsedDonations < 0)) {
+				rowErrors.push('Donations must be a valid number');
+			}
+
+			const parsedMinStock = providedFlags.minStock ? parseInt(minStockValue, 10) : 0;
+			if (providedFlags.minStock && (isNaN(parsedMinStock) || parsedMinStock < 0)) {
+				rowErrors.push('Min Stock must be a valid number');
+			}
+
+			const parsedLocation = providedFlags.location ? locationValue : '';
 
 			// Handle Picture column - support URL or filename
 			let hasImage = false;
 			let imageSource = '';
 
-			// Check for embedded Excel images using CSV line index
-			console.log(`Checking for embedded image at CSV line ${i} for item "${name}"`);
-			if (!pictureRef && embeddedImagesByLine?.has(i)) {
-				const embeddedFile = embeddedImagesByLine.get(i);
-				if (embeddedFile) {
-					const embeddedKey = `excel_row_${i}_${embeddedFile.name}`;
-					importImageFiles.set(embeddedKey.toLowerCase(), embeddedFile);
-					pictureRef = embeddedKey;
-					hasImage = true;
-					imageSource = 'excel';
-					console.log(`✓ Found embedded image for "${name}" at CSV line ${i}`);
+			// Check for embedded Excel images using actual Excel row numbers.
+			const excelRowForLine =
+				typeof nonEmptyPosition === 'number'
+					? options?.csvLineToExcelRows?.[nonEmptyPosition]
+					: undefined;
+			console.log(
+				`Checking embedded image for CSV line ${i} (Excel row: ${excelRowForLine ?? 'unknown'}) item "${name}"`
+			);
+			if (!pictureRef && embeddedImagesByExcelRow && typeof excelRowForLine === 'number') {
+				let resolvedImageRow: number | null = null;
+				const candidateRows = [excelRowForLine];
+
+				for (const candidateRow of candidateRows) {
+					if (
+						embeddedImagesByExcelRow.has(candidateRow) &&
+						!consumedEmbeddedImageRows.has(candidateRow)
+					) {
+						resolvedImageRow = candidateRow;
+						break;
+					}
 				}
-			} else if (!pictureRef && embeddedImagesByLine) {
-				console.log(`✗ No embedded image found at CSV line ${i} (available keys: ${Array.from(embeddedImagesByLine.keys()).join(', ')})`);
+
+				if (resolvedImageRow !== null) {
+					const embeddedFile = embeddedImagesByExcelRow.get(resolvedImageRow);
+					if (embeddedFile) {
+						const embeddedKey = `excel_row_${excelRowForLine}_${embeddedFile.name}`;
+						importImageFiles.set(embeddedKey.toLowerCase(), embeddedFile);
+						pictureRef = embeddedKey;
+						hasImage = true;
+						imageSource = 'excel';
+						consumedEmbeddedImageRows.add(resolvedImageRow);
+						console.log(
+							`✓ Found embedded image for "${name}" at Excel row ${resolvedImageRow} (resolved for line row ${excelRowForLine})`
+						);
+					}
+				} else {
+					console.log(
+						`✗ No embedded image found for Excel row ${excelRowForLine} (available keys: ${Array.from(embeddedImagesByExcelRow.keys()).join(', ')})`
+					);
+				}
+			} else if (!pictureRef && embeddedImagesByExcelRow) {
+				console.log(
+					`✗ No row mapping available for CSV line ${i} (available embedded keys: ${Array.from(embeddedImagesByExcelRow.keys()).join(', ')})`
+				);
 			}
 
 				if (pictureRef) {
@@ -1410,18 +1553,48 @@ $effect(() => {
 				}
 			}
 
+			const normalizedCategory = normalizeKeyPart(category);
+			const normalizedTools = normalizeKeyPart(toolsorequipment || '');
+			const normalizedLocation = normalizeKeyPart(parsedLocation);
+
+			const changedFields: string[] = [];
+			let importAction: 'create' | 'update' | 'no-change' | 'error' = rowErrors.length > 0 ? 'error' : 'create';
+
+			if (existingInventoryItem && rowErrors.length === 0) {
+				if (providedFlags.category && normalizeKeyPart(existingInventoryItem.category) !== normalizedCategory) changedFields.push('category');
+				if (providedFlags.toolsOrEquipment && normalizeKeyPart(existingInventoryItem.toolsOrEquipment || '') !== normalizedTools) changedFields.push('tools/equipment');
+				if (providedFlags.quantity && (existingInventoryItem.quantity ?? 0) !== quantity) changedFields.push('quantity');
+				if (providedFlags.eomCount && (existingInventoryItem.eomCount ?? 0) !== parsedEomCount) changedFields.push('eomCount');
+				if (providedFlags.donations && (existingInventoryItem.donations ?? 0) !== parsedDonations) changedFields.push('donations');
+				if (providedFlags.minStock && (existingInventoryItem.minStock ?? 0) !== parsedMinStock) changedFields.push('minStock');
+				if (providedFlags.location && normalizeKeyPart(existingInventoryItem.location || '') !== normalizedLocation) changedFields.push('location');
+				if (existingInventoryItem.archived) changedFields.push('archived->active');
+
+				if (hasImage) {
+					if (imageSource === 'url') {
+						if ((existingInventoryItem.picture || '') !== pictureRef) changedFields.push('picture');
+					} else {
+						// ZIP/Excel images are uploaded to a new URL, so treat as a picture update.
+						changedFields.push('picture');
+					}
+				}
+
+				importAction = changedFields.length > 0 ? 'update' : 'no-change';
+			}
+
 			const rowData: any = {
 				name: name,
 				category: category,
 				quantity: quantity,
+				donations: parsedDonations,
 				specification: specification || '',
 				toolsOrEquipment: toolsorequipment || '',
-				eomCount: eomcount && !isNaN(parseInt(eomcount)) ? parseInt(eomcount) : undefined,
-				minStock: 0, // Default to 0 for imports
+				eomCount: providedFlags.eomCount ? parsedEomCount : undefined,
+				minStock: providedFlags.minStock ? parsedMinStock : 0,
 				remarks: remarks || '',
-				condition: 'Good', // Default
-				location: '', // Default
-				_rowNumber: i + 1,
+				location: parsedLocation,
+				currentCount: getCurrentCount(quantity, parsedDonations),
+				_rowNumber: sourceRowNumber,
 				_errors: rowErrors,
 				_valid: rowErrors.length === 0,
 				_pictureRef: pictureRef,
@@ -1429,13 +1602,17 @@ $effect(() => {
 				_imageSource: imageSource,
 				_categoryExists: !!categories.find(c => c.name.toLowerCase().trim() === (category || '').toLowerCase().trim()),
 				_isDuplicateInFile: isDuplicateInFile,
-				_alreadyExists: alreadyExistsInInventory
+				_alreadyExists: alreadyExistsInInventory,
+				_existingItemId: existingInventoryItem?.id,
+				_importAction: importAction,
+				_changedFields: changedFields,
+				_provided: providedFlags
 			};
 
 			parsedData.push(rowData);
 
 			if (rowErrors.length > 0) {
-				errors.push(`Row ${i + 1}: ${rowErrors.join(', ')}`);
+				errors.push(`Row ${sourceRowNumber}: ${rowErrors.join(', ')}`);
 			}
 		}
 
@@ -1486,14 +1663,23 @@ $effect(() => {
 
 	async function handleImportConfirm() {
 		const validItems = importPreviewData.filter(item => item._valid);
+		const actionableItems = importPreviewData.filter(
+			item => item._importAction === 'create' || item._importAction === 'update'
+		);
+		const noChangeCount = importPreviewData.filter(item => item._importAction === 'no-change').length;
 
 		if (validItems.length === 0) {
 			toastStore.error('No valid items to import');
 			return;
 		}
 
+		if (actionableItems.length === 0) {
+			toastStore.info('No changes detected. All valid rows already match existing inventory.');
+			return;
+		}
+
 		const confirmed = await confirmStore.warning(
-			`Import ${validItems.length} item${validItems.length > 1 ? 's' : ''}? ${importErrors.length > 0 ? `${importErrors.length} row(s) will be skipped due to errors.` : ''}`,
+			`Apply ${actionableItems.length} change${actionableItems.length > 1 ? 's' : ''}? ${noChangeCount > 0 ? `${noChangeCount} row(s) have no changes.` : ''} ${importErrors.length > 0 ? `${importErrors.length} row(s) will be skipped due to errors.` : ''}`.trim(),
 			'Confirm Import',
 			'Import',
 			'Cancel'
@@ -1505,7 +1691,8 @@ $effect(() => {
 			importing = true;
 			importProgress.total = validItems.length;
 			importProgress.current = 0;
-			let successCount = 0;
+			let createdCount = 0;
+			let updatedCount = 0;
 			let failCount = 0;
 
 			console.log('=== IMPORT START ===');
@@ -1544,7 +1731,16 @@ $effect(() => {
 				}
 			}
 
-			const preparedImportItems: Array<{ rowNumber: number; name: string; data: any }> = [];
+			const existingItemsByKey = new Map<string, InventoryItem>();
+			for (const existingItem of items) {
+				existingItemsByKey.set(
+					getItemCompositeKey(existingItem.name, existingItem.specification),
+					existingItem
+				);
+			}
+
+			const preparedCreateItems: Array<{ rowNumber: number; name: string; data: any }> = [];
+			const preparedUpdateItems: Array<{ rowNumber: number; name: string; id: string; data: any }> = [];
 
 			for (const item of validItems) {
 				try {
@@ -1590,37 +1786,86 @@ $effect(() => {
 						categoryId: category?.id,
 						specification: item.specification || '',
 						toolsOrEquipment: item.toolsOrEquipment || '',
-						picture: pictureUrl,
 						quantity: item.quantity,
+						donations: item.donations ?? 0,
 						eomCount: item.eomCount,
 						minStock: item.minStock,
-						condition: item.condition,
 						location: item.location || ''
 					};
 
-					preparedImportItems.push({
-						rowNumber: item._rowNumber,
-						name: itemData.name,
-						data: itemData
-					});
+					const importKey = getItemCompositeKey(itemData.name, itemData.specification);
+					const existingItem = existingItemsByKey.get(importKey);
+
+					if (existingItem) {
+						const updateData: any = {};
+						const provided = item._provided || {};
+
+						if (provided.category && (existingItem.category || '') !== (itemData.category || '')) updateData.category = itemData.category;
+						if (provided.category && (existingItem.categoryId || '') !== (itemData.categoryId || '')) updateData.categoryId = itemData.categoryId;
+						if (provided.toolsOrEquipment && (existingItem.toolsOrEquipment || '') !== (itemData.toolsOrEquipment || '')) updateData.toolsOrEquipment = itemData.toolsOrEquipment;
+						if (provided.quantity && (existingItem.quantity ?? 0) !== (itemData.quantity ?? 0)) updateData.quantity = itemData.quantity;
+						if (provided.eomCount && (existingItem.eomCount ?? 0) !== (itemData.eomCount ?? 0)) updateData.eomCount = itemData.eomCount;
+						if (provided.donations && (existingItem.donations ?? 0) !== (itemData.donations ?? 0)) updateData.donations = itemData.donations;
+						if (provided.minStock && (existingItem.minStock ?? 0) !== (itemData.minStock ?? 0)) updateData.minStock = itemData.minStock;
+						if (provided.location && (existingItem.location || '') !== (itemData.location || '')) updateData.location = itemData.location;
+
+						if (existingItem.archived) {
+							updateData.archived = false;
+						}
+
+						// Replace image only when a new image is provided and is different.
+						if (pictureUrl && pictureUrl !== existingItem.picture) {
+							updateData.picture = pictureUrl;
+							updateData.replacePicture = true;
+						}
+
+						if (Object.keys(updateData).length > 0) {
+							preparedUpdateItems.push({
+								rowNumber: item._rowNumber,
+								name: itemData.name,
+								id: existingItem.id,
+								data: updateData
+							});
+						}
+					} else {
+						preparedCreateItems.push({
+							rowNumber: item._rowNumber,
+							name: itemData.name,
+							data: {
+								...itemData,
+								picture: pictureUrl
+							}
+						});
+					}
 				} catch (err: any) {
 					console.error(`Failed to import row ${item._rowNumber}:`, err);
 					failCount++;
 				}
 			}
 
-			for (let i = 0; i < preparedImportItems.length; i += IMPORT_BATCH_SIZE) {
-				const batch = preparedImportItems.slice(i, i + IMPORT_BATCH_SIZE);
+			for (const entry of preparedUpdateItems) {
+				try {
+					importProgress.message = `Updating ${entry.name}...`;
+					await updateInventoryItemWithRetry(entry.id, entry.data);
+					updatedCount++;
+				} catch (updateErr: any) {
+					console.error(`Failed to update row ${entry.rowNumber} (${entry.name}):`, updateErr);
+					failCount++;
+				}
+			}
+
+			for (let i = 0; i < preparedCreateItems.length; i += IMPORT_BATCH_SIZE) {
+				const batch = preparedCreateItems.slice(i, i + IMPORT_BATCH_SIZE);
 				const batchNumber = Math.floor(i / IMPORT_BATCH_SIZE) + 1;
-				const totalBatches = Math.ceil(preparedImportItems.length / IMPORT_BATCH_SIZE);
-				importProgress.message = `Importing batch ${batchNumber}/${totalBatches}...`;
+				const totalBatches = Math.ceil(preparedCreateItems.length / IMPORT_BATCH_SIZE);
+				importProgress.message = `Creating batch ${batchNumber}/${totalBatches}...`;
 
 				try {
 					const response = await inventoryItemsAPI.bulkCreate({
 						items: batch.map(entry => entry.data)
 					});
 
-					successCount += response.createdCount;
+					createdCount += response.createdCount;
 					failCount += response.failedCount;
 
 					if (response.failures.length > 0) {
@@ -1637,7 +1882,7 @@ $effect(() => {
 					for (const entry of batch) {
 						try {
 							await createInventoryItemWithRetry(entry.data);
-							successCount++;
+							createdCount++;
 						} catch (singleErr: any) {
 							console.error(`Fallback failed for row ${entry.rowNumber} (${entry.name}):`, singleErr);
 							failCount++;
@@ -1647,7 +1892,8 @@ $effect(() => {
 			}
 
 			console.log('=== IMPORT COMPLETE ===');
-			console.log(`Success: ${successCount}, Failed: ${failCount}`);
+			const successCount = createdCount + updatedCount;
+			console.log(`Created: ${createdCount}, Updated: ${updatedCount}, Failed: ${failCount}`);
 
 			if (successCount > 0) {
 				console.log('Reloading inventory data...');
@@ -1700,9 +1946,9 @@ $effect(() => {
 			importProgress.message = 'Import complete!';
 			
 			if (failCount === 0) {
-				toastStore.success(`Successfully imported ${successCount} item${successCount > 1 ? 's' : ''}`);
+				toastStore.success(`Import complete: ${createdCount} created, ${updatedCount} updated`);
 			} else {
-				toastStore.warning(`Imported ${successCount} items, ${failCount} failed`);
+				toastStore.warning(`Import complete: ${createdCount} created, ${updatedCount} updated, ${failCount} failed`);
 			}
 
 			// Switch to all items tab to show results
@@ -1723,10 +1969,10 @@ $effect(() => {
 	}
 
 	function downloadTemplate() {
-		const template = `Name,Specification,Tools or Equipment,Picture,Current Count,EOM Count,Remarks
-Chef Knife,8-inch stainless steel,Knife sheath,https://example.com/knife.jpg,10,10,Sharp and ready
-Mixing Bowl,Stainless steel 5L,,,5,5,Good condition
-Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
+		const template = `Name,Specification,Tools or Equipment,Picture,Current Count,Donations,EOM Count,Remarks
+Chef Knife,8-inch stainless steel,Knife sheath,https://example.com/knife.jpg,10,2,10,Sharp and ready
+Mixing Bowl,Stainless steel 5L,,,5,0,5,Ready to use
+Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 		const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
 		const link = document.createElement('a');
@@ -1866,27 +2112,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Tools / Equipment</p>
 												</div>
 												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.toolsOrEquipment || '—'}</p>
-											</div>
-
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
-													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-													</svg>
-													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Location</p>
-												</div>
-												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.location || '—'}</p>
-											</div>
-
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
-													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-													</svg>
-													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Condition</p>
-												</div>
-												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.condition}</p>
 											</div>
 
 											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
@@ -2210,31 +2435,43 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				</div>
 				
 				{#if displayItems.length === 0}
-					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-						</svg>
-						<h3 class="mt-4 text-lg font-medium text-gray-900">No items found</h3>
-						<p class="mt-2 text-sm text-gray-500">
-							{#if selectedCategory}
-								No items in this category. Try selecting a different category or clear the filter.
-							{:else if query}
-								No items match your search. Try different keywords.
-							{:else}
-								Get started by adding your first inventory item.
-							{/if}
-						</p>
-						{#if !selectedCategory && !query}
-							<button 
-								onclick={() => switchTab('add-item')}
-								class="mt-4 inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700"
-							>
-								<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+					<div class="flex items-center justify-center bg-gray-50" style="min-height: 600px;">
+						<div class="text-center px-4">
+							<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-pink-100">
+								<svg class="h-8 w-8 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
 								</svg>
-								Add Your First Item
-							</button>
-						{/if}
+							</div>
+							<h3 class="mt-6 text-lg font-semibold text-gray-900">No items found</h3>
+							<p class="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
+								{#if selectedCategory}
+									No items in this category. Try selecting a different category or clear the filter.
+								{:else if query}
+									No items match your search. Try adjusting your search terms.
+								{:else}
+									Get started by adding your first inventory item to begin tracking your stock.
+								{/if}
+							</p>
+							{#if !selectedCategory && !query}
+								<button 
+									onclick={openAddItemModal}
+									class="mt-6 inline-flex items-center gap-2 rounded-lg bg-pink-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+									</svg>
+									Add Your First Item
+								</button>
+							{/if}
+							{#if selectedCategory}
+								<button 
+									onclick={clearCategoryFilter}
+									class="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+								>
+									Clear Filter
+								</button>
+							{/if}
+						</div>
 					</div>
 				{:else}
 					<!-- Mobile card list — hidden on sm+ -->
@@ -2273,7 +2510,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 					</div>
 
 					<!-- Desktop table — hidden on mobile -->
-					<div class="hidden overflow-x-auto sm:block">
+					<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
 						<table class="min-w-full divide-y divide-gray-200">
 							<thead class="bg-gray-50">
 								<tr>
@@ -2282,15 +2519,12 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Specification</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tools / Equipment</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Current Count</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">EOM Count</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Variance</th>
 									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Condition</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-200 bg-white">
 								{#each displayItems as item, i}
-									<tr class="cursor-pointer hover:bg-gray-50" onclick={() => openModal(item)}>
+									<tr class="cursor-pointer hover:bg-gray-50 transition-colors" onclick={() => openModal(item)}>
 										<td class="whitespace-nowrap px-6 py-4">
 											<div class="flex items-center gap-3">
 												<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700">{(currentPage - 1) * PAGE_SIZE + i + 1}</span>
@@ -2298,35 +2532,28 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 											</div>
 										</td>
 										<td class="whitespace-nowrap px-6 py-4">
-											<span class="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
+											<span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
 										</td>
-										<td class="px-6 py-4 text-sm text-gray-700">{item.specification}</td>
-										<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment}</td>
-										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.quantity}</td>
-										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.eomCount}</td>
-										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-700">{item.variance}</td>
+										<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
+										<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment || '—'}</td>
+										<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{item.currentCount ?? getCurrentCount(item.quantity, item.donations ?? 0)}</td>
 										<td class="whitespace-nowrap px-6 py-4">
-											<div class="flex items-center gap-1.5">
-												{#if item.isConstant}
-													<span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
-														<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-														Constant
-													</span>
-												{:else if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-													<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
-														<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-														{item.status}
-													</span>
-												{:else}
-													<span class="inline-flex items-center rounded-full bg-pink-100 px-2 py-1 text-xs font-semibold text-pink-800">
-														<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-														{item.status}
-													</span>
-												{/if}
-											</div>
-										</td>
-										<td class="whitespace-nowrap px-6 py-4">
-											<span class="inline-flex rounded-full px-2 py-1 text-xs font-semibold {item.condition === 'Good' ? 'bg-pink-100 text-pink-800' : 'bg-yellow-100 text-yellow-800'}">{item.condition}</span>
+											{#if item.isConstant}
+												<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+													Constant
+												</span>
+											{:else if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+												<span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
+													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+													{item.status}
+												</span>
+											{:else}
+												<span class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
+													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+													{item.status}
+												</span>
+											{/if}
 										</td>
 									</tr>
 								{/each}
@@ -2675,21 +2902,29 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				</div>
 				
 				{#if constantItems.length === 0}
-					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-						</svg>
-						<h3 class="mt-4 text-lg font-medium text-gray-900">No constant items configured</h3>
-						<p class="mt-2 text-sm text-gray-500">Mark items as constant from the Items tab to have them always appear on student request forms.</p>
-						<button 
-							onclick={() => switchTab('all-items')}
-							class="mt-4 inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-						>
-							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-							</svg>
-							Go to Items
-						</button>
+					<div class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white" style="min-height: 600px;">
+						<div class="text-center px-4">
+							<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+								<svg class="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+								</svg>
+							</div>
+							<h3 class="mt-6 text-lg font-semibold text-gray-900">No constant items configured</h3>
+							<p class="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
+								Mark items as constant from the Items tab to have them always appear on student request forms, regardless of stock availability.
+							</p>
+							<div class="mt-6 flex items-center justify-center gap-3">
+								<button 
+									onclick={() => switchTab('all-items')}
+									class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+									</svg>
+									Go to Items
+								</button>
+							</div>
+						</div>
 					</div>
 				{:else}
 					<!-- Mobile card list -->
@@ -2726,7 +2961,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 					</div>
 
 					<!-- Desktop table -->
-					<div class="hidden overflow-x-auto sm:block">
+					<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
 						<table class="min-w-full divide-y divide-gray-200">
 							<thead class="bg-gray-50">
 								<tr>
@@ -2741,7 +2976,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 							</thead>
 							<tbody class="divide-y divide-gray-200 bg-white">
 								{#each constantItems as item, i}
-									<tr class="hover:bg-gray-50">
+									<tr class="hover:bg-gray-50 transition-colors">
 										<td class="whitespace-nowrap px-6 py-4">
 											<div class="flex items-center gap-3">
 												{#if item.picture}
@@ -2755,14 +2990,14 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 											</div>
 										</td>
 										<td class="whitespace-nowrap px-6 py-4">
-											<span class="inline-flex rounded-full bg-blue-100 px-2 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
+											<span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
 										</td>
-										<td class="px-6 py-4 text-sm text-gray-700">{item.specification}</td>
-										<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-900">{item.quantity}</td>
+										<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
+										<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{item.quantity}</td>
 										<td class="whitespace-nowrap px-6 py-4">
 											{#if item.maxQuantityPerRequest}
-												<span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-1 text-xs font-semibold text-purple-800">
-													<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<span class="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-800">
+													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
 													</svg>
 													{item.maxQuantityPerRequest}
@@ -2773,13 +3008,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 										</td>
 										<td class="whitespace-nowrap px-6 py-4">
 											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-												<span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-semibold text-red-800">
-													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+												<span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
+													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
 													{item.status}
 												</span>
 											{:else}
-												<span class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
-													<svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+												<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
 													Constant
 												</span>
 											{/if}
@@ -2788,7 +3023,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 											<div class="flex items-center gap-2">
 												<button
 													onclick={() => editItem(item)}
-													class="text-pink-600 hover:text-pink-800"
+													class="rounded p-1 text-pink-600 transition-colors hover:bg-pink-50 hover:text-pink-800"
 													title="Edit item"
 												>
 													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2797,7 +3032,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 												</button>
 												<button
 													onclick={() => toggleConstantStatus(item)}
-													class="text-gray-600 hover:text-gray-800"
+													class="rounded p-1 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-800"
 													title="Remove from constant items"
 												>
 													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2823,12 +3058,26 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 				</div>
 				
 				{#if lowStockItems.length === 0}
-					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-						</svg>
-						<h3 class="mt-4 text-lg font-medium text-gray-900">All items are adequately stocked</h3>
-						<p class="mt-2 text-sm text-gray-500">No items require immediate restocking.</p>
+					<div class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white" style="min-height: 600px;">
+						<div class="text-center px-4">
+							<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+								<svg class="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+								</svg>
+							</div>
+							<h3 class="mt-6 text-lg font-semibold text-gray-900">All items adequately stocked</h3>
+							<p class="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
+								No items require immediate restocking. Your inventory levels are healthy.
+							</p>
+							<div class="mt-6 flex items-center justify-center gap-3">
+								<button 
+									onclick={() => switchTab('all-items')}
+									class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+								>
+									View All Items
+								</button>
+							</div>
+						</div>
 					</div>
 				{:else}
 					<div class="space-y-3">
@@ -2945,22 +3194,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 							<div>
 								<label for="modalEomCount" class="block text-sm font-medium text-gray-700">EOM Count</label>
 								<input type="number" id="modalEomCount" bind:value={newItem.eomCount} min="0" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="0" />
-							</div>
-
-							<div>
-								<label for="modalCondition" class="block text-sm font-medium text-gray-700">Condition</label>
-								<select id="modalCondition" bind:value={newItem.condition} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
-									<option value="Excellent">Excellent</option>
-									<option value="Good">Good</option>
-									<option value="Fair">Fair</option>
-									<option value="Poor">Poor</option>
-									<option value="Damaged">Damaged</option>
-								</select>
-							</div>
-
-							<div class="sm:col-span-2">
-								<label for="modalLocation" class="block text-sm font-medium text-gray-700">Storage Location</label>
-								<input type="text" id="modalLocation" bind:value={newItem.location} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="e.g., Cabinet A, Shelf 2" />
 							</div>
 						</div>
 
@@ -3161,7 +3394,12 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 														<tr>
 															<td class="px-3 py-2 font-medium text-gray-800">Current Count</td>
 															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
-															<td class="px-3 py-2 text-gray-600">Current stock quantity — defaults to 1</td>
+															<td class="px-3 py-2 text-gray-600">Current stock quantity before donations — defaults to 1</td>
+														</tr>
+														<tr class="bg-gray-50">
+															<td class="px-3 py-2 font-medium text-gray-800">Donations</td>
+															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
+															<td class="px-3 py-2 text-gray-600">Donated quantity added to the current count — defaults to 0</td>
 														</tr>
 														<tr class="bg-gray-50">
 															<td class="px-3 py-2 font-medium text-gray-800">EOM Count</td>
@@ -3398,18 +3636,22 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									<p class="text-2xl font-bold text-blue-900 mt-1">{importPreviewData.length}</p>
 								</div>
 								<div class="rounded-lg bg-green-50 p-4">
-									<p class="text-sm text-green-600 font-medium">To Import</p>
-									<p class="text-2xl font-bold text-green-900 mt-1">{importPreviewData.filter(i => i._valid).length}</p>
+									<p class="text-sm text-green-600 font-medium">Create</p>
+									<p class="text-2xl font-bold text-green-900 mt-1">{importPreviewData.filter(i => i._importAction === 'create').length}</p>
+								</div>
+								<div class="rounded-lg bg-emerald-50 p-4">
+									<p class="text-sm text-emerald-600 font-medium">Update</p>
+									<p class="text-2xl font-bold text-emerald-900 mt-1">{importPreviewData.filter(i => i._importAction === 'update').length}</p>
 								</div>
 								<div class="rounded-lg bg-amber-50 p-4">
-									<p class="text-sm text-amber-600 font-medium">Skipped</p>
-									<p class="text-2xl font-bold text-amber-900 mt-1">{importPreviewData.filter(i => !i._valid && (i._alreadyExists || i._isDuplicateInFile)).length}</p>
-								</div>
-								<div class="rounded-lg bg-red-50 p-4">
-									<p class="text-sm text-red-600 font-medium">Errors</p>
-									<p class="text-2xl font-bold text-red-900 mt-1">{importPreviewData.filter(i => !i._valid && !i._alreadyExists && !i._isDuplicateInFile).length}</p>
+									<p class="text-sm text-amber-600 font-medium">No Change</p>
+									<p class="text-2xl font-bold text-amber-900 mt-1">{importPreviewData.filter(i => i._importAction === 'no-change').length}</p>
 								</div>
 							</div>
+							<div class="mt-3 rounded-lg bg-red-50 p-4">
+								<p class="text-sm text-red-600 font-medium">Errors</p>
+								<p class="text-2xl font-bold text-red-900 mt-1">{importPreviewData.filter(i => i._importAction === 'error').length}</p>
+								</div>
 
 							{#if importErrors.length > 0}
 								<div class="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
@@ -3443,35 +3685,40 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Qty</th>
-												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Condition</th>
+												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Count</th>
+												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Donations</th>
 												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image</th>
 											</tr>
 										</thead>
 										<tbody class="bg-white divide-y divide-gray-200">
 											{#each importPreviewData as item}
-												<tr class={item._valid ? 'hover:bg-gray-50' : (item._alreadyExists || item._isDuplicateInFile) ? 'bg-amber-50' : 'bg-red-50'}>
+												<tr class={
+													item._importAction === 'create' ? 'bg-green-50/40 hover:bg-green-50' :
+													item._importAction === 'update' ? 'bg-emerald-50/40 hover:bg-emerald-50' :
+													item._importAction === 'no-change' ? 'bg-amber-50/40 hover:bg-amber-50' :
+													'bg-red-50'
+												}>
 													<td class="px-4 py-3 whitespace-nowrap">
-														{#if item._valid}
+														{#if item._importAction === 'create'}
 															<span class="inline-flex items-center gap-1 text-green-600 text-xs">
 																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
 																	<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
 																</svg>
-																New
+																Create
 															</span>
-														{:else if item._alreadyExists}
-															<span class="inline-flex items-center gap-1 text-amber-600 text-xs" title="Already exists in inventory — will be skipped">
+														{:else if item._importAction === 'update'}
+															<span class="inline-flex items-center gap-1 text-emerald-700 text-xs" title={`Will update: ${item._changedFields?.join(', ') || 'changed fields'}`}>
 																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-																	<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+																	<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.778 7.778a1 1 0 01-1.414 0L3.293 10.26a1 1 0 111.414-1.414l3.515 3.515 7.071-7.071a1 1 0 011.414 0z" clip-rule="evenodd"/>
 																</svg>
-																Exists
+																Update
 															</span>
-														{:else if item._isDuplicateInFile}
-															<span class="inline-flex items-center gap-1 text-orange-600 text-xs" title="Duplicate name in this file — will be skipped">
+														{:else if item._importAction === 'no-change'}
+															<span class="inline-flex items-center gap-1 text-amber-700 text-xs" title="Existing item matches imported values">
 																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-																	<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+																	<path fill-rule="evenodd" d="M18 10A8 8 0 114 3.08V7a1 1 0 11-2 0V2a1 1 0 011-1h5a1 1 0 110 2H4.415A6 6 0 1016 10a1 1 0 112 0z" clip-rule="evenodd"/>
 																</svg>
-																Duplicate
+																No Change
 															</span>
 														{:else}
 															<span class="inline-flex items-center gap-1 text-red-600 text-xs" title={item._errors.join(', ')}>
@@ -3491,8 +3738,8 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 													<span class="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">new</span>
 												{/if}
 											</td>
-													<td class="px-4 py-3 text-sm text-gray-900">{item.quantity}</td>
-													<td class="px-4 py-3 text-sm text-gray-600">{item.condition}</td>
+													<td class="px-4 py-3 text-sm text-gray-900">{getCurrentCount(item.quantity, item.donations ?? 0)}</td>
+													<td class="px-4 py-3 text-sm text-gray-900">{item.donations ?? 0}</td>
 													<td class="px-4 py-3 whitespace-nowrap">
 														{#if item._hasImage}
 															{#if item._imageSource === 'url'}
@@ -3575,7 +3822,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 							<button
 								onclick={handleImportConfirm}
 								class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-								disabled={importing || importPreviewData.filter(i => i._valid).length === 0}
+								disabled={importing || importPreviewData.filter(i => i._importAction === 'create' || i._importAction === 'update').length === 0}
 							>
 								{#if importing}
 									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
@@ -3584,7 +3831,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,2,Station 1`;
 									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
 									</svg>
-									Import {importPreviewData.filter(i => i._valid).length} Items
+									Apply {importPreviewData.filter(i => i._importAction === 'create' || i._importAction === 'update').length} Changes
 								{/if}
 							</button>
 						</div>

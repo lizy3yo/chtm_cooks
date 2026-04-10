@@ -57,17 +57,16 @@
 		requestsActive.filter(r => new Date(r.returnDate) < new Date())
 	);
 
-	// condition counts
-	const conditionOrder = ['Excellent', 'Good', 'Fair', 'Poor', 'Damaged'] as const;
-	const conditionMeta: Record<string, { bar: string; badge: string }> = {
-		Excellent: { bar: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-800' },
-		Good:      { bar: 'bg-green-400',   badge: 'bg-green-100 text-green-800'    },
-		Fair:      { bar: 'bg-yellow-400',  badge: 'bg-yellow-100 text-yellow-800'  },
-		Poor:      { bar: 'bg-orange-400',  badge: 'bg-orange-100 text-orange-800'  },
-		Damaged:   { bar: 'bg-red-500',     badge: 'bg-red-100 text-red-800'        }
-	};
-	const totalConditionItems = $derived(
-		report?.inventory.conditionDistribution.reduce((s, c) => s + c.count, 0) ?? 0
+	const inventoryVarianceItems = $derived(
+		[...(report?.inventory.eomVariance ?? [])]
+			.sort((a, b) => a.variance - b.variance)
+			.slice(0, 5)
+	);
+	const negativeVarianceCount = $derived(
+		report?.inventory.eomVariance.filter((item) => item.variance < 0).length ?? 0
+	);
+	const maxVarianceMagnitude = $derived(
+		Math.max(1, ...(report?.inventory.eomVariance.map((item) => Math.abs(item.variance)) ?? [1]))
 	);
 
 	// bar chart max for most borrowed
@@ -142,12 +141,12 @@
 		}
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		if ($justLoggedIn) {
 			toastStore.success('Welcome back! You have successfully logged in.', 'Login Successful', 5000);
 			authStore.clearJustLoggedIn();
 		}
-		await Promise.all([load(), loadRequests()]);
+		void Promise.all([load(true), loadRequests(true)]);
 		const id = setInterval(() => { currentTime = new Date(); }, 60_000);
 		return () => clearInterval(id);
 	});
@@ -419,7 +418,7 @@
 			</div>
 		{/if}
 
-		<!-- ── 3-col: Requests breakdown + Inventory condition + Student risk -->
+		<!-- ── 3-col: Requests breakdown + Inventory variance + Student risk -->
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
 			<!-- Borrow request status breakdown -->
@@ -496,65 +495,46 @@
 				</div>
 			</div>
 
-			<!-- Inventory condition distribution -->
+			<!-- Inventory variance -->
 			<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
 				<div class="mb-4 flex items-center justify-between">
 					<div class="flex items-center gap-2">
 						<Package size={16} class="text-violet-500" />
-						<h2 class="text-sm font-semibold text-gray-900">Inventory Condition</h2>
+						<h2 class="text-sm font-semibold text-gray-900">Inventory Variance</h2>
 					</div>
 					<a href="/custodian/reports" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
 						Details <ArrowRight size={13} />
 					</a>
 				</div>
 				<div>
-				{#if report && totalConditionItems > 0}
-					<!-- Stacked bar -->
-					<div class="mb-3 flex h-3 w-full overflow-hidden rounded-full bg-gray-100">
-						{#each conditionOrder as cond}
-							{@const entry = report.inventory.conditionDistribution.find(c => c.condition === cond)}
-							{@const pct = entry ? Math.round((entry.count / totalConditionItems) * 100) : 0}
-							{#if pct > 0}
-								<div class="{conditionMeta[cond].bar} transition-all" style="width:{pct}%" title="{cond}: {entry?.count} ({pct}%)"></div>
-							{/if}
-						{/each}
+				{#if report && inventoryVarianceItems.length > 0}
+					<div class="mb-3 flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
+						<p class="text-xs font-medium text-gray-500">Items below expected count</p>
+						<span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-700">{negativeVarianceCount}</span>
 					</div>
-					<div class="space-y-4">
-						{#each conditionOrder as cond}
-							{@const entry = report.inventory.conditionDistribution.find(c => c.condition === cond)}
-							{@const count = entry?.count ?? 0}
-							{@const pct = totalConditionItems > 0 ? Math.round((count / totalConditionItems) * 100) : 0}
-							{#if count > 0}
-								<div class="flex items-center justify-between py-0.5">
-									<div class="flex items-center gap-2.5">
-										<div class="h-3 w-3 rounded-full {conditionMeta[cond].bar}"></div>
-										<span class="text-sm font-medium text-gray-700">{cond}</span>
+					<div class="space-y-3">
+						{#each inventoryVarianceItems as item}
+							{@const magnitude = Math.abs(item.variance)}
+							{@const pct = Math.round((magnitude / maxVarianceMagnitude) * 100)}
+							<div class="space-y-1.5 rounded-lg border border-gray-100 bg-gray-50/70 px-3 py-2.5">
+								<div class="flex items-center justify-between gap-3">
+									<div class="min-w-0">
+										<p class="truncate text-sm font-medium text-gray-900">{item.name}</p>
+										<p class="text-xs text-gray-400">{item.category}</p>
 									</div>
-									<div class="flex items-center gap-2.5">
-										<span class="text-sm font-medium text-gray-500">{pct}%</span>
-										<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-sm font-semibold {conditionMeta[cond].badge}">{count}</span>
-									</div>
+									<span class="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold {item.variance < 0 ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'}">
+										{item.variance > 0 ? '+' : ''}{item.variance}
+									</span>
 								</div>
-							{/if}
-						{/each}
-					</div>
-				{:else}
-					<div class="mb-3 h-3 w-full overflow-hidden rounded-full bg-gray-100"></div>
-					<div class="space-y-4">
-						{#each conditionOrder as cond}
-							<div class="flex items-center justify-between py-0.5">
-								<div class="flex items-center gap-2.5">
-									<div class="h-3 w-3 rounded-full bg-gray-300"></div>
-									<span class="text-sm font-medium text-gray-700">{cond}</span>
-								</div>
-								<div class="flex items-center gap-2.5">
-									<span class="text-sm font-medium text-gray-500">0%</span>
-									<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-sm font-semibold text-gray-600">0</span>
+								<div class="h-1.5 w-full rounded-full bg-gray-200">
+									<div class="h-1.5 rounded-full {item.variance < 0 ? 'bg-rose-400' : 'bg-emerald-400'}" style="width:{pct}%"></div>
 								</div>
 							</div>
 						{/each}
 					</div>
-					<p class="mt-3 text-sm text-gray-400">No condition data available.</p>
+				{:else}
+					<div class="mb-3 h-3 w-full overflow-hidden rounded-full bg-gray-100"></div>
+					<p class="mt-3 text-sm text-gray-400">No variance data available.</p>
 				{/if}
 				</div>
 			</div>

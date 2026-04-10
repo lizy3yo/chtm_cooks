@@ -1,7 +1,7 @@
 /**
  * GET /api/reports/analytics
  *
- * Custodian / superadmin analytics endpoint.
+ * Role-based analytics endpoint for staff dashboards.
  * Aggregates data from borrow_requests, replacement_obligations, donations,
  * and inventory_items into a single analytics payload.
  *
@@ -23,7 +23,7 @@ import { parallelAggregations, ANALYTICS_AGGREGATION_OPTIONS } from '$lib/server
 const ANALYTICS_CACHE_TAG = 'reports-analytics';
 const CACHE_TTL = 3600; // 1 hour - aligned with session timeout
 
-const ALLOWED_ROLES = new Set(['custodian', 'superadmin']);
+const ALLOWED_ROLES = new Set(['instructor', 'custodian', 'superadmin']);
 
 function getPeriodRange(period: string, from?: string, to?: string): { start: Date; end: Date } {
 	const end = to ? new Date(to) : new Date();
@@ -273,8 +273,7 @@ export const GET: RequestHandler = async (event) => {
 					name: 1,
 					category: 1,
 					quantityOut: 1,
-					totalStock: { $ifNull: ['$inventoryDoc.quantity', 0] },
-					condition: { $ifNull: ['$inventoryDoc.condition', 'Unknown'] }
+					totalStock: { $ifNull: ['$inventoryDoc.quantity', 0] }
 				}
 			}
 		], { allowDiskUse: true }).toArray();
@@ -323,18 +322,11 @@ export const GET: RequestHandler = async (event) => {
 					category: 1,
 					quantity: 1,
 					eomCount: { $ifNull: ['$eomCount', 0] },
-					variance: { $subtract: ['$quantity', { $ifNull: ['$eomCount', 0] }] },
-					condition: 1
+					variance: { $subtract: ['$quantity', { $ifNull: ['$eomCount', 0] }] }
 				}
 			},
 			{ $sort: { variance: 1 } },
 			{ $limit: 20 }
-		]).toArray();
-
-		// Condition distribution
-		const conditionDistribution = await inventory.aggregate([
-			{ $match: { archived: false } },
-			{ $group: { _id: '$condition', count: { $sum: 1 } } }
 		]).toArray();
 
 		// Low stock / out of stock alerts
@@ -346,8 +338,7 @@ export const GET: RequestHandler = async (event) => {
 					name: 1,
 					category: 1,
 					quantity: 1,
-					status: 1,
-					condition: 1
+					status: 1
 				}
 			},
 			{ $sort: { quantity: 1 } },
@@ -723,7 +714,6 @@ export const GET: RequestHandler = async (event) => {
 					incidentRate: Math.round(i.incidentRate * 10) / 10
 				})),
 				eomVariance,
-				conditionDistribution: conditionDistribution.map((c) => ({ condition: c._id, count: c.count })),
 				stockAlerts
 			},
 			replacement: {

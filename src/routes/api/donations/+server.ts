@@ -16,7 +16,7 @@ import {
 	toDonationResponse,
 	DONATIONS_COLLECTION
 } from '$lib/server/models/Donation';
-import type { InventoryItem, ItemCondition, ItemStatus } from '$lib/server/models/InventoryItem';
+import type { InventoryItem, ItemStatus } from '$lib/server/models/InventoryItem';
 import { sanitizeInput } from '$lib/server/utils/validation';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
@@ -34,6 +34,10 @@ import {
 } from './shared';
 
 const ALLOWED_ROLES = ['custodian', 'superadmin'];
+
+function getCurrentCount(quantity: number, donations = 0): number {
+	return quantity + donations;
+}
 
 // ─── GET ─────────────────────────────────────────────────────────────────────
 
@@ -151,8 +155,6 @@ export const POST: RequestHandler = async (event) => {
 			const category = sanitizeInput(body.category.trim()).slice(0, 100);
 			const specification = body.specification ? sanitizeInput(body.specification.trim()).slice(0, 500) : '';
 			const toolsOrEquipment = body.toolsOrEquipment ? sanitizeInput(body.toolsOrEquipment.trim()).slice(0, 200) : '';
-			const location = body.location ? sanitizeInput(body.location.trim()).slice(0, 200) : undefined;
-			const condition = body.condition || 'Good';
 
 			let categoryId: ObjectId | undefined;
 			if (body.categoryId && ObjectId.isValid(body.categoryId)) {
@@ -161,7 +163,9 @@ export const POST: RequestHandler = async (event) => {
 				if (!catExists) return json({ error: 'Category not found' }, { status: 404 });
 			}
 
-			const status: ItemStatus = body.quantity > 0 ? 'In Stock' as ItemStatus : 'Out of Stock' as ItemStatus;
+			const status: ItemStatus = getCurrentCount(0, body.quantity) > 0
+				? 'In Stock' as ItemStatus
+				: 'Out of Stock' as ItemStatus;
 
 			const newItem: InventoryItem = {
 				name: itemName,
@@ -169,10 +173,9 @@ export const POST: RequestHandler = async (event) => {
 				categoryId,
 				specification,
 				toolsOrEquipment,
-				quantity: body.quantity,
+				quantity: 0,
+				donations: body.quantity,
 				eomCount: 0,
-				condition: condition as ItemCondition,
-				location,
 				status,
 				archived: false,
 				createdAt: now,
@@ -195,7 +198,7 @@ export const POST: RequestHandler = async (event) => {
 				userId: new ObjectId(user.userId),
 				userName: user.email,
 				userRole: user.role,
-				metadata: { source: 'donation', donorName, quantity: body.quantity, condition, category },
+				metadata: { source: 'donation', donorName, quantity: body.quantity, category },
 				ipAddress: event.getClientAddress(),
 				userAgent: event.request.headers.get('user-agent') || undefined
 			});
@@ -223,12 +226,18 @@ export const POST: RequestHandler = async (event) => {
 			itemName = existingItem.name;
 			inventoryItemId = existingItemId;
 
-			const newQty = existingItem.quantity + body.quantity;
-			const newStatus: ItemStatus = newQty > 0 ? 'In Stock' as ItemStatus : 'Out of Stock' as ItemStatus;
+			const newQty = existingItem.quantity;
+			const newDonations = (existingItem.donations ?? 0) + body.quantity;
+			const newStatus: ItemStatus = getCurrentCount(newQty, newDonations) > 0
+				? 'In Stock' as ItemStatus
+				: 'Out of Stock' as ItemStatus;
 
 			await itemsCol.updateOne(
 				{ _id: existingItemId },
-				{ $inc: { quantity: body.quantity }, $set: { status: newStatus, updatedAt: now, updatedBy: new ObjectId(user.userId) } }
+				{
+					$inc: { donations: body.quantity },
+					$set: { status: newStatus, updatedAt: now, updatedBy: new ObjectId(user.userId) }
+				}
 			);
 
 			await logInventoryActivity({
@@ -239,7 +248,14 @@ export const POST: RequestHandler = async (event) => {
 				userId: new ObjectId(user.userId),
 				userName: user.email,
 				userRole: user.role,
-				metadata: { source: 'donation', donorName, quantityChange: body.quantity, newQuantity: newQty },
+				metadata: {
+					source: 'donation',
+					donorName,
+					quantityChange: body.quantity,
+					newQuantity: newQty,
+					newDonations,
+					newCurrentCount: getCurrentCount(newQty, newDonations)
+				},
 				ipAddress: event.getClientAddress(),
 				userAgent: event.request.headers.get('user-agent') || undefined
 			});

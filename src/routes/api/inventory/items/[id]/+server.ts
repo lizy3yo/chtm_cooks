@@ -6,7 +6,6 @@ import type {
 	InventoryItem,
 	InventoryItemResponse,
 	UpdateInventoryItemRequest,
-	ItemCondition,
 	ItemStatus
 } from '$lib/server/models/InventoryItem';
 import type { DeletedInventoryItem } from '$lib/server/models/InventoryDeleted';
@@ -18,6 +17,10 @@ import { logInventoryActivity, getObjectChanges } from '$lib/server/utils/invent
 import { InventoryAction } from '$lib/server/models/InventoryHistory';
 import { cacheService } from '$lib/server/cache';
 import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
+import type { InventoryRealtimeEvent } from '$lib/server/realtime/inventoryEvents';
+import { storageService } from '$lib/server/services/storage';
+import type { DeleteOptions } from '$lib/server/services/storage/types';
+import path from 'path';
 
 /**
  * Determine item status based on quantity
@@ -26,6 +29,10 @@ function determineStatus(quantity: number, archived: boolean): ItemStatus {
 	if (archived) return 'Archived' as ItemStatus;
 	if (quantity === 0) return 'Out of Stock' as ItemStatus;
 	return 'In Stock' as ItemStatus;
+}
+
+function getCurrentCount(quantity: number, donations = 0): number {
+	return quantity + donations;
 }
 
 /**
@@ -41,10 +48,10 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		toolsOrEquipment: item.toolsOrEquipment,
 		picture: item.picture,
 		quantity: item.quantity,
+		donations: item.donations ?? 0,
 		eomCount: item.eomCount,
-		variance: item.quantity - item.eomCount,
-		condition: item.condition,
-		location: item.location,
+		currentCount: getCurrentCount(item.quantity, item.donations ?? 0),
+		variance: getCurrentCount(item.quantity, item.donations ?? 0) - item.eomCount,
 		description: item.description,
 		status: item.status,
 		isConstant: item.isConstant,
@@ -53,6 +60,43 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		createdAt: item.createdAt,
 		updatedAt: item.updatedAt
 	};
+}
+
+function getDeleteOptionsFromManagedImageUrl(imageUrl: string): DeleteOptions | null {
+	if (!imageUrl) return null;
+
+	// Local managed uploads: /uploads/inventory/...
+	if (imageUrl.startsWith('/uploads/inventory/')) {
+		const relativePath = imageUrl.replace(/^\/uploads\//, '');
+		return { filepath: path.join('static', relativePath) };
+	}
+
+	// Cloudinary managed uploads: https://res.cloudinary.com/.../image/upload/v123/<publicId>.<ext>
+	try {
+		const parsed = new URL(imageUrl);
+		if (!parsed.hostname.includes('res.cloudinary.com')) {
+			return null;
+		}
+
+		const uploadMarker = '/image/upload/';
+		const markerIndex = parsed.pathname.indexOf(uploadMarker);
+		if (markerIndex === -1) {
+			return null;
+		}
+
+		let publicIdWithExt = parsed.pathname.slice(markerIndex + uploadMarker.length);
+		publicIdWithExt = publicIdWithExt.replace(/^v\d+\//, '');
+		const publicId = publicIdWithExt.replace(/\.[^./]+$/, '');
+
+		// Safety guard: only delete images from the inventory folder hierarchy.
+		if (!publicId || !publicId.includes('inventory')) {
+			return null;
+		}
+
+		return { publicId };
+	} catch {
+		return null;
+	}
 }
 
 /**
@@ -144,6 +188,15 @@ export const PATCH: RequestHandler = async (event) => {
 			return json({ error: 'Item not found' }, { status: 404 });
 		}
 
+		const incomingPicture = typeof body.picture === 'string' ? body.picture.trim() : undefined;
+		const shouldReplaceOldPicture =
+			body.replacePicture === true &&
+			incomingPicture !== undefined &&
+			incomingPicture.length > 0 &&
+			!!currentItem.picture &&
+			currentItem.picture !== incomingPicture;
+		const oldPictureForDeletion = shouldReplaceOldPicture ? currentItem.picture : undefined;
+
 		// Build update object
 		const updateFields: any = {
 			updatedAt: new Date(),
@@ -176,19 +229,16 @@ export const PATCH: RequestHandler = async (event) => {
 			updateFields.toolsOrEquipment = sanitizeInput(body.toolsOrEquipment.trim());
 		}
 		if (body.picture !== undefined) {
-			updateFields.picture = body.picture;
+			updateFields.picture = incomingPicture ?? body.picture;
 		}
 		if (body.quantity !== undefined) {
 			updateFields.quantity = Math.max(0, body.quantity);
 		}
+		if (body.donations !== undefined) {
+			updateFields.donations = Math.max(0, body.donations);
+		}
 		if (body.eomCount !== undefined) {
 			updateFields.eomCount = Math.max(0, body.eomCount);
-		}
-		if (body.condition !== undefined) {
-			updateFields.condition = body.condition as ItemCondition;
-		}
-		if (body.location !== undefined) {
-			updateFields.location = sanitizeInput(body.location.trim());
 		}
 		if (body.archived !== undefined) {
 			updateFields.archived = body.archived;
@@ -208,8 +258,9 @@ export const PATCH: RequestHandler = async (event) => {
 
 		// Recalculate status if quantity changed
 		const newQuantity = updateFields.quantity ?? currentItem.quantity;
+		const newDonations = updateFields.donations ?? currentItem.donations ?? 0;
 		const newArchived = updateFields.archived ?? currentItem.archived;
-		updateFields.status = determineStatus(newQuantity, newArchived);
+		updateFields.status = determineStatus(getCurrentCount(newQuantity, newDonations), newArchived);
 
 		// Update category counts if category changed
 		if (updateFields.categoryId !== undefined) {
@@ -288,9 +339,8 @@ export const PATCH: RequestHandler = async (event) => {
 		await cacheService.deletePattern('inventory:archived:*');
 		await cacheService.deletePattern('inventory:history:*');
 
-		const sseAction = action === InventoryAction.ARCHIVED ? 'item_archived' : action === InventoryAction.RESTORED ? 'item_restored' : 'item_updated';
-		const sseEvent = {
-			action: sseAction,
+		const sseEvent: InventoryRealtimeEvent = {
+			action: action === InventoryAction.ARCHIVED ? 'item_archived' : action === InventoryAction.RESTORED ? 'item_restored' : 'item_updated',
 			entityType: 'item' as const,
 			entityId: result._id!.toString(),
 			entityName: result.name,
@@ -300,6 +350,20 @@ export const PATCH: RequestHandler = async (event) => {
 		console.log('[PATCH-ITEM] Publishing SSE event:', JSON.stringify(sseEvent, null, 2));
 		publishInventoryChange([INVENTORY_CHANNEL], sseEvent);
 		console.log('[PATCH-ITEM] SSE event published successfully');
+
+		if (oldPictureForDeletion) {
+			const deleteOptions = getDeleteOptionsFromManagedImageUrl(oldPictureForDeletion);
+			if (deleteOptions) {
+				const deleted = await storageService.delete(deleteOptions);
+				if (!deleted) {
+					logger.warn('Failed to delete replaced inventory image', {
+						itemId,
+						oldPictureForDeletion,
+						deleteOptions
+					});
+				}
+			}
+		}
 
 		return json(toItemResponse(result));
 

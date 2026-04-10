@@ -1,13 +1,5 @@
 import type { ObjectId } from 'mongodb';
 
-export enum ItemCondition {
-	EXCELLENT = 'Excellent',
-	GOOD = 'Good',
-	FAIR = 'Fair',
-	POOR = 'Poor',
-	DAMAGED = 'Damaged'
-}
-
 export enum ItemStatus {
 	IN_STOCK = 'In Stock',
 	LOW_STOCK = 'Low Stock',
@@ -24,9 +16,8 @@ export interface InventoryItem {
 	toolsOrEquipment: string;
 	picture?: string;
 	quantity: number;
+	donations?: number;
 	eomCount: number; // End of Month Count
-	condition: ItemCondition;
-	location?: string;
 	description?: string;
 	status: ItemStatus;
 	unitPrice?: number; // Price per unit for replacement tracking
@@ -48,10 +39,10 @@ export interface InventoryItemResponse {
 	toolsOrEquipment: string;
 	picture?: string;
 	quantity: number;
+	donations?: number;
 	eomCount: number;
+	currentCount?: number;
 	variance: number;
-	condition: ItemCondition;
-	location?: string;
 	description?: string;
 	status: ItemStatus;
 	unitPrice?: number;
@@ -70,9 +61,8 @@ export interface CreateInventoryItemRequest {
 	toolsOrEquipment?: string;
 	picture?: string;
 	quantity: number;
+	donations?: number;
 	eomCount?: number;
-	condition: ItemCondition;
-	location?: string;
 	unitPrice?: number;
 	description?: string;
 	isConstant?: boolean;
@@ -81,4 +71,5 @@ export interface CreateInventoryItemRequest {
 
 export interface UpdateInventoryItemRequest extends Partial<CreateInventoryItemRequest> {
 	archived?: boolean;
+	replacePicture?: boolean;
 }

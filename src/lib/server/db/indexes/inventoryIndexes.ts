@@ -97,9 +97,6 @@ export async function createInventoryItemsIndexes() {
 			// Index for filtering by status (availability)
 			{ key: { status: 1, archived: 1 }, name: 'idx_status_archived' },
 			
-			// Index for filtering by condition
-			{ key: { condition: 1, archived: 1 }, name: 'idx_condition_archived' },
-			
 			// Index for constant items (frequently requested items)
 			{ key: { isConstant: 1, archived: 1 }, name: 'idx_isconstant_archived' },
 			

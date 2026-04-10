@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { ObjectId } from 'mongodb';
 import { getDatabase } from '$lib/server/db/mongodb';
-import type { CreateInventoryItemRequest, InventoryItem, ItemCondition, ItemStatus } from '$lib/server/models/InventoryItem';
+import type { CreateInventoryItemRequest, InventoryItem, ItemStatus } from '$lib/server/models/InventoryItem';
 import { sanitizeInput } from '$lib/server/utils/validation';
 import { getUserFromToken } from '$lib/server/middleware/auth/verify';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
@@ -26,6 +26,10 @@ function determineStatus(quantity: number, archived: boolean): ItemStatus {
 	if (archived) return 'Archived' as ItemStatus;
 	if (quantity === 0) return 'Out of Stock' as ItemStatus;
 	return 'In Stock' as ItemStatus;
+}
+
+function getCurrentCount(quantity: number, donations = 0): number {
+	return quantity + donations;
 }
 
 export const POST: RequestHandler = async (event) => {
@@ -90,10 +94,9 @@ export const POST: RequestHandler = async (event) => {
 				const category = sanitizeInput(item.category.trim());
 				const specification = item.specification ? sanitizeInput(item.specification.trim()) : '';
 				const toolsOrEquipment = item.toolsOrEquipment ? sanitizeInput(item.toolsOrEquipment.trim()) : '';
-				const location = item.location ? sanitizeInput(item.location.trim()) : undefined;
 				const quantity = Math.max(0, item.quantity);
+				const donations = item.donations !== undefined ? Math.max(0, item.donations) : 0;
 				const eomCount = item.eomCount !== undefined ? Math.max(0, item.eomCount) : 0;
-				const condition = (item.condition || 'Good') as ItemCondition;
 
 				let categoryId: ObjectId | undefined;
 				if (item.categoryId && ObjectId.isValid(item.categoryId)) {
@@ -112,10 +115,9 @@ export const POST: RequestHandler = async (event) => {
 					toolsOrEquipment,
 					picture: item.picture,
 					quantity,
+					donations,
 					eomCount,
-					condition,
-					location,
-					status: determineStatus(quantity, false),
+					status: determineStatus(getCurrentCount(quantity, donations), false),
 					isConstant: item.isConstant || false,
 					maxQuantityPerRequest: item.isConstant && item.maxQuantityPerRequest
 						? Math.max(1, Math.floor(item.maxQuantityPerRequest))

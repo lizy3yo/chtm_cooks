@@ -19,7 +19,6 @@
 	let searchQuery = $state('');
 	let selectedCategory = $state('all');
 	let selectedAvailability = $state('all');
-	let selectedCondition = $state('all');
 	let sortBy = $state('name');
 	let currentPage = $state(1);
 	
@@ -45,20 +44,10 @@
 		{ value: 'outofstock', label: 'Out of Stock' }
 	];
 	
-	const conditionOptions = [
-		{ value: 'all', label: 'All Conditions' },
-		{ value: 'Excellent', label: 'Excellent' },
-		{ value: 'Good', label: 'Good' },
-		{ value: 'Fair', label: 'Fair' },
-		{ value: 'Poor', label: 'Poor' },
-		{ value: 'Damaged', label: 'Damaged' }
-	];
-	
 	const sortOptions = [
 		{ value: 'name', label: 'Name (A-Z)' },
 		{ value: 'category', label: 'Category' },
 		{ value: 'availability', label: 'Availability' },
-		{ value: 'condition', label: 'Condition' },
 		{ value: 'recent', label: 'Recently Added' },
 		{ value: 'updated', label: 'Recently Updated' }
 	];
@@ -78,26 +67,6 @@
 				return 'bg-red-100 text-red-800';
 			case 'Maintenance':
 				return 'bg-orange-100 text-orange-800';
-			default:
-				return 'bg-gray-100 text-gray-800';
-		}
-	}
-	
-	/**
-	 * Get color utility classes based on condition
-	 */
-	function getConditionColor(condition: string): string {
-		switch (condition) {
-			case 'Excellent':
-				return 'bg-blue-100 text-blue-800';
-			case 'Good':
-				return 'bg-green-100 text-green-800';
-			case 'Fair':
-				return 'bg-yellow-100 text-yellow-800';
-			case 'Poor':
-				return 'bg-orange-100 text-orange-800';
-			case 'Damaged':
-				return 'bg-red-100 text-red-800';
 			default:
 				return 'bg-gray-100 text-gray-800';
 		}
@@ -127,7 +96,6 @@
 				search: searchQuery || undefined,
 				category: selectedCategory !== 'all' ? selectedCategory : undefined,
 				availability: (selectedAvailability as any) || 'all',
-				condition: (selectedCondition as any) || 'all',
 				sortBy: (sortBy as any) || 'name',
 				page: 1,
 				limit: 1000 // Get all items for client-side pagination
@@ -170,7 +138,6 @@
 		searchQuery = '';
 		selectedCategory = 'all';
 		selectedAvailability = 'all';
-		selectedCondition = 'all';
 		sortBy = 'name';
 		currentPage = 1;
 		error = null;
@@ -276,7 +243,6 @@
 			search: searchQuery || undefined,
 			category: selectedCategory !== 'all' ? selectedCategory : undefined,
 			availability: (selectedAvailability as any) || 'all',
-			condition: (selectedCondition as any) || 'all',
 			sortBy: (sortBy as any) || 'name',
 			page: 1,
 			limit: 1000 // Get all items for client-side pagination
@@ -322,7 +288,6 @@
 		searchQuery;
 		selectedCategory;
 		selectedAvailability;
-		selectedCondition;
 		sortBy;
 		viewMode;
 		currentPage = 1;
@@ -371,7 +336,6 @@
 							<p class="mt-1 truncate text-sm font-semibold tracking-wide text-pink-600">CAT-{selectedItem.id.slice(0, 8).toUpperCase()}</p>
 							<div class="mt-3 flex flex-wrap items-center gap-2">
 								<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {getAvailabilityColor(selectedItem.status)}">{selectedItem.status}</span>
-								<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {getConditionColor(selectedItem.condition)}">{selectedItem.condition}</span>
 								<span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Qty: {selectedItem.quantity}</span>
 							</div>
 						</div>
@@ -441,10 +405,6 @@
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Specification</p>
 						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
-					</div>
-					<div class="rounded-2xl border border-gray-200 bg-white p-4">
-						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Storage Location</p>
-						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.location || 'Not specified'}</p>
 					</div>
 				</div>
 
@@ -560,8 +520,8 @@
 			/>
 		</div>
 
-		<!-- Filters — 2 cols on mobile, 4 on sm+ -->
-		<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+		<!-- Filters — 2 cols on mobile, 3 on sm+ -->
+		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
 			<select
 				id="category"
 				value={selectedCategory}
@@ -585,19 +545,6 @@
 				disabled={isLoading}
 			>
 				{#each availabilityOptions as option}
-					<option value={option.value}>{option.label}</option>
-				{/each}
-			</select>
-
-			<select
-				id="condition"
-				value={selectedCondition}
-				onchange={(e) => { selectedCondition = (e.target as HTMLSelectElement).value; handleFilterChange(); }}
-				class="block w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-				aria-label="Filter by condition"
-				disabled={isLoading}
-			>
-				{#each conditionOptions as option}
 					<option value={option.value}>{option.label}</option>
 				{/each}
 			</select>
@@ -641,7 +588,7 @@
 				Showing <span class="font-medium">{allItems.length}</span>
 				{allItems.length === 1 ? 'item' : 'items'}
 			</p>
-			{#if searchQuery || selectedCategory !== 'all' || selectedAvailability !== 'all' || selectedCondition !== 'all'}
+			{#if searchQuery || selectedCategory !== 'all' || selectedAvailability !== 'all'}
 				<button
 					onclick={clearFilters}
 					class="text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors"
@@ -717,13 +664,10 @@
 							{item.name}
 						</h3>
 
-						<!-- Category + Condition row -->
+						<!-- Category row -->
 						<div class="mt-1.5 flex flex-wrap items-center gap-1">
 							<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">
 								{getCategoryName(item.categoryId)}
-							</span>
-							<span class="rounded px-1 py-0.5 text-[10px] font-semibold {getConditionColor(item.condition)}">
-								{item.condition}
 							</span>
 						</div>
 
@@ -772,7 +716,6 @@
 						<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
 						<div class="mt-1 flex flex-wrap items-center gap-1">
 							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
-							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getConditionColor(item.condition)}">{item.condition}</span>
 							<span class="text-[10px] text-gray-400">Qty: {item.quantity}</span>
 						</div>
 					</div>

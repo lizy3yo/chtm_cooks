@@ -38,8 +38,6 @@ export interface CreateDonationNewItemRequest {
 	categoryId?: string;
 	specification?: string;
 	toolsOrEquipment?: string;
-	condition: string;
-	location?: string;
 }
 
 /** Donation that adds quantity to an existing inventory item */

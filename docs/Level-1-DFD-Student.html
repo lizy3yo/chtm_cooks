@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Level 1 DFD - Student - CHTM Cooks System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #48cae4;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+
+        .role-badge {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .badge {
+            display: inline-block;
+            background: #48cae4;
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9em;
+        }
+
+        .legend-box {
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            border: 2px solid #34495e;
+        }
+
+        .process { background: #caf0f8; }
+        .entity { background: #48cae4; }
+        .datastore { background: #e0f7fa; }
+
+        svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .process-box {
+            fill: #caf0f8;
+            stroke: #0096c7;
+            stroke-width: 2.5;
+            rx: 8;
+        }
+
+        .entity-box {
+            fill: #48cae4;
+            stroke: #0096c7;
+            stroke-width: 3;
+            rx: 6;
+        }
+
+        .datastore-box {
+            fill: #e0f7fa;
+            stroke: #48cae4;
+            stroke-width: 2;
+            rx: 4;
+        }
+
+        .process-text, .datastore-text {
+            fill: #2c3e50;
+            font-size: 14px;
+            font-weight: 600;
+            text-anchor: middle;
+        }
+
+        .entity-text {
+            fill: white;
+            font-size: 16px;
+            font-weight: 700;
+            text-anchor: middle;
+        }
+
+        .process-label {
+            fill: #0077b6;
+            font-size: 12px;
+            font-weight: 700;
+            text-anchor: middle;
+        }
+
+        .dataflow {
+            fill: none;
+            stroke: #48cae4;
+            stroke-width: 2.5;
+            marker-end: url(#arrowhead);
+        }
+
+        .dataflow-label {
+            fill: #5d6d7e;
+            font-size: 11px;
+            font-style: italic;
+        }
+
+        .datastore-number {
+            fill: #0096c7;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .info-box {
+            margin-top: 40px;
+            padding: 25px;
+            background: linear-gradient(135deg, #a8edea15 0%, #fed6e315 100%);
+            border-radius: 8px;
+            border-left: 5px solid #48cae4;
+        }
+
+        .info-box h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .info-box ul {
+            color: #34495e;
+            line-height: 2;
+            list-style-position: inside;
+        }
+
+        .info-box li {
+            margin-bottom: 10px;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .container {
+                box-shadow: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Level 1 Data Flow Diagram</h1>
+        <p class="subtitle">CHTM Cooks - Inventory Management System</p>
+        <div class="role-badge">
+            <span class="badge">STUDENT VIEW</span>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-box process"></div>
+                <span>Process</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box entity"></div>
+                <span>Student (External Entity)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box datastore"></div>
+                <span>Data Store</span>
+            </div>
+        </div>
+
+        <svg viewBox="0 0 1200 1100" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                    <polygon points="0 0, 10 3, 0 6" fill="#48cae4" />
+                </marker>
+            </defs>
+
+            <!-- Student Entity (Center Right) -->
+            <rect x="900" y="450" width="220" height="100" class="entity-box"/>
+            <text x="1010" y="510" class="entity-text">STUDENT</text>
+
+            <!-- Data Stores (Left Side) -->
+            <!-- D1: User Table -->
+            <rect x="30" y="50" width="180" height="60" class="datastore-box"/>
+            <text x="40" y="75" class="datastore-number">D1</text>
+            <text x="120" y="85" class="datastore-text">User Table</text>
+
+            <!-- D3: Inventory Table -->
+            <rect x="30" y="350" width="180" height="60" class="datastore-box"/>
+            <text x="40" y="375" class="datastore-number">D3</text>
+            <text x="120" y="385" class="datastore-text">Inventory Table</text>
+
+            <!-- D4: Request Table -->
+            <rect x="30" y="650" width="180" height="60" class="datastore-box"/>
+            <text x="40" y="675" class="datastore-number">D4</text>
+            <text x="120" y="685" class="datastore-text">Request Table</text>
+
+            <!-- D6: Inspection Table -->
+            <rect x="30" y="900" width="180" height="60" class="datastore-box"/>
+            <text x="40" y="925" class="datastore-number">D6</text>
+            <text x="120" y="935" class="datastore-text">Inspection Table</text>
+
+            <!-- Processes (Center) -->
+            <!-- Process 1.0: Authentication & Authorization -->
+            <rect x="400" y="50" width="220" height="100" class="process-box"/>
+            <text x="510" y="85" class="process-label">1.0</text>
+            <text x="510" y="110" class="process-text">Authentication &</text>
+            <text x="510" y="130" class="process-text">Authorization</text>
+
+            <!-- Process 3.0: View Catalog -->
+            <rect x="400" y="350" width="220" height="100" class="process-box"/>
+            <text x="510" y="385" class="process-label">3.0</text>
+            <text x="510" y="410" class="process-text">View Catalog</text>
+
+            <!-- Process 4.0: Submit & Track Requests -->
+            <rect x="400" y="650" width="220" height="100" class="process-box"/>
+            <text x="510" y="685" class="process-label">4.0</text>
+            <text x="510" y="710" class="process-text">Submit & Track Requests</text>
+
+            <!-- Process 6.0: Report Issues -->
+            <rect x="400" y="900" width="220" height="100" class="process-box"/>
+            <text x="510" y="935" class="process-label">6.0</text>
+            <text x="510" y="960" class="process-text">Report Issues</text>
+
+            <!-- Data Flows -->
+            
+            <!-- Student to Process 1.0 (Login) -->
+            <path d="M 900 480 Q 750 300 620 150" class="dataflow"/>
+            <text x="720" y="330" class="dataflow-label">Login credentials</text>
+
+            <!-- Process 1.0 to Student (Confirmation) -->
+            <path d="M 620 130 Q 750 320 900 500" class="dataflow"/>
+            <text x="720" y="310" class="dataflow-label">Login confirmation</text>
+
+            <!-- Process 1.0 to D1 -->
+            <path d="M 400 90 L 210 90" class="dataflow"/>
+            <text x="280" y="80" class="dataflow-label">Verify credentials</text>
+
+            <!-- D1 to Process 1.0 -->
+            <path d="M 210 100 L 400 100" class="dataflow"/>
+            <text x="280" y="120" class="dataflow-label">User data</text>
+
+            <!-- Student to Process 3.0 -->
+            <path d="M 900 490 Q 750 430 620 410" class="dataflow"/>
+            <text x="720" y="440" class="dataflow-label">Browse catalog</text>
+
+            <!-- Process 3.0 to Student -->
+            <path d="M 620 430 Q 750 450 900 510" class="dataflow"/>
+            <text x="720" y="460" class="dataflow-label">Available items</text>
+
+            <!-- D3 to Process 3.0 -->
+            <path d="M 210 390 L 400 390" class="dataflow"/>
+            <text x="280" y="380" class="dataflow-label">Inventory data</text>
+
+            <!-- Student to Process 4.0 -->
+            <path d="M 900 520 L 620 700" class="dataflow"/>
+            <text x="720" y="600" class="dataflow-label">Submit request</text>
+
+            <!-- Process 4.0 to Student -->
+            <path d="M 620 720 L 900 540" class="dataflow"/>
+            <text x="720" y="620" class="dataflow-label">Request status</text>
+
+            <!-- Process 4.0 to D4 -->
+            <path d="M 400 690 L 210 690" class="dataflow"/>
+            <text x="280" y="680" class="dataflow-label">Store request</text>
+
+            <!-- D4 to Process 4.0 -->
+            <path d="M 210 700 L 400 700" class="dataflow"/>
+            <text x="280" y="720" class="dataflow-label">Request history</text>
+
+            <!-- Process 4.0 to Process 3.0 (Check Availability) -->
+            <path d="M 510 650 L 510 450" class="dataflow"/>
+            <text x="530" y="550" class="dataflow-label">Check item availability</text>
+
+            <!-- Student to Process 6.0 -->
+            <path d="M 900 540 Q 800 720 620 940" class="dataflow"/>
+            <text x="750" y="750" class="dataflow-label">Report damage/issue</text>
+
+            <!-- Process 6.0 to Student -->
+            <path d="M 620 960 Q 800 740 900 540" class="dataflow"/>
+            <text x="750" y="770" class="dataflow-label">Issue confirmation</text>
+
+            <!-- Process 6.0 to D6 -->
+            <path d="M 400 940 L 210 940" class="dataflow"/>
+            <text x="280" y="930" class="dataflow-label">Store issue report</text>
+
+            <!-- D6 to Process 6.0 -->
+            <path d="M 210 950 L 400 950" class="dataflow"/>
+            <text x="280" y="970" class="dataflow-label">Issue history</text>
+
+        </svg>
+
+        <div class="info-box">
+            <h3>Student Responsibilities</h3>
+            <ul>
+                <li><strong>Browse Catalog:</strong> View available inventory items and their details</li>
+                <li><strong>Submit Requests:</strong> Request items from the inventory for personal or academic use</li>
+                <li><strong>Track Requests:</strong> Monitor the status of submitted requests (pending, approved, rejected)</li>
+                <li><strong>Report Issues:</strong> Report damaged, lost, or defective items to custodians</li>
+                <li><strong>View Item Status:</strong> Check item condition and availability before requesting</li>
+                <li><strong>Limited Access:</strong> Read-only access to catalog, write access only for requests and issue reports</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <h3>Key Processes</h3>
+            <ul>
+                <li><strong>1.0 Authentication & Authorization:</strong> Validates student credentials and grants appropriate access</li>
+                <li><strong>3.0 View Catalog:</strong> Displays available inventory items with details and availability status</li>
+                <li><strong>4.0 Submit & Track Requests:</strong> Handles item request submission and status tracking</li>
+                <li><strong>6.0 Report Issues:</strong> Allows students to report item damage, defects, or other issues</li>
+            </ul>
+        </div>
+
+        <div class="info-box">
+            <h3>Student Workflow</h3>
+            <ul>
+                <li><strong>Step 1:</strong> Login to the system with student credentials</li>
+                <li><strong>Step 2:</strong> Browse the catalog to view available items</li>
+                <li><strong>Step 3:</strong> Submit a request for needed items</li>
+                <li><strong>Step 4:</strong> Track request status (pending approval from custodian)</li>
+                <li><strong>Step 5:</strong> Report any issues with borrowed items</li>
+            </ul>
+        </div>
+
+        <div style="margin-top: 20px; text-align: center; color: #7f8c8d; font-size: 0.9em;">
+            <p>CHTM Cooks Inventory Management System | Level 1 DFD - Student View</p>
+            <p>Generated: April 2026 | Industry Standard Documentation</p>
+        </div>
+    </div>
+</body>
+</html>
