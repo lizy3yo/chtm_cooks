@@ -3,6 +3,7 @@
 	import { browser } from '$app/environment';
 	import {
 		fetchAnalytics,
+		peekCachedAnalytics,
 		subscribeToAnalyticsChanges,
 		clearAnalyticsCache,
 		type AnalyticsReport,
@@ -51,13 +52,21 @@
 
 	const SAVED_VIEWS_KEY = 'custodian-analytics-saved-views-v1';
 	const HOME_PREF_KEY = 'custodian-homepage-report-v1';
+	const initialReport = browser
+		? peekCachedAnalytics({
+				period: 'month',
+				from: monthStartISO(),
+				to: todayISO()
+			})
+		: null;
 
-	let report = $state<AnalyticsReport | null>(null);
-	let loading = $state(true);
+	let report = $state<AnalyticsReport | null>(initialReport);
+	let loading = $state(!initialReport);
 	let error = $state<string | null>(null);
-	let lastUpdated = $state<Date | null>(null);
+	let lastUpdated = $state<Date | null>(initialReport ? new Date(initialReport.meta.generatedAt) : null);
 	let unsubscribeSSE: (() => void) | null = null;
 	let refreshTimer: ReturnType<typeof setInterval> | null = null;
+	let hasMounted = false;
 
 	let activeTab = $state<Tab>('executive');
 	let period = $state<AnalyticsPeriod>('month');
@@ -143,7 +152,9 @@
 
 	async function loadReport(forceRefresh = false): Promise<void> {
 		if (!browser) return;
-		loading = true;
+		if (forceRefresh || !report) {
+			loading = true;
+		}
 		error = null;
 		try {
 			report = await fetchAnalytics({
@@ -673,7 +684,8 @@
 	onMount(() => {
 		applyPreset('mtd');
 		hydrateFromUrl();
-		loadReport();
+		void loadReport();
+		hasMounted = true;
 		unsubscribeSSE = subscribeToAnalyticsChanges(() => loadReport(true));
 
 		try {
@@ -693,7 +705,8 @@
 		period;
 		customFrom;
 		customTo;
-		loadReport();
+		if (!hasMounted) return;
+		void loadReport();
 	});
 
 	$effect(() => {

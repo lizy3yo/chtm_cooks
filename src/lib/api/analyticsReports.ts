@@ -216,9 +216,14 @@ interface CacheEntry {
 	expiresAt: number;
 }
 
-const CLIENT_CACHE_TTL_MS = 3_600_000; // 1 hour - aligned with server cache and session timeout
+const CLIENT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour - aligned with server cache and session timeout
 const CLIENT_CACHE_VERSION = 'v3';
 const cache = new Map<string, CacheEntry>();
+const inFlight = new Map<string, Promise<AnalyticsReport>>();
+
+function buildAnalyticsCacheKey(period: AnalyticsPeriod, from?: string, to?: string): string {
+	return `analytics:${CLIENT_CACHE_VERSION}:${period}:${from ?? ''}:${to ?? ''}`;
+}
 
 function getCached(key: string): AnalyticsReport | null {
 	if (!browser) return null;
@@ -237,6 +242,13 @@ function setCached(key: string, data: AnalyticsReport): void {
 
 export function clearAnalyticsCache(): void {
 	cache.clear();
+	inFlight.clear();
+}
+
+export function peekCachedAnalytics(opts: FetchAnalyticsOptions = {}): AnalyticsReport | null {
+	const { period = 'month', from, to } = opts;
+	const cacheKey = buildAnalyticsCacheKey(period, from, to);
+	return getCached(cacheKey);
 }
 
 // â”€â”€ API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -296,11 +308,14 @@ function normalizeAnalyticsReport(raw: AnalyticsReport): AnalyticsReport {
 
 export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<AnalyticsReport> {
 	const { period = 'month', from, to, forceRefresh = false } = opts;
-	const cacheKey = `analytics:${CLIENT_CACHE_VERSION}:${period}:${from ?? ''}:${to ?? ''}`;
+	const cacheKey = buildAnalyticsCacheKey(period, from, to);
 
 	if (!forceRefresh) {
 		const cached = getCached(cacheKey);
 		if (cached) return cached;
+
+		const existingRequest = inFlight.get(cacheKey);
+		if (existingRequest) return existingRequest;
 	}
 
 	const params = new URLSearchParams({ period });
@@ -308,39 +323,48 @@ export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<
 	if (to) params.set('to', to);
 	if (forceRefresh) params.set('_t', String(Date.now()));
 
-	// Retry logic for transient failures
-	let lastError: Error | null = null;
-	const maxRetries = 2;
-	
-	for (let attempt = 0; attempt <= maxRetries; attempt++) {
-		try {
-			const res = await fetch(`/api/reports/analytics?${params}`, {
-				credentials: 'include',
-				signal: AbortSignal.timeout(45000) // 45 second timeout
-			});
+	const requestPromise = (async () => {
+		// Retry logic for transient failures
+		let lastError: Error | null = null;
+		const maxRetries = 2;
 
-			if (!res.ok) {
-				const body = await res.json().catch(() => ({})) as { error?: string };
-				throw new Error(body.error ?? `Analytics request failed: ${res.status}`);
-			}
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			try {
+				const res = await fetch(`/api/reports/analytics?${params}`, {
+					credentials: 'include',
+					signal: AbortSignal.timeout(45000) // 45 second timeout
+				});
 
-			const data = normalizeAnalyticsReport((await res.json()) as AnalyticsReport);
-			setCached(cacheKey, data);
-			return data;
-		} catch (error) {
-			lastError = error instanceof Error ? error : new Error(String(error));
-			
-			// Don't retry on client errors (4xx) or last attempt
-			if (attempt === maxRetries || (error instanceof Error && error.message.includes('4'))) {
-				break;
+				if (!res.ok) {
+					const body = await res.json().catch(() => ({})) as { error?: string };
+					throw new Error(body.error ?? `Analytics request failed: ${res.status}`);
+				}
+
+				const data = normalizeAnalyticsReport((await res.json()) as AnalyticsReport);
+				setCached(cacheKey, data);
+				return data;
+			} catch (error) {
+				lastError = error instanceof Error ? error : new Error(String(error));
+
+				// Don't retry on client errors (4xx) or last attempt
+				if (attempt === maxRetries || (error instanceof Error && error.message.includes('4'))) {
+					break;
+				}
+
+				// Wait before retry (exponential backoff)
+				await new Promise((resolve) => setTimeout(resolve, Math.pow(2, attempt) * 1000));
 			}
-			
-			// Wait before retry (exponential backoff)
-			await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
 		}
-	}
 
-	throw lastError ?? new Error('Analytics request failed');
+		throw lastError ?? new Error('Analytics request failed');
+	})();
+
+	inFlight.set(cacheKey, requestPromise);
+	try {
+		return await requestPromise;
+	} finally {
+		inFlight.delete(cacheKey);
+	}
 }
 
 // â”€â”€ SSE subscription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
