@@ -189,7 +189,10 @@ export const POST: RequestHandler = async (event) => {
 		const usersCollection = db.collection<User>('users');
 
 		// Check if email already exists
-		const existingUser = await usersCollection.findOne({ email: sanitizedEmail });
+		const existingUser = await usersCollection.findOne(
+			{ email: sanitizedEmail },
+			{ collation: { locale: 'en', strength: 2 } }
+		);
 		if (existingUser) {
 			return json({ error: 'Email already registered' }, { status: 409 });
 		}

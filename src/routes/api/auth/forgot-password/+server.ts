@@ -40,7 +40,10 @@ export const POST: RequestHandler = async (event) => {
 		const usersCollection = db.collection<User>('users');
 
 		// Find user
-		const user = await usersCollection.findOne({ email: sanitizedEmail });
+		const user = await usersCollection.findOne(
+			{ email: sanitizedEmail },
+			{ collation: { locale: 'en', strength: 2 } }
+		);
 
 		console.log(`[Forgot Password] Request for email: ${sanitizedEmail}`);
 
