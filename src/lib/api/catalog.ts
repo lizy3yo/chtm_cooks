@@ -66,7 +66,6 @@ function buildCatalogQuery(filters: CatalogFilters = {}): string {
 	if (filters.search) params.set('search', filters.search);
 	if (filters.category) params.set('category', filters.category);
 	if (filters.availability) params.set('availability', filters.availability);
-	if (filters.condition) params.set('condition', filters.condition);
 	if (filters.sortBy) params.set('sortBy', filters.sortBy);
 	if (filters.page) params.set('page', filters.page.toString());
 	if (filters.limit) params.set('limit', filters.limit.toString());
@@ -247,7 +246,6 @@ export const catalogAPI = {
 			if (filters.search) params.set('search', filters.search);
 			if (filters.category) params.set('category', filters.category);
 			if (filters.availability) params.set('availability', filters.availability);
-			if (filters.condition) params.set('condition', filters.condition);
 			if (filters.sortBy) params.set('sortBy', filters.sortBy);
 			if (filters.page) params.set('page', filters.page.toString());
 			if (filters.limit) params.set('limit', filters.limit.toString());

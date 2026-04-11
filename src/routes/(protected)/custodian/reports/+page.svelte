@@ -6,156 +6,431 @@
 		subscribeToAnalyticsChanges,
 		clearAnalyticsCache,
 		type AnalyticsReport,
-		type AnalyticsPeriod
+		type AnalyticsPeriod,
+		type OverdueRequest,
+		type StudentRiskEntry
 	} from '$lib/api/analyticsReports';
 	import { toastStore } from '$lib/stores/toast';
-	import Skeleton from '$lib/components/ui/Skeleton.svelte';
-	import { FileText, AlertCircle, PackageX, TrendingUp } from 'lucide-svelte';
+	import {
+		RefreshCw,
+		TrendingUp,
+		TrendingDown,
+		Search,
+		Download,
+		Save,
+		Share2,
+		Filter,
+		Expand,
+		Rows3,
+		Clock3,
+		ChartNoAxesCombined
+	} from 'lucide-svelte';
 
-	// ── State ─────────────────────────────────────────────────────────────────
+	type Tab = 'executive' | 'operations' | 'risk';
+	type DatePreset = 'today' | 'last7' | 'mtd' | 'semester' | 'custom';
+	type SortDirection = 'asc' | 'desc';
+	type OverdueSortKey = 'studentName' | 'daysOverdue' | 'itemCount' | 'returnDate';
 
-	type Tab = 'overview' | 'borrow' | 'inventory' | 'conditions' | 'risk' | 'replacement';
+	type SavedView = {
+		id: string;
+		name: string;
+		createdAt: string;
+		state: {
+			tab: Tab;
+			period: AnalyticsPeriod;
+			preset: DatePreset;
+			customFrom: string;
+			customTo: string;
+			statusFilter: string;
+			categoryFilter: string;
+			trustTierFilter: string;
+			searchQuery: string;
+			metricThreshold: number;
+		};
+	};
 
-	let activeTab = $state<Tab>('overview');
-	let period = $state<AnalyticsPeriod>('month');
-	let customFrom = $state('');
-	let customTo = $state('');
-	let useCustomRange = $state(false);
+	const SAVED_VIEWS_KEY = 'custodian-analytics-saved-views-v1';
+	const HOME_PREF_KEY = 'custodian-homepage-report-v1';
 
 	let report = $state<AnalyticsReport | null>(null);
-	let isLoading = $state(true);
+	let loading = $state(true);
 	let error = $state<string | null>(null);
-	let lastRefreshed = $state<Date | null>(null);
-
+	let lastUpdated = $state<Date | null>(null);
 	let unsubscribeSSE: (() => void) | null = null;
-	let mounted = false;
+	let refreshTimer: ReturnType<typeof setInterval> | null = null;
 
-	// ── Derived helpers ───────────────────────────────────────────────────────
+	let activeTab = $state<Tab>('executive');
+	let period = $state<AnalyticsPeriod>('month');
+	let datePreset = $state<DatePreset>('mtd');
+	let customFrom = $state('');
+	let customTo = $state('');
 
-	const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-	const DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+	let statusFilter = $state('all');
+	let categoryFilter = $state('all');
+	let trustTierFilter = $state('all');
+	let searchQuery = $state('');
+	let metricThreshold = $state(0);
+	let chartStatusFilter = $state('all');
 
-	const statusColors: Record<string, string> = {
-		pending_instructor: 'bg-yellow-100 text-yellow-800',
-		approved_instructor: 'bg-blue-100 text-blue-800',
-		ready_for_pickup: 'bg-indigo-100 text-indigo-800',
-		borrowed: 'bg-pink-100 text-pink-800',
-		pending_return: 'bg-orange-100 text-orange-800',
-		returned: 'bg-emerald-100 text-emerald-800',
-		missing: 'bg-red-100 text-red-800',
-		resolved: 'bg-teal-100 text-teal-800',
-		cancelled: 'bg-gray-100 text-gray-600',
-		rejected: 'bg-rose-100 text-rose-800'
+	let overdueSortKey = $state<OverdueSortKey>('daysOverdue');
+	let overdueSortDirection = $state<SortDirection>('desc');
+	let expandedStudentId = $state<string | null>(null);
+
+	let autoRefreshMinutes = $state(0);
+	let savedViews = $state<SavedView[]>([]);
+	let selectedSavedViewId = $state('');
+	let selectedTemplate = $state('operations-health');
+	let dashboardAsHomepage = $state(false);
+
+	const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+	const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+	const KPI_COLORS = {
+		neutral: 'text-gray-900',
+		good: 'text-emerald-600',
+		warn: 'text-amber-600',
+		risk: 'text-rose-600'
 	};
 
-	const statusLabels: Record<string, string> = {
-		pending_instructor: 'Pending Approval',
-		approved_instructor: 'Instructor Approved',
-		ready_for_pickup: 'Ready for Pickup',
-		borrowed: 'Borrowed',
-		pending_return: 'Pending Return',
-		returned: 'Returned',
-		missing: 'Missing',
-		resolved: 'Resolved',
-		cancelled: 'Cancelled',
-		rejected: 'Rejected'
-	};
+	const numberFmt = new Intl.NumberFormat();
 
-	const conditionColors: Record<string, string> = {
-		Excellent: 'bg-emerald-500',
-		Good: 'bg-green-400',
-		Fair: 'bg-yellow-400',
-		Poor: 'bg-orange-400',
-		Damaged: 'bg-red-500'
-	};
+	function todayISO(): string {
+		return new Date().toISOString().slice(0, 10);
+	}
 
-	const conditionOrder = ['Excellent', 'Good', 'Fair', 'Poor', 'Damaged'] as const;
+	function monthStartISO(): string {
+		const d = new Date();
+		const start = new Date(d.getFullYear(), d.getMonth(), 1);
+		return start.toISOString().slice(0, 10);
+	}
 
-	const conditionMeta: Record<string, { label: string; bar: string; badge: string }> = {
-		Excellent: { label: 'Excellent', bar: 'bg-emerald-500', badge: 'bg-emerald-100 text-emerald-800' },
-		Good:      { label: 'Good',      bar: 'bg-green-400',   badge: 'bg-green-100 text-green-800'   },
-		Fair:      { label: 'Fair',      bar: 'bg-yellow-400',  badge: 'bg-yellow-100 text-yellow-800' },
-		Poor:      { label: 'Poor',      bar: 'bg-orange-400',  badge: 'bg-orange-100 text-orange-800' },
-		Damaged:   { label: 'Damaged',   bar: 'bg-red-500',     badge: 'bg-red-100 text-red-800'       }
-	};
+	function semesterStartISO(): string {
+		const d = new Date();
+		const start = new Date(d);
+		start.setMonth(start.getMonth() - 6);
+		return start.toISOString().slice(0, 10);
+	}
 
-	// ── KPI derived values ────────────────────────────────────────────────────
+	function applyPreset(preset: DatePreset): void {
+		datePreset = preset;
+		if (preset === 'today') {
+			period = 'week';
+			customFrom = todayISO();
+			customTo = todayISO();
+			return;
+		}
+		if (preset === 'last7') {
+			period = 'week';
+			customFrom = '';
+			customTo = '';
+			return;
+		}
+		if (preset === 'mtd') {
+			period = 'month';
+			customFrom = monthStartISO();
+			customTo = todayISO();
+			return;
+		}
+		if (preset === 'semester') {
+			period = 'semester';
+			customFrom = semesterStartISO();
+			customTo = todayISO();
+			return;
+		}
+		customFrom = customFrom || monthStartISO();
+		customTo = customTo || todayISO();
+	}
 
-	const totalRequests = $derived(
-		report?.borrowRequests.statusBreakdown.reduce((s, i) => s + i.count, 0) ?? 0
+	async function loadReport(forceRefresh = false): Promise<void> {
+		if (!browser) return;
+		loading = true;
+		error = null;
+		try {
+			report = await fetchAnalytics({
+				period,
+				from: customFrom || undefined,
+				to: customTo || undefined,
+				forceRefresh
+			});
+			lastUpdated = new Date();
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to load analytics report';
+			toastStore.error(error, 'Analytics');
+		} finally {
+			loading = false;
+		}
+	}
+
+	function handleRefresh(): void {
+		clearAnalyticsCache();
+		loadReport(true);
+		toastStore.info('Refreshing analytics dataset', 'Refresh');
+	}
+
+	function trendArrow(delta: number): 'up' | 'down' | 'flat' {
+		if (delta > 0) return 'up';
+		if (delta < 0) return 'down';
+		return 'flat';
+	}
+
+	function trendText(delta: number): string {
+		if (delta > 0) return `+${delta}% vs previous`;
+		if (delta < 0) return `${delta}% vs previous`;
+		return 'No change vs previous';
+	}
+
+	const requestsOverTime = $derived(report?.borrowRequests.requestsOverTime ?? []);
+	const statusBreakdown = $derived(report?.borrowRequests.statusBreakdown ?? []);
+	const trustScores = $derived(report?.studentRisk.trustScores ?? []);
+	const inventorySummary = $derived(
+		report?.inventory.summary ?? {
+			currentCount: 0,
+			eomCount: 0,
+			variance: 0,
+			donations: 0,
+			constantCount: 0,
+			lowStockCount: 0
+		}
 	);
-	const returnedCount = $derived(
-		report?.borrowRequests.statusBreakdown.find((s) => s.status === 'returned')?.count ?? 0
+	const eomVarianceRows = $derived.by(() => {
+		return [...(report?.inventory.eomVariance ?? [])]
+			.sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance))
+			.slice(0, 10);
+	});
+	const eomVarianceAbsMax = $derived.by(() =>
+		Math.max(1, ...eomVarianceRows.map((row) => Math.abs(row.variance)))
 	);
-	const approvalRate = $derived(
-		totalRequests > 0
-			? Math.round(
-					((report?.borrowRequests.statusBreakdown
-						.filter((s) => !['rejected', 'cancelled'].includes(s.status))
-						.reduce((s, i) => s + i.count, 0) ?? 0) /
-						totalRequests) *
-						100
-				)
-			: 0
+	const eomVarianceNegativeCount = $derived.by(
+		() => (report?.inventory.eomVariance ?? []).filter((row) => row.variance < 0).length
+	);
+	const eomVariancePositiveCount = $derived.by(
+		() => (report?.inventory.eomVariance ?? []).filter((row) => row.variance > 0).length
+	);
+	const eomVarianceRate = $derived.by(() => {
+		const base = inventorySummary.eomCount;
+		if (!base) return 0;
+		return Math.round((inventorySummary.variance / base) * 1000) / 10;
+	});
+	const eomCategoryVariance = $derived.by(() => {
+		const grouped = new Map<string, { category: string; variance: number }>();
+		for (const row of report?.inventory.eomVariance ?? []) {
+			const key = row.category || 'Uncategorized';
+			const prev = grouped.get(key) ?? { category: key, variance: 0 };
+			grouped.set(key, { ...prev, variance: prev.variance + row.variance });
+		}
+		return [...grouped.values()]
+			.sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance))
+			.slice(0, 6);
+	});
+
+	const comparison = $derived.by(() => {
+		const series = requestsOverTime;
+		if (series.length < 4) return { current: 0, previous: 0, deltaPct: 0 };
+		const half = Math.floor(series.length / 2);
+		const previous = series.slice(0, half).reduce((s, p) => s + p.count, 0);
+		const current = series.slice(half).reduce((s, p) => s + p.count, 0);
+		const deltaPct = previous > 0 ? Math.round(((current - previous) / previous) * 100) : 0;
+		return { current, previous, deltaPct };
+	});
+
+	const totalRequests = $derived(statusBreakdown.reduce((s, i) => s + i.count, 0));
+	const returnedCount = $derived(statusBreakdown.find((s) => s.status === 'returned')?.count ?? 0);
+	const overdueCount = $derived(report?.borrowRequests.overdueCount ?? 0);
+	const replacementPending = $derived(report?.replacement.summary.pendingCount ?? 0);
+	const stockAlerts = $derived(report?.inventory.stockAlerts.length ?? 0);
+	const activeLoans = $derived.by(() => {
+		const loanStatuses = ['ready_for_pickup', 'borrowed', 'pending_return'];
+		return statusBreakdown
+			.filter((s) => loanStatuses.includes(s.status))
+			.reduce((sum, row) => sum + row.count, 0);
+	});
+	const approvalRate = $derived.by(() => {
+		if (totalRequests === 0) return 0;
+		const notRejected = statusBreakdown
+			.filter((s) => !['rejected', 'cancelled'].includes(s.status))
+			.reduce((sum, row) => sum + row.count, 0);
+		return Math.round((notRejected / totalRequests) * 100);
+	});
+	const itemsCurrentlyOutTotal = $derived.by(() =>
+		(report?.inventory.itemsCurrentlyOut ?? []).reduce((sum, item) => sum + item.quantityOut, 0)
+	);
+	const donatedItemTypes = $derived.by(() => {
+		const names = new Set((report?.replacement.donationTotals ?? []).map((d) => d.itemName).filter(Boolean));
+		return names.size;
+	});
+	const resolvedObligations = $derived.by(() => {
+		const total = report?.replacement.summary.totalObligations ?? 0;
+		const pending = report?.replacement.summary.pendingCount ?? 0;
+		return Math.max(0, total - pending);
+	});
+	const recentActivityCount = $derived.by(() => requestsOverTime.slice(-7).reduce((sum, p) => sum + p.count, 0));
+	const highIncidentItems = $derived.by(() =>
+		(report?.inventory.damageRateItems ?? []).filter((item) => item.incidentRate >= 25).length
+	);
+	const averageTrustScore = $derived.by(() => {
+		if (trustScores.length === 0) return 0;
+		return Math.round(trustScores.reduce((sum, s) => sum + (s.trustScore ?? 0), 0) / trustScores.length);
+	});
+	const lowTrustStudents = $derived.by(() => trustScores.filter((s) => (s.trustScore ?? 0) < 70).length);
+	const goodTrustStudents = $derived.by(() => trustScores.filter((s) => (s.trustScore ?? 0) >= 90).length);
+
+	const returnRate = $derived(totalRequests > 0 ? Math.round((returnedCount / totalRequests) * 100) : 0);
+	const operationalHealth = $derived(
+		Math.max(0, Math.min(100, Math.round(100 - overdueCount * 2 - stockAlerts * 2 - replacementPending)))
 	);
 
-	// ── Heatmap helpers ───────────────────────────────────────────────────────
+	const filteredStatusBreakdown = $derived.by(() => {
+		if (statusFilter === 'all') return statusBreakdown;
+		return statusBreakdown.filter((s) => s.status === statusFilter);
+	});
+
+	const inventoryCategories = $derived.by(() => {
+		const src = report?.inventory.mostBorrowedItems ?? [];
+		return [...new Set(src.map((i) => i.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+	});
+
+	const filteredMostBorrowed = $derived.by(() => {
+		const src = report?.inventory.mostBorrowedItems ?? [];
+		return src
+			.filter((i) => categoryFilter === 'all' || i.category === categoryFilter)
+			.filter((i) => i.totalBorrows >= metricThreshold)
+			.slice(0, 12);
+	});
+
+	const filteredOverdue = $derived.by(() => {
+		const src = report?.borrowRequests.overdueRequests ?? [];
+		const q = searchQuery.trim().toLowerCase();
+		const scoped = src.filter((row) => {
+			if (!q) return true;
+			return row.studentName.toLowerCase().includes(q) || row._id.toLowerCase().includes(q);
+		});
+
+		const sorted = [...scoped].sort((a, b) => {
+			const dir = overdueSortDirection === 'asc' ? 1 : -1;
+			if (overdueSortKey === 'studentName') return a.studentName.localeCompare(b.studentName) * dir;
+			if (overdueSortKey === 'daysOverdue') return (a.daysOverdue - b.daysOverdue) * dir;
+			if (overdueSortKey === 'itemCount') return (a.itemCount - b.itemCount) * dir;
+			return (new Date(a.returnDate).getTime() - new Date(b.returnDate).getTime()) * dir;
+		});
+
+		return sorted;
+	});
+
+	const filteredTrustScores = $derived.by(() => {
+		const q = searchQuery.trim().toLowerCase();
+		return trustScores
+			.filter((s) => trustTierFilter === 'all' || (s.trustTier ?? 'unknown') === trustTierFilter)
+			.filter((s) => {
+				if (!q) return true;
+				return s.studentName.toLowerCase().includes(q) || s.studentEmail.toLowerCase().includes(q) || s._id.toLowerCase().includes(q);
+			})
+			.slice(0, 50);
+	});
+
+	const movingAverage = $derived.by(() => {
+		const src = requestsOverTime;
+		if (src.length === 0) return [] as number[];
+		return src.map((_, idx) => {
+			const from = Math.max(0, idx - 2);
+			const window = src.slice(from, idx + 1);
+			const avg = window.reduce((s, p) => s + p.count, 0) / window.length;
+			return Math.round(avg * 10) / 10;
+		});
+	});
+
+	const anomalies = $derived.by(() => {
+		const values = requestsOverTime.map((p) => p.count);
+		if (values.length < 4) return [] as number[];
+		const mean = values.reduce((s, v) => s + v, 0) / values.length;
+		const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
+		const std = Math.sqrt(variance) || 1;
+		return values
+			.map((v, i) => ({ v, i, z: Math.abs((v - mean) / std) }))
+			.filter((x) => x.z >= 1.6)
+			.map((x) => x.i);
+	});
+
+	const trendForecast = $derived.by(() => {
+		const points = requestsOverTime.map((p, i) => ({ x: i + 1, y: p.count }));
+		if (points.length < 3) return null;
+		const n = points.length;
+		const sumX = points.reduce((s, p) => s + p.x, 0);
+		const sumY = points.reduce((s, p) => s + p.y, 0);
+		const sumXY = points.reduce((s, p) => s + p.x * p.y, 0);
+		const sumXX = points.reduce((s, p) => s + p.x * p.x, 0);
+		const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX ** 2 || 1);
+		const intercept = (sumY - slope * sumX) / n;
+		const nextX = n + 1;
+		return Math.max(0, Math.round(slope * nextX + intercept));
+	});
+
+	const gaugeStyle = $derived(`conic-gradient(#10b981 ${returnRate * 3.6}deg, #e5e7eb 0deg)`);
 
 	const heatmapMax = $derived(
 		Math.max(1, ...(report?.borrowRequests.peakHeatmap.map((p) => p.count) ?? [1]))
 	);
 
-	// ── Condition overview derived values ─────────────────────────────────────
-
-	const totalConditionItems = $derived(
-		report?.inventory.conditionDistribution.reduce((s, c) => s + c.count, 0) ?? 0
-	);
-
-	const needsAttention = $derived(
-		report?.inventory.conditionDistribution
-			.filter((c) => c.condition === 'Poor' || c.condition === 'Damaged')
-			.reduce((s, c) => s + c.count, 0) ?? 0
-	);
-
-	// ── Item Conditions tab derived values ────────────────────────────────────
-
-	const conditionItemRows = $derived(
-		report?.inventory.eomVariance ?? []
-	);
-
-	const conditionSummary = $derived({
-		good:    conditionItemRows.filter(i => i.condition === 'Good' || i.condition === 'Excellent').length,
-		fair:    conditionItemRows.filter(i => i.condition === 'Fair').length,
-		poor:    conditionItemRows.filter(i => i.condition === 'Poor').length,
-		damaged: conditionItemRows.filter(i => i.condition === 'Damaged').length
+	const funnel = $derived.by(() => {
+		const src = statusBreakdown;
+		const get = (status: string) => src.find((s) => s.status === status)?.count ?? 0;
+		return [
+			{ label: 'Pending', value: get('pending_instructor') },
+			{ label: 'Approved', value: get('approved_instructor') },
+			{ label: 'Released', value: get('borrowed') + get('ready_for_pickup') },
+			{ label: 'Returned', value: get('returned') }
+		];
 	});
 
-	// Donation totals grouped by month (computed, not in template)
-	const donationByMonth = $derived.by(() => {
-		const map = new Map<string, { year: string; month: string; itemCount: number; totalQuantity: number }>();
-		for (const d of report?.replacement.donationTotals ?? []) {
-			const key = `${d.year}-${String(d.month).padStart(2, '0')}`;
-			const existing = map.get(key) ?? { year: String(d.year), month: String(d.month).padStart(2, '0'), itemCount: 0, totalQuantity: 0 };
-			map.set(key, { 
-				...existing, 
-				itemCount: existing.itemCount + d.count,
-				totalQuantity: existing.totalQuantity + d.totalQuantity
-			});
-		}
-		return [...map.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
+	const funnelMax = $derived(Math.max(...funnel.map((f) => f.value), 1));
+	const statusBreakdownMax = $derived(Math.max(...filteredStatusBreakdown.map((s) => s.count), 1));
+	const mostBorrowedMax = $derived(Math.max(...filteredMostBorrowed.map((i) => i.totalBorrows), 1));
+
+	const resolutionPie = $derived.by(() => {
+		const src = report?.replacement.resolutionBreakdown ?? [];
+		const total = src.reduce((s, r) => s + r.count, 0) || 1;
+		let acc = 0;
+		const palette = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#6366f1'];
+		return src.map((row, idx) => {
+			const pct = row.count / total;
+			const start = acc;
+			acc += pct;
+			return {
+				label: row.type,
+				count: row.count,
+				pct,
+				start,
+				color: palette[idx % palette.length]
+			};
+		});
+	});
+
+	const treemapBlocks = $derived.by(() => {
+		const src = (report?.replacement.obligationsByCategory ?? []).slice(0, 6);
+		const total = src.reduce((s, r) => s + r.count, 0) || 1;
+		return src.map((row) => ({
+			...row,
+			w: Math.max(15, Math.round((row.count / total) * 100))
+		}));
+	});
+
+	const scatterData = $derived.by(() => {
+		return filteredTrustScores
+			.map((s) => ({
+				id: s._id,
+				label: s.studentName,
+				x: Math.min(100, Math.max(0, s.trustScore ?? 0)),
+				y: Math.min(100, Math.max(0, ((s.missingCount ?? 0) + (s.damagedCount ?? 0)) * 10))
+			}))
+			.slice(0, 30);
 	});
 
 	function heatmapCell(day: number, hour: number): number {
-		return (
-			report?.borrowRequests.peakHeatmap.find(
-				(p) => p.dayOfWeek === day && p.hour === hour
-			)?.count ?? 0
-		);
+		return report?.borrowRequests.peakHeatmap.find((p) => p.dayOfWeek === day && p.hour === hour)?.count ?? 0;
 	}
 
-	function heatmapColor(count: number): string {
-		if (count === 0) return 'bg-gray-100';
-		const ratio = count / heatmapMax;
+	function heatmapClass(value: number): string {
+		if (value === 0) return 'bg-gray-100';
+		const ratio = value / heatmapMax;
 		if (ratio < 0.2) return 'bg-pink-100';
 		if (ratio < 0.4) return 'bg-pink-200';
 		if (ratio < 0.6) return 'bg-pink-300';
@@ -163,1401 +438,904 @@
 		return 'bg-pink-600';
 	}
 
-	// ── Bar chart helper (CSS-based) ──────────────────────────────────────────
-
-	function barWidth(value: number, max: number): string {
-		if (max === 0) return '0%';
-		return `${Math.round((value / max) * 100)}%`;
-	}
-
-	// ── Trust score badge ─────────────────────────────────────────────────────
-
-	function trustBadge(score: number): string {
-		if (score >= 90) return 'bg-emerald-100 text-emerald-800';
-		if (score >= 70) return 'bg-yellow-100 text-yellow-800';
-		return 'bg-red-100 text-red-800';
-	}
-
-	function trustLabel(score: number): string {
-		if (score >= 90) return 'High';
-		if (score >= 70) return 'Medium';
-		return 'Low';
-	}
-
-	// ── Item condition badge helpers ──────────────────────────────────────────
-
-	function conditionBadge(condition: string): string {
-		switch (condition) {
-			case 'Excellent': return 'bg-emerald-100 text-emerald-800';
-			case 'Good':      return 'bg-green-100 text-green-800';
-			case 'Fair':      return 'bg-yellow-100 text-yellow-800';
-			case 'Poor':      return 'bg-orange-100 text-orange-800';
-			case 'Damaged':   return 'bg-red-100 text-red-800';
-			default:          return 'bg-gray-100 text-gray-600';
+	function toggleOverdueSort(key: OverdueSortKey): void {
+		if (overdueSortKey === key) {
+			overdueSortDirection = overdueSortDirection === 'asc' ? 'desc' : 'asc';
+			return;
 		}
+		overdueSortKey = key;
+		overdueSortDirection = 'desc';
 	}
 
-	function conditionDot(condition: string): string {
-		switch (condition) {
-			case 'Excellent': return 'bg-emerald-500';
-			case 'Good':      return 'bg-green-400';
-			case 'Fair':      return 'bg-yellow-400';
-			case 'Poor':      return 'bg-orange-400';
-			case 'Damaged':   return 'bg-red-500';
-			default:          return 'bg-gray-400';
-		}
+	function sortCaret(key: OverdueSortKey): string {
+		if (overdueSortKey !== key) return ' '; 
+		return overdueSortDirection === 'asc' ? '↑' : '↓';
 	}
 
-	// ── Initials helper ───────────────────────────────────────────────────────
-
-	function getInitials(name: string): string {
-		const parts = name.trim().split(/\s+/).filter(Boolean);
-		if (parts.length === 0) return '??';
-		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-		return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+	function toCSV(rows: Record<string, string | number | null | undefined>[]): string {
+		if (rows.length === 0) return '';
+		const headers = Object.keys(rows[0]);
+		const esc = (v: unknown): string => `"${String(v ?? '').replaceAll('"', '""')}"`;
+		const body = rows.map((row) => headers.map((h) => esc(row[h])).join(','));
+		return [headers.join(','), ...body].join('\n');
 	}
 
-	// ── Data loading ──────────────────────────────────────────────────────────
+	function downloadFile(name: string, text: string, mime = 'text/csv;charset=utf-8'): void {
+		const blob = new Blob([text], { type: mime });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = name;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
 
-	async function loadReport(forceRefresh = false): Promise<void> {
-		if (!browser) return;
-		isLoading = true;
-		error = null;
+	function exportOverdueCSV(): void {
+		const csv = toCSV(
+			filteredOverdue.map((r) => ({
+				student: r.studentName,
+				dueDate: new Date(r.returnDate).toISOString().slice(0, 10),
+				daysOverdue: r.daysOverdue,
+				itemCount: r.itemCount,
+				requestId: r._id
+			}))
+		);
+		downloadFile(`overdue-requests-${todayISO()}.csv`, csv);
+	}
+
+	async function exportOverdueExcel(): Promise<void> {
 		try {
-			report = await fetchAnalytics({
-				period,
-				from: useCustomRange && customFrom ? customFrom : undefined,
-				to: useCustomRange && customTo ? customTo : undefined,
-				forceRefresh
-			});
-			lastRefreshed = new Date();
+			const mod = await import('xlsx');
+			const ws = mod.utils.json_to_sheet(
+				filteredOverdue.map((r) => ({
+					Student: r.studentName,
+					DueDate: new Date(r.returnDate).toISOString().slice(0, 10),
+					DaysOverdue: r.daysOverdue,
+					ItemCount: r.itemCount,
+					RequestId: r._id
+				}))
+			);
+			const wb = mod.utils.book_new();
+			mod.utils.book_append_sheet(wb, ws, 'Overdue');
+			mod.writeFile(wb, `overdue-requests-${todayISO()}.xlsx`);
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to load analytics';
-			toastStore.error(error, 'Analytics Error');
-		} finally {
-			isLoading = false;
+			toastStore.error(err instanceof Error ? err.message : 'Excel export failed', 'Export');
 		}
 	}
 
-	function handleRefresh(): void {
-		clearAnalyticsCache();
+	function exportAsPDF(): void {
+		window.print();
+	}
+
+	function copyShareLink(): void {
+		const url = new URL(window.location.href);
+		url.searchParams.set('tab', activeTab);
+		url.searchParams.set('period', period);
+		url.searchParams.set('preset', datePreset);
+		url.searchParams.set('status', statusFilter);
+		url.searchParams.set('category', categoryFilter);
+		url.searchParams.set('tier', trustTierFilter);
+		url.searchParams.set('q', searchQuery);
+		url.searchParams.set('min', String(metricThreshold));
+		url.searchParams.set('from', customFrom);
+		url.searchParams.set('to', customTo);
+		navigator.clipboard.writeText(url.toString());
+		toastStore.success('Shareable report link copied', 'Share');
+	}
+
+	function copyApiEndpoint(): void {
+		const qp = new URLSearchParams({ period });
+		if (customFrom) qp.set('from', customFrom);
+		if (customTo) qp.set('to', customTo);
+		navigator.clipboard.writeText(`/api/reports/analytics?${qp.toString()}`);
+		toastStore.success('Analytics API endpoint copied', 'API');
+	}
+
+	function saveView(saveAs = false): void {
+		const name = saveAs
+			? prompt('Save report view as:', `View ${savedViews.length + 1}`)?.trim()
+			: selectedSavedViewId
+				? savedViews.find((v) => v.id === selectedSavedViewId)?.name
+				: prompt('Name this report view:', `View ${savedViews.length + 1}`)?.trim();
+		if (!name) return;
+
+		const state = {
+			tab: activeTab,
+			period,
+			preset: datePreset,
+			customFrom,
+			customTo,
+			statusFilter,
+			categoryFilter,
+			trustTierFilter,
+			searchQuery,
+			metricThreshold
+		};
+
+		const existing = saveAs ? null : savedViews.find((v) => v.name === name || v.id === selectedSavedViewId);
+		if (existing) {
+			existing.state = state;
+			existing.createdAt = new Date().toISOString();
+			savedViews = [...savedViews];
+			selectedSavedViewId = existing.id;
+		} else {
+			const next: SavedView = {
+				id: crypto.randomUUID(),
+				name,
+				createdAt: new Date().toISOString(),
+				state
+			};
+			savedViews = [next, ...savedViews];
+			selectedSavedViewId = next.id;
+		}
+		localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(savedViews));
+		toastStore.success('Report view saved', 'Saved View');
+	}
+
+	function applySavedView(id: string): void {
+		const view = savedViews.find((v) => v.id === id);
+		if (!view) return;
+		selectedSavedViewId = id;
+		activeTab = view.state.tab;
+		period = view.state.period;
+		datePreset = view.state.preset;
+		customFrom = view.state.customFrom;
+		customTo = view.state.customTo;
+		statusFilter = view.state.statusFilter;
+		categoryFilter = view.state.categoryFilter;
+		trustTierFilter = view.state.trustTierFilter;
+		searchQuery = view.state.searchQuery;
+		metricThreshold = view.state.metricThreshold;
 		loadReport(true);
-		toastStore.info('Refreshing analytics data…', 'Refresh');
+	}
+
+	function deleteSavedView(): void {
+		if (!selectedSavedViewId) return;
+		savedViews = savedViews.filter((v) => v.id !== selectedSavedViewId);
+		selectedSavedViewId = '';
+		localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(savedViews));
+		toastStore.info('Saved view removed', 'Saved View');
+	}
+
+	function applyTemplate(id: string): void {
+		selectedTemplate = id;
+		if (id === 'operations-health') {
+			activeTab = 'operations';
+			statusFilter = 'all';
+			categoryFilter = 'all';
+			metricThreshold = 2;
+			return;
+		}
+		if (id === 'risk-watchlist') {
+			activeTab = 'risk';
+			trustTierFilter = 'poor';
+			metricThreshold = 0;
+			return;
+		}
+		activeTab = 'executive';
+		statusFilter = 'all';
+		categoryFilter = 'all';
+		trustTierFilter = 'all';
+		metricThreshold = 0;
+	}
+
+	function setDashboardAsHomepage(): void {
+		dashboardAsHomepage = !dashboardAsHomepage;
+		localStorage.setItem(HOME_PREF_KEY, dashboardAsHomepage ? '1' : '0');
+		toastStore.success(
+			dashboardAsHomepage ? 'Reports set as your homepage preference' : 'Homepage preference removed',
+			'Preference'
+		);
+	}
+
+	function setFullscreen(): void {
+		if (!document.fullscreenElement) {
+			document.documentElement.requestFullscreen();
+			return;
+		}
+		document.exitFullscreen();
+	}
+
+	function syncUrlState(): void {
+		if (!browser) return;
+		const url = new URL(window.location.href);
+		url.searchParams.set('tab', activeTab);
+		url.searchParams.set('period', period);
+		url.searchParams.set('preset', datePreset);
+		url.searchParams.set('status', statusFilter);
+		url.searchParams.set('category', categoryFilter);
+		url.searchParams.set('tier', trustTierFilter);
+		url.searchParams.set('q', searchQuery);
+		url.searchParams.set('min', String(metricThreshold));
+		if (customFrom) url.searchParams.set('from', customFrom);
+		if (customTo) url.searchParams.set('to', customTo);
+		history.replaceState({}, '', url);
+	}
+
+	function hydrateFromUrl(): void {
+		if (!browser) return;
+		const url = new URL(window.location.href);
+		const t = url.searchParams.get('tab') as Tab | null;
+		if (t && ['executive', 'operations', 'risk'].includes(t)) activeTab = t;
+		const p = url.searchParams.get('period') as AnalyticsPeriod | null;
+		if (p && ['week', 'month', 'semester'].includes(p)) period = p;
+		const preset = url.searchParams.get('preset') as DatePreset | null;
+		if (preset && ['today', 'last7', 'mtd', 'semester', 'custom'].includes(preset)) datePreset = preset;
+		statusFilter = url.searchParams.get('status') || statusFilter;
+		categoryFilter = url.searchParams.get('category') || categoryFilter;
+		trustTierFilter = url.searchParams.get('tier') || trustTierFilter;
+		searchQuery = url.searchParams.get('q') || searchQuery;
+		metricThreshold = Number(url.searchParams.get('min') || metricThreshold);
+		customFrom = url.searchParams.get('from') || customFrom;
+		customTo = url.searchParams.get('to') || customTo;
 	}
 
 	onMount(() => {
-		mounted = true;
+		applyPreset('mtd');
+		hydrateFromUrl();
 		loadReport();
+		unsubscribeSSE = subscribeToAnalyticsChanges(() => loadReport(true));
 
-		unsubscribeSSE = subscribeToAnalyticsChanges(() => {
-			loadReport(true);
-		});
+		try {
+			savedViews = JSON.parse(localStorage.getItem(SAVED_VIEWS_KEY) || '[]') as SavedView[];
+		} catch {
+			savedViews = [];
+		}
+		dashboardAsHomepage = localStorage.getItem(HOME_PREF_KEY) === '1';
 
 		return () => {
 			unsubscribeSSE?.();
+			if (refreshTimer) clearInterval(refreshTimer);
 		};
 	});
 
-	// Reload when period changes — skip the initial run (handled by onMount)
 	$effect(() => {
-		// eslint-disable-next-line @typescript-eslint/no-unused-expressions
 		period;
-		if (mounted && browser) loadReport();
+		customFrom;
+		customTo;
+		loadReport();
 	});
+
+	$effect(() => {
+		autoRefreshMinutes;
+		if (refreshTimer) clearInterval(refreshTimer);
+		if (autoRefreshMinutes > 0) {
+			refreshTimer = setInterval(() => loadReport(true), autoRefreshMinutes * 60 * 1000);
+		}
+	});
+
+	$effect(() => {
+		activeTab;
+		period;
+		datePreset;
+		statusFilter;
+		categoryFilter;
+		trustTierFilter;
+		searchQuery;
+		metricThreshold;
+		customFrom;
+		customTo;
+		syncUrlState();
+	});
+
+	function lineX(index: number, total: number): number {
+		if (total <= 1) return 0;
+		return Math.round((index / (total - 1)) * 100);
+	}
+
+	function lineY(value: number, max: number): number {
+		if (max <= 0) return 100;
+		return 100 - Math.round((value / max) * 100);
+	}
+
+	function linePath(values: number[]): string {
+		if (values.length === 0) return '';
+		const max = Math.max(...values, 1);
+		return values
+			.map((v, i) => `${lineX(i, values.length)},${lineY(v, max)}`)
+			.join(' ');
+	}
+
+	const overdueAggregates = $derived.by(() => {
+		const rows = filteredOverdue;
+		if (rows.length === 0) return { totalItems: 0, avgDays: 0 };
+		const totalItems = rows.reduce((s, r) => s + r.itemCount, 0);
+		const avgDays = Math.round((rows.reduce((s, r) => s + r.daysOverdue, 0) / rows.length) * 10) / 10;
+		return { totalItems, avgDays };
+	});
+
+	function trustBadge(entry: StudentRiskEntry): string {
+		const score = entry.trustScore ?? 0;
+		if (score >= 90) return 'bg-emerald-100 text-emerald-700';
+		if (score >= 70) return 'bg-amber-100 text-amber-700';
+		return 'bg-rose-100 text-rose-700';
+	}
+
+	function getInitials(name: string): string {
+		const parts = name.trim().split(/\s+/).filter(Boolean);
+		if (parts.length === 0) return 'NA';
+		if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+		return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+	}
 </script>
 
+<svelte:head>
+	<title>Reports & Analytics - Custodian</title>
+</svelte:head>
+
 <div class="space-y-6">
-
-	<!-- ── Header ──────────────────────────────────────────────────────────── -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-		<div>
-			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Reports & Analytics</h1>
-			<p class="mt-1 text-sm text-gray-500">
-				Operational insights across borrowing, inventory, and student risk.
-				{#if lastRefreshed}
-					<span class="ml-1 text-gray-400">
-						Last updated {lastRefreshed.toLocaleTimeString()}
-					</span>
+	<div class="p-5 sm:p-6">
+		<div class="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(340px,460px)] lg:items-start">
+			<div class="min-w-0">
+				<h1 class="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Reports & Analytics</h1>
+				<p class="mt-1 text-sm text-gray-500">Track borrowing activity, inventory posture, and replacement risk from one operational view.</p>
+				{#if lastUpdated}
+					<p class="mt-2 inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500">Updated {lastUpdated.toLocaleTimeString()}</p>
 				{/if}
-			</p>
-		</div>
-		<div class="flex shrink-0 items-center gap-2">
-			<!-- Period selector -->
-			<div class="inline-flex items-center rounded-xl border border-gray-200 bg-gray-50 p-1">
-				{#each [['week','Week'],['month','Month'],['semester','Semester']] as [val, label]}
-					<button
-						onclick={() => { period = val as AnalyticsPeriod; useCustomRange = false; }}
-						class="rounded-lg px-3 py-1.5 text-sm font-medium transition-colors {period === val && !useCustomRange ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
-					>
-						{label}
-					</button>
-				{/each}
 			</div>
-			<button
-				onclick={handleRefresh}
-				disabled={isLoading}
-				class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-				title="Refresh data"
-			>
-				<svg class="h-4 w-4 {isLoading ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-				</svg>
-				Refresh
-			</button>
+
+			<div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+				<label class="text-xs font-semibold uppercase tracking-wide text-gray-500">Date Range</label>
+				<div class="mt-2 flex flex-wrap gap-2">
+					{#each [
+						{ id: 'today', label: 'Today' },
+						{ id: 'last7', label: 'Last 7 days' },
+						{ id: 'mtd', label: 'Month-to-date' },
+						{ id: 'custom', label: 'Custom' }
+					] as option}
+						<button
+							onclick={() => applyPreset(option.id as DatePreset)}
+							class="rounded-md px-2.5 py-1.5 text-xs font-medium transition {datePreset === option.id ? 'bg-pink-600 text-white shadow-sm' : 'bg-white text-gray-700 ring-1 ring-gray-200 hover:bg-gray-100'}"
+						>
+							{option.label}
+						</button>
+					{/each}
+				</div>
+				{#if datePreset === 'custom' || customFrom || customTo}
+					<div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+						<input class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700" type="date" bind:value={customFrom} />
+						<input class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700" type="date" bind:value={customTo} />
+					</div>
+				{/if}
+			</div>
 		</div>
 	</div>
 
-	<!-- ── KPI Cards ───────────────────────────────────────────────────────── -->
-	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-		{#if isLoading}
-			{#each Array(4) as _}
-				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-					<div class="flex items-center justify-between gap-2">
-						<div class="min-w-0 space-y-2">
-							<Skeleton class="h-3.5 w-28" />
-							<Skeleton class="h-8 w-20" />
-							<Skeleton class="h-3 w-16" />
-						</div>
-						<Skeleton class="h-9 w-9 rounded-full sm:h-12 sm:w-12" />
-					</div>
+	<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="flex items-start justify-between gap-3">
+				<div>
+					<p class="text-sm font-semibold text-gray-700">Total Requests</p>
+					<p class="mt-2 text-4xl font-bold text-gray-900">{numberFmt.format(totalRequests)}</p>
+					<p class="mt-1 text-sm text-gray-500">{trendText(comparison.deltaPct)}</p>
 				</div>
-			{/each}
-		{:else}
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Requests</p>
-						<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">{totalRequests.toLocaleString()}</p>
-						<p class="text-xs text-gray-500 mt-0.5">This {period}</p>
-					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
-						<FileText size={18} class="text-pink-600 sm:hidden" />
-						<FileText size={24} class="hidden text-pink-600 sm:block" />
-					</div>
+				<div class="grid h-12 w-12 place-items-center rounded-full bg-pink-100 text-pink-600">
+					<ChartNoAxesCombined size={22} />
 				</div>
 			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue Returns</p>
-						<p class="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl {(report?.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">
-							{report?.borrowRequests.overdueCount ?? 0}
-						</p>
-						<p class="text-xs text-gray-500 mt-0.5">Currently active</p>
-					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {(report?.borrowRequests.overdueCount ?? 0) > 0 ? 'bg-red-100' : 'bg-emerald-100'} sm:h-12 sm:w-12">
-						<AlertCircle size={18} class="{(report?.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'} sm:hidden" />
-						<AlertCircle size={24} class="hidden {(report?.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'} sm:block" />
-					</div>
+		</div>
+		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="flex items-start justify-between gap-3">
+				<div>
+					<p class="text-sm font-semibold text-gray-700">Return Rate</p>
+					<p class="mt-2 text-4xl font-bold {returnRate >= 85 ? KPI_COLORS.good : KPI_COLORS.warn}">{returnRate}%</p>
+					<p class="mt-1 text-sm text-gray-500">Goal: 90%</p>
+				</div>
+				<div class="grid h-12 w-12 place-items-center rounded-full bg-emerald-100 text-emerald-600">
+					<TrendingUp size={22} />
 				</div>
 			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending Replacements</p>
-						<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
-							{(report?.replacement.summary.totalItemsPending ?? 0).toLocaleString()}
-						</p>
-						<p class="text-xs text-gray-500 mt-0.5">{report?.replacement.summary.pendingCount ?? 0} obligations</p>
-					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
-						<TrendingUp size={18} class="text-amber-600 sm:hidden" />
-						<TrendingUp size={24} class="hidden text-amber-600 sm:block" />
-					</div>
+		</div>
+		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="flex items-start justify-between gap-3">
+				<div>
+					<p class="text-sm font-semibold text-gray-700">Active Risk Signals</p>
+					<p class="mt-2 text-4xl font-bold {overdueCount + stockAlerts > 0 ? KPI_COLORS.risk : KPI_COLORS.good}">{overdueCount + stockAlerts + replacementPending}</p>
+					<p class="mt-1 text-sm text-gray-500">Overdue, stock, and replacement pending</p>
+				</div>
+				<div class="grid h-12 w-12 place-items-center rounded-full bg-rose-100 text-rose-600">
+					<Clock3 size={22} />
 				</div>
 			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Stock Alerts</p>
-						<p class="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl {(report?.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'}">
-							{report?.inventory.stockAlerts.length ?? 0}
-						</p>
-						<p class="text-xs text-gray-500 mt-0.5">Low / out of stock</p>
-					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {(report?.inventory.stockAlerts.length ?? 0) > 0 ? 'bg-orange-100' : 'bg-emerald-100'} sm:h-12 sm:w-12">
-						<PackageX size={18} class="{(report?.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'} sm:hidden" />
-						<PackageX size={24} class="hidden {(report?.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'} sm:block" />
-					</div>
+		</div>
+		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+			<div class="flex items-start justify-between gap-3">
+				<div>
+					<p class="text-sm font-semibold text-gray-700">Operational Health</p>
+					<p class="mt-2 text-4xl font-bold {operationalHealth >= 80 ? KPI_COLORS.good : operationalHealth >= 60 ? KPI_COLORS.warn : KPI_COLORS.risk}">{operationalHealth}</p>
+					<p class="mt-1 text-sm text-gray-500">Composite service score</p>
+				</div>
+				<div class="grid h-12 w-12 place-items-center rounded-full bg-gray-100 text-gray-700">
+					<Rows3 size={22} />
 				</div>
 			</div>
-		{/if}
+		</div>
 	</div>
 
-	<!-- ── Tab Navigation ──────────────────────────────────────────────────── -->
-	<div class="rounded-lg bg-white shadow">
-		<div class="border-b border-gray-200">
-			<nav class="-mb-px flex overflow-x-auto" aria-label="Analytics tabs">
+	<div class="rounded-2xl bg-white shadow-sm ring-1 ring-gray-100">
+		<div class="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+			<nav class="flex overflow-x-auto" aria-label="Report tabs">
 				{#each [
-					{ key: 'overview', label: 'Executive Overview' },
-					{ key: 'borrow', label: 'Borrow Operations' },
-					{ key: 'inventory', label: 'Inventory Utilization' },
-					{ key: 'conditions', label: 'Item Conditions' },
-					{ key: 'replacement', label: 'Replacement Tracking' },
-					{ key: 'risk', label: 'Student Risk' }
+					{ id: 'executive', label: 'Executive Dashboard' },
+					{ id: 'operations', label: 'Operations Deep Dive' },
+					{ id: 'risk', label: 'Risk & Behavior' }
 				] as tab}
 					<button
-						onclick={() => {
-							activeTab = tab.key as Tab;
-						}}
-						class="whitespace-nowrap border-b-2 px-6 py-4 text-sm font-medium transition-colors {activeTab === tab.key
-							? 'border-pink-500 text-pink-600'
-							: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+						onclick={() => (activeTab = tab.id as Tab)}
+						class="whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium {activeTab === tab.id ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700'}"
 					>
 						{tab.label}
 					</button>
 				{/each}
 			</nav>
+			<div class="flex flex-wrap items-center gap-2">
+				<select bind:value={selectedTemplate} onchange={(e) => applyTemplate((e.currentTarget as HTMLSelectElement).value)} class="rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700">
+					<option value="operations-health">Template: Operations Health</option>
+					<option value="risk-watchlist">Template: Risk Watchlist</option>
+					<option value="executive-overview">Template: Executive Overview</option>
+				</select>
+				<select bind:value={selectedSavedViewId} onchange={(e) => applySavedView((e.currentTarget as HTMLSelectElement).value)} class="rounded-md border border-gray-300 px-2 py-1.5 text-xs text-gray-700">
+					<option value="">Saved filter sets</option>
+					{#each savedViews as view}
+						<option value={view.id}>{view.name}</option>
+					{/each}
+				</select>
+				<button onclick={() => saveView(false)} class="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">
+					<Save size={13} /> Save
+				</button>
+				<button onclick={() => saveView(true)} class="rounded-md border border-gray-300 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50">Save As</button>
+				<button onclick={deleteSavedView} class="rounded-md border border-rose-300 px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-50">Delete</button>
+			</div>
 		</div>
 
-		<div class="p-6">
-			{#if isLoading}
-				<div class="space-y-4" role="status" aria-label="Loading analytics">
-					<div class="flex items-center justify-between">
-						<Skeleton class="h-5 w-48" />
-						<Skeleton class="h-8 w-24" />
+		{#if loading}
+			<div class="px-5 py-10 text-sm text-gray-500">Loading analytics dashboard...</div>
+		{:else if error}
+			<div class="px-5 py-10">
+				<div class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">{error}</div>
+			</div>
+		{:else if report}
+			<div class="space-y-6 p-4 sm:p-5">
+				{#if activeTab === 'executive'}
+					<div class="grid gap-4 lg:grid-cols-2">
+						<div class="rounded-xl border border-gray-200 p-4 lg:col-span-2">
+							<h3 class="text-sm font-semibold text-gray-900">Inventory Baseline (Real Data)</h3>
+							<p class="mt-1 text-xs text-gray-500">Core inventory indicators required for CHTM laboratory reporting.</p>
+							<div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+								<div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Current Count</p><p class="mt-1 text-lg font-semibold text-gray-900">{numberFmt.format(inventorySummary.currentCount)}</p></div>
+								<div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">EOM Count</p><p class="mt-1 text-lg font-semibold text-gray-900">{numberFmt.format(inventorySummary.eomCount)}</p></div>
+								<div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Variance</p><p class="mt-1 text-lg font-semibold {inventorySummary.variance < 0 ? 'text-rose-700' : inventorySummary.variance > 0 ? 'text-emerald-700' : 'text-gray-900'}">{inventorySummary.variance > 0 ? '+' : ''}{numberFmt.format(inventorySummary.variance)}</p></div>
+								<div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Donations</p><p class="mt-1 text-lg font-semibold text-pink-700">{numberFmt.format(inventorySummary.donations)}</p></div>
+								<div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Constant Items</p><p class="mt-1 text-lg font-semibold text-indigo-700">{numberFmt.format(inventorySummary.constantCount)}</p></div>
+								<div class="rounded-lg bg-gray-50 p-3"><p class="text-xs text-gray-500">Low Stock</p><p class="mt-1 text-lg font-semibold {inventorySummary.lowStockCount > 0 ? 'text-amber-700' : 'text-emerald-700'}">{numberFmt.format(inventorySummary.lowStockCount)}</p></div>
+							</div>
+						</div>
+
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Requests and Loans Analytics</h3>
+							<div class="mt-3 space-y-2 text-sm">
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Total requests</span><span class="font-semibold text-gray-900">{numberFmt.format(totalRequests)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Active loans</span><span class="font-semibold text-pink-700">{numberFmt.format(activeLoans)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Approval rate</span><span class="font-semibold text-indigo-700">{approvalRate}%</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Overdue count</span><span class="font-semibold {overdueCount > 0 ? 'text-rose-700' : 'text-emerald-700'}">{numberFmt.format(overdueCount)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Avg return cycle</span><span class="font-semibold text-gray-900">{Math.round(report.borrowRequests.turnaround.avgReturnHours || 0)}h</span></div>
+							</div>
+						</div>
+
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Student Trust Score Analytics</h3>
+							<p class="mt-1 text-xs text-gray-500">Trust profile derived from return quality, incidents, and obligations.</p>
+							<div class="mt-3 space-y-2 text-sm">
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Tracked students</span><span class="font-semibold text-gray-900">{numberFmt.format(trustScores.length)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Average trust score</span><span class="font-semibold {averageTrustScore >= 80 ? 'text-emerald-700' : averageTrustScore >= 70 ? 'text-amber-700' : 'text-rose-700'}">{averageTrustScore}%</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">High trust students (>=90)</span><span class="font-semibold text-emerald-700">{numberFmt.format(goodTrustStudents)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">At-risk students (&lt;70)</span><span class="font-semibold {lowTrustStudents > 0 ? 'text-rose-700' : 'text-emerald-700'}">{numberFmt.format(lowTrustStudents)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Overdue students</span><span class="font-semibold text-amber-700">{numberFmt.format(report.studentRisk.overdueStudents.length)}</span></div>
+							</div>
+						</div>
+
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Operational Risk Snapshot</h3>
+							<p class="mt-1 text-xs text-gray-500">A compact view of replacement pressure, stock exposure, and incident-heavy items.</p>
+							<div class="mt-3 space-y-2 text-sm">
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Pending obligations</span><span class="font-semibold text-orange-600">{numberFmt.format(report.replacement.summary.pendingCount)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Resolved obligations</span><span class="font-semibold text-emerald-700">{numberFmt.format(resolvedObligations)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Low stock items</span><span class="font-semibold {inventorySummary.lowStockCount > 0 ? 'text-amber-700' : 'text-emerald-700'}">{numberFmt.format(inventorySummary.lowStockCount)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">High incident items</span><span class="font-semibold {highIncidentItems > 0 ? 'text-rose-700' : 'text-emerald-700'}">{numberFmt.format(highIncidentItems)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Recent activity</span><span class="font-semibold text-pink-700">{numberFmt.format(recentActivityCount)}</span></div>
+							</div>
+						</div>
+
+						<div class="rounded-xl border border-gray-200 p-4">
+							<div class="flex items-center justify-between gap-3">
+								<div>
+									<h3 class="text-sm font-semibold text-gray-900">Activity Trend Pulse</h3>
+									<p class="mt-1 text-xs text-gray-500">Rolling request volume and service pressure across the latest operational window.</p>
+								</div>
+								<span class="rounded-full bg-pink-50 px-2.5 py-1 text-[11px] font-semibold text-pink-700">Last 7 days</span>
+							</div>
+							<div class="mt-4 grid grid-cols-7 gap-1.5">
+								{#each requestsOverTime.slice(-7) as point}
+									<div class="flex flex-col items-center gap-2">
+										<div class="flex h-20 w-full items-end rounded-lg bg-gray-50 px-1.5">
+											<div class="w-full rounded-t-md bg-pink-500" style="height:{Math.max(8, Math.round((point.count / Math.max(1, ...requestsOverTime.slice(-7).map((p) => p.count))) * 100))}%"></div>
+										</div>
+										<p class="text-[11px] font-medium text-gray-500">{point.date.slice(5)}</p>
+									</div>
+								{/each}
+							</div>
+							<div class="mt-4 grid grid-cols-3 gap-3 text-sm">
+								<div class="rounded-md bg-gray-50 p-2.5">
+									<p class="text-xs text-gray-500">7-day activity</p>
+									<p class="mt-1 font-semibold text-gray-900">{numberFmt.format(recentActivityCount)}</p>
+								</div>
+								<div class="rounded-md bg-gray-50 p-2.5">
+									<p class="text-xs text-gray-500">Trend forecast</p>
+									<p class="mt-1 font-semibold text-gray-900">{trendForecast ?? 0}</p>
+								</div>
+								<div class="rounded-md bg-gray-50 p-2.5">
+									<p class="text-xs text-gray-500">Anomaly points</p>
+									<p class="mt-1 font-semibold text-rose-700">{anomalies.filter((index) => index >= Math.max(0, requestsOverTime.length - 7)).length}</p>
+								</div>
+							</div>
+						</div>
 					</div>
-					{#each Array(5) as _}
-						<div class="rounded-xl border border-gray-100 p-4 space-y-2">
-							<div class="flex items-center gap-3">
-								<Skeleton variant="circle" class="h-9 w-9" />
-								<div class="flex-1 space-y-1.5">
-									<Skeleton class="h-4 w-40" />
-									<Skeleton class="h-3 w-24" />
-								</div>
-								<Skeleton class="h-6 w-16" />
+
+					<div class="grid gap-4 lg:grid-cols-3">
+						<div class="rounded-xl border border-gray-200 p-4 lg:col-span-2">
+							<h3 class="text-sm font-semibold text-gray-900">EOM and Variance Report</h3>
+							<p class="mt-1 text-xs text-gray-500">Industry-standard reconciliation view using actual records from inventory EOM variance data.</p>
+							<div class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+								<div class="rounded-md bg-gray-50 p-2.5 text-xs"><p class="text-gray-500">EOM Baseline</p><p class="mt-1 text-base font-semibold text-gray-900">{numberFmt.format(inventorySummary.eomCount)}</p></div>
+								<div class="rounded-md bg-gray-50 p-2.5 text-xs"><p class="text-gray-500">Current Total</p><p class="mt-1 text-base font-semibold text-gray-900">{numberFmt.format(inventorySummary.currentCount)}</p></div>
+								<div class="rounded-md bg-gray-50 p-2.5 text-xs"><p class="text-gray-500">Net Variance</p><p class="mt-1 text-base font-semibold {inventorySummary.variance < 0 ? 'text-rose-700' : inventorySummary.variance > 0 ? 'text-emerald-700' : 'text-gray-900'}">{inventorySummary.variance > 0 ? '+' : ''}{numberFmt.format(inventorySummary.variance)}</p></div>
+								<div class="rounded-md bg-gray-50 p-2.5 text-xs"><p class="text-gray-500">Variance Rate</p><p class="mt-1 text-base font-semibold {eomVarianceRate < 0 ? 'text-rose-700' : eomVarianceRate > 0 ? 'text-emerald-700' : 'text-gray-900'}">{eomVarianceRate > 0 ? '+' : ''}{eomVarianceRate}%</p></div>
+							</div>
+							<div class="mt-3 overflow-x-auto rounded-lg border border-gray-200">
+								<table class="min-w-full divide-y divide-gray-200">
+									<thead class="bg-gray-50">
+										<tr>
+											<th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Item</th>
+											<th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Category</th>
+											<th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Current</th>
+											<th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">EOM</th>
+											<th class="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">Variance</th>
+										</tr>
+									</thead>
+									<tbody class="divide-y divide-gray-200 bg-white">
+										{#if eomVarianceRows.length === 0}
+											<tr><td colspan="5" class="px-3 py-4 text-sm text-gray-500">No EOM variance rows available for this date range.</td></tr>
+										{:else}
+											{#each eomVarianceRows as row}
+												<tr class="hover:bg-gray-50">
+													<td class="px-3 py-2 text-sm text-gray-800">{row.name}</td>
+													<td class="px-3 py-2 text-sm text-gray-600">{row.category}</td>
+													<td class="px-3 py-2 text-right text-sm text-gray-700">{numberFmt.format(row.quantity)}</td>
+													<td class="px-3 py-2 text-right text-sm text-gray-700">{numberFmt.format(row.eomCount)}</td>
+													<td class="px-3 py-2 text-right text-sm font-semibold {row.variance < 0 ? 'text-rose-700' : row.variance > 0 ? 'text-emerald-700' : 'text-gray-700'}">
+														{row.variance > 0 ? '+' : ''}{numberFmt.format(row.variance)}
+													</td>
+												</tr>
+											{/each}
+										{/if}
+									</tbody>
+								</table>
 							</div>
 						</div>
-					{/each}
-				</div>
-			{:else if error}
-				<div class="rounded-lg border border-red-200 bg-red-50 p-6 text-center">
-					<svg class="mx-auto mb-3 h-8 w-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-					</svg>
-					<p class="text-sm font-medium text-red-700">{error}</p>
-					<button
-						onclick={() => loadReport(true)}
-						class="mt-3 rounded-lg border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50"
-					>
-						Try Again
-					</button>
-				</div>
-			{:else if report}
 
-			<!-- ══ EXECUTIVE OVERVIEW TAB ══════════════════════════════════════ -->
-			{#if activeTab === 'overview'}
-				<div class="space-y-8">
-					
-					<!-- Key Performance Indicators -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Key Performance Indicators</h3>
-						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-pink-50 to-white p-5">
-								<p class="text-xs font-medium text-gray-500">Approval Rate</p>
-								<p class="mt-1 text-3xl font-bold text-pink-600">{approvalRate}%</p>
-								<p class="mt-0.5 text-xs text-gray-400">of {totalRequests} requests</p>
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Variance Analytics</h3>
+							<div class="mt-3 space-y-2 text-sm">
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Negative variance items</span><span class="font-semibold {eomVarianceNegativeCount > 0 ? 'text-rose-700' : 'text-emerald-700'}">{numberFmt.format(eomVarianceNegativeCount)}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span class="text-gray-600">Positive variance items</span><span class="font-semibold text-emerald-700">{numberFmt.format(eomVariancePositiveCount)}</span></div>
 							</div>
-							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-emerald-50 to-white p-5">
-								<p class="text-xs font-medium text-gray-500">Return Rate</p>
-								<p class="mt-1 text-3xl font-bold text-emerald-600">
-									{totalRequests > 0 ? Math.round((returnedCount / totalRequests) * 100) : 0}%
-								</p>
-								<p class="mt-0.5 text-xs text-gray-400">{returnedCount} returned</p>
-							</div>
-							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-blue-50 to-white p-5">
-								<p class="text-xs font-medium text-gray-500">Avg Turnaround</p>
-								<p class="mt-1 text-3xl font-bold text-blue-600">
-									{Math.round((report.borrowRequests.turnaround.avgApprovalHours + report.borrowRequests.turnaround.avgReleaseHours) / 2)}h
-								</p>
-								<p class="mt-0.5 text-xs text-gray-400">approval to release</p>
-							</div>
-							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-purple-50 to-white p-5">
-								<p class="text-xs font-medium text-gray-500">Fleet Health</p>
-								<p class="mt-1 text-3xl font-bold text-purple-600">
-									{totalConditionItems > 0 ? Math.round(((totalConditionItems - needsAttention) / totalConditionItems) * 100) : 0}%
-								</p>
-								<p class="mt-0.5 text-xs text-gray-400">items in good condition</p>
-							</div>
-						</div>
-					</section>
-
-					<!-- Quick Stats Grid -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Operations Summary</h3>
-						<div class="grid grid-cols-2 gap-4 lg:grid-cols-3">
-							<div class="rounded-lg border border-gray-200 bg-white p-4">
-								<div class="flex items-center justify-between">
+							<div class="mt-3 space-y-2">
+								{#each eomCategoryVariance as bucket}
 									<div>
-										<p class="text-sm text-gray-500">Total Requests</p>
-										<p class="mt-1 text-2xl font-bold text-gray-900">{totalRequests}</p>
-									</div>
-									<FileText size={24} class="text-gray-400" />
-								</div>
-							</div>
-							<div class="rounded-lg border border-gray-200 bg-white p-4">
-								<div class="flex items-center justify-between">
-									<div>
-										<p class="text-sm text-gray-500">Overdue Returns</p>
-										<p class="mt-1 text-2xl font-bold {(report.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-600' : 'text-emerald-600'}">
-											{report.borrowRequests.overdueCount ?? 0}
-										</p>
-									</div>
-									<AlertCircle size={24} class="{(report.borrowRequests.overdueCount ?? 0) > 0 ? 'text-red-400' : 'text-emerald-400'}" />
-								</div>
-							</div>
-							<div class="rounded-lg border border-gray-200 bg-white p-4">
-								<div class="flex items-center justify-between">
-									<div>
-										<p class="text-sm text-gray-500">Stock Alerts</p>
-										<p class="mt-1 text-2xl font-bold {(report.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-600' : 'text-emerald-600'}">
-											{report.inventory.stockAlerts.length ?? 0}
-										</p>
-									</div>
-									<PackageX size={24} class="{(report.inventory.stockAlerts.length ?? 0) > 0 ? 'text-orange-400' : 'text-emerald-400'}" />
-								</div>
-							</div>
-							<div class="rounded-lg border border-gray-200 bg-white p-4">
-								<div class="flex items-center justify-between">
-									<div>
-										<p class="text-sm text-gray-500">Pending Replacements</p>
-										<p class="mt-1 text-2xl font-bold text-amber-600">{report.replacement.summary.pendingCount ?? 0}</p>
-									</div>
-									<TrendingUp size={24} class="text-amber-400" />
-								</div>
-							</div>
-							<div class="rounded-lg border border-gray-200 bg-white p-4">
-								<div class="flex items-center justify-between">
-									<div>
-										<p class="text-sm text-gray-500">Items Needing Attention</p>
-										<p class="mt-1 text-2xl font-bold {needsAttention > 0 ? 'text-orange-600' : 'text-emerald-600'}">{needsAttention}</p>
-									</div>
-									<AlertCircle size={24} class="{needsAttention > 0 ? 'text-orange-400' : 'text-emerald-400'}" />
-								</div>
-							</div>
-							<div class="rounded-lg border border-gray-200 bg-white p-4">
-								<div class="flex items-center justify-between">
-									<div>
-										<p class="text-sm text-gray-500">Total Inventory</p>
-										<p class="mt-1 text-2xl font-bold text-gray-900">{totalConditionItems}</p>
-									</div>
-									<PackageX size={24} class="text-gray-400" />
-								</div>
-							</div>
-						</div>
-					</section>
-
-					<!-- Status Breakdown Visualization -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Request Status Distribution</h3>
-						<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-							{#each report.borrowRequests.statusBreakdown as item}
-								<div class="rounded-xl border border-gray-100 bg-gray-50 p-4 text-center transition-all hover:shadow-md">
-									<p class="text-2xl font-bold text-gray-900">{item.count}</p>
-									<span class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium {statusColors[item.status] ?? 'bg-gray-100 text-gray-600'}">
-										{statusLabels[item.status] ?? item.status}
-									</span>
-									<p class="mt-1 text-xs text-gray-400">
-										{totalRequests > 0 ? Math.round((item.count / totalRequests) * 100) : 0}%
-									</p>
-								</div>
-							{/each}
-						</div>
-					</section>
-
-					<!-- Condition Health Overview -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Fleet Condition Health</h3>
-						{#if totalConditionItems > 0}
-							<div class="mb-4 flex h-6 w-full overflow-hidden rounded-full bg-gray-100">
-								{#each conditionOrder as cond}
-									{@const item = report.inventory.conditionDistribution.find(c => c.condition === cond)}
-									{@const pct = item ? Math.round((item.count / totalConditionItems) * 100) : 0}
-									{#if pct > 0}
-										<div
-											class="{conditionMeta[cond].bar} transition-all"
-											style="width:{pct}%"
-											title="{cond}: {item?.count} ({pct}%)"
-										></div>
-									{/if}
-								{/each}
-							</div>
-							<div class="grid grid-cols-2 gap-3 sm:grid-cols-5">
-								{#each conditionOrder as cond}
-									{@const item = report.inventory.conditionDistribution.find(c => c.condition === cond)}
-									{@const count = item?.count ?? 0}
-									{@const pct = totalConditionItems > 0 ? Math.round((count / totalConditionItems) * 100) : 0}
-									<div class="flex flex-col items-center rounded-lg border border-gray-100 bg-white p-3">
-										<div class="h-3 w-3 rounded-full {conditionMeta[cond].bar} mb-2"></div>
-										<span class="text-xs font-medium text-gray-600">{cond}</span>
-										<span class="text-lg font-bold text-gray-900 mt-1">{count}</span>
-										<span class="text-xs text-gray-400">({pct}%)</span>
+										<div class="mb-1 flex items-center justify-between text-xs text-gray-600">
+											<span>{bucket.category}</span>
+											<span class="font-semibold {bucket.variance < 0 ? 'text-rose-700' : bucket.variance > 0 ? 'text-emerald-700' : 'text-gray-700'}">{bucket.variance > 0 ? '+' : ''}{numberFmt.format(bucket.variance)}</span>
+										</div>
+										<div class="h-2 rounded bg-gray-100">
+											<div class="h-2 rounded {bucket.variance < 0 ? 'bg-rose-500' : 'bg-emerald-500'}" style="width:{Math.max(8, Math.round((Math.abs(bucket.variance) / eomVarianceAbsMax) * 100))}%"></div>
+										</div>
 									</div>
 								{/each}
 							</div>
-						{:else}
-							<p class="text-sm text-gray-400">No condition data available.</p>
-						{/if}
-					</section>
+						</div>
+					</div>
 
-					<!-- Top Alerts -->
-					{#if (report.borrowRequests.overdueCount > 0) || (report.inventory.stockAlerts.length > 0) || (needsAttention > 0)}
-						<section>
-							<h3 class="mb-4 text-base font-semibold text-gray-900">Action Required</h3>
-							<div class="space-y-3">
-								{#if report.borrowRequests.overdueCount > 0}
-									<div class="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-										<AlertCircle size={20} class="mt-0.5 shrink-0 text-red-500" />
-										<div class="flex-1">
-											<p class="text-sm font-semibold text-red-900">Overdue Returns</p>
-											<p class="text-sm text-red-700">{report.borrowRequests.overdueCount} request{report.borrowRequests.overdueCount !== 1 ? 's' : ''} past due date</p>
-										</div>
-										<button onclick={() => activeTab = 'borrow'} class="text-xs font-medium text-red-700 hover:text-red-900">View →</button>
-									</div>
-								{/if}
-								{#if report.inventory.stockAlerts.length > 0}
-									<div class="flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
-										<PackageX size={20} class="mt-0.5 shrink-0 text-orange-500" />
-										<div class="flex-1">
-											<p class="text-sm font-semibold text-orange-900">Stock Alerts</p>
-											<p class="text-sm text-orange-700">{report.inventory.stockAlerts.length} item{report.inventory.stockAlerts.length !== 1 ? 's' : ''} low or out of stock</p>
-										</div>
-										<button onclick={() => activeTab = 'inventory'} class="text-xs font-medium text-orange-700 hover:text-orange-900">View →</button>
-									</div>
-								{/if}
-								{#if needsAttention > 0}
-									<div class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
-										<AlertCircle size={20} class="mt-0.5 shrink-0 text-amber-500" />
-										<div class="flex-1">
-											<p class="text-sm font-semibold text-amber-900">Items Need Attention</p>
-											<p class="text-sm text-amber-700">{needsAttention} item{needsAttention !== 1 ? 's' : ''} in poor or damaged condition</p>
-										</div>
-										<button onclick={() => activeTab = 'conditions'} class="text-xs font-medium text-amber-700 hover:text-amber-900">View →</button>
-									</div>
-								{/if}
+					<div class="grid gap-4 lg:grid-cols-3">
+						<div class="rounded-xl border border-gray-200 p-4 lg:col-span-2">
+							<div class="mb-3 flex items-center justify-between">
+								<h3 class="text-sm font-semibold text-gray-900">Requests Trend (Line + Area + Forecast)</h3>
+								<span class="text-xs text-gray-500">Moving average + anomaly markers</span>
 							</div>
-						</section>
-					{/if}
-
-				</div>
-			{/if}
-
-			<!-- ══ BORROW OPERATIONS TAB ══════════════════════════════════════ -->
-			{#if activeTab === 'borrow'}
-				<div class="space-y-8">
-
-					<!-- Requests over time (bar chart) -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Requests Over Time</h3>
-						{#if report.borrowRequests.requestsOverTime.length === 0}
-							<p class="text-sm text-gray-400">No data for this period.</p>
-						{:else}
-							{@const maxCount = Math.max(...report.borrowRequests.requestsOverTime.map((r) => r.count), 1)}
-							<div class="overflow-x-auto">
-								<div class="flex min-w-max items-end gap-1 h-40 pb-6 relative">
-									{#each report.borrowRequests.requestsOverTime as point}
-										<div class="flex flex-col items-center gap-1 group" style="min-width:28px">
-											<span class="text-xs text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity">{point.count}</span>
-											<div
-												class="w-5 rounded-t bg-pink-400 hover:bg-pink-600 transition-colors cursor-default"
-												style="height:{Math.max(4, Math.round((point.count / maxCount) * 120))}px"
-												title="{point.date}: {point.count} requests"
-											></div>
-											<span class="text-[10px] text-gray-400 rotate-45 origin-left mt-1 whitespace-nowrap">{point.date.slice(5)}</span>
-										</div>
+							{#if requestsOverTime.length === 0}
+								<p class="text-sm text-gray-500">No trend data for this period.</p>
+							{:else}
+								{@const values = requestsOverTime.map((p) => p.count)}
+								{@const maxVal = Math.max(...values, 1)}
+								<svg viewBox="0 0 100 100" class="h-56 w-full rounded-lg bg-gray-50">
+									<polyline fill="none" stroke="#06b6d4" stroke-width="1.8" points={linePath(values)} />
+									<polyline fill="none" stroke="#6366f1" stroke-width="1.2" stroke-dasharray="2 2" points={linePath(movingAverage)} />
+									<polygon points={`0,100 ${linePath(values)} 100,100`} fill="rgba(6,182,212,0.12)" />
+									{#each values as v, i}
+										{#if anomalies.includes(i)}
+											<circle cx={lineX(i, values.length)} cy={lineY(v, maxVal)} r="1.8" fill="#ef4444">
+												<title>Anomaly: {requestsOverTime[i].date} ({v})</title>
+											</circle>
+										{/if}
 									{/each}
-								</div>
-							</div>
-						{/if}
-					</section>
-
-					<!-- Status breakdown -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Request Status Breakdown</h3>
-						<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-							{#each report.borrowRequests.statusBreakdown as item}
-								<div class="rounded-xl border border-gray-100 bg-gray-50 p-4 text-center">
-									<p class="text-2xl font-bold text-gray-900">{item.count}</p>
-									<span class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium {statusColors[item.status] ?? 'bg-gray-100 text-gray-600'}">
-										{statusLabels[item.status] ?? item.status}
-									</span>
-								</div>
-							{/each}
-						</div>
-					</section>
-
-					<!-- Turnaround times -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Average Turnaround Times</h3>
-						<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-							{#each [
-								{ label: 'Submission → Approval', value: report.borrowRequests.turnaround.avgApprovalHours, color: 'text-blue-600', bg: 'bg-blue-50' },
-								{ label: 'Approval → Release', value: report.borrowRequests.turnaround.avgReleaseHours, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-								{ label: 'Release → Return', value: report.borrowRequests.turnaround.avgReturnHours, color: 'text-pink-600', bg: 'bg-pink-50' }
-							] as stat}
-								<div class="rounded-xl border border-gray-100 {stat.bg} p-5">
-									<p class="text-xs font-medium text-gray-500">{stat.label}</p>
-									<p class="mt-1 text-2xl font-bold {stat.color}">
-										{stat.value > 0 ? `${stat.value}h` : '—'}
-									</p>
-									<p class="mt-0.5 text-xs text-gray-400">average hours</p>
-								</div>
-							{/each}
-						</div>
-					</section>
-
-					<!-- Overdue returns -->
-					<section>
-						<div class="mb-4 flex items-center justify-between">
-							<h3 class="text-base font-semibold text-gray-900">
-								Overdue Returns
-								{#if report.borrowRequests.overdueCount > 0}
-									<span class="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">{report.borrowRequests.overdueCount}</span>
-								{/if}
-							</h3>
-						</div>
-						{#if report.borrowRequests.overdueRequests.length === 0}
-							<div class="rounded-lg border-2 border-dashed border-gray-200 py-10 text-center">
-								<svg class="mx-auto h-10 w-10 text-emerald-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
 								</svg>
-								<p class="mt-2 text-sm font-medium text-gray-500">No overdue returns</p>
-							</div>
-						{:else}
-							<div class="overflow-x-auto rounded-lg border border-gray-200">
-								<table class="min-w-full divide-y divide-gray-200">
-									<thead class="bg-gray-50">
-										<tr>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Due Date</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Days Overdue</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Items</th>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-gray-200 bg-white">
-										{#each report.borrowRequests.overdueRequests as req}
-											<tr class="hover:bg-gray-50">
-												<td class="px-4 py-3 text-sm font-medium text-gray-900">{req.studentName.trim() || 'Unknown'}</td>
-												<td class="px-4 py-3 text-sm text-gray-600">{new Date(req.returnDate).toLocaleDateString()}</td>
-												<td class="px-4 py-3">
-													<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
-														{req.daysOverdue}d overdue
-													</span>
-												</td>
-												<td class="px-4 py-3 text-sm text-gray-600">{req.itemCount}</td>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
-							</div>
-						{/if}
-					</section>
-
-					<!-- Peak borrowing heatmap -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Peak Borrowing Periods</h3>
-						<p class="mb-3 text-xs text-gray-400">Darker = more requests. Hover for count.</p>
-						<div class="overflow-x-auto">
-							<div class="min-w-max">
-								<!-- Hour labels -->
-								<div class="flex ml-10 mb-1">
-									{#each Array(24) as _, h}
-										<div class="w-7 text-center text-[10px] text-gray-400">{h}</div>
-									{/each}
+								<div class="mt-2 flex items-center justify-between text-xs text-gray-500">
+									<span>Comparison Period Delta: {comparison.deltaPct}%</span>
+									<span>Forecast next point: {trendForecast ?? 'N/A'} requests</span>
 								</div>
-								{#each [1,2,3,4,5,6,7] as day}
-									<div class="flex items-center mb-1">
-										<span class="w-9 text-right pr-2 text-xs text-gray-500">{DAY_NAMES[day - 1]}</span>
-										{#each Array(24) as _, h}
-											{@const count = heatmapCell(day, h)}
-											<div
-												class="w-7 h-6 rounded-sm mx-px {heatmapColor(count)} cursor-default transition-colors"
-												title="{DAY_NAMES[day-1]} {h}:00 — {count} requests"
-											></div>
-										{/each}
-									</div>
-								{/each}
-								<!-- Legend -->
-								<div class="flex items-center gap-2 mt-3 ml-10">
-									<span class="text-xs text-gray-400">Less</span>
-									{#each ['bg-gray-100','bg-pink-100','bg-pink-200','bg-pink-300','bg-pink-400','bg-pink-600'] as cls}
-										<div class="w-5 h-4 rounded-sm {cls}"></div>
-									{/each}
-									<span class="text-xs text-gray-400">More</span>
-								</div>
-							</div>
-						</div>
-					</section>
-				</div>
-			{/if}
-
-			<!-- ══ INVENTORY UTILIZATION TAB ══════════════════════════════════ -->
-			{#if activeTab === 'inventory'}
-				<div class="space-y-8">
-
-					<!-- Item Condition Overview -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Item Condition Overview</h3>
-
-						<!-- KPI strip -->
-						<div class="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
-							{#each conditionOrder as cond}
-								{@const item = report.inventory.conditionDistribution.find(c => c.condition === cond)}
-								{@const count = item?.count ?? 0}
-								{@const meta = conditionMeta[cond]}
-								<div class="rounded-xl border border-gray-100 bg-gray-50 p-4 text-center">
-									<p class="text-2xl font-bold text-gray-900">{count}</p>
-									<span class="mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium {meta.badge}">{meta.label}</span>
-								</div>
-							{/each}
-						</div>
-
-						<!-- Distribution bar -->
-						{#if totalConditionItems > 0}
-							<div class="mb-2 flex h-3 w-full overflow-hidden rounded-full bg-gray-100">
-								{#each conditionOrder as cond}
-									{@const item = report.inventory.conditionDistribution.find(c => c.condition === cond)}
-									{@const pct = item ? Math.round((item.count / totalConditionItems) * 100) : 0}
-									{#if pct > 0}
-										<div
-											class="{conditionMeta[cond].bar} transition-all"
-											style="width:{pct}%"
-											title="{cond}: {item?.count} ({pct}%)"
-										></div>
-									{/if}
-								{/each}
-							</div>
-							<div class="mb-6 flex flex-wrap gap-3">
-								{#each conditionOrder as cond}
-									{@const item = report.inventory.conditionDistribution.find(c => c.condition === cond)}
-									{@const pct = item && totalConditionItems > 0 ? Math.round((item.count / totalConditionItems) * 100) : 0}
-									<div class="flex items-center gap-1.5">
-										<div class="h-2.5 w-2.5 rounded-full {conditionMeta[cond].bar}"></div>
-										<span class="text-xs text-gray-500">{cond} {pct}%</span>
-									</div>
-								{/each}
-							</div>
-						{/if}
-
-						<!-- Needs-attention callout -->
-						{#if needsAttention > 0}
-							<div class="flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3">
-								<svg class="mt-0.5 h-4 w-4 shrink-0 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-								</svg>
-								<p class="text-sm text-orange-800">
-									<span class="font-semibold">{needsAttention} item{needsAttention !== 1 ? 's' : ''}</span> in Poor or Damaged condition require immediate attention.
-								</p>
-							</div>
-						{:else if totalConditionItems > 0}
-							<div class="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-								<svg class="h-4 w-4 shrink-0 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-								</svg>
-								<p class="text-sm font-medium text-emerald-800">All items are in acceptable condition.</p>
-							</div>
-						{/if}
-					</section>
-
-					<!-- Most borrowed items -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Most Borrowed Items</h3>
-						{#if report.inventory.mostBorrowedItems.length === 0}
-							<p class="text-sm text-gray-400">No borrow data for this period.</p>
-						{:else}
-							{@const maxBorrows = Math.max(...report.inventory.mostBorrowedItems.map((i) => i.totalBorrows), 1)}
-							<div class="space-y-3">
-								{#each report.inventory.mostBorrowedItems as item, idx}
-									<div class="flex items-center gap-3">
-										<span class="w-5 shrink-0 text-right text-xs font-semibold text-gray-400">#{idx + 1}</span>
-										<div class="flex-1">
-											<div class="flex items-center justify-between mb-1">
-												<span class="text-sm font-medium text-gray-900">{item.name}</span>
-												<span class="text-xs text-gray-500">{item.totalBorrows} borrows</span>
-											</div>
-											<div class="h-2 w-full rounded-full bg-gray-100">
-												<div
-													class="h-2 rounded-full bg-pink-500 transition-all"
-													style="width:{barWidth(item.totalBorrows, maxBorrows)}"
-												></div>
-											</div>
-											<p class="mt-0.5 text-xs text-gray-400">{item.category} · {item.totalQuantity} units total</p>
-										</div>
-									</div>
-								{/each}
-							</div>
-						{/if}
-					</section>
-
-					<!-- Items currently out -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Items Currently Out</h3>
-						{#if report.inventory.itemsCurrentlyOut.length === 0}
-							<p class="text-sm text-gray-400">No items currently borrowed.</p>
-						{:else}
-							<div class="overflow-x-auto rounded-lg border border-gray-200">
-								<table class="min-w-full divide-y divide-gray-200">
-									<thead class="bg-gray-50">
-										<tr>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Out</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">In Stock</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Utilization</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Condition</th>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-gray-200 bg-white">
-										{#each report.inventory.itemsCurrentlyOut as item}
-											{@const total = item.quantityOut + item.totalStock}
-											{@const utilPct = total > 0 ? Math.round((item.quantityOut / total) * 100) : 0}
-											<tr class="hover:bg-gray-50">
-												<td class="px-4 py-3 text-sm font-medium text-gray-900">{item.name}</td>
-												<td class="px-4 py-3 text-sm text-gray-500">{item.category}</td>
-												<td class="px-4 py-3 text-sm font-semibold text-pink-600">{item.quantityOut}</td>
-												<td class="px-4 py-3 text-sm text-gray-600">{item.totalStock}</td>
-												<td class="px-4 py-3">
-													<div class="flex items-center gap-2">
-														<div class="h-1.5 w-20 rounded-full bg-gray-100">
-															<div class="h-1.5 rounded-full bg-pink-400" style="width:{utilPct}%"></div>
-														</div>
-														<span class="text-xs text-gray-500">{utilPct}%</span>
-													</div>
-												</td>
-												<td class="px-4 py-3">
-													<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {conditionColors[item.condition] ? conditionColors[item.condition].replace('bg-', 'bg-').replace('-500','-100').replace('-400','-100') + ' text-gray-700' : 'bg-gray-100 text-gray-600'}">
-														{item.condition}
-													</span>
-												</td>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
-							</div>
-						{/if}
-					</section>
-
-					<!-- Damage / missing rate -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Items with Highest Incident Rate</h3>
-						{#if report.inventory.damageRateItems.length === 0}
-							<p class="text-sm text-gray-400">No inspection data for this period.</p>
-						{:else}
-							<div class="overflow-x-auto rounded-lg border border-gray-200">
-								<table class="min-w-full divide-y divide-gray-200">
-									<thead class="bg-gray-50">
-										<tr>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Inspected</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Damaged</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Missing</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Incident Rate</th>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-gray-200 bg-white">
-										{#each report.inventory.damageRateItems as item}
-											<tr class="hover:bg-gray-50">
-												<td class="px-4 py-3">
-													<p class="text-sm font-medium text-gray-900">{item.name}</p>
-													<p class="text-xs text-gray-400">{item.category}</p>
-												</td>
-												<td class="px-4 py-3 text-sm text-gray-600">{item.totalInspected}</td>
-												<td class="px-4 py-3 text-sm font-medium text-rose-600">{item.damaged}</td>
-												<td class="px-4 py-3 text-sm font-medium text-red-600">{item.missing}</td>
-												<td class="px-4 py-3">
-													<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {item.incidentRate >= 50 ? 'bg-red-100 text-red-800' : item.incidentRate >= 25 ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}">
-														{item.incidentRate}%
-													</span>
-												</td>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
-							</div>
-						{/if}
-					</section>
-
-					<!-- EOM Variance -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">EOM Variance Tracking</h3>
-						<p class="mb-3 text-xs text-gray-400">Negative variance = current stock below end-of-month count.</p>
-						{#if report.inventory.eomVariance.length === 0}
-							<p class="text-sm text-gray-400">No inventory data available.</p>
-						{:else}
-							<div class="overflow-x-auto rounded-lg border border-gray-200">
-								<table class="min-w-full divide-y divide-gray-200">
-									<thead class="bg-gray-50">
-										<tr>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Current Qty</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">EOM Count</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Variance</th>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-gray-200 bg-white">
-										{#each report.inventory.eomVariance as item}
-											<tr class="hover:bg-gray-50">
-												<td class="px-4 py-3">
-													<p class="text-sm font-medium text-gray-900">{item.name}</p>
-													<p class="text-xs text-gray-400">{item.category}</p>
-												</td>
-												<td class="px-4 py-3 text-sm text-gray-700">{item.quantity}</td>
-												<td class="px-4 py-3 text-sm text-gray-700">{item.eomCount}</td>
-												<td class="px-4 py-3">
-													<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {item.variance < 0 ? 'bg-red-100 text-red-800' : item.variance > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}">
-														{item.variance > 0 ? '+' : ''}{item.variance}
-													</span>
-												</td>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
-							</div>
-						{/if}
-					</section>
-
-					<!-- Stock Alerts -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Stock Alerts</h3>
-						{#if report.inventory.stockAlerts.length === 0}
-							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
-								<p class="text-sm text-emerald-600 font-medium">All items adequately stocked</p>
-							</div>
-						{:else}
-							<div class="space-y-2">
-								{#each report.inventory.stockAlerts as alert}
-									<div class="flex items-center justify-between rounded-lg border border-gray-100 bg-gray-50 px-4 py-3">
-										<div>
-											<p class="text-sm font-medium text-gray-900">{alert.name}</p>
-											<p class="text-xs text-gray-400">{alert.category}</p>
-										</div>
-										<div class="flex items-center gap-2">
-											<span class="text-sm font-semibold text-gray-700">Qty: {alert.quantity}</span>
-											<span class="rounded-full px-2 py-0.5 text-xs font-semibold {alert.status === 'Out of Stock' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'}">
-												{alert.status}
-											</span>
-										</div>
-									</div>
-								{/each}
-							</div>
-						{/if}
-					</section>
-				</div>
-			{/if}
-
-			<!-- ══ ITEM CONDITIONS TAB ════════════════════════════════════════ -->
-			{#if activeTab === 'conditions'}
-				<div class="space-y-8">
-
-					<!-- Summary KPI strip -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Condition Summary</h3>
-						<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
-							<div class="rounded-xl border border-gray-100 bg-green-50 p-5">
-								<p class="text-xs font-medium text-gray-500">Good / Excellent</p>
-								<p class="mt-1 text-3xl font-bold text-green-600">{conditionSummary.good}</p>
-								<p class="mt-0.5 text-xs text-gray-400">Ready to use</p>
-							</div>
-							<div class="rounded-xl border border-gray-100 bg-yellow-50 p-5">
-								<p class="text-xs font-medium text-gray-500">Fair</p>
-								<p class="mt-1 text-3xl font-bold text-yellow-600">{conditionSummary.fair}</p>
-								<p class="mt-0.5 text-xs text-gray-400">Monitor closely</p>
-							</div>
-							<div class="rounded-xl border border-gray-100 bg-orange-50 p-5">
-								<p class="text-xs font-medium text-gray-500">Poor</p>
-								<p class="mt-1 text-3xl font-bold text-orange-600">{conditionSummary.poor}</p>
-								<p class="mt-0.5 text-xs text-gray-400">Needs attention</p>
-							</div>
-							<div class="rounded-xl border border-gray-100 bg-red-50 p-5">
-								<p class="text-xs font-medium text-gray-500">Damaged</p>
-								<p class="mt-1 text-3xl font-bold text-red-600">{conditionSummary.damaged}</p>
-								<p class="mt-0.5 text-xs text-gray-400">Out of service</p>
-							</div>
-						</div>
-					</section>
-
-					<!-- Per-item condition table -->
-					<section>
-						<div class="mb-4 flex items-center justify-between">
-							<h3 class="text-base font-semibold text-gray-900">Item Condition Tracking</h3>
-							{#if conditionSummary.poor + conditionSummary.damaged > 0}
-								<span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
-									<span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
-									{conditionSummary.poor + conditionSummary.damaged} item{conditionSummary.poor + conditionSummary.damaged !== 1 ? 's' : ''} require attention
-								</span>
 							{/if}
 						</div>
 
-						{#if conditionItemRows.length === 0}
-							<div class="rounded-lg border-2 border-dashed border-gray-200 py-12 text-center">
-								<svg class="mx-auto mb-3 h-10 w-10 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-								</svg>
-								<p class="text-sm text-gray-400">No inventory data available for this period.</p>
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Funnel Analysis</h3>
+							<div class="mt-3 space-y-2">
+								{#each funnel as step}
+									<div>
+										<div class="mb-1 flex items-center justify-between text-xs text-gray-500">
+											<span>{step.label}</span>
+											<span>{step.value}</span>
+										</div>
+										<div class="h-3 rounded bg-gray-100">
+											<div class="h-3 rounded bg-pink-500" style="width:{Math.max(8, Math.round((step.value / funnelMax) * 100))}%"></div>
+										</div>
+									</div>
+								{/each}
 							</div>
-						{:else}
+						</div>
+					</div>
+
+					<div class="grid gap-4 lg:grid-cols-3">
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Status Distribution (Cross-filter)</h3>
+							<div class="mt-3 space-y-2">
+								{#each filteredStatusBreakdown as item}
+									<button
+										onclick={() => (chartStatusFilter = chartStatusFilter === item.status ? 'all' : item.status)}
+										class="w-full rounded-lg border border-gray-200 p-2 text-left hover:bg-gray-50"
+									>
+										<div class="mb-1 flex items-center justify-between text-xs text-gray-500">
+											<span>{item.status}</span>
+											<span>{item.count}</span>
+										</div>
+										<div class="h-2 rounded bg-gray-100">
+											<div class="h-2 rounded bg-indigo-500" style="width:{Math.max(8, Math.round((item.count / statusBreakdownMax) * 100))}%"></div>
+										</div>
+									</button>
+								{/each}
+							</div>
+						</div>
+
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Resolution Pie</h3>
+							<svg viewBox="0 0 42 42" class="mx-auto mt-3 h-40 w-40 -rotate-90">
+								<circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="#e5e7eb" stroke-width="7"></circle>
+								{#each resolutionPie as seg}
+									<circle
+										cx="21"
+										cy="21"
+										r="15.9155"
+										fill="transparent"
+										stroke={seg.color}
+										stroke-width="7"
+										stroke-dasharray={`${seg.pct * 100} ${100 - seg.pct * 100}`}
+										stroke-dashoffset={-seg.start * 100}
+									>
+										<title>{seg.label}: {seg.count}</title>
+									</circle>
+								{/each}
+							</svg>
+							<div class="mt-2 space-y-1 text-xs text-gray-600">
+								{#each resolutionPie as seg}
+									<div class="flex items-center justify-between">
+										<span class="inline-flex items-center gap-2"><span class="h-2 w-2 rounded-full" style="background:{seg.color}"></span>{seg.label}</span>
+										<span>{seg.count}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Treemap by Category</h3>
+							<div class="mt-3 flex flex-wrap gap-2">
+								{#each treemapBlocks as block}
+									<div class="min-h-16 rounded-md bg-gradient-to-br from-pink-100 to-pink-300 p-2 text-xs text-pink-900" style="width:{Math.min(100, block.w)}%">
+										<div class="font-semibold">{block.category || 'Uncategorized'}</div>
+										<div>{block.count} obligations</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				{#if activeTab === 'operations'}
+					<div class="grid gap-4 lg:grid-cols-3">
+						<div class="rounded-xl border border-gray-200 p-4 lg:col-span-2">
+							<div class="mb-3 flex items-center justify-between">
+								<h3 class="text-sm font-semibold text-gray-900">Overdue Requests Table</h3>
+								<div class="flex items-center gap-2">
+									<button onclick={exportOverdueCSV} class="inline-flex items-center gap-1 rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"><Download size={12} /> CSV</button>
+									<button onclick={exportOverdueExcel} class="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">Excel</button>
+									<button onclick={exportAsPDF} class="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">PDF</button>
+									<button onclick={copyApiEndpoint} class="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50">API</button>
+								</div>
+							</div>
+
 							<div class="overflow-x-auto rounded-lg border border-gray-200">
 								<table class="min-w-full divide-y divide-gray-200">
 									<thead class="bg-gray-50">
 										<tr>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Qty in Stock</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">EOM Count</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Variance</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Condition</th>
+											<th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"><button onclick={() => toggleOverdueSort('studentName')}>Student {sortCaret('studentName')}</button></th>
+											<th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"><button onclick={() => toggleOverdueSort('returnDate')}>Due Date {sortCaret('returnDate')}</button></th>
+											<th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"><button onclick={() => toggleOverdueSort('daysOverdue')}>Days Overdue {sortCaret('daysOverdue')}</button></th>
+											<th class="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500"><button onclick={() => toggleOverdueSort('itemCount')}>Items {sortCaret('itemCount')}</button></th>
 										</tr>
 									</thead>
 									<tbody class="divide-y divide-gray-200 bg-white">
-										{#each conditionItemRows as item}
-											<tr class="hover:bg-gray-50 {item.condition === 'Damaged' || item.condition === 'Poor' ? 'bg-red-50/30' : ''}">
-												<td class="px-4 py-3">
-													<div class="flex items-center gap-2">
-														<span class="h-2 w-2 shrink-0 rounded-full {conditionDot(item.condition)}"></span>
-														<span class="text-sm font-medium text-gray-900">{item.name}</span>
-													</div>
-												</td>
-												<td class="px-4 py-3 text-sm text-gray-500">{item.category}</td>
-												<td class="px-4 py-3 text-sm text-gray-700">{item.quantity}</td>
-												<td class="px-4 py-3 text-sm text-gray-700">{item.eomCount}</td>
-												<td class="px-4 py-3">
-													<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {item.variance < 0 ? 'bg-red-100 text-red-800' : item.variance > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-gray-100 text-gray-600'}">
-														{item.variance > 0 ? '+' : ''}{item.variance}
-													</span>
-												</td>
-												<td class="px-4 py-3">
-													<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold {conditionBadge(item.condition)}">
-														{item.condition}
-													</span>
-												</td>
-											</tr>
-										{/each}
+										{#if filteredOverdue.length === 0}
+											<tr><td colspan="4" class="px-3 py-4 text-sm text-gray-500">No overdue records for the current filter set.</td></tr>
+										{:else}
+											{#each filteredOverdue as row}
+												<tr class="hover:bg-gray-50" title="Click-through ready row for detail views">
+													<td class="px-3 py-2 text-sm text-gray-800">{row.studentName}</td>
+													<td class="px-3 py-2 text-sm text-gray-600">{new Date(row.returnDate).toLocaleDateString()}</td>
+													<td class="px-3 py-2 text-sm font-medium text-rose-700">{row.daysOverdue}</td>
+													<td class="px-3 py-2 text-sm text-gray-700">{row.itemCount}</td>
+												</tr>
+											{/each}
+										{/if}
 									</tbody>
+									<tfoot class="bg-gray-50">
+										<tr class="text-xs font-semibold text-gray-600">
+											<td class="px-3 py-2">Inline Aggregates</td>
+											<td class="px-3 py-2">Rows: {filteredOverdue.length}</td>
+											<td class="px-3 py-2">Avg days: {overdueAggregates.avgDays}</td>
+											<td class="px-3 py-2">Total items: {overdueAggregates.totalItems}</td>
+										</tr>
+									</tfoot>
 								</table>
 							</div>
-						{/if}
-					</section>
-
-					<!-- Condition distribution bar (reused from inventory tab) -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Fleet Condition Distribution</h3>
-						{#if totalConditionItems === 0}
-							<p class="text-sm text-gray-400">No condition data available.</p>
-						{:else}
-							<div class="mb-2 flex h-4 w-full overflow-hidden rounded-full bg-gray-100">
-								{#each conditionOrder as cond}
-									{@const entry = report.inventory.conditionDistribution.find(c => c.condition === cond)}
-									{@const pct = entry ? Math.round((entry.count / totalConditionItems) * 100) : 0}
-									{#if pct > 0}
-										<div
-											class="{conditionMeta[cond].bar} transition-all"
-											style="width:{pct}%"
-											title="{cond}: {entry?.count} ({pct}%)"
-										></div>
-									{/if}
-								{/each}
-							</div>
-							<div class="mt-3 flex flex-wrap gap-4">
-								{#each conditionOrder as cond}
-									{@const entry = report.inventory.conditionDistribution.find(c => c.condition === cond)}
-									{@const count = entry?.count ?? 0}
-									{@const pct = totalConditionItems > 0 ? Math.round((count / totalConditionItems) * 100) : 0}
-									<div class="flex items-center gap-2">
-										<div class="h-3 w-3 rounded-full {conditionMeta[cond].bar}"></div>
-										<span class="text-sm text-gray-600">{cond}</span>
-										<span class="text-sm font-semibold text-gray-900">{count}</span>
-										<span class="text-xs text-gray-400">({pct}%)</span>
-									</div>
-								{/each}
-							</div>
-						{/if}
-					</section>
-
-					<!-- Items with highest incident rate (damage/missing) -->
-					<section>
-						<h3 class="mb-1 text-base font-semibold text-gray-900">Highest Incident Rate</h3>
-						<p class="mb-4 text-xs text-gray-400">Items with the most damage or missing reports this period.</p>
-						{#if report.inventory.damageRateItems.length === 0}
-							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
-								<p class="text-sm text-emerald-600 font-medium">No incidents recorded this period.</p>
-							</div>
-						{:else}
-							{@const maxRate = Math.max(...report.inventory.damageRateItems.map(i => i.incidentRate), 1)}
-							<div class="space-y-3">
-								{#each report.inventory.damageRateItems as item}
-									<div class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-										<div class="flex items-center justify-between mb-2">
-											<div>
-												<p class="text-sm font-medium text-gray-900">{item.name}</p>
-												<p class="text-xs text-gray-400">{item.category} · {item.totalInspected} inspected</p>
-											</div>
-											<div class="flex items-center gap-2 shrink-0">
-												{#if item.damaged > 0}
-													<span class="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">{item.damaged} damaged</span>
-												{/if}
-												{#if item.missing > 0}
-													<span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">{item.missing} missing</span>
-												{/if}
-												<span class="rounded-full px-2.5 py-0.5 text-xs font-bold {item.incidentRate >= 50 ? 'bg-red-100 text-red-800' : item.incidentRate >= 25 ? 'bg-orange-100 text-orange-800' : 'bg-yellow-100 text-yellow-800'}">
-													{item.incidentRate}%
-												</span>
-											</div>
-										</div>
-										<div class="h-1.5 w-full rounded-full bg-gray-200">
-											<div
-												class="h-1.5 rounded-full transition-all {item.incidentRate >= 50 ? 'bg-red-500' : item.incidentRate >= 25 ? 'bg-orange-400' : 'bg-yellow-400'}"
-												style="width:{barWidth(item.incidentRate, maxRate)}"
-											></div>
-										</div>
-									</div>
-								{/each}
-							</div>
-						{/if}
-					</section>
-
-				</div>
-			{/if}
-
-			<!-- ══ REPLACEMENT TRACKING TAB ════════════════════════════════════ -->
-			{#if activeTab === 'replacement'}
-				<div class="space-y-8">
-
-					<!-- Replacement Summary KPIs -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Replacement Overview</h3>
-						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-amber-50 to-white p-5">
-								<p class="text-xs font-medium text-gray-500">Total Obligations</p>
-								<p class="mt-1 text-3xl font-bold text-amber-600">{report.replacement.summary.totalObligations ?? 0}</p>
-								<p class="mt-0.5 text-xs text-gray-400">all time</p>
-							</div>
-							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-red-50 to-white p-5">
-								<p class="text-xs font-medium text-gray-500">Pending</p>
-								<p class="mt-1 text-3xl font-bold text-red-600">{report.replacement.summary.pendingCount ?? 0}</p>
-								<p class="mt-0.5 text-xs text-gray-400">{(report.replacement.summary.totalItemsPending ?? 0).toLocaleString()} items</p>
-							</div>
-							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-emerald-50 to-white p-5">
-								<p class="text-xs font-medium text-gray-500">Resolved</p>
-								<p class="mt-1 text-3xl font-bold text-emerald-600">
-									{(report.replacement.summary.totalObligations ?? 0) - (report.replacement.summary.pendingCount ?? 0)}
-								</p>
-								<p class="mt-0.5 text-xs text-gray-400">{(report.replacement.summary.totalItemsReplaced ?? 0).toLocaleString()} items replaced</p>
-							</div>
-							<div class="rounded-xl border border-gray-100 bg-gradient-to-br from-blue-50 to-white p-5">
-								<p class="text-xs font-medium text-gray-500">Resolution Rate</p>
-								<p class="mt-1 text-3xl font-bold text-blue-600">
-									{report.replacement.summary.totalObligations > 0 
-										? Math.round(((report.replacement.summary.totalObligations - report.replacement.summary.pendingCount) / report.replacement.summary.totalObligations) * 100)
-										: 0}%
-								</p>
-								<p class="mt-0.5 text-xs text-gray-400">obligations resolved</p>
-							</div>
 						</div>
-					</section>
 
-					<!-- Resolution Breakdown -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Resolution Type Breakdown</h3>
-						{#if report.replacement.resolutionBreakdown.length === 0}
-							<p class="text-sm text-gray-400">No resolution data available for this period.</p>
-						{:else}
-							<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-								{#each report.replacement.resolutionBreakdown as res}
-									{@const typeColors = {
-										replacement: { bg: 'bg-emerald-50', text: 'text-emerald-600', badge: 'bg-emerald-100 text-emerald-800' },
-										waiver: { bg: 'bg-blue-50', text: 'text-blue-600', badge: 'bg-blue-100 text-blue-800' },
-										other: { bg: 'bg-gray-50', text: 'text-gray-600', badge: 'bg-gray-100 text-gray-800' }
-									}}
-									{@const colors = typeColors[res.type as keyof typeof typeColors] ?? typeColors.other}
-									<div class="rounded-xl border border-gray-100 {colors.bg} p-5">
-										<div class="flex items-center justify-between mb-2">
-											<span class="inline-block rounded-full px-2 py-0.5 text-xs font-medium {colors.badge}">
-												{res.type === 'replacement' ? 'Replaced' : res.type === 'waiver' ? 'Waived' : res.type}
-											</span>
-											<span class="text-2xl font-bold {colors.text}">{res.count}</span>
-										</div>
-										<p class="text-sm font-medium text-gray-700">{(res.totalAmount ?? 0).toLocaleString()} items</p>
-										<p class="text-xs text-gray-400 mt-1">
-											Avg {res.avgResolutionDays ?? 0} days to resolve
-										</p>
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Peak Hours Heatmap</h3>
+							<div class="mt-3 overflow-x-auto">
+								<div class="min-w-max">
+									<div class="mb-1 ml-10 flex">
+										{#each Array(24) as _, h}
+											<div class="w-4 text-center text-[10px] text-gray-400">{h}</div>
+										{/each}
 									</div>
-								{/each}
-							</div>
-						{/if}
-					</section>
-
-					<!-- Obligations by Category -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Obligations by Item Category</h3>
-						{#if report.replacement.obligationsByCategory.length === 0}
-							<p class="text-sm text-gray-400">No category data available.</p>
-						{:else}
-							{@const maxCategoryCount = Math.max(...report.replacement.obligationsByCategory.map(c => c.count), 1)}
-							<div class="space-y-3">
-								{#each report.replacement.obligationsByCategory as cat}
-									<div class="rounded-lg border border-gray-100 bg-white p-4">
-										<div class="flex items-center justify-between mb-2">
-											<span class="text-sm font-medium text-gray-900">{cat.category || 'Uncategorized'}</span>
-											<div class="flex items-center gap-2">
-												<span class="text-xs text-gray-500">{cat.count} obligation{cat.count !== 1 ? 's' : ''}</span>
-												<span class="text-sm font-semibold text-amber-600">{(cat.totalAmount ?? 0).toLocaleString()} items</span>
-											</div>
-										</div>
-										<div class="h-2 w-full rounded-full bg-gray-100">
-											<div
-												class="h-2 rounded-full bg-amber-500 transition-all"
-												style="width:{barWidth(cat.count, maxCategoryCount)}"
-											></div>
-										</div>
-									</div>
-								{/each}
-							</div>
-						{/if}
-					</section>
-
-					<!-- Monthly Replacement Trend -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Monthly Replacement Activity</h3>
-						{#if report.replacement.monthlyActivity.length === 0}
-							<p class="text-sm text-gray-400">No monthly data available for this period.</p>
-						{:else}
-							{@const maxMonthlyItems = Math.max(...report.replacement.monthlyActivity.map(m => m.totalAmount ?? 0), 1)}
-							<div class="overflow-x-auto">
-								<div class="flex min-w-max items-end gap-2 h-48 pb-8 relative">
-									{#each report.replacement.monthlyActivity as month}
-										<div class="flex flex-col items-center gap-2 group" style="min-width:60px">
-											<div class="text-center">
-												<span class="text-xs font-semibold text-gray-700 opacity-0 group-hover:opacity-100 transition-opacity">
-													{month.totalAmount ?? 0}
-												</span>
-											</div>
-											<div
-												class="w-12 rounded-t bg-amber-400 hover:bg-amber-600 transition-colors cursor-default"
-												style="height:{Math.max(8, Math.round(((month.totalAmount ?? 0) / maxMonthlyItems) * 140))}px"
-												title="{MONTH_NAMES[month.month - 1]} {month.year}: {month.totalAmount ?? 0} items replaced"
-											></div>
-											<div class="text-center">
-												<span class="text-xs text-gray-600 font-medium">{MONTH_NAMES[month.month - 1]}</span>
-												<span class="block text-[10px] text-gray-400">{month.year}</span>
-											</div>
+									{#each [1, 2, 3, 4, 5, 6, 7] as day}
+										<div class="mb-1 flex items-center">
+											<span class="w-9 text-right pr-2 text-[10px] text-gray-500">{DAY_NAMES[day - 1]}</span>
+											{#each Array(24) as _, h}
+												{@const value = heatmapCell(day, h)}
+												<div class="mx-px h-4 w-4 rounded-sm {heatmapClass(value)}" title="{DAY_NAMES[day - 1]} {h}:00 -> {value}"></div>
+											{/each}
 										</div>
 									{/each}
 								</div>
 							</div>
-						{/if}
-					</section>
+						</div>
+					</div>
 
-					<!-- Donation Tracking -->
-					<section>
-						<h3 class="mb-4 text-base font-semibold text-gray-900">Donation Contributions</h3>
-						<p class="mb-3 text-xs text-gray-400">Items received through donations to support replacement obligations.</p>
-						{#if donationByMonth.length === 0}
-							<p class="text-sm text-gray-400">No donation data available for this period.</p>
-						{:else}
-							<div class="overflow-x-auto rounded-lg border border-gray-200">
-								<table class="min-w-full divide-y divide-gray-200">
-									<thead class="bg-gray-50">
-										<tr>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Month</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Donations</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Total Items</th>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-gray-200 bg-white">
-										{#each donationByMonth as d}
-											<tr class="hover:bg-gray-50">
-												<td class="px-4 py-3 text-sm font-medium text-gray-900">
-													{MONTH_NAMES[parseInt(d.month) - 1]} {d.year}
-												</td>
-												<td class="px-4 py-3 text-sm text-gray-600">{d.itemCount}</td>
-												<td class="px-4 py-3 text-sm font-semibold text-emerald-600">{d.totalQuantity.toLocaleString()}</td>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
-							</div>
-						{/if}
-					</section>
-
-				</div>
-			{/if}
-
-			<!-- ══ STUDENT RISK TAB ════════════════════════════════════════════ -->
-			{#if activeTab === 'risk'}
-				<div class="space-y-8">
-
-					<!-- Repeat offenders -->
-					<section>
-						<h3 class="mb-1 text-base font-semibold text-gray-900">Repeat Offenders</h3>
-						<p class="mb-4 text-xs text-gray-400">Students with the most active (unresolved) replacement obligations.</p>
-						{#if report.studentRisk.repeatOffenders.length === 0}
-							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
-								<p class="text-sm text-emerald-600 font-medium">No students with active obligations</p>
-							</div>
-						{:else}
-							<div class="overflow-x-auto rounded-lg border border-gray-200">
-								<table class="min-w-full divide-y divide-gray-200">
-									<thead class="bg-gray-50">
-										<tr>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Active Obligations</th>
-											<th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Total Balance</th>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-gray-200 bg-white">
-										{#each report.studentRisk.repeatOffenders as s}
-											<tr class="hover:bg-gray-50">
-												<td class="px-4 py-3">
-													<div class="flex items-center gap-3">
-														<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
-															{#if s.profilePhotoUrl}
-																<img src={s.profilePhotoUrl} alt={s.studentName} class="h-full w-full object-cover" loading="lazy" />
-															{:else}
-																{getInitials(s.studentName)}
-															{/if}
-														</div>
-														<div>
-															<p class="text-sm font-medium text-gray-900">{s.studentName.trim() || 'Unknown'}</p>
-															<p class="text-xs text-gray-400">{s.studentEmail}</p>
-														</div>
-													</div>
-												</td>
-												<td class="px-4 py-3">
-													<span class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
-														{s.activeObligations}
-													</span>
-												</td>
-												<td class="px-4 py-3 text-sm font-semibold text-amber-600">{(s.totalBalance ?? 0).toLocaleString()} items</td>
-											</tr>
-										{/each}
-									</tbody>
-								</table>
-							</div>
-						{/if}
-					</section>
-
-					<!-- High incident rate -->
-					<section>
-						<h3 class="mb-1 text-base font-semibold text-gray-900">Highest Incident Rate</h3>
-						<p class="mb-4 text-xs text-gray-400">Students with the most damage/missing incidents this period.</p>
-						{#if report.studentRisk.highIncidentStudents.length === 0}
-							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
-								<p class="text-sm text-emerald-600 font-medium">No incidents recorded this period</p>
-							</div>
-						{:else}
-							<div class="space-y-3">
-								{#each report.studentRisk.highIncidentStudents as s}
-									<div class="flex items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
-										<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
-											{#if s.profilePhotoUrl}
-												<img src={s.profilePhotoUrl} alt={s.studentName} class="h-full w-full object-cover" loading="lazy" />
-											{:else}
-												{getInitials(s.studentName)}
-											{/if}
+					<div class="grid gap-4 lg:grid-cols-2">
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Most Borrowed (Widget-level Filter)</h3>
+							<p class="text-xs text-gray-500">Widget status filter: {chartStatusFilter === 'all' ? 'none' : chartStatusFilter}</p>
+							<div class="mt-3 space-y-2">
+								{#each filteredMostBorrowed as item}
+									<div class="rounded-lg border border-gray-200 p-2">
+										<div class="mb-1 flex items-center justify-between text-xs text-gray-600">
+											<span>{item.name}</span>
+											<span>{item.totalBorrows}</span>
 										</div>
-										<div class="flex-1 min-w-0">
-											<p class="text-sm font-medium text-gray-900 truncate">{s.studentName.trim() || 'Unknown'}</p>
-											<p class="text-xs text-gray-400 truncate">{s.studentEmail}</p>
-										</div>
-										<div class="flex items-center gap-2 shrink-0">
-											{#if (s.missingCount ?? 0) > 0}
-												<span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">{s.missingCount} missing</span>
-											{/if}
-											{#if (s.damagedCount ?? 0) > 0}
-												<span class="rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800">{s.damagedCount} damaged</span>
-											{/if}
+										<div class="h-2 rounded bg-gray-100">
+											<div class="h-2 rounded bg-teal-500" style="width:{Math.max(8, Math.round((item.totalBorrows / mostBorrowedMax) * 100))}%"></div>
 										</div>
 									</div>
 								{/each}
 							</div>
-						{/if}
-					</section>
+						</div>
 
-					<!-- Overdue students -->
-					<section>
-						<h3 class="mb-1 text-base font-semibold text-gray-900">Students with Overdue Returns</h3>
-						<p class="mb-4 text-xs text-gray-400">Currently borrowed items past their return date.</p>
-						{#if report.studentRisk.overdueStudents.length === 0}
-							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
-								<p class="text-sm text-emerald-600 font-medium">No overdue returns</p>
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Geospatial Placeholder</h3>
+							<p class="mt-2 text-sm text-gray-600">No location fields are present in the current analytics payload. Add region/campus coordinates to enable map tiles and geo-clustering.</p>
+							<div class="mt-3 grid h-36 place-items-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-xs text-gray-500">
+								Map widget ready
 							</div>
-						{:else}
-							<div class="space-y-3">
-								{#each report.studentRisk.overdueStudents as s}
-									<div class="flex items-center gap-4 rounded-xl border border-orange-100 bg-orange-50 px-4 py-3">
-										<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
-											{#if s.profilePhotoUrl}
-												<img src={s.profilePhotoUrl} alt={s.studentName} class="h-full w-full object-cover" loading="lazy" />
-											{:else}
-												{getInitials(s.studentName)}
-											{/if}
-										</div>
-										<div class="flex-1 min-w-0">
-											<p class="text-sm font-medium text-gray-900 truncate">{s.studentName.trim() || 'Unknown'}</p>
-											<p class="text-xs text-gray-400 truncate">{s.studentEmail}</p>
-										</div>
-										<div class="flex items-center gap-2 shrink-0">
-											<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-800">{s.overdueCount} overdue</span>
-											<span class="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">{s.daysOverdue}d late</span>
-										</div>
-									</div>
+						</div>
+					</div>
+				{/if}
+
+				{#if activeTab === 'risk'}
+					<div class="grid gap-4 lg:grid-cols-2">
+						<div class="rounded-xl border border-gray-200 p-4">
+							<div class="mb-3 flex items-center justify-between">
+								<h3 class="text-sm font-semibold text-gray-900">Trust vs Incident Scatter</h3>
+								<span class="text-xs text-gray-500">Cohort-style behavior view</span>
+							</div>
+							<svg viewBox="0 0 100 100" class="h-64 w-full rounded-lg bg-gray-50">
+								{#each scatterData as p}
+									<circle cx={p.x} cy={100 - p.y} r="1.6" fill="#0ea5e9">
+										<title>{p.label}: trust {p.x}, incident index {p.y}</title>
+									</circle>
 								{/each}
-							</div>
-						{/if}
-					</section>
+							</svg>
+							<p class="mt-2 text-xs text-gray-500">Lower-left indicates healthier behavior cohorts.</p>
+						</div>
 
-					<!-- Trust scores -->
-					<section>
-						<h3 class="mb-1 text-base font-semibold text-gray-900">Student Trust Scores</h3>
-						<p class="mb-4 text-xs text-gray-400">
-							Ratio of clean returns vs. total items returned this period. Minimum 3 items required.
-							Showing lowest-trust students first.
-						</p>
-						{#if report.studentRisk.trustScores.length === 0}
-							<div class="rounded-lg border-2 border-dashed border-gray-200 py-8 text-center">
-								<p class="text-sm text-gray-400">Not enough return data to calculate trust scores.</p>
+						<div class="rounded-xl border border-gray-200 p-4">
+							<h3 class="text-sm font-semibold text-gray-900">Path / Retention Proxy</h3>
+							<div class="mt-3 space-y-2 text-sm text-gray-700">
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span>Students with trust score</span><span>{trustScores.length}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span>Students with overdue signals</span><span>{report.studentRisk.overdueStudents.length}</span></div>
+								<div class="flex items-center justify-between rounded-md bg-gray-50 p-2"><span>Repeat offenders</span><span>{report.studentRisk.repeatOffenders.length}</span></div>
 							</div>
-						{:else}
-							<div class="space-y-3">
-								{#each report.studentRisk.trustScores as s}
-									<div class="flex items-center gap-4 rounded-xl border border-gray-100 bg-white px-4 py-3 shadow-sm">
-										<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
-											{#if s.profilePhotoUrl}
-												<img src={s.profilePhotoUrl} alt={s.studentName} class="h-full w-full object-cover" loading="lazy" />
-											{:else}
-												{getInitials(s.studentName)}
-											{/if}
-										</div>
-										<div class="flex-1 min-w-0">
-											<p class="text-sm font-medium text-gray-900 truncate">{s.studentName.trim() || 'Unknown'}</p>
-											<p class="text-xs text-gray-400">{s.cleanItems ?? 0}/{s.totalItems ?? 0} clean returns</p>
-										</div>
-										<div class="flex items-center gap-3 shrink-0">
-											<!-- Trust bar -->
-											<div class="hidden sm:flex items-center gap-2">
-												<div class="w-24 h-2 rounded-full bg-gray-100">
-													<div
-														class="h-2 rounded-full transition-all {(s.trustScore ?? 0) >= 90 ? 'bg-emerald-500' : (s.trustScore ?? 0) >= 70 ? 'bg-yellow-400' : 'bg-red-500'}"
-														style="width:{s.trustScore ?? 0}%"
-													></div>
-												</div>
+							<p class="mt-3 text-xs text-gray-500">For true cohort retention analysis, add event timestamps keyed by cohort anchor date.</p>
+						</div>
+					</div>
+
+					<div class="rounded-xl border border-gray-200 p-4">
+						<div class="mb-3 flex items-center justify-between">
+							<h3 class="text-sm font-semibold text-gray-900">Risk Table (Row Expansion Drill-down)</h3>
+							<span class="text-xs text-gray-500">Click a row for sub-metrics</span>
+						</div>
+						<div class="space-y-2">
+							{#if filteredTrustScores.length === 0}
+								<p class="text-sm text-gray-500">No students match current filters.</p>
+							{:else}
+								{#each filteredTrustScores as s}
+									<div class="rounded-lg border border-gray-200">
+										<button class="flex w-full items-center gap-3 p-3 text-left hover:bg-gray-50" onclick={() => (expandedStudentId = expandedStudentId === s._id ? null : s._id)}>
+											<div class="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+												{#if s.profilePhotoUrl}
+													<img src={s.profilePhotoUrl} alt={s.studentName} class="h-full w-full object-cover" loading="lazy" />
+												{:else}
+													{getInitials(s.studentName)}
+												{/if}
 											</div>
-											<span class="text-sm font-bold {(s.trustScore ?? 0) >= 90 ? 'text-emerald-600' : (s.trustScore ?? 0) >= 70 ? 'text-yellow-600' : 'text-red-600'}">
-												{s.trustScore ?? 0}%
-											</span>
-											<span class="rounded-full px-2 py-0.5 text-xs font-semibold {trustBadge(s.trustScore ?? 0)}">
-												{trustLabel(s.trustScore ?? 0)}
-											</span>
-										</div>
+											<div class="min-w-0 flex-1">
+												<p class="truncate text-sm font-medium text-gray-900">{s.studentName}</p>
+												<p class="truncate text-xs text-gray-500">{s.studentEmail}</p>
+											</div>
+											<span class="rounded-full px-2 py-0.5 text-xs font-semibold {trustBadge(s)}">{s.trustScore ?? 0}%</span>
+										</button>
+										{#if expandedStudentId === s._id}
+											<div class="grid grid-cols-2 gap-2 border-t border-gray-200 bg-gray-50 p-3 text-xs text-gray-700 sm:grid-cols-4">
+												<div><p class="text-gray-500">Missing</p><p class="font-semibold">{s.missingCount ?? 0}</p></div>
+												<div><p class="text-gray-500">Damaged</p><p class="font-semibold">{s.damagedCount ?? 0}</p></div>
+												<div><p class="text-gray-500">Active obligations</p><p class="font-semibold">{s.activeObligations ?? 0}</p></div>
+												<div><p class="text-gray-500">Overdue</p><p class="font-semibold">{s.overdueCount ?? 0}</p></div>
+											</div>
+										{/if}
 									</div>
 								{/each}
-							</div>
-						{/if}
-					</section>
-				</div>
-			{/if}
+							{/if}
+						</div>
+					</div>
+				{/if}
+			</div>
+		{/if}
+	</div>
 
-			{/if} <!-- end else (not loading, no error) -->
+	<div class="rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-600 shadow-sm">
+		<div class="flex flex-wrap items-center gap-2">
+			<span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1"><Rows3 size={12} /> URL-state enabled</span>
+			<span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1"><ChartNoAxesCombined size={12} /> Drill-down and cross-filter enabled</span>
+			<span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-1"><Clock3 size={12} /> Scheduled email reports require backend scheduler endpoint</span>
 		</div>
 	</div>
 </div>
+
+

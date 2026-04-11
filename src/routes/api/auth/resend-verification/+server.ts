@@ -40,7 +40,10 @@ export const POST: RequestHandler = async (event) => {
 		const usersCollection = db.collection<User>('users');
 
 		// Find user
-		const user = await usersCollection.findOne({ email: sanitizedEmail });
+		const user = await usersCollection.findOne(
+			{ email: sanitizedEmail },
+			{ collation: { locale: 'en', strength: 2 } }
+		);
 
 		// Always return success to prevent email enumeration attacks
 		// But only send email if user exists and is not verified

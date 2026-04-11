@@ -19,11 +19,31 @@ import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { cacheService } from '$lib/server/cache';
 import { logger } from '$lib/server/utils/logger';
 import { parallelAggregations, ANALYTICS_AGGREGATION_OPTIONS } from '$lib/server/utils/queryOptimizer';
+import { computeStudentStatistics } from '$lib/server/services/statistics';
+import { UserRole, type User } from '$lib/server/models/User';
 
 const ANALYTICS_CACHE_TAG = 'reports-analytics';
 const CACHE_TTL = 3600; // 1 hour - aligned with session timeout
+const ANALYTICS_CACHE_VERSION = 'v3';
 
 const ALLOWED_ROLES = new Set(['instructor', 'custodian', 'superadmin']);
+
+type TrustScoreRow = {
+	_id: string;
+	studentName: string;
+	studentEmail: string;
+	profilePhotoUrl: string | null;
+	trustScore: number;
+	trustTier: string;
+	trustTierLabel: string;
+	totalPenalties: number;
+	totalBonuses: number;
+	requestsTotal: number;
+	requestsReturned: number;
+	activeObligations: number;
+	dataQuality: Awaited<ReturnType<typeof computeStudentStatistics>>['dataQuality'];
+	duplicateCount?: number;
+};
 
 function getPeriodRange(period: string, from?: string, to?: string): { start: Date; end: Date } {
 	const end = to ? new Date(to) : new Date();
@@ -68,7 +88,7 @@ export const GET: RequestHandler = async (event) => {
 		}
 
 		const { start, end } = getPeriodRange(period, from, to);
-		const cacheKey = `reports:analytics:${period}:${start.toISOString()}:${end.toISOString()}`;
+		const cacheKey = `reports:analytics:${ANALYTICS_CACHE_VERSION}:${period}:${start.toISOString()}:${end.toISOString()}`;
 
 		if (!skipCache) {
 			const cached = await cacheService.get(cacheKey);
@@ -243,6 +263,46 @@ export const GET: RequestHandler = async (event) => {
 			{ $sort: { totalBorrows: -1 } },
 			{ $limit: 10 }
 		], { allowDiskUse: true }).toArray();
+
+		// Inventory totals (real data from inventory_items)
+		const inventorySummary = await inventory.aggregate([
+			{ $match: { archived: false } },
+			{
+				$group: {
+					_id: null,
+					currentCount: { $sum: { $ifNull: ['$quantity', 0] } },
+					eomCount: { $sum: { $ifNull: ['$eomCount', 0] } },
+					donations: { $sum: { $ifNull: ['$donations', 0] } },
+					constantCount: { $sum: { $cond: [{ $eq: ['$isConstant', true] }, 1, 0] } },
+					lowStockCount: {
+						$sum: { $cond: [{ $in: ['$status', ['Low Stock', 'Out of Stock']] }, 1, 0] }
+					}
+				}
+			},
+			{
+				$addFields: {
+					variance: { $subtract: ['$currentCount', '$eomCount'] }
+				}
+			}
+		]).toArray();
+
+		const constantItems = await inventory.aggregate([
+			{ $match: { archived: false, isConstant: true } },
+			{
+				$project: {
+					_id: { $toString: '$_id' },
+					name: 1,
+					category: 1,
+					quantity: 1,
+					eomCount: { $ifNull: ['$eomCount', 0] },
+					donations: { $ifNull: ['$donations', 0] },
+					status: 1,
+					variance: { $subtract: ['$quantity', { $ifNull: ['$eomCount', 0] }] }
+				}
+			},
+			{ $sort: { quantity: -1 } },
+			{ $limit: 20 }
+		]).toArray();
 
 		// Items currently out (status = borrowed)
 		const itemsCurrentlyOut = await borrowRequests.aggregate([
@@ -591,75 +651,63 @@ export const GET: RequestHandler = async (event) => {
 			{ $limit: 10 }
 		]).toArray();
 
-		// Trust scores: clean returns / total completed borrows per student
-		const trustScores = await borrowRequests.aggregate([
-			{
-				$match: {
-					status: { $in: ['returned', 'missing', 'resolved'] },
-					createdAt: { $gte: start, $lte: end }
-				}
-			},
-			{ $unwind: '$items' },
-			{
-				$group: {
-					_id: '$studentId',
-					totalItems: { $sum: 1 },
-					cleanItems: {
-						$sum: {
-							$cond: [
-								{
-									$or: [
-										{ $eq: [{ $ifNull: ['$items.inspection', null] }, null] },
-										{ $eq: ['$items.inspection.status', 'good'] }
-									]
-								},
-								1,
-								0
-							]
-						}
+		// Trust scores for every student account, computed with the same service used by student analytics.
+		const studentRecords = await db.collection<User>('users')
+			.find(
+				{ role: UserRole.STUDENT },
+				{
+					projection: {
+						password: 0,
+						emailVerificationToken: 0,
+						passwordResetToken: 0
 					}
 				}
-			},
-			{
-				$addFields: {
-					trustScore: {
-						$multiply: [
-							{ $divide: ['$cleanItems', { $max: ['$totalItems', 1] }] },
-							100
-						]
-					}
-				}
-			},
-			{
-				$lookup: {
-					from: 'users',
-					localField: '_id',
-					foreignField: '_id',
-					as: 'studentDoc'
-				}
-			},
-			{ $unwind: { path: '$studentDoc', preserveNullAndEmptyArrays: true } },
-			{
-				$project: {
-					_id: { $toString: '$_id' },
-					studentName: {
-						$concat: [
-							{ $ifNull: ['$studentDoc.firstName', ''] },
-							' ',
-							{ $ifNull: ['$studentDoc.lastName', ''] }
-						]
-					},
-					studentEmail: { $ifNull: ['$studentDoc.email', 'N/A'] },
-					profilePhotoUrl: { $ifNull: ['$studentDoc.profilePhotoUrl', null] },
-					totalItems: 1,
-					cleanItems: 1,
-					trustScore: { $round: ['$trustScore', 1] }
-				}
-			},
-			{ $match: { totalItems: { $gte: 3 } } },
-			{ $sort: { trustScore: 1 } }, // lowest trust first
-			{ $limit: 10 }
-		]).toArray();
+			)
+			.sort({ updatedAt: -1, createdAt: -1, lastName: 1, firstName: 1 })
+			.toArray();
+
+		const trustScores = (await Promise.all(
+			studentRecords.map(async (student) => {
+				if (!student._id) return null;
+				const stats = await computeStudentStatistics(student._id.toString(), 'all');
+				return {
+					_id: student._id.toString(),
+					studentName: `${student.firstName} ${student.lastName}`.trim() || 'Unknown',
+					studentEmail: student.email,
+					profilePhotoUrl: student.profilePhotoUrl ?? null,
+					trustScore: stats.trustScore.score,
+					trustTier: stats.trustScore.tier,
+					trustTierLabel: stats.trustScore.tierLabel,
+					totalPenalties: stats.trustScore.totalPenalties,
+					totalBonuses: stats.trustScore.totalBonuses,
+					requestsTotal: stats.requests.total,
+					requestsReturned: stats.requests.returned,
+					activeObligations: stats.replacement.pendingCount,
+					dataQuality: stats.dataQuality
+				};
+			})
+		)) as Array<TrustScoreRow | null>;
+
+		const uniqueTrustScores = new Map<string, NonNullable<(typeof trustScores)[number]>>();
+		for (const entry of trustScores) {
+			if (!entry) continue;
+			const key = entry.studentEmail.trim().toLowerCase();
+			const existing = uniqueTrustScores.get(key);
+			if (!existing) {
+				uniqueTrustScores.set(key, { ...entry, duplicateCount: 1 });
+				continue;
+			}
+
+			uniqueTrustScores.set(key, {
+				...existing,
+				duplicateCount: (existing.duplicateCount ?? 1) + 1,
+				// Keep the newest record when duplicates exist so the report shows one canonical row per email.
+				_id: existing._id,
+				studentName: existing.studentName,
+				studentEmail: existing.studentEmail,
+				profilePhotoUrl: existing.profilePhotoUrl
+			});
+		}
 
 		// ── Assemble response ─────────────────────────────────────────────────
 
@@ -696,6 +744,24 @@ export const GET: RequestHandler = async (event) => {
 				}))
 			},
 			inventory: {
+				summary: {
+					currentCount: inventorySummary[0]?.currentCount ?? 0,
+					eomCount: inventorySummary[0]?.eomCount ?? 0,
+					variance: inventorySummary[0]?.variance ?? 0,
+					donations: inventorySummary[0]?.donations ?? 0,
+					constantCount: inventorySummary[0]?.constantCount ?? 0,
+					lowStockCount: inventorySummary[0]?.lowStockCount ?? 0
+				},
+				constantItems: constantItems.map((item) => ({
+					id: item._id?.toString() ?? '',
+					name: item.name,
+					category: item.category,
+					quantity: item.quantity,
+					eomCount: item.eomCount,
+					variance: item.variance,
+					donations: item.donations,
+					status: item.status
+				})),
 				mostBorrowedItems: mostBorrowedItems.map((i) => ({
 					id: i._id?.toString() ?? '',
 					name: i.name,
@@ -703,7 +769,7 @@ export const GET: RequestHandler = async (event) => {
 					totalBorrows: i.totalBorrows,
 					totalQuantity: i.totalQuantity
 				})),
-				itemsCurrentlyOut,
+				itemsCurrentlyOut: itemsCurrentlyOut,
 				damageRateItems: damageRateItems.map((i) => ({
 					id: i._id?.toString() ?? '',
 					name: i.name,
@@ -726,7 +792,8 @@ export const GET: RequestHandler = async (event) => {
 				resolutionBreakdown: resolutionBreakdown.map((r) => ({
 					type: r._id,
 					count: r.count,
-					total: r.total
+					total: r.total,
+					totalAmount: r.total
 				})),
 				avgResolutionDays: Math.round(((avgResolutionDays[0]?.avgDays ?? 0)) * 10) / 10,
 				obligationsByCategory: obligationsByCategory.map((o) => ({
@@ -739,6 +806,7 @@ export const GET: RequestHandler = async (event) => {
 					year: m._id.year,
 					month: m._id.month,
 					collected: m.collected,
+					totalAmount: m.collected,
 					count: m.count
 				})),
 				donationTotals: donationTotals.map((d) => ({
@@ -756,7 +824,7 @@ export const GET: RequestHandler = async (event) => {
 					...s,
 					daysOverdue: Math.round(s.daysOverdue * 10) / 10
 				})),
-				trustScores
+				trustScores: [...uniqueTrustScores.values()]
 			}
 		};
 

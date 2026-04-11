@@ -74,6 +74,26 @@ export interface EomVarianceItem {
 	variance: number;
 }
 
+export interface InventorySummary {
+	currentCount: number;
+	eomCount: number;
+	variance: number;
+	donations: number;
+	constantCount: number;
+	lowStockCount: number;
+}
+
+export interface ConstantInventoryItem {
+	id: string;
+	name: string;
+	category: string;
+	quantity: number;
+	eomCount: number;
+	variance: number;
+	donations: number;
+	status: string;
+}
+
 export interface StockAlert {
 	_id: string;
 	name: string;
@@ -93,6 +113,7 @@ export interface ResolutionBreakdownItem {
 	type: string;
 	count: number;
 	total: number;
+	totalAmount?: number;
 }
 
 export interface ObligationByCategory {
@@ -106,6 +127,7 @@ export interface MonthlyReplacementActivity {
 	year: number;
 	month: number;
 	totalAmount: number; // Total items replaced this month
+	collected?: number;
 	count: number; // Number of obligations resolved
 }
 
@@ -122,7 +144,20 @@ export interface StudentRiskEntry {
 	studentName: string;
 	studentEmail: string;
 	profilePhotoUrl: string | null;
+	trustTier?: 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
+	trustTierLabel?: string;
+	duplicateCount?: number;
+	totalPenalties?: number;
+	totalBonuses?: number;
+	requestsTotal?: number;
+	requestsReturned?: number;
 	activeObligations?: number;
+	dataQuality?: {
+		inspectionCoverage: number;
+		returnTimestampCoverage: number;
+		inspectedReturnCount: number;
+		returnedCount: number;
+	};
 	totalBalance?: number;
 	incidents?: number;
 	missingCount?: number;
@@ -150,6 +185,8 @@ export interface AnalyticsReport {
 		peakHeatmap: PeakHeatmapPoint[];
 	};
 	inventory: {
+		summary: InventorySummary;
+		constantItems: ConstantInventoryItem[];
 		mostBorrowedItems: MostBorrowedItem[];
 		itemsCurrentlyOut: ItemCurrentlyOut[];
 		damageRateItems: DamageRateItem[];
@@ -180,6 +217,7 @@ interface CacheEntry {
 }
 
 const CLIENT_CACHE_TTL_MS = 3_600_000; // 1 hour - aligned with server cache and session timeout
+const CLIENT_CACHE_VERSION = 'v3';
 const cache = new Map<string, CacheEntry>();
 
 function getCached(key: string): AnalyticsReport | null {
@@ -210,9 +248,55 @@ export interface FetchAnalyticsOptions {
 	forceRefresh?: boolean;
 }
 
+function normalizeAnalyticsReport(raw: AnalyticsReport): AnalyticsReport {
+	const inventory = raw.inventory ?? ({} as AnalyticsReport['inventory']);
+	const replacement = raw.replacement ?? ({} as AnalyticsReport['replacement']);
+
+	return {
+		...raw,
+		inventory: {
+			...inventory,
+			summary: inventory.summary ?? {
+				currentCount: 0,
+				eomCount: 0,
+				variance: 0,
+				donations: 0,
+				constantCount: 0,
+				lowStockCount: 0
+			},
+			constantItems: inventory.constantItems ?? [],
+			mostBorrowedItems: inventory.mostBorrowedItems ?? [],
+			itemsCurrentlyOut: inventory.itemsCurrentlyOut ?? [],
+			damageRateItems: inventory.damageRateItems ?? [],
+			eomVariance: inventory.eomVariance ?? [],
+			stockAlerts: inventory.stockAlerts ?? []
+		},
+		replacement: {
+			...replacement,
+			summary: replacement.summary ?? {
+				totalItemsPending: 0,
+				totalItemsReplaced: 0,
+				totalObligations: 0,
+				pendingCount: 0
+			},
+			resolutionBreakdown: (replacement.resolutionBreakdown ?? []).map((row) => ({
+				...row,
+				totalAmount: row.totalAmount ?? row.total ?? 0
+			})),
+			monthlyActivity: (replacement.monthlyActivity ?? []).map((row) => ({
+				...row,
+				totalAmount: row.totalAmount ?? row.collected ?? 0
+			})),
+			donationTotals: replacement.donationTotals ?? [],
+			obligationsByCategory: replacement.obligationsByCategory ?? [],
+			avgResolutionDays: replacement.avgResolutionDays ?? 0
+		}
+	};
+}
+
 export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<AnalyticsReport> {
 	const { period = 'month', from, to, forceRefresh = false } = opts;
-	const cacheKey = `analytics:${period}:${from ?? ''}:${to ?? ''}`;
+	const cacheKey = `analytics:${CLIENT_CACHE_VERSION}:${period}:${from ?? ''}:${to ?? ''}`;
 
 	if (!forceRefresh) {
 		const cached = getCached(cacheKey);
@@ -240,7 +324,7 @@ export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<
 				throw new Error(body.error ?? `Analytics request failed: ${res.status}`);
 			}
 
-			const data = (await res.json()) as AnalyticsReport;
+			const data = normalizeAnalyticsReport((await res.json()) as AnalyticsReport);
 			setCached(cacheKey, data);
 			return data;
 		} catch (error) {
