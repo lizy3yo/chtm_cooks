@@ -67,6 +67,8 @@
 	let unsubscribeSSE: (() => void) | null = null;
 	let refreshTimer: ReturnType<typeof setInterval> | null = null;
 	let hasMounted = false;
+	let reportRequestInFlight = false;
+	let queuedForceRefresh = false;
 
 	let activeTab = $state<Tab>('executive');
 	let period = $state<AnalyticsPeriod>('month');
@@ -152,6 +154,13 @@
 
 	async function loadReport(forceRefresh = false): Promise<void> {
 		if (!browser) return;
+
+		if (reportRequestInFlight) {
+			queuedForceRefresh = queuedForceRefresh || forceRefresh;
+			return;
+		}
+
+		reportRequestInFlight = true;
 		if (forceRefresh || !report) {
 			loading = true;
 		}
@@ -169,6 +178,12 @@
 			toastStore.error(error, 'Analytics');
 		} finally {
 			loading = false;
+			reportRequestInFlight = false;
+
+			if (queuedForceRefresh) {
+				queuedForceRefresh = false;
+				void loadReport(true);
+			}
 		}
 	}
 

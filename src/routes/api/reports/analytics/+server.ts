@@ -14,17 +14,18 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getDatabase } from '$lib/server/db/mongodb';
+import { ObjectId } from 'mongodb';
 import { getUserFromToken } from '$lib/server/middleware/auth/verify';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { cacheService } from '$lib/server/cache';
 import { logger } from '$lib/server/utils/logger';
 import { parallelAggregations, ANALYTICS_AGGREGATION_OPTIONS } from '$lib/server/utils/queryOptimizer';
-import { computeStudentStatistics } from '$lib/server/services/statistics';
 import { UserRole, type User } from '$lib/server/models/User';
 
 const ANALYTICS_CACHE_TAG = 'reports-analytics';
 const CACHE_TTL = 3600; // 1 hour - aligned with session timeout
 const ANALYTICS_CACHE_VERSION = 'v3';
+const TRUST_SCORE_STUDENT_LIMIT = 200;
 
 const ALLOWED_ROLES = new Set(['instructor', 'custodian', 'superadmin']);
 
@@ -41,8 +42,48 @@ type TrustScoreRow = {
 	requestsTotal: number;
 	requestsReturned: number;
 	activeObligations: number;
-	dataQuality: Awaited<ReturnType<typeof computeStudentStatistics>>['dataQuality'];
+	dataQuality: {
+		inspectionCoverage: number;
+		returnTimestampCoverage: number;
+		inspectedReturnCount: number;
+		returnedCount: number;
+	};
 	duplicateCount?: number;
+};
+
+type BorrowRequestLite = {
+	studentId?: unknown;
+	status?: string;
+	approvedAt?: Date | null;
+	returnedAt?: Date | null;
+	returnDate?: Date | null;
+	items?: Array<{
+		inspection?: {
+			status?: string;
+		};
+	}>;
+};
+
+type ReplacementObligationLite = {
+	studentId?: unknown;
+	status?: string;
+};
+
+type BatchedTrustStats = {
+	trustScore: number;
+	trustTier: string;
+	trustTierLabel: string;
+	totalPenalties: number;
+	totalBonuses: number;
+	requestsTotal: number;
+	requestsReturned: number;
+	activeObligations: number;
+	dataQuality: {
+		inspectionCoverage: number;
+		returnTimestampCoverage: number;
+		inspectedReturnCount: number;
+		returnedCount: number;
+	};
 };
 
 function getPeriodRange(period: string, from?: string, to?: string): { start: Date; end: Date } {
@@ -66,6 +107,142 @@ function getPeriodRange(period: string, from?: string, to?: string): { start: Da
 	}
 	start.setHours(0, 0, 0, 0);
 	return { start, end };
+}
+
+function trustTierFromScore(score: number): { tier: string; label: string } {
+	if (score >= 90) return { tier: 'excellent', label: 'Excellent' };
+	if (score >= 75) return { tier: 'good', label: 'Good Standing' };
+	if (score >= 60) return { tier: 'fair', label: 'Fair' };
+	if (score >= 40) return { tier: 'poor', label: 'Poor' };
+	return { tier: 'critical', label: 'Critical' };
+}
+
+function computeTrustStatsForStudent(
+	requests: BorrowRequestLite[],
+	obligations: ReplacementObligationLite[]
+): BatchedTrustStats {
+	let missingItemPenalty = 0;
+	let damagedItemPenalty = 0;
+	let lateReturnPenalty = 0;
+	let cancelledAfterApprovalPenalty = 0;
+	let pendingObligationPenalty = 0;
+	let cleanReturnBonus = 0;
+	let resolvedObligationBonus = 0;
+
+	let requestsReturned = 0;
+	let returnedCount = 0;
+	let inspectedReturnCount = 0;
+	let returnTimestampCoverageCount = 0;
+
+	for (const req of requests) {
+		const status = req.status ?? '';
+		if (status === 'returned') {
+			requestsReturned += 1;
+			returnedCount += 1;
+		}
+
+		const isTerminal = status === 'returned' || status === 'missing';
+		if (!isTerminal) continue;
+
+		const items = req.items ?? [];
+		let hasIssue = false;
+		let allItemsInspected = items.length > 0;
+		let allInspectionsGood = items.length > 0;
+
+		for (const item of items) {
+			const inspection = item.inspection;
+			if (!inspection) {
+				allItemsInspected = false;
+				allInspectionsGood = false;
+				continue;
+			}
+
+			inspectedReturnCount += 1;
+
+			if (inspection.status === 'missing') {
+				missingItemPenalty += 15;
+				hasIssue = true;
+				allInspectionsGood = false;
+			} else if (inspection.status === 'damaged') {
+				damagedItemPenalty += 10;
+				hasIssue = true;
+				allInspectionsGood = false;
+			} else if (inspection.status !== 'good') {
+				allInspectionsGood = false;
+			}
+		}
+
+		let returnedOnTime = false;
+		if (status === 'returned' && req.returnedAt && req.returnDate) {
+			returnTimestampCoverageCount += 1;
+			const returnedAt = new Date(req.returnedAt);
+			const dueDate = new Date(req.returnDate);
+			if (returnedAt > dueDate) {
+				const daysLate = Math.ceil((returnedAt.getTime() - dueDate.getTime()) / 86_400_000);
+				lateReturnPenalty += Math.min(daysLate * 2, 15);
+				hasIssue = true;
+			} else {
+				returnedOnTime = true;
+			}
+		}
+
+		if (status === 'cancelled' && req.approvedAt) {
+			cancelledAfterApprovalPenalty += 3;
+		}
+
+		if (
+			status === 'returned' &&
+			returnedOnTime &&
+			allItemsInspected &&
+			allInspectionsGood &&
+			!hasIssue
+		) {
+			cleanReturnBonus += 3;
+		}
+	}
+
+	let activeObligations = 0;
+	for (const obl of obligations) {
+		if (obl.status === 'pending') {
+			pendingObligationPenalty += 3;
+			activeObligations += 1;
+		} else if (obl.status === 'replaced' || obl.status === 'waived') {
+			resolvedObligationBonus += 2;
+		}
+	}
+
+	const totalPenalties =
+		missingItemPenalty +
+		damagedItemPenalty +
+		lateReturnPenalty +
+		cancelledAfterApprovalPenalty +
+		pendingObligationPenalty;
+	const totalBonuses = cleanReturnBonus + resolvedObligationBonus;
+	const trustScore = Math.max(0, Math.min(100, 100 - totalPenalties + totalBonuses));
+	const trustTier = trustTierFromScore(trustScore);
+
+	return {
+		trustScore,
+		trustTier: trustTier.tier,
+		trustTierLabel: trustTier.label,
+		totalPenalties,
+		totalBonuses,
+		requestsTotal: requests.length,
+		requestsReturned,
+		activeObligations,
+		dataQuality: {
+			inspectionCoverage:
+				returnedCount > 0
+					? Math.round((inspectedReturnCount / returnedCount) * 100)
+					: 100,
+			returnTimestampCoverage:
+				returnedCount > 0
+					? Math.round((returnTimestampCoverageCount / returnedCount) * 100)
+					: 100,
+			inspectedReturnCount,
+			returnedCount
+		}
+	};
 }
 
 export const GET: RequestHandler = async (event) => {
@@ -651,10 +828,25 @@ export const GET: RequestHandler = async (event) => {
 			{ $limit: 10 }
 		]).toArray();
 
-		// Trust scores for every student account, computed with the same service used by student analytics.
+		// Trust scores are scoped to active students in the selected period.
+		// This keeps dashboard latency predictable and avoids full-database scans.
+		const activeStudentIds = await borrowRequests.aggregate([
+			{ $match: { createdAt: { $gte: start, $lte: end }, studentId: { $exists: true } } },
+			{ $group: { _id: '$studentId', latestRequest: { $max: '$createdAt' } } },
+			{ $sort: { latestRequest: -1 } },
+			{ $limit: TRUST_SCORE_STUDENT_LIMIT }
+		], ANALYTICS_AGGREGATION_OPTIONS).toArray();
+
+		const studentObjectIds = activeStudentIds
+			.map((row) => row._id)
+			.filter((id): id is ObjectId => id instanceof ObjectId);
+
 		const studentRecords = await db.collection<User>('users')
 			.find(
-				{ role: UserRole.STUDENT },
+				{
+					role: UserRole.STUDENT,
+					...(studentObjectIds.length > 0 ? { _id: { $in: studentObjectIds } } : {})
+				},
 				{
 					projection: {
 						password: 0,
@@ -664,29 +856,78 @@ export const GET: RequestHandler = async (event) => {
 				}
 			)
 			.sort({ updatedAt: -1, createdAt: -1, lastName: 1, firstName: 1 })
+			.limit(TRUST_SCORE_STUDENT_LIMIT)
 			.toArray();
 
-		const trustScores = (await Promise.all(
-			studentRecords.map(async (student) => {
-				if (!student._id) return null;
-				const stats = await computeStudentStatistics(student._id.toString(), 'all');
-				return {
-					_id: student._id.toString(),
-					studentName: `${student.firstName} ${student.lastName}`.trim() || 'Unknown',
-					studentEmail: student.email,
-					profilePhotoUrl: student.profilePhotoUrl ?? null,
-					trustScore: stats.trustScore.score,
-					trustTier: stats.trustScore.tier,
-					trustTierLabel: stats.trustScore.tierLabel,
-					totalPenalties: stats.trustScore.totalPenalties,
-					totalBonuses: stats.trustScore.totalBonuses,
-					requestsTotal: stats.requests.total,
-					requestsReturned: stats.requests.returned,
-					activeObligations: stats.replacement.pendingCount,
-					dataQuality: stats.dataQuality
-				};
-			})
-		)) as Array<TrustScoreRow | null>;
+		const [allStudentRequests, allStudentObligations] = await Promise.all([
+			borrowRequests
+				.find(
+					{
+						studentId: { $in: studentObjectIds },
+						createdAt: { $gte: start, $lte: end }
+					},
+					{
+						projection: {
+							studentId: 1,
+							status: 1,
+							approvedAt: 1,
+							returnedAt: 1,
+							returnDate: 1,
+							'items.inspection.status': 1
+						}
+					}
+				)
+				.toArray(),
+			obligations
+				.find(
+					{ studentId: { $in: studentObjectIds } },
+					{ projection: { studentId: 1, status: 1 } }
+				)
+				.toArray()
+		]);
+
+		const requestsByStudent = new Map<string, BorrowRequestLite[]>();
+		for (const req of allStudentRequests as BorrowRequestLite[]) {
+			if (!req.studentId) continue;
+			const key = String(req.studentId);
+			const bucket = requestsByStudent.get(key) ?? [];
+			bucket.push(req);
+			requestsByStudent.set(key, bucket);
+		}
+
+		const obligationsByStudent = new Map<string, ReplacementObligationLite[]>();
+		for (const obl of allStudentObligations as ReplacementObligationLite[]) {
+			if (!obl.studentId) continue;
+			const key = String(obl.studentId);
+			const bucket = obligationsByStudent.get(key) ?? [];
+			bucket.push(obl);
+			obligationsByStudent.set(key, bucket);
+		}
+
+		const trustScores = studentRecords.map((student) => {
+			if (!student._id) return null;
+			const studentId = student._id.toString();
+			const stats = computeTrustStatsForStudent(
+				requestsByStudent.get(studentId) ?? [],
+				obligationsByStudent.get(studentId) ?? []
+			);
+
+			return {
+				_id: studentId,
+				studentName: `${student.firstName} ${student.lastName}`.trim() || 'Unknown',
+				studentEmail: student.email,
+				profilePhotoUrl: student.profilePhotoUrl ?? null,
+				trustScore: stats.trustScore,
+				trustTier: stats.trustTier,
+				trustTierLabel: stats.trustTierLabel,
+				totalPenalties: stats.totalPenalties,
+				totalBonuses: stats.totalBonuses,
+				requestsTotal: stats.requestsTotal,
+				requestsReturned: stats.requestsReturned,
+				activeObligations: stats.activeObligations,
+				dataQuality: stats.dataQuality
+			};
+		}) as Array<TrustScoreRow | null>;
 
 		const uniqueTrustScores = new Map<string, NonNullable<(typeof trustScores)[number]>>();
 		for (const entry of trustScores) {
