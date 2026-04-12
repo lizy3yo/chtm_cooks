@@ -787,8 +787,8 @@
 				{/if}
 			</div>
 
-			<div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
-				<label class="text-xs font-semibold uppercase tracking-wide text-gray-500">Date Range</label>
+			<fieldset class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+				<legend class="text-xs font-semibold uppercase tracking-wide text-gray-500">Date Range</legend>
 				<div class="mt-2 flex flex-wrap gap-2">
 					{#each [
 						{ id: 'today', label: 'Today' },
@@ -806,11 +806,13 @@
 				</div>
 				{#if datePreset === 'custom' || customFrom || customTo}
 					<div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-						<input class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700" type="date" bind:value={customFrom} />
-						<input class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700" type="date" bind:value={customTo} />
+						<label class="sr-only" for="reports-custom-from">Start date</label>
+						<input id="reports-custom-from" class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700" type="date" bind:value={customFrom} />
+						<label class="sr-only" for="reports-custom-to">End date</label>
+						<input id="reports-custom-to" class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700" type="date" bind:value={customTo} />
 					</div>
 				{/if}
-			</div>
+			</fieldset>
 		</div>
 	</div>
 
