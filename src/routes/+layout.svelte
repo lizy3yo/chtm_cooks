@@ -7,12 +7,12 @@
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
 	import LoadingBar from '$lib/components/ui/LoadingBar.svelte';
-	import AIChatbot from '$lib/components/ui/AIChatbot.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
 
 	let { children } = $props();
 	let isLoading = $state(false);
+	let AIChatbotComponent = $state<null | typeof import('$lib/components/ui/AIChatbot.svelte').default>(null);
 	
 	// Subscribe to loading store
 	$effect(() => {
@@ -107,6 +107,10 @@
 	
 	// Initialize on mount
 	onMount(() => {
+		void import('$lib/components/ui/AIChatbot.svelte').then((module) => {
+			AIChatbotComponent = module.default;
+		});
+
 		authStore.init();
 		
 		// Add keyboard listeners
@@ -138,7 +142,9 @@
 <ConfirmDialogContainer />
 
 <!-- Global AI Chatbot -->
-<AIChatbot />
+{#if AIChatbotComponent}
+	<AIChatbotComponent />
+{/if}
 
 <!-- Shortcut Key Modals -->
 <ShortcutKeyModal 
