@@ -347,7 +347,7 @@
 				<div class="history-inline" in:fade={{ duration: 140 }}>
 					<div class="history-inline-header">
 						<div class="history-title-wrap">
-							<History size={14} class="history-icon" />
+							<History size={14} class="text-pink-700" />
 							<p class="history-title">Conversation history</p>
 						</div>
 						<div class="history-inline-actions">
@@ -603,14 +603,6 @@
 		flex-shrink: 0;
 	}
 
-	.avatar-pulse {
-		display: none;
-	}
-
-	.status-dot {
-		display: none;
-	}
-
 	@keyframes blink {
 		0%, 100% { opacity: 1; }
 		50% { opacity: 0.4; }
@@ -660,10 +652,6 @@
 		display: inline-flex;
 		align-items: center;
 		gap: 8px;
-	}
-
-	.history-icon {
-		color: #be185d;
 	}
 
 	.history-title {

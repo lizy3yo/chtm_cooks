@@ -37,20 +37,19 @@ class IndexManager {
 	/**
 	 * Create a single index
 	 */
-	async createIndex(definition: IndexDefinition): Promise<IndexCreationResult> {
+	async createIndex(
+		definition: IndexDefinition,
+		existingIndexNames?: Set<string>
+	): Promise<IndexCreationResult> {
 		const startTime = Date.now();
 
 		try {
 			const db = await this.getDb();
 			const collection = db.collection(definition.collection);
-
-			// Check if index already exists
-			const existingIndexes = await collection.indexes();
 			const indexName = definition.options?.name || this.generateIndexName(definition.fields);
 
-			const exists = existingIndexes.some((idx) => idx.name === indexName);
-
-			if (exists) {
+			if (existingIndexNames?.has(indexName)) {
+				const executionTimeMs = Date.now() - startTime;
 				logInfo(`Index already exists: ${indexName} on ${definition.collection}`);
 				return {
 					collection: definition.collection,
@@ -58,15 +57,18 @@ class IndexManager {
 					success: true,
 					action: 'exists',
 					message: `Index ${indexName} already exists`,
-					executionTimeMs: Date.now() - startTime
+					executionTimeMs
 				};
 			}
 
-			// Create the index
+			// Let MongoDB perform idempotent create/check server-side.
+			// The caller may pass a per-collection cache to avoid repeated index listings.
 			await collection.createIndex(definition.fields, {
 				...definition.options,
 				name: indexName
 			});
+
+			existingIndexNames?.add(indexName);
 
 			const executionTimeMs = Date.now() - startTime;
 
@@ -139,9 +141,22 @@ class IndexManager {
 			return aPriority - bPriority;
 		});
 
+		// Build one in-memory cache of existing indexes per collection to avoid
+		// an expensive list call for every single index definition.
+		const existingByCollection = new Map<string, Set<string>>();
+		const collections = [...new Set(sortedDefinitions.map((d) => d.collection))];
+		for (const collectionName of collections) {
+			const existing = await this.listIndexes(collectionName);
+			existingByCollection.set(
+				collectionName,
+				new Set(existing.map((idx) => idx.name).filter((name): name is string => !!name))
+			);
+		}
+
 		// Create indexes sequentially (important for consistency)
 		for (const definition of sortedDefinitions) {
-			const result = await this.createIndex(definition);
+			const existingIndexNames = existingByCollection.get(definition.collection);
+			const result = await this.createIndex(definition, existingIndexNames);
 			results.push(result);
 		}
 
@@ -240,6 +255,12 @@ class IndexManager {
 
 			return await collection.indexes();
 		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			if (message.includes('ns does not exist') || message.includes('namespace not found')) {
+				logInfo(`Collection '${collectionName}' does not exist yet; no indexes to list.`);
+				return [];
+			}
+
 			logError(error as Error, {
 				context: 'listIndexes',
 				collection: collectionName
