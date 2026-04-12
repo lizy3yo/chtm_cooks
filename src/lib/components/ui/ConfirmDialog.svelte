@@ -69,7 +69,6 @@
 >
 	<div
 		class="w-full max-w-sm rounded-xl bg-white shadow-xl ring-1 ring-black ring-opacity-5 sm:max-w-md"
-		onclick={(e) => e.stopPropagation()}
 		transition:scale={{ duration: 200, start: 0.95, easing: quintOut }}
 	>
 		<div class="p-5 sm:p-6">

@@ -1,6 +1,7 @@
 import type { Handle, HandleServerError } from '@sveltejs/kit';
 import { sequence } from '@sveltejs/kit/hooks';
 import { dev } from '$app/environment';
+import { env } from '$env/dynamic/private';
 import { json } from '@sveltejs/kit';
 import {
 	initializeRequestContext,
@@ -17,27 +18,57 @@ import {
 } from '$lib/server/errors/errorFormatter';
 import type { AppError } from '$lib/server/errors/AppError';
 import { securityHeadersMiddleware } from '$lib/server/middleware/security';
-import { initializeIndexes } from '$lib/server/db/indexes';
+import { initializeIndexes, getCriticalIndexes, indexManager } from '$lib/server/db/indexes';
 import { attachUser } from '$lib/server/middleware/auth/verify';
 
 /**
- * Initialize database indexes on server startup
- * This ensures all required indexes are created for optimal query performance
+	* Schedule index initialization without blocking server startup.
+	*
+	* Modes (INDEX_STARTUP_MODE):
+	* - off (default): don't run automatic index sync at boot
+	* - critical: create only critical indexes
+	* - all: create all defined indexes
+	*
+	* Optional delay (INDEX_STARTUP_DELAY_MS), default 15000ms.
  */
-(async () => {
-	try {
-		logInfo('Initializing database indexes...');
-		const result = await initializeIndexes();
-		const message = `Database indexes initialized: ${result.created} created, ${result.existed} existed, ${result.failed} failed, ${result.pending} pending`;
-		logInfo(message);
-		
-		if (result.failed > 0) {
-			logWarn(`Some indexes failed to create (${result.failed} failures). Check logs for details.`);
-		}
-	} catch (error) {
-		logError(error as Error, { context: 'index-initialization' });
+function scheduleStartupIndexInitialization(): void {
+	const rawMode = (env.INDEX_STARTUP_MODE || '').trim().toLowerCase();
+	const mode: 'off' | 'critical' | 'all' =
+		rawMode === 'critical' || rawMode === 'all' ? rawMode : 'off';
+
+	if (mode === 'off') {
+		logInfo('Startup index initialization is disabled (INDEX_STARTUP_MODE=off).');
+		return;
 	}
-})();
+
+	const delayMsRaw = Number(env.INDEX_STARTUP_DELAY_MS);
+	const delayMs = Number.isFinite(delayMsRaw) && delayMsRaw >= 0 ? delayMsRaw : 15000;
+
+	setTimeout(async () => {
+		try {
+			logInfo(`Running startup index initialization in ${mode} mode...`);
+
+			const result =
+				mode === 'critical'
+					? await indexManager.createIndexes(getCriticalIndexes())
+					: await initializeIndexes();
+
+			logInfo(
+				`Startup index initialization finished: ${result.created} created, ${result.existed} existed, ${result.failed} failed, ${result.pending} pending`
+			);
+
+			if (result.failed > 0) {
+				logWarn(
+					`Some indexes failed to create during startup (${result.failed} failures). Check logs for details.`
+				);
+			}
+		} catch (error) {
+			logError(error as Error, { context: 'index-initialization' });
+		}
+	}, delayMs);
+}
+
+scheduleStartupIndexInitialization();
 
 /**
  * Request Context Handler

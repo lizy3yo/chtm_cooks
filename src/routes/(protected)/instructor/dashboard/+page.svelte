@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { user, authStore, justLoggedIn } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
-	import { fetchAnalytics, type AnalyticsReport } from '$lib/api/analyticsReports';
+	import { fetchAnalytics, peekCachedAnalytics, type AnalyticsReport } from '$lib/api/analyticsReports';
 	import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 	import {
@@ -13,8 +14,9 @@
 	} from 'lucide-svelte';
 
 	// ── state ─────────────────────────────────────────────────────────────────
-	let loading = $state(true);
-	let report = $state<AnalyticsReport | null>(null);
+	const initialReport = browser ? peekCachedAnalytics({ period: 'semester' }) : null;
+	let loading = $state(!initialReport);
+	let report = $state<AnalyticsReport | null>(initialReport);
 	let liveRequests = $state<BorrowRequestRecord[]>([]);
 	let requestsLoading = $state(true);
 	let currentTime = $state(new Date());
@@ -121,7 +123,7 @@
 			authStore.clearJustLoggedIn();
 		}
 
-		void Promise.all([load(true), loadRequests(true)]);
+		void Promise.all([load(), loadRequests()]);
 
 		const id = setInterval(() => {
 			currentTime = new Date();

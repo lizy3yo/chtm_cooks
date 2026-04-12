@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { user, authStore, justLoggedIn } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
-	import { fetchAnalytics, type AnalyticsReport } from '$lib/api/analyticsReports';
+	import { fetchAnalytics, peekCachedAnalytics, type AnalyticsReport } from '$lib/api/analyticsReports';
 	import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
 	import { confirmStore } from '$lib/stores/confirm';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -14,8 +15,9 @@
 	} from 'lucide-svelte';
 
 	// ── state ─────────────────────────────────────────────────────────────────
-	let loading = $state(true);
-	let report = $state<AnalyticsReport | null>(null);
+	const initialReport = browser ? peekCachedAnalytics({ period: 'semester' }) : null;
+	let loading = $state(!initialReport);
+	let report = $state<AnalyticsReport | null>(initialReport);
 	let liveRequests = $state<BorrowRequestRecord[]>([]);
 	let requestsLoading = $state(true);
 	let currentTime = $state(new Date());
@@ -56,11 +58,12 @@
 	const requestsOverdue = $derived(
 		requestsActive.filter(r => new Date(r.returnDate) < new Date())
 	);
+	const INVENTORY_VARIANCE_DISPLAY_LIMIT = 3;
 
 	const inventoryVarianceItems = $derived(
 		[...(report?.inventory.eomVariance ?? [])]
 			.sort((a, b) => a.variance - b.variance)
-			.slice(0, 5)
+			.slice(0, INVENTORY_VARIANCE_DISPLAY_LIMIT)
 	);
 	const negativeVarianceCount = $derived(
 		report?.inventory.eomVariance.filter((item) => item.variance < 0).length ?? 0
@@ -73,6 +76,34 @@
 	const maxBorrows = $derived(
 		Math.max(...(report?.inventory.mostBorrowedItems.map(i => i.totalBorrows) ?? [1]), 1)
 	);
+
+	const REQUEST_STATUS_ROWS = [
+		{ key: 'approved_instructor', label: 'Approved Instructor' },
+		{ key: 'ready_for_pickup', label: 'Ready for Pickup' },
+		{ key: 'borrowed', label: 'Borrowed' },
+		{ key: 'pending_return', label: 'Pending Return' }
+	] as const;
+
+	const REQUEST_STATUS_BADGE_CLASS: Record<string, string> = {
+		pending_instructor: 'bg-yellow-100 text-yellow-800',
+		approved_instructor: 'bg-blue-100 text-blue-800',
+		ready_for_pickup: 'bg-indigo-100 text-indigo-800',
+		borrowed: 'bg-violet-100 text-violet-800',
+		pending_return: 'bg-orange-100 text-orange-800',
+		returned: 'bg-emerald-100 text-emerald-800',
+		missing: 'bg-red-100 text-red-800',
+		resolved: 'bg-teal-100 text-teal-800',
+		cancelled: 'bg-gray-100 text-gray-600',
+		rejected: 'bg-rose-100 text-rose-800'
+	};
+
+	const requestBreakdownRows = $derived.by(() => {
+		const counts = new Map((report?.borrowRequests.statusBreakdown ?? []).map((item) => [item.status, item.count]));
+		return REQUEST_STATUS_ROWS.map((row) => ({
+			...row,
+			count: counts.get(row.key) ?? 0
+		}));
+	});
 
 	// ── helpers ───────────────────────────────────────────────────────────────
 	function getInitials(name: string): string {
@@ -146,7 +177,7 @@
 			toastStore.success('Welcome back! You have successfully logged in.', 'Login Successful', 5000);
 			authStore.clearJustLoggedIn();
 		}
-		void Promise.all([load(true), loadRequests(true)]);
+		void Promise.all([load(), loadRequests()]);
 		const id = setInterval(() => { currentTime = new Date(); }, 60_000);
 		return () => clearInterval(id);
 	});
@@ -434,58 +465,27 @@
 				</div>
 				<div>
 				{#if report}
-					{@const total = report.borrowRequests.statusBreakdown.reduce((s, i) => s + i.count, 0)}
-					{@const statusMeta: Record<string, string> = {
-						pending_instructor: 'bg-yellow-100 text-yellow-800',
-						approved_instructor: 'bg-blue-100 text-blue-800',
-						ready_for_pickup: 'bg-indigo-100 text-indigo-800',
-						borrowed: 'bg-violet-100 text-violet-800',
-						pending_return: 'bg-orange-100 text-orange-800',
-						returned: 'bg-emerald-100 text-emerald-800',
-						missing: 'bg-red-100 text-red-800',
-						resolved: 'bg-teal-100 text-teal-800',
-						cancelled: 'bg-gray-100 text-gray-600',
-						rejected: 'bg-rose-100 text-rose-800'
-					}}
-					{@const emptyRows = [
-						{ key: 'pending_instructor', label: 'pending instructor' },
-						{ key: 'approved_instructor', label: 'approved instructor' },
-						{ key: 'ready_for_pickup', label: 'ready for pickup' },
-						{ key: 'borrowed', label: 'borrowed' },
-						{ key: 'pending_return', label: 'pending return' }
-					]}
-					{#if total > 0}
-						<p class="mb-3 text-3xl font-bold leading-none text-gray-900">{total}</p>
-						<div class="space-y-4">
-							{#each report.borrowRequests.statusBreakdown.filter(s => s.count > 0) as item}
-								<div class="flex items-center justify-between py-0.5">
-									<span class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium {statusMeta[item.status] ?? 'bg-gray-100 text-gray-600'}">
-										{item.status.replace(/_/g, ' ')}
-									</span>
-									<span class="text-base font-semibold text-gray-700">{item.count}</span>
-								</div>
-							{/each}
-						</div>
-					{:else}
-						<p class="mb-3 text-3xl font-bold leading-none text-gray-900">0</p>
-						<div class="space-y-4">
-							{#each emptyRows as row}
-								<div class="flex items-center justify-between py-0.5">
-									<span class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium {statusMeta[row.key] ?? 'bg-gray-100 text-gray-600'}">
-										{row.label}
-									</span>
-									<span class="text-base font-semibold text-gray-700">0</span>
-								</div>
-							{/each}
-						</div>
+					{@const total = requestBreakdownRows.reduce((sum, row) => sum + row.count, 0)}
+					<p class="mb-3 text-3xl font-bold leading-none text-gray-900">{total}</p>
+					<div class="space-y-4">
+						{#each requestBreakdownRows as row}
+							<div class="flex items-center justify-between py-0.5">
+								<span class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium {REQUEST_STATUS_BADGE_CLASS[row.key] ?? 'bg-gray-100 text-gray-600'}">
+									{row.label}
+								</span>
+								<span class="text-base font-semibold text-gray-700">{row.count}</span>
+							</div>
+						{/each}
+					</div>
+					{#if total === 0}
 						<p class="mt-3 text-sm text-gray-400">No requests recorded for this period.</p>
 					{/if}
 				{:else}
 					<p class="mb-3 text-3xl font-bold leading-none text-gray-900">0</p>
 					<div class="space-y-4">
-						{#each ['pending instructor', 'approved instructor', 'ready for pickup', 'borrowed', 'pending return'] as label}
+						{#each REQUEST_STATUS_ROWS as row}
 							<div class="flex items-center justify-between py-0.5">
-								<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-sm font-medium text-gray-600">{label}</span>
+								<span class="inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium {REQUEST_STATUS_BADGE_CLASS[row.key] ?? 'bg-gray-100 text-gray-600'}">{row.label}</span>
 								<span class="text-base font-semibold text-gray-700">0</span>
 							</div>
 						{/each}
@@ -509,7 +509,7 @@
 				<div>
 				{#if report && inventoryVarianceItems.length > 0}
 					<div class="mb-3 flex items-center justify-between rounded-lg bg-gray-50 px-3 py-2">
-						<p class="text-xs font-medium text-gray-500">Items below expected count</p>
+						<p class="text-xs font-medium text-gray-500">Top {INVENTORY_VARIANCE_DISPLAY_LIMIT} items below expected count</p>
 						<span class="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-semibold text-rose-700">{negativeVarianceCount}</span>
 					</div>
 					<div class="space-y-3">

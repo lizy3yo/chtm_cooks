@@ -3,6 +3,7 @@
 	import { browser } from '$app/environment';
 	import {
 		fetchAnalytics,
+		peekCachedAnalytics,
 		subscribeToAnalyticsChanges,
 		clearAnalyticsCache,
 		type AnalyticsReport,
@@ -51,13 +52,23 @@
 
 	const SAVED_VIEWS_KEY = 'custodian-analytics-saved-views-v1';
 	const HOME_PREF_KEY = 'custodian-homepage-report-v1';
+	const initialReport = browser
+		? peekCachedAnalytics({
+				period: 'month',
+				from: monthStartISO(),
+				to: todayISO()
+			})
+		: null;
 
-	let report = $state<AnalyticsReport | null>(null);
-	let loading = $state(true);
+	let report = $state<AnalyticsReport | null>(initialReport);
+	let loading = $state(!initialReport);
 	let error = $state<string | null>(null);
-	let lastUpdated = $state<Date | null>(null);
+	let lastUpdated = $state<Date | null>(initialReport ? new Date(initialReport.meta.generatedAt) : null);
 	let unsubscribeSSE: (() => void) | null = null;
 	let refreshTimer: ReturnType<typeof setInterval> | null = null;
+	let hasMounted = false;
+	let reportRequestInFlight = false;
+	let queuedForceRefresh = false;
 
 	let activeTab = $state<Tab>('executive');
 	let period = $state<AnalyticsPeriod>('month');
@@ -143,7 +154,16 @@
 
 	async function loadReport(forceRefresh = false): Promise<void> {
 		if (!browser) return;
-		loading = true;
+
+		if (reportRequestInFlight) {
+			queuedForceRefresh = queuedForceRefresh || forceRefresh;
+			return;
+		}
+
+		reportRequestInFlight = true;
+		if (forceRefresh || !report) {
+			loading = true;
+		}
 		error = null;
 		try {
 			report = await fetchAnalytics({
@@ -158,6 +178,12 @@
 			toastStore.error(error, 'Analytics');
 		} finally {
 			loading = false;
+			reportRequestInFlight = false;
+
+			if (queuedForceRefresh) {
+				queuedForceRefresh = false;
+				void loadReport(true);
+			}
 		}
 	}
 
@@ -673,7 +699,8 @@
 	onMount(() => {
 		applyPreset('mtd');
 		hydrateFromUrl();
-		loadReport();
+		void loadReport();
+		hasMounted = true;
 		unsubscribeSSE = subscribeToAnalyticsChanges(() => loadReport(true));
 
 		try {
@@ -693,7 +720,8 @@
 		period;
 		customFrom;
 		customTo;
-		loadReport();
+		if (!hasMounted) return;
+		void loadReport();
 	});
 
 	$effect(() => {
@@ -774,8 +802,8 @@
 				{/if}
 			</div>
 
-			<div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
-				<label class="text-xs font-semibold uppercase tracking-wide text-gray-500">Date Range</label>
+			<fieldset class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+				<legend class="text-xs font-semibold uppercase tracking-wide text-gray-500">Date Range</legend>
 				<div class="mt-2 flex flex-wrap gap-2">
 					{#each [
 						{ id: 'today', label: 'Today' },
@@ -793,11 +821,13 @@
 				</div>
 				{#if datePreset === 'custom' || customFrom || customTo}
 					<div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-						<input class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700" type="date" bind:value={customFrom} />
-						<input class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700" type="date" bind:value={customTo} />
+						<label class="sr-only" for="reports-custom-from">Start date</label>
+						<input id="reports-custom-from" class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700" type="date" bind:value={customFrom} />
+						<label class="sr-only" for="reports-custom-to">End date</label>
+						<input id="reports-custom-to" class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-700" type="date" bind:value={customTo} />
 					</div>
 				{/if}
-			</div>
+			</fieldset>
 		</div>
 	</div>
 
