@@ -13,7 +13,7 @@ export const POST: RequestHandler = async (event) => {
 	const { request, getClientAddress } = event;
 	
 	// Apply rate limiting
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.INVENTORY_IMAGE_UPLOAD);
 	if (rateLimitResult instanceof Response) {
 		return rateLimitResult;
 	}
@@ -63,6 +63,11 @@ export const POST: RequestHandler = async (event) => {
 
 	} catch (error) {
 		logger.error('Error uploading image', { error });
-		return json({ error: 'Failed to upload image' }, { status: 500 });
+		const message = error instanceof Error ? error.message : 'Failed to upload image';
+		const isValidationError =
+			message.toLowerCase().includes('file size exceeds') ||
+			message.toLowerCase().includes('invalid file type') ||
+			message.toLowerCase().includes('no file provided');
+		return json({ error: message }, { status: isValidationError ? 400 : 500 });
 	}
 };

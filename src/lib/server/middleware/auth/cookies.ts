@@ -10,6 +10,7 @@
 
 import type { RequestEvent } from '@sveltejs/kit';
 import { dev } from '$app/environment';
+import { type UserRole } from '$lib/server/models/User';
 
 // Cookie configuration
 export const AUTH_COOKIES = {
@@ -20,8 +21,17 @@ export const AUTH_COOKIES = {
 // Token expiration durations (in seconds)
 export const TOKEN_EXPIRY = {
 	ACCESS: 60 * 60, // 1 hour
+	STAFF_ACCESS: 12 * 60 * 60, // 12 hours for custodian/instructor
 	REFRESH: 7 * 24 * 60 * 60, // 7 days
 } as const;
+
+export function getAccessTokenMaxAge(role: UserRole): number {
+	if (role === 'custodian' || role === 'instructor') {
+		return TOKEN_EXPIRY.STAFF_ACCESS;
+	}
+
+	return TOKEN_EXPIRY.ACCESS;
+}
 
 /**
  * Cookie options for secure authentication
@@ -37,11 +47,11 @@ const getCookieOptions = (maxAge: number) => ({
 /**
  * Set access token in httpOnly cookie
  */
-export function setAccessTokenCookie(event: RequestEvent, token: string): void {
+export function setAccessTokenCookie(event: RequestEvent, token: string, maxAge = TOKEN_EXPIRY.ACCESS): void {
 	event.cookies.set(
 		AUTH_COOKIES.ACCESS_TOKEN,
 		token,
-		getCookieOptions(TOKEN_EXPIRY.ACCESS)
+		getCookieOptions(maxAge)
 	);
 }
 
@@ -92,8 +102,9 @@ export function clearAuthCookies(event: RequestEvent): void {
 export function setAuthTokens(
 	event: RequestEvent,
 	accessToken: string,
-	refreshToken: string
+	refreshToken: string,
+	accessTokenMaxAge = TOKEN_EXPIRY.ACCESS
 ): void {
-	setAccessTokenCookie(event, accessToken);
+	setAccessTokenCookie(event, accessToken, accessTokenMaxAge);
 	setRefreshTokenCookie(event, refreshToken);
 }

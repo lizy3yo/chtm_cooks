@@ -34,10 +34,13 @@ function getCurrentCount(quantity: number, donations = 0): number {
 
 export const POST: RequestHandler = async (event) => {
 	const { request, getClientAddress } = event;
+	const isImportContext = request.headers.get('x-import-context') === '1';
 
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.INVENTORY_IMPORT);
-	if (rateLimitResult instanceof Response) {
-		return rateLimitResult;
+	if (!isImportContext) {
+		const rateLimitResult = await rateLimit(event, RateLimitPresets.INVENTORY_IMPORT);
+		if (rateLimitResult instanceof Response) {
+			return rateLimitResult;
+		}
 	}
 
 	try {

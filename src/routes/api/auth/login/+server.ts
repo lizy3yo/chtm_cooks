@@ -8,7 +8,7 @@ import type { LoginRequest, User, UserResponse } from '$lib/server/models/User';
 import { rateLimit, RateLimitPresets, applyRateLimitHeaders, markRequestSuccess } from '$lib/server/middleware/rateLimit';
 import { rememberMeService } from '$lib/server/services/auth';
 import { setRememberMeCookie, getDeviceInfo } from '$lib/server/middleware/auth/rememberMe';
-import { setAuthTokens } from '$lib/server/middleware/auth/cookies';
+import { setAuthTokens, getAccessTokenMaxAge } from '$lib/server/middleware/auth/cookies';
 
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
@@ -88,7 +88,7 @@ export const POST: RequestHandler = async (event) => {
 		const refreshToken = generateRefreshToken(tokenPayload);
 
 		// Set tokens in httpOnly cookies (secure, production-grade)
-		setAuthTokens(event, accessToken, refreshToken);
+		setAuthTokens(event, accessToken, refreshToken, getAccessTokenMaxAge(user.role));
 
 		// Prepare user response (NO TOKENS in response body)
 		const userResponse: UserResponse = {

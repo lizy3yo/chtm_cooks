@@ -46,7 +46,7 @@ export class CloudinaryProvider implements StorageProvider {
 					{
 						folder: options.folder || 'inventory',
 						resource_type: 'image',
-						allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+						allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
 						transformation: [
 							{
 								quality: 'auto:good', // Automatic quality optimization

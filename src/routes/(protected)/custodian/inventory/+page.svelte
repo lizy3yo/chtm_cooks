@@ -54,6 +54,7 @@
 	let importing = $state(false);
 	let importStep = $state<'upload' | 'preview' | 'complete'>('upload');
 	let importImageFiles = $state<Map<string, File>>(new Map());
+	let importAmbiguousImageNames = $state<Set<string>>(new Set());
 	let importProgress = $state({ current: 0, total: 0, message: '' });
 	let isDraggingOver = $state(false);
 	let importPreviewImageUrl = $state<string | null>(null); // lightbox for import preview
@@ -61,6 +62,13 @@
 	let showFormatGuide = $state(false); // collapsible format guide
 	const INVENTORY_FETCH_PAGE_SIZE = 500;
 	const IMPORT_BATCH_SIZE = 100;
+	const IMPORT_UPDATE_CONCURRENCY = 6;
+	const IMPORT_PARSE_YIELD_EVERY = 150;
+	const IMPORT_RECOMMENDED_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+	const IMPORT_RECOMMENDED_FILE_SIZE_LABEL = '25 MB';
+	const IMPORT_HARD_FILE_SIZE_BYTES = 512 * 1024 * 1024;
+	const IMPORT_HARD_FILE_SIZE_LABEL = '512 MB';
+	let importSessionId = 0;
 
 	// Load data on component mount
 	onMount(async () => {
@@ -101,7 +109,9 @@
 	// Real-time inventory updates via SSE
 	onMount(() => {
 		const unsub = subscribeToInventoryChanges(() => {
+			console.log('[DEBUG] Inventory change detected, invalidating cache and reloading');
 			inventoryStore.invalidateAll();
+			// Force reload from API by invalidating cache first
 			loadItems();
 			loadCategories();
 		});
@@ -110,6 +120,29 @@
 
 	function delay(ms: number): Promise<void> {
 		return new Promise(resolve => setTimeout(resolve, ms));
+	}
+
+	async function yieldToMainThread(): Promise<void> {
+		await new Promise<void>((resolve) => setTimeout(resolve, 0));
+	}
+
+	async function runWithConcurrency<T>(
+		entries: T[],
+		concurrency: number,
+		handler: (entry: T, index: number) => Promise<void>
+	): Promise<void> {
+		if (entries.length === 0) return;
+		let nextIndex = 0;
+		const workerCount = Math.max(1, Math.min(concurrency, entries.length));
+		const workers = Array.from({ length: workerCount }, async () => {
+			while (true) {
+				const current = nextIndex;
+				nextIndex += 1;
+				if (current >= entries.length) break;
+				await handler(entries[current], current);
+			}
+		});
+		await Promise.all(workers);
 	}
 
 	function normalizeKeyPart(value: string | undefined | null): string {
@@ -152,7 +185,7 @@
 
 		while (true) {
 			try {
-				return await inventoryItemsAPI.create(itemData);
+				return await inventoryItemsAPI.createForImport(itemData);
 			} catch (err: any) {
 				const message = err?.message || '';
 				const isRateLimited = /429|too many requests/i.test(message);
@@ -173,7 +206,7 @@
 
 		while (true) {
 			try {
-				return await inventoryItemsAPI.update(itemId, itemData);
+				return await inventoryItemsAPI.updateForImport(itemId, itemData);
 			} catch (err: any) {
 				const message = err?.message || '';
 				const isRateLimited = /429|too many requests/i.test(message);
@@ -194,18 +227,19 @@
 	 */
 	async function loadItems() {
 		try {
-			// Check if cache is still valid
-			if (inventoryStore.isItemsCacheValid()) {
-				// Use cached data
-				const storeData = get(inventoryStore);
-				items = storeData.items;
-				return;
-			}
-
+			// Always invalidate cache before checking to ensure fresh data
+			inventoryStore.invalidateItems();
+			
 			loading = true;
 			inventoryStore.setLoading(true);
 
 			items = await fetchAllInventoryItems(true);
+			
+			console.log('[DEBUG] Loaded items from API:', items.length);
+			if (items.length > 0) {
+				console.log('[DEBUG] First item:', items[0]);
+				console.log('[DEBUG] First item picture:', items[0].picture);
+			}
 
 			// Update cache
 			inventoryStore.setItems(items);
@@ -346,6 +380,17 @@ const filteredItems = $derived(items.filter(item => {
 const sortedItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)));
 const totalPages = $derived(Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE)));
 const displayItems = $derived(sortedItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE));
+
+// Debug logging for display items
+$effect(() => {
+	if (displayItems.length > 0) {
+		console.log('[DEBUG] Display items count:', displayItems.length);
+		console.log('[DEBUG] First display item:', displayItems[0]);
+		console.log('[DEBUG] First display item picture:', displayItems[0].picture);
+		console.log('[DEBUG] Picture type:', typeof displayItems[0].picture);
+		console.log('[DEBUG] Picture value:', JSON.stringify(displayItems[0].picture));
+	}
+});
 
 // Reset to page 1 when filters change
 $effect(() => {
@@ -854,14 +899,28 @@ $effect(() => {
 	}
 
 	function openImportModal() {
+		if (importing || importFile || importPreviewData.length > 0 || importProgress.total > 0) {
+			showImportModal = true;
+			return;
+		}
+
+		importSessionId += 1;
 		showImportModal = true;
 		importStep = 'upload';
 		importFile = null;
 		importPreviewData = [];
 		importErrors = [];
+		importAmbiguousImageNames = new Set();
 	}
 
 	function closeImportModal() {
+		if (importing) {
+			showImportModal = false;
+			toastStore.info('Import continues in the background. Reopen Import Items to view progress.', 'Import Running');
+			return;
+		}
+
+		importSessionId += 1;
 		showImportModal = false;
 		importPreviewImageUrl = null;
 		importPreviewImageName = '';
@@ -870,6 +929,7 @@ $effect(() => {
 		importErrors = [];
 		importStep = 'upload';
 		importImageFiles = new Map();
+		importAmbiguousImageNames = new Set();
 		importProgress = { current: 0, total: 0, message: '' };
 	}
 
@@ -889,11 +949,50 @@ $effect(() => {
 		return 'file';
 	}
 
+	function isImportSessionActive(sessionId: number): boolean {
+		return sessionId === importSessionId;
+	}
+
+	async function validateImportFile(file: File): Promise<boolean> {
+		const validExtensions = ['.csv', '.xlsx', '.xls', '.zip'];
+		const fileName = file.name.toLowerCase();
+		const isValidType = validExtensions.some((ext) => fileName.endsWith(ext));
+
+		if (!isValidType) {
+			toastStore.error('Please upload a CSV, Excel, or ZIP file (.csv, .xlsx, .xls, .zip)');
+			return false;
+		}
+
+		if (file.size > IMPORT_HARD_FILE_SIZE_BYTES) {
+			toastStore.error(
+				`File is extremely large (${formatFileSize(file.size)}). For stability, uploads above ${IMPORT_HARD_FILE_SIZE_LABEL} are blocked.`
+			);
+			return false;
+		}
+
+		if (file.size > IMPORT_RECOMMENDED_FILE_SIZE_BYTES) {
+			const proceed = await confirmStore.warning(
+				`This file is ${formatFileSize(file.size)}. Large imports are supported but may take longer to process. Continue?`,
+				'Large Import File',
+				'Continue',
+				'Cancel'
+			);
+
+			if (!proceed) {
+				toastStore.info(`Import cancelled. Recommended size is ${IMPORT_RECOMMENDED_FILE_SIZE_LABEL} for faster processing.`);
+				return false;
+			}
+		}
+
+		return true;
+	}
+
 	function removeImportFile() {
 		importFile = null;
 		importPreviewData = [];
 		importErrors = [];
 		importImageFiles = new Map();
+		importAmbiguousImageNames = new Set();
 	}
 
 	async function handleImportFileSelect(e: Event) {
@@ -901,39 +1000,38 @@ $effect(() => {
 		const file = target.files?.[0];
 		
 		if (!file) return;
+		if (!(await validateImportFile(file))) return;
 
-		// Validate file type
-		const validExtensions = ['.csv', '.xlsx', '.xls', '.zip'];
 		const fileName = file.name.toLowerCase();
-		const isValid = validExtensions.some(ext => fileName.endsWith(ext));
-
-		if (!isValid) {
-			toastStore.error('Please upload a CSV, Excel, or ZIP file (.csv, .xlsx, .xls, .zip)');
-			return;
-		}
+		const sessionId = ++importSessionId;
 
 		importFile = file;
 
 		// Handle ZIP files differently
 		if (fileName.endsWith('.zip')) {
-			await parseZipFile(file);
+			await parseZipFile(file, sessionId);
 		} else {
-			await parseImportFile(file);
+			await parseImportFile(file, sessionId);
 		}
 	}
 
-	async function parseZipFile(file: File) {
+	async function parseZipFile(file: File, sessionId: number) {
 		try {
+			if (!isImportSessionActive(sessionId)) return;
 			importing = true;
 			importErrors = [];
 			importPreviewData = [];
 			importImageFiles.clear();
 			importImageFiles = new Map();
+			importAmbiguousImageNames = new Set();
+			const duplicateBaseNames = new Set<string>();
 
 			// Import JSZip dynamically
 			const JSZip = (await import('jszip')).default;
+			if (!isImportSessionActive(sessionId)) return;
 			const zip = new JSZip();
 			const contents = await zip.loadAsync(file);
+			if (!isImportSessionActive(sessionId)) return;
 
 			// Find CSV or Excel file
 			let dataFile: any = null;
@@ -948,6 +1046,7 @@ $effect(() => {
 			}
 
 			if (!dataFile) {
+				if (!isImportSessionActive(sessionId)) return;
 				importErrors = ['No CSV or Excel file found in ZIP archive'];
 				return;
 			}
@@ -956,20 +1055,41 @@ $effect(() => {
 			for (const [fileName, zipEntry] of Object.entries(contents.files)) {
 				if (!zipEntry.dir && /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName)) {
 					const blob = await zipEntry.async('blob');
-					const imageFile = new File([blob], fileName.split('/').pop() || fileName, { type: blob.type || 'image/jpeg' });
-					importImageFiles.set(fileName.split('/').pop()?.toLowerCase() || fileName.toLowerCase(), imageFile);
+					const normalizedPath = fileName.replace(/\\/g, '/').toLowerCase();
+					const baseName = normalizedPath.split('/').pop() || normalizedPath;
+					const imageFile = new File([blob], baseName, { type: blob.type || 'image/jpeg' });
+
+					// Keep full relative path for precise matching when CSV supplies folder paths.
+					importImageFiles.set(normalizedPath, imageFile);
+
+					// Keep base filename for simple matching; track duplicates to avoid silent overwrites.
+					if (!importImageFiles.has(baseName)) {
+						importImageFiles.set(baseName, imageFile);
+					} else {
+						duplicateBaseNames.add(baseName);
+					}
 				}
+			}
+
+			if (duplicateBaseNames.size > 0) {
+				importAmbiguousImageNames = duplicateBaseNames;
+				toastStore.warning(
+					`${duplicateBaseNames.size} duplicate image filename(s) detected in ZIP. Use unique names or folder-qualified paths in the Picture column to match all images correctly.`
+				);
 			}
 
 			// Parse data file
 			if (dataFileName.toLowerCase().endsWith('.csv')) {
 				// Parse CSV
 				const csvText = await dataFile.async('text');
-				await parseCSVText(csvText);
+				if (!isImportSessionActive(sessionId)) return;
+				await parseCSVText(csvText, undefined, undefined, { sessionId });
 			} else {
 				// Parse all sheets in Excel file
 				const XLSX = await import('xlsx');
+				if (!isImportSessionActive(sessionId)) return;
 				const arrayBuffer = await dataFile.async('arraybuffer');
+				if (!isImportSessionActive(sessionId)) return;
 				const workbook = XLSX.read(arrayBuffer, { type: 'array' });
 
 				let appended = false;
@@ -984,24 +1104,31 @@ $effect(() => {
 					await parseCSVText(csvText, sheetName, undefined, {
 						append: appended,
 						silent: true,
-						csvLineToExcelRows: xlsxNonEmptyRows
+						csvLineToExcelRows: xlsxNonEmptyRows,
+						sessionId
 					});
+					if (!isImportSessionActive(sessionId)) return;
 					appended = true;
 				}
 
-				if (importPreviewData.length > 0) {
+				if (isImportSessionActive(sessionId) && importPreviewData.length > 0) {
 					toastStore.success(`Parsed ${importPreviewData.length} items from ${workbook.SheetNames.length} sheet(s). ${importErrors.length > 0 ? `${importErrors.length} rows have errors.` : 'Click Continue to preview.'}`);
 				}
 			}
 
-			toastStore.success(`Found ${importImageFiles.size} image(s) in ZIP file`);
+			if (isImportSessionActive(sessionId)) {
+				toastStore.success(`Found ${importImageFiles.size} image(s) in ZIP file`);
+			}
 
 		} catch (err: any) {
+			if (!isImportSessionActive(sessionId)) return;
 			importErrors = [`Failed to parse ZIP file: ${err.message}`];
 			toastStore.error(`Failed to parse ZIP file: ${err.message}`);
 			console.error('ZIP parse error:', err);
 		} finally {
-			importing = false;
+			if (isImportSessionActive(sessionId)) {
+				importing = false;
+			}
 		}
 	}
 
@@ -1040,8 +1167,6 @@ $effect(() => {
 			if (!images || images.length === 0) {
 				return imagesByRow;
 			}
-
-			console.log('Total images found:', images.length);
 
 			for (const img of images) {
 				const tl = img?.range?.tl;
@@ -1084,30 +1209,31 @@ $effect(() => {
 
 				const embeddedFile = new File([bytes], `excel-row-${excelRowNumber}.${ext}`, { type: mime });
 				imagesByRow.set(excelRowNumber, embeddedFile);
-				console.log(`Image stored for Excel row ${excelRowNumber}`);
 			}
 		} catch (err) {
 			console.warn('Could not extract embedded images from Excel:', err);
 		}
-
-		console.log('Images by row:', Array.from(imagesByRow.keys()));
 		return imagesByRow;
 	}
 
-	async function parseImportFile(file: File) {
+	async function parseImportFile(file: File, sessionId: number) {
 		try {
+			if (!isImportSessionActive(sessionId)) return;
 			importing = true;
 			importErrors = [];
 			importPreviewData = [];
 			importImageFiles.clear();
+			importAmbiguousImageNames = new Set();
 
 			const fileName = file.name.toLowerCase();
 
 			// Handle Excel files
 			if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
 				const XLSX = await import('xlsx');
+				if (!isImportSessionActive(sessionId)) return;
 
 				const data = await file.arrayBuffer();
+				if (!isImportSessionActive(sessionId)) return;
 				const workbook = XLSX.read(data, { type: 'array' });
 
 				let appended = false;
@@ -1116,8 +1242,6 @@ $effect(() => {
 					if (!worksheet || !worksheet['!ref']) continue;
 
 					const xlsxNonEmptyRows = getNonEmptyExcelRows(worksheet, XLSX);
-					console.log(`XLSX non-empty rows (${sheetName}):`, xlsxNonEmptyRows);
-
 					// Extract images keyed by their 1-based Excel row number.
 					// Later, parseCSVText resolves each CSV line back to this row number.
 					const imagesByExcelRow = await extractEmbeddedImagesFromExcel(data, sheetName);
@@ -1129,25 +1253,31 @@ $effect(() => {
 					await parseCSVText(csvText, sheetName, imagesByExcelRow, {
 						append: appended,
 						silent: true,
-						csvLineToExcelRows: xlsxNonEmptyRows
+						csvLineToExcelRows: xlsxNonEmptyRows,
+						sessionId
 					});
+					if (!isImportSessionActive(sessionId)) return;
 					appended = true;
 				}
 
-				if (importPreviewData.length > 0) {
+				if (isImportSessionActive(sessionId) && importPreviewData.length > 0) {
 					toastStore.success(`Parsed ${importPreviewData.length} items from ${workbook.SheetNames.length} sheet(s). ${importErrors.length > 0 ? `${importErrors.length} rows have errors.` : 'Click Continue to preview.'}`);
 				}
 			} else {
 				// Handle CSV files
 				const text = await file.text();
-				await parseCSVText(text);
+				if (!isImportSessionActive(sessionId)) return;
+				await parseCSVText(text, undefined, undefined, { sessionId });
 			}
 		} catch (err: any) {
+			if (!isImportSessionActive(sessionId)) return;
 			importErrors = [`Failed to parse file: ${err.message}`];
 			toastStore.error(`Failed to parse file: ${err.message}`);
 			console.error('File parse error:', err);
 		} finally {
-			importing = false;
+			if (isImportSessionActive(sessionId)) {
+				importing = false;
+			}
 		}
 	}
 
@@ -1183,24 +1313,18 @@ $effect(() => {
 		if (!files || files.length === 0) return;
 
 		const file = files[0];
+		if (!(await validateImportFile(file))) return;
 
-		// Validate file type
-		const validExtensions = ['.csv', '.xlsx', '.xls', '.zip'];
 		const fileName = file.name.toLowerCase();
-		const isValid = validExtensions.some(ext => fileName.endsWith(ext));
-
-		if (!isValid) {
-			toastStore.error('Please upload a CSV, Excel, or ZIP file (.csv, .xlsx, .xls, .zip)');
-			return;
-		}
+		const sessionId = ++importSessionId;
 
 		importFile = file;
 
 		// Handle ZIP files differently
 		if (fileName.endsWith('.zip')) {
-			await parseZipFile(file);
+			await parseZipFile(file, sessionId);
 		} else {
-			await parseImportFile(file);
+			await parseImportFile(file, sessionId);
 		}
 	}
 
@@ -1208,9 +1332,11 @@ $effect(() => {
 		text: string,
 		categoryFromSheet?: string,
 		embeddedImagesByExcelRow?: Map<number, File>,
-		options?: { append?: boolean; silent?: boolean; csvLineToExcelRows?: number[] }
+		options?: { append?: boolean; silent?: boolean; csvLineToExcelRows?: number[]; sessionId?: number }
 	) {
 		try {
+			const sessionId = options?.sessionId;
+			if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
 			importing = true;
 
 			const append = options?.append === true;
@@ -1228,6 +1354,7 @@ $effect(() => {
 				.map(line => line.replace(/^\uFEFF/, ''));
 
 			if (lines.length < 2) {
+				if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
 				importErrors = ['File is empty or contains no data rows'];
 				toastStore.error('File is empty or contains no data rows');
 				return;
@@ -1376,12 +1503,25 @@ $effect(() => {
 		const parsedData: any[] = [...existingPreview];
 		const errors: string[] = [...existingErrors];
 		const consumedEmbeddedImageRows = new Set<number>();
+		const categoryNameSet = new Set(categories.map((c) => normalizeKeyPart(c.name)));
+		const existingInventoryByCompositeKey = new Map<string, InventoryItem>();
+		for (const existingItem of items) {
+			existingInventoryByCompositeKey.set(
+				getItemCompositeKey(existingItem.name, existingItem.specification),
+				existingItem
+			);
+		}
 		const seenKeys = new Set<string>(
 			existingPreview.map((row: any) => getItemCompositeKey(row.name, row.specification))
 		); // track name+specification composites across the full import preview
 
 		// Start from the line after the header row
 		for (let i = headerLineIndex + 1; i < lines.length; i++) {
+			if ((i - headerLineIndex) % IMPORT_PARSE_YIELD_EVERY === 0) {
+				if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
+				await yieldToMainThread();
+			}
+
 			const values = parseCSVLine(lines[i], separator);
 			const nonEmptyPosition = lineIndexToNonEmptyPosition.get(i);
 			const sourceRowNumber =
@@ -1410,6 +1550,7 @@ $effect(() => {
 			const minStockValue = valueAt('minstock');
 			const locationValue = valueAt('location');
 			let pictureRef = valueAt('picture');
+			const rawPictureRef = pictureRef;
 			const remarks = valueAt('remarks');
 			const category = categoryFromSheet || rawCategory;
 
@@ -1429,13 +1570,20 @@ $effect(() => {
 			// Skip rows without a name - they're not valid items
 			if (!name || name.trim() === '') {
 				errors.push(`Row ${sourceRowNumber}: Name is required`);
-				console.log(`Skipping source row ${sourceRowNumber}: No name found`);
 				continue;
 			}
 
 			// Validate row
 			const rowErrors: string[] = [];
 			if (!category) rowErrors.push('Category is required (use sheet name or Category column)');
+
+			if (rawPictureRef) {
+				const normalizedPictureRef = rawPictureRef.replace(/\\/g, '/').toLowerCase();
+				const pictureBaseName = normalizedPictureRef.split('/').pop() || normalizedPictureRef;
+				if (importAmbiguousImageNames.has(pictureBaseName) && !normalizedPictureRef.includes('/')) {
+					rowErrors.push('Picture filename is duplicated in ZIP. Use folder-qualified path in Picture column or unique filenames.');
+				}
+			}
 
 			// Check for duplicate using name+specification composite (same name with different spec = different item)
 			const nameLower = normalizeKeyPart(name);
@@ -1449,10 +1597,7 @@ $effect(() => {
 
 			// Check if item already exists in inventory (same name + same spec, case-insensitive).
 			// Existing items are allowed and will be updated during import.
-			const existingInventoryItem = items.find(
-				i => i.name.toLowerCase().trim() === nameLower &&
-				     (i.specification ?? '').toLowerCase().trim() === specLower
-			);
+			const existingInventoryItem = existingInventoryByCompositeKey.get(compositeKey);
 			const alreadyExistsInInventory = !!existingInventoryItem;
 
 			// Parse quantity - default to 1 if not provided
@@ -1487,9 +1632,6 @@ $effect(() => {
 				typeof nonEmptyPosition === 'number'
 					? options?.csvLineToExcelRows?.[nonEmptyPosition]
 					: undefined;
-			console.log(
-				`Checking embedded image for CSV line ${i} (Excel row: ${excelRowForLine ?? 'unknown'}) item "${name}"`
-			);
 			if (!pictureRef && embeddedImagesByExcelRow && typeof excelRowForLine === 'number') {
 				let resolvedImageRow: number | null = null;
 				const candidateRows = [excelRowForLine];
@@ -1513,19 +1655,8 @@ $effect(() => {
 						hasImage = true;
 						imageSource = 'excel';
 						consumedEmbeddedImageRows.add(resolvedImageRow);
-						console.log(
-							`✓ Found embedded image for "${name}" at Excel row ${resolvedImageRow} (resolved for line row ${excelRowForLine})`
-						);
 					}
-				} else {
-					console.log(
-						`✗ No embedded image found for Excel row ${excelRowForLine} (available keys: ${Array.from(embeddedImagesByExcelRow.keys()).join(', ')})`
-					);
 				}
-			} else if (!pictureRef && embeddedImagesByExcelRow) {
-				console.log(
-					`✗ No row mapping available for CSV line ${i} (available embedded keys: ${Array.from(embeddedImagesByExcelRow.keys()).join(', ')})`
-				);
 			}
 
 				if (pictureRef) {
@@ -1600,7 +1731,7 @@ $effect(() => {
 				_pictureRef: pictureRef,
 				_hasImage: hasImage,
 				_imageSource: imageSource,
-				_categoryExists: !!categories.find(c => c.name.toLowerCase().trim() === (category || '').toLowerCase().trim()),
+				_categoryExists: categoryNameSet.has(normalizedCategory),
 				_isDuplicateInFile: isDuplicateInFile,
 				_alreadyExists: alreadyExistsInInventory,
 				_existingItemId: existingInventoryItem?.id,
@@ -1616,6 +1747,7 @@ $effect(() => {
 			}
 		}
 
+		if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
 		importPreviewData = parsedData;
 		importErrors = errors;
 
@@ -1625,10 +1757,14 @@ $effect(() => {
 		}
 
 		} catch (err: any) {
+			const sessionId = options?.sessionId;
+			if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
 			importErrors = [`Failed to parse file: ${err.message}`];
 			toastStore.error(`Failed to parse file: ${err.message}`);
 			console.error('Import parse error:', err);
 		} finally {
+			const sessionId = options?.sessionId;
+			if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
 			importing = false;
 		}
 	}
@@ -1695,23 +1831,18 @@ $effect(() => {
 			let updatedCount = 0;
 			let failCount = 0;
 
-			console.log('=== IMPORT START ===');
-			console.log('Items to import:', validItems.length);
-			console.log('Items before import:', items.length);
-			console.log('Available categories:', categories.map(c => c.name));
-
 			// Collect unique categories from import data
 			const uniqueCategories = [...new Set(validItems.map(item => item.category))];
-			console.log('Unique categories in import:', uniqueCategories);
+			const categoriesByName = new Map(categories.map((c) => [normalizeKeyPart(c.name), c]));
 
 			// Create missing categories first
 			const categoryMap = new Map<string, InventoryCategory>();
 			
 			for (const categoryName of uniqueCategories) {
-				const existing = categories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
+				const normalizedCategoryName = normalizeKeyPart(categoryName);
+				const existing = categoriesByName.get(normalizedCategoryName);
 				if (existing) {
-					categoryMap.set(categoryName.toLowerCase(), existing);
-					console.log(`Category "${categoryName}" exists:`, existing.id);
+					categoryMap.set(normalizedCategoryName, existing);
 				} else {
 					// Create new category
 					try {
@@ -1721,8 +1852,8 @@ $effect(() => {
 							description: `Auto-created from import`
 						});
 						categories.push(newCategory);
-						categoryMap.set(categoryName.toLowerCase(), newCategory);
-						console.log(`Created category "${categoryName}":`, newCategory.id);
+						categoriesByName.set(normalizedCategoryName, newCategory);
+						categoryMap.set(normalizedCategoryName, newCategory);
 						toastStore.success(`Created category: ${categoryName}`);
 					} catch (err: any) {
 						console.error(`Failed to create category "${categoryName}":`, err);
@@ -1749,9 +1880,6 @@ $effect(() => {
 
 					// Get category from map (already exists or just created)
 					const category = categoryMap.get(item.category.toLowerCase());
-
-					console.log(`Importing: "${item.name}" → Category: "${item.category}" (ID: ${category?.id || 'NONE'})`);
-					console.log(`  Full item data:`, item);
 
 					// Handle image upload
 					let pictureUrl = '';
@@ -1843,16 +1971,16 @@ $effect(() => {
 				}
 			}
 
-			for (const entry of preparedUpdateItems) {
+			await runWithConcurrency(preparedUpdateItems, IMPORT_UPDATE_CONCURRENCY, async (entry, index) => {
 				try {
-					importProgress.message = `Updating ${entry.name}...`;
+					importProgress.message = `Updating items (${index + 1}/${preparedUpdateItems.length})`;
 					await updateInventoryItemWithRetry(entry.id, entry.data);
 					updatedCount++;
 				} catch (updateErr: any) {
 					console.error(`Failed to update row ${entry.rowNumber} (${entry.name}):`, updateErr);
 					failCount++;
 				}
-			}
+			});
 
 			for (let i = 0; i < preparedCreateItems.length; i += IMPORT_BATCH_SIZE) {
 				const batch = preparedCreateItems.slice(i, i + IMPORT_BATCH_SIZE);
@@ -1879,7 +2007,7 @@ $effect(() => {
 				} catch (batchErr: any) {
 					console.error(`Bulk batch ${batchNumber} failed, falling back to per-item import`, batchErr);
 
-					for (const entry of batch) {
+					await runWithConcurrency(batch, IMPORT_UPDATE_CONCURRENCY, async (entry) => {
 						try {
 							await createInventoryItemWithRetry(entry.data);
 							createdCount++;
@@ -1887,17 +2015,13 @@ $effect(() => {
 							console.error(`Fallback failed for row ${entry.rowNumber} (${entry.name}):`, singleErr);
 							failCount++;
 						}
-					}
+					});
 				}
 			}
 
-			console.log('=== IMPORT COMPLETE ===');
 			const successCount = createdCount + updatedCount;
-			console.log(`Created: ${createdCount}, Updated: ${updatedCount}, Failed: ${failCount}`);
 
 			if (successCount > 0) {
-				console.log('Reloading inventory data...');
-
 				// Complete cache reset
 				inventoryStore.reset();
 				
@@ -1906,22 +2030,17 @@ $effect(() => {
 				query = '';
 				
 				// Delay to ensure database writes are fully committed
-				await new Promise(resolve => setTimeout(resolve, 800));
+				await new Promise(resolve => setTimeout(resolve, 150));
 				
 				// Force complete reload with direct API calls
 				try {
-					console.log('Items before reload:', items.length);
 					loading = true;
 					
 					// Direct API calls bypassing cache
-					console.log('Fetching from API...');
 					const [allFetchedItems, categoriesResponse] = await Promise.all([
 						fetchAllInventoryItems(true),
 						inventoryCategoriesAPI.getAll({ limit: 1000, includeArchived: true })
 					]);
-					
-					console.log('API Response - Items:', allFetchedItems.length);
-					console.log('API Response - Categories:', categoriesResponse);
 					
 					items = allFetchedItems;
 					categories = categoriesResponse.categories;
@@ -1929,11 +2048,6 @@ $effect(() => {
 					// Update store cache
 					inventoryStore.setItems(allFetchedItems);
 					inventoryStore.setCategories(categoriesResponse.categories);
-					
-					console.log('Items after reload:', items.length);
-					console.log('Categories after reload:', categories.length);
-					console.log('All items:', items.map(i => ({ name: i.name, archived: i.archived, category: i.category })));
-					console.log('Active items:', items.filter(item => !item.archived).map(item => item.name));
 				} catch (reloadErr: any) {
 					console.error('Failed to reload after import:', reloadErr);
 					toastStore.error('Import succeeded but failed to refresh. Please reload the page.');
@@ -2485,6 +2599,18 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
 										{(currentPage - 1) * PAGE_SIZE + i + 1}
 									</span>
+									<div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+										{#if item.picture}
+											<img 
+												src={item.picture} 
+												alt={item.name} 
+												class="h-full w-full object-cover" 
+												loading="lazy"
+											/>
+										{:else}
+											<ItemImagePlaceholder size="sm" />
+										{/if}
+									</div>
 									<div class="min-w-0 flex-1">
 										<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
 										<p class="truncate text-xs text-gray-500">{item.specification || item.category}</p>
@@ -2528,6 +2654,18 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										<td class="whitespace-nowrap px-6 py-4">
 											<div class="flex items-center gap-3">
 												<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700">{(currentPage - 1) * PAGE_SIZE + i + 1}</span>
+												<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+													{#if item.picture}
+														<img 
+															src={item.picture} 
+															alt={item.name} 
+															class="h-full w-full object-cover" 
+															loading="lazy"
+														/>
+													{:else}
+														<ItemImagePlaceholder size="sm" />
+													{/if}
+												</div>
 												<div class="text-sm font-medium text-gray-900">{item.name}</div>
 											</div>
 										</td>
@@ -3085,10 +3223,17 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							<div class="rounded-xl border border-red-200 bg-red-50 p-4">
 								<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 									<div class="flex items-center gap-3">
-										<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
-											<svg class="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-											</svg>
+										<div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+											{#if item.picture}
+												<img 
+													src={item.picture} 
+													alt={item.name} 
+													class="h-full w-full object-cover" 
+													loading="lazy"
+												/>
+											{:else}
+												<ItemImagePlaceholder size="sm" />
+											{/if}
 										</div>
 										<div>
 											<h4 class="text-sm font-semibold text-gray-900">{item.name}</h4>
@@ -3316,7 +3461,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					<button
 						onclick={closeImportModal}
 						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-						disabled={importing}
 					>
 						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -3793,9 +3937,8 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					<button
 						onclick={closeImportModal}
 						class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-						disabled={importing}
 					>
-						{importStep === 'complete' ? 'Close' : 'Cancel'}
+						{importing ? 'Hide' : importStep === 'complete' ? 'Close' : 'Cancel'}
 					</button>
 
 					{#if importStep === 'upload' && importPreviewData.length > 0}

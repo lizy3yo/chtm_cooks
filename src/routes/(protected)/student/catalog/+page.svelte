@@ -104,7 +104,7 @@
 			catalogData = await catalogAPI.getCatalog(filters, { forceRefresh: options.forceRefresh });
 		} catch (err) {
 			const errorMsg = err instanceof Error ? err.message : 'Failed to load catalog';
-			const isUnauthorized = /(^|\s)(unauthorized|401)(\s|$)/i.test(errorMsg);
+			const isUnauthorized = /(^|\s)(unauthorized|401|session expired)(\s|$)/i.test(errorMsg);
 
 			if (isUnauthorized) {
 				if (!hasShownUnauthorizedToast) {

@@ -87,6 +87,17 @@ export const RateLimitPresets = {
 	} as RateLimitConfig,
 
 	/**
+	 * Inventory image upload endpoint - high-throughput but bounded
+	 * - Supports bulk image imports from ZIP/Excel workflows
+	 */
+	INVENTORY_IMAGE_UPLOAD: {
+		windowMs: 60 * 1000, // 1 minute
+		maxRequests: 300, // 300 image uploads per minute
+		blockDurationMs: 60 * 1000, // Block for 1 minute when exceeded
+		keyPrefix: 'ratelimit:inventory-image-upload'
+	} as RateLimitConfig,
+
+	/**
 	 * Password reset endpoint - Strict limits
 	 * - Prevents abuse of password reset functionality
 	 */

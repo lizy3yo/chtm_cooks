@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
 import type { UserResponse } from '$lib/types/auth';
+import { getApiErrorMessage } from './session';
 
 interface ApiError {
 	error?: string;
@@ -38,7 +39,7 @@ function setCachedProfile(user: UserResponse): void {
 
 async function parseError(response: Response): Promise<string> {
 	const payload = (await response.json().catch(() => ({}))) as ApiError;
-	return payload.error || payload.message || `Request failed with status ${response.status}`;
+	return await getApiErrorMessage(response, payload.error || payload.message || `Request failed with status ${response.status}`);
 }
 
 export const profileApi = {

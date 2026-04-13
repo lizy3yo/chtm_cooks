@@ -9,7 +9,7 @@ import { UserRole } from '$lib/server/models/User';
 import { rateLimit, RateLimitPresets, applyRateLimitHeaders } from '$lib/server/middleware/rateLimit';
 import { generateEmailVerificationToken, hashToken } from '$lib/server/utils/tokens';
 import { sendVerificationEmail } from '$lib/server/services/email';
-import { setAuthTokens } from '$lib/server/middleware/auth/cookies';
+import { setAuthTokens, getAccessTokenMaxAge } from '$lib/server/middleware/auth/cookies';
 
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
@@ -156,7 +156,7 @@ export const POST: RequestHandler = async (event) => {
 		};
 
 		// Set auth tokens as httpOnly cookies
-		setAuthTokens(event, accessToken, refreshToken);
+		setAuthTokens(event, accessToken, refreshToken, getAccessTokenMaxAge(newUser.role));
 
 		// Add rate limit headers to successful response
 		const responseHeaders = new Headers();

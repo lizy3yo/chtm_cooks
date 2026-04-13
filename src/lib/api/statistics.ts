@@ -13,6 +13,7 @@
  */
 
 import { browser } from '$app/environment';
+import { getApiErrorMessage } from './session';
 
 // â”€â”€â”€ Re-export shared types so consumers import from one place â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -171,7 +172,10 @@ async function doFetch(period: StatisticsPeriod, forceRefresh: boolean): Promise
 	const payload = (await response.json().catch(() => ({}))) as StudentStatisticsData & ApiError;
 
 	if (!response.ok) {
-		const message = payload.message ?? payload.error ?? `Request failed with status ${response.status}`;
+		const message = await getApiErrorMessage(
+			response,
+			payload.message ?? payload.error ?? `Request failed with status ${response.status}`
+		);
 		throw new Error(message);
 	}
 

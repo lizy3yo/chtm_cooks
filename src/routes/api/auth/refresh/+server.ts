@@ -7,6 +7,7 @@ import {
 	setAuthTokens,
 	clearAuthCookies 
 } from '$lib/server/middleware/auth/cookies';
+import { getAccessTokenMaxAge } from '$lib/server/middleware/auth/cookies';
 
 /**
  * Token Refresh Endpoint
@@ -48,7 +49,7 @@ export const POST: RequestHandler = async (event) => {
 		});
 
 		// Set new tokens in httpOnly cookies
-		setAuthTokens(event, newAccessToken, newRefreshToken);
+		setAuthTokens(event, newAccessToken, newRefreshToken, getAccessTokenMaxAge(payload.role));
 
 		// Add rate limit headers to successful response
 		const responseHeaders = new Headers();
