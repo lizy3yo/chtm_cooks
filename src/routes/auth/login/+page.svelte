@@ -9,6 +9,7 @@
 	import Input from '$lib/components/ui/Input.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import type { LoginRequest } from '$lib/types/auth';
+	import { validateEmail, validateRequired } from '$lib/utils/validation';
 
 	// ── Storage keys ──────────────────────────────────────────────────────────
 	const KEY_EMAIL    = 'chtm_rm_email';
@@ -21,6 +22,28 @@
 	let rememberMe  = $state(false);
 	let isSubmitting = $state(false);
 	let showPassword = $state(false);
+	let errors = $state<{ email?: string; password?: string }>({});
+
+	function clearError(field: 'email' | 'password') {
+		errors = { ...errors, [field]: undefined };
+	}
+
+	function validateLoginForm(normalizedEmail: string): boolean {
+		const nextErrors: { email?: string; password?: string } = {};
+
+		const emailError = validateEmail(normalizedEmail);
+		if (emailError) {
+			nextErrors.email = emailError.message;
+		}
+
+		const passwordError = validateRequired(password, 'password');
+		if (passwordError) {
+			nextErrors.password = passwordError.message;
+		}
+
+		errors = nextErrors;
+		return Object.keys(nextErrors).length === 0;
+	}
 
 	// ── Crypto helpers ────────────────────────────────────────────────────────
 
@@ -81,10 +104,17 @@
 
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
-		isSubmitting = true;
 
-		if (rememberMe && email.trim() && password) {
-			localStorage.setItem(KEY_EMAIL, email.trim());
+		const normalizedEmail = email.trim().toLowerCase();
+		if (!validateLoginForm(normalizedEmail)) {
+			return;
+		}
+
+		isSubmitting = true;
+		email = normalizedEmail;
+
+		if (rememberMe && normalizedEmail && password) {
+			localStorage.setItem(KEY_EMAIL, normalizedEmail);
 			localStorage.setItem(KEY_CRED, await encryptPassword(password));
 		} else {
 			localStorage.removeItem(KEY_EMAIL);
@@ -93,7 +123,7 @@
 		}
 
 		try {
-			const formData: LoginRequest = { email, password, rememberMe };
+			const formData: LoginRequest = { email: normalizedEmail, password, rememberMe };
 			const response = await authApi.login(formData);
 
 			authStore.login(response.user);
@@ -110,7 +140,14 @@
 			}
 		} catch (error) {
 			if (error instanceof ApiErrorHandler) {
-				toastStore.error(error.message, 'Login Failed');
+				const isInvalidCredentials =
+					error.status === 401 && /invalid credentials|invalid email or password/i.test(error.message);
+
+				if (isInvalidCredentials) {
+					toastStore.error('Invalid email or password. Please try again.', 'Login Failed');
+				} else {
+					toastStore.error(error.message, 'Login Failed');
+				}
 			} else {
 				toastStore.error('An unexpected error occurred. Please try again.', 'Login Failed');
 			}
@@ -137,8 +174,10 @@
 				label="Email Address"
 				placeholder="your.email@gordoncollege.edu.ph"
 				bind:value={email}
+				error={errors.email}
 				required
 				autocomplete="username"
+				oninput={() => clearError('email')}
 				disabled={isSubmitting}
 			/>
 
@@ -150,8 +189,10 @@
 					label="Password"
 					placeholder="Enter your password"
 					bind:value={password}
+					error={errors.password}
 					required
 					autocomplete="current-password"
+					oninput={() => clearError('password')}
 					disabled={isSubmitting}
 				/>
 				

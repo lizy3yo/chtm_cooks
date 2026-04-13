@@ -227,8 +227,12 @@
 	 */
 	async function loadItems() {
 		try {
-			// Always invalidate cache before checking to ensure fresh data
-			inventoryStore.invalidateItems();
+			// Use cached items when still fresh to avoid refetching on route return.
+			if (inventoryStore.isItemsCacheValid()) {
+				const storeData = get(inventoryStore);
+				items = storeData.items;
+				return;
+			}
 			
 			loading = true;
 			inventoryStore.setLoading(true);
@@ -353,7 +357,7 @@
 	let selectedItem = $state<InventoryItem | null>(null);
 	let showMenu = $state(false);
 	let showFullImage = $state(false);
-    let pictureInput: HTMLInputElement;
+	let pictureInput = $state<HTMLInputElement | null>(null);
 
 // Selected category filter for viewing category-specific items
 let selectedCategory = $state<InventoryCategory | null>(null);
@@ -705,8 +709,8 @@ $effect(() => {
 	let newCategoryDescription = $state('');
 	let newCategoryPicture = $state('');
 	let newCategoryPictureFile = $state<File | null>(null);
-	let categoryPictureInput: HTMLInputElement;
-	let editCategoryPictureInput: HTMLInputElement;
+	let categoryPictureInput = $state<HTMLInputElement | null>(null);
+	let editCategoryPictureInput = $state<HTMLInputElement | null>(null);
 	let uploadingCategoryImage = $state(false);
 	let openDropdownId = $state<string | null>(null);
 
@@ -2364,7 +2368,19 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		<!-- Full Screen Image Modal -->
 		{#if showFullImage && selectedItem?.picture}
 			<div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
-				<div class="fixed inset-0 bg-black/90" onclick={closeFullImage}></div>
+				<div
+					class="fixed inset-0 bg-black/90"
+					role="button"
+					tabindex="0"
+					aria-label="Close full image"
+					onclick={closeFullImage}
+					onkeydown={(e) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							closeFullImage();
+						}
+					}}
+				></div>
 				<div class="relative z-[61] max-h-[90vh] max-w-[90vw]">
 					<button
 						onclick={closeFullImage}
@@ -2785,7 +2801,19 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				{:else}
 					<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 						{#each categories as category}
-						<div onclick={() => openCategory(category)} class="relative cursor-pointer rounded-lg border border-gray-200 p-3 transition-all hover:border-emerald-500 hover:shadow-md sm:p-4">
+						<div
+							onclick={() => openCategory(category)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									openCategory(category);
+								}
+							}}
+							role="button"
+							tabindex="0"
+							aria-label={`Open category ${category.name}`}
+							class="relative cursor-pointer rounded-lg border border-gray-200 p-3 transition-all hover:border-emerald-500 hover:shadow-md sm:p-4"
+						>
 							<div class="flex items-center justify-between gap-2">
 								<div class="min-w-0 flex-1">
 									<h4 class="truncate text-sm font-semibold text-gray-900 sm:text-base">{category.name}</h4>
@@ -2855,7 +2883,19 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		<!-- Category Creation Modal -->
 		{#if showCategoryModal}
 			<div class="fixed inset-0 z-50 overflow-y-auto">
-				<div class="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" onclick={() => showCategoryModal = false}></div>
+				<div
+					class="fixed inset-0 bg-black/40 backdrop-blur-sm"
+					role="button"
+					tabindex="0"
+					aria-label="Close add category modal"
+					onclick={() => showCategoryModal = false}
+					onkeydown={(e) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							showCategoryModal = false;
+						}
+					}}
+				></div>
 				<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
 					<div class="relative z-50 w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-gray-100 bg-white shadow-2xl">
 						<div class="border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4">
@@ -2886,7 +2926,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							/>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-2">Category Image</label>
+							<label for="categoryImageInput" class="block text-sm font-medium text-gray-700 mb-2">Category Image</label>
 							<div class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5">
 								<button
 									type="button"
@@ -2906,7 +2946,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									<img src={newCategoryPicture} alt="preview" class="h-14 w-14 rounded-lg object-cover border border-gray-200" />
 									<button type="button" onclick={() => { try { URL.revokeObjectURL(newCategoryPicture) } catch(e){}; newCategoryPicture=''; newCategoryPictureFile=null }} class="text-xs sm:text-sm text-red-500 hover:text-red-700">Remove</button>
 								{/if}
-								<input type="file" accept="image/*" onchange={handleCategoryPictureChange} bind:this={categoryPictureInput} class="hidden" />
+								<input id="categoryImageInput" type="file" accept="image/*" onchange={handleCategoryPictureChange} bind:this={categoryPictureInput} class="hidden" />
 							</div>
 						</div>
 						<div class="flex flex-col-reverse gap-1.5 pt-1.5 sm:flex-row sm:justify-end">
@@ -2944,7 +2984,19 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		<!-- Category Edit Modal -->
 		{#if showEditCategoryModal && editingCategory}
 			<div class="fixed inset-0 z-50 overflow-y-auto">
-				<div class="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" onclick={() => showEditCategoryModal = false}></div>
+				<div
+					class="fixed inset-0 bg-black/40 backdrop-blur-sm"
+					role="button"
+					tabindex="0"
+					aria-label="Close edit category modal"
+					onclick={() => showEditCategoryModal = false}
+					onkeydown={(e) => {
+						if (e.key === 'Enter' || e.key === ' ') {
+							e.preventDefault();
+							showEditCategoryModal = false;
+						}
+					}}
+				></div>
 				<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
 					<div class="relative z-50 w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-gray-100 bg-white shadow-2xl">
 						<div class="border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4">
@@ -2975,7 +3027,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							/>
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-gray-700 mb-2">Category Image</label>
+							<label for="editCategoryImageInput" class="block text-sm font-medium text-gray-700 mb-2">Category Image</label>
 							<div class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5">
 								<button
 									type="button"
@@ -2995,7 +3047,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									<img src={newCategoryPicture} alt="preview" class="h-14 w-14 rounded-lg object-cover border border-gray-200" />
 									<button type="button" onclick={() => { try { if(newCategoryPicture.startsWith('blob:')) URL.revokeObjectURL(newCategoryPicture) } catch(e){}; newCategoryPicture=editingCategory?.picture || ''; newCategoryPictureFile=null }} class="text-xs sm:text-sm text-red-500 hover:text-red-700">Remove</button>
 								{/if}
-								<input type="file" accept="image/*" onchange={handleCategoryPictureChange} bind:this={editCategoryPictureInput} class="hidden" />
+								<input id="editCategoryImageInput" type="file" accept="image/*" onchange={handleCategoryPictureChange} bind:this={editCategoryPictureInput} class="hidden" />
 							</div>
 						</div>
 						<div class="flex flex-col-reverse gap-1.5 pt-1.5 sm:flex-row sm:justify-end">
@@ -3264,7 +3316,19 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 <!-- Add New Item / Edit Item Modal -->
 {#if showAddItemModal}
 	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="add-item-modal-title">
-		<div class="fixed inset-0 bg-black/40 transition-opacity" onclick={closeAddItemModal}></div>
+		<div
+			class="fixed inset-0 bg-black/40 transition-opacity"
+			role="button"
+			tabindex="0"
+			aria-label="Close add item modal"
+			onclick={closeAddItemModal}
+			onkeydown={(e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					closeAddItemModal();
+				}
+			}}
+		></div>
 		<div class="flex min-h-full items-center justify-center p-4">
 			<div class="relative z-50 w-full max-w-2xl rounded-xl bg-white shadow-2xl">
 				<!-- Modal Header -->
@@ -3441,7 +3505,19 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 <!-- Import Modal -->
 {#if showImportModal}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-black/40" onclick={closeImportModal}></div>
+		<div
+			class="fixed inset-0 bg-black/40"
+			role="button"
+			tabindex="0"
+			aria-label="Close import modal"
+			onclick={closeImportModal}
+			onkeydown={(e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					closeImportModal();
+				}
+			}}
+		></div>
 		<div class="flex min-h-full items-center justify-center p-4">
 			<div class="relative z-50 w-full max-w-4xl rounded-lg bg-white shadow-xl">
 				<!-- Header -->
@@ -3461,6 +3537,8 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					<button
 						onclick={closeImportModal}
 						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+						aria-label="Close import modal"
+						title="Close import modal"
 					>
 						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -3610,7 +3688,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 							<!-- File Upload -->
 							<div>
-								<label class="block text-sm font-medium text-gray-700 mb-2">
+								<label for="importFileInput" class="block text-sm font-medium text-gray-700 mb-2">
 									Upload File
 								</label>
 								
@@ -3652,6 +3730,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										</span>
 										<span class="text-xs text-gray-500 mt-1">CSV, XLSX, XLS, or ZIP files (with images)</span>
 										<input
+											id="importFileInput"
 											type="file"
 											accept=".csv,.xlsx,.xls,.zip"
 											onchange={handleImportFileSelect}
@@ -3987,13 +4066,27 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 <!-- Image preview lightbox for import review -->
 {#if importPreviewImageUrl}
-	<!-- svelte-ignore a11y-click-events-have-key-events -->
-	<!-- svelte-ignore a11y-no-static-element-interactions -->
 	<div
 		class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80"
+		role="button"
+		tabindex="0"
+		aria-label="Close image preview"
 		onclick={closeImagePreview}
+		onkeydown={(e) => {
+			if (e.key === 'Enter' || e.key === ' ') {
+				e.preventDefault();
+				closeImagePreview();
+			}
+		}}
 	>
-		<div class="relative max-w-2xl w-full mx-4" onclick={(e) => e.stopPropagation()}>
+		<div
+			class="relative max-w-2xl w-full mx-4"
+			role="button"
+			tabindex="0"
+			aria-label="Image preview content"
+			onclick={(e) => e.stopPropagation()}
+			onkeydown={(e) => e.stopPropagation()}
+		>
 			<!-- Header -->
 			<div class="flex items-center justify-between bg-white rounded-t-xl px-4 py-3">
 				<p class="text-sm font-medium text-gray-800 truncate">{importPreviewImageName}</p>

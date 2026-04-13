@@ -42,6 +42,8 @@ async function apiRequest<T>(
 	retry = true
 ): Promise<T> {
 	try {
+		const isCredentialAuthEndpoint = endpoint === '/login' || endpoint === '/shortcut-login';
+
 		const response = await fetch(`${API_BASE_URL}${endpoint}`, {
 			...options,
 			credentials: 'include', // Always include cookies
@@ -51,10 +53,16 @@ async function apiRequest<T>(
 			}
 		});
 
-		const data = await response.json();
+		let data: unknown = null;
+		try {
+			data = await response.json();
+		} catch {
+			// Some responses may not include a JSON body.
+			data = null;
+		}
 
 		// Handle token expiration
-		if (response.status === 401 && retry) {
+		if (response.status === 401 && retry && !isCredentialAuthEndpoint) {
 			// Try to refresh tokens
 			const refreshed = await authStore.refreshTokens();
 			if (refreshed) {
@@ -64,10 +72,14 @@ async function apiRequest<T>(
 		}
 
 		if (!response.ok) {
-			const error = data as ApiError;
+			const error = (data ?? {}) as ApiError;
 			if (response.status === 401) {
+				const unauthorizedMessage = isCredentialAuthEndpoint
+					? (error.error || 'Invalid email or password.')
+					: 'Session expired. Please sign in again.';
+
 				throw new ApiErrorHandler(
-					'Session expired. Please sign in again.',
+					unauthorizedMessage,
 					401,
 					error.code,
 					error.details
