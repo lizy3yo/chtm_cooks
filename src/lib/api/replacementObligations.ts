@@ -6,6 +6,7 @@
  */
 
 import { browser } from '$app/environment';
+import { getApiErrorMessage } from './session';
 
 export type ObligationType = 'missing' | 'damaged';
 export type ObligationStatus = 'pending' | 'replaced' | 'waived';
@@ -89,8 +90,10 @@ function getFetchOptions(method: string, body?: unknown): RequestInit {
 async function handleResponse<T>(response: Response): Promise<T> {
 	const payload = (await response.json().catch(() => ({}))) as T & ApiError;
 	if (!response.ok) {
-		const message =
-			payload.message || payload.error || `Request failed with status ${response.status}`;
+		const message = await getApiErrorMessage(
+			response,
+			payload.message || payload.error || `Request failed with status ${response.status}`
+		);
 		throw new Error(message);
 	}
 	return payload;

@@ -6,8 +6,17 @@ const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-change-in-producti
 const JWT_REFRESH_SECRET = process.env.REFRESH_SECRET || 'fallback-refresh-secret';
 
 // Industry-standard token lifetimes
-const ACCESS_TOKEN_EXPIRES_IN = '1h'; // 1 hour session timeout
+const DEFAULT_ACCESS_TOKEN_EXPIRES_IN = '1h'; // 1 hour session timeout
+const STAFF_ACCESS_TOKEN_EXPIRES_IN = '12h'; // Custodian/instructor session timeout
 const REFRESH_TOKEN_EXPIRES_IN = '7d'; // 7 days - allows session renewal
+
+export function getAccessTokenExpiresIn(role: UserRole): SignOptions['expiresIn'] {
+	if (role === 'custodian' || role === 'instructor') {
+		return STAFF_ACCESS_TOKEN_EXPIRES_IN;
+	}
+
+	return DEFAULT_ACCESS_TOKEN_EXPIRES_IN;
+}
 
 export interface JWTPayload {
 	userId: string;
@@ -19,9 +28,9 @@ export interface JWTPayload {
  * Generate access token (1 hour)
  * Used for API authentication
  */
-export function generateAccessToken(payload: JWTPayload): string {
+export function generateAccessToken(payload: JWTPayload, expiresIn: SignOptions['expiresIn'] = getAccessTokenExpiresIn(payload.role)): string {
 	return jwt.sign(payload, JWT_SECRET, { 
-		expiresIn: ACCESS_TOKEN_EXPIRES_IN 
+		expiresIn 
 	} as SignOptions);
 }
 

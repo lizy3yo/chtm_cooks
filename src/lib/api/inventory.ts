@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { getApiErrorMessage } from './session';
 
 export interface InventoryItem {
 	id: string;
@@ -79,20 +80,63 @@ export interface UpdateCategoryRequest extends Partial<CreateCategoryRequest> {
 /**
  * Fetch helper with automatic cookie credentials
  */
-function getFetchOptions(method: string, body?: unknown): RequestInit {
-	const options: RequestInit = {
+function getFetchOptionsWithFlags(
+	method: string,
+	body?: unknown,
+	options?: { importContext?: boolean }
+): RequestInit {
+	const requestOptions: RequestInit = {
 		method,
 		credentials: 'include', // Automatically send httpOnly cookies
 		headers: {
-			'Content-Type': 'application/json'
+			'Content-Type': 'application/json',
+			...(options?.importContext ? { 'X-Import-Context': '1' } : {})
 		}
 	};
 
 	if (body !== undefined) {
-		options.body = JSON.stringify(body);
+		requestOptions.body = JSON.stringify(body);
 	}
 
-	return options;
+	return requestOptions;
+}
+
+function getFetchOptions(method: string, body?: unknown): RequestInit {
+	return getFetchOptionsWithFlags(method, body);
+}
+
+let refreshAccessTokenPromise: Promise<boolean> | null = null;
+
+async function refreshAccessToken(): Promise<boolean> {
+	if (!browser) return false;
+	if (!refreshAccessTokenPromise) {
+		refreshAccessTokenPromise = fetch('/api/auth/refresh', {
+			method: 'POST',
+			credentials: 'include'
+		})
+			.then((response) => response.ok)
+			.catch(() => false)
+			.finally(() => {
+				refreshAccessTokenPromise = null;
+			});
+	}
+
+	return refreshAccessTokenPromise;
+}
+
+async function fetchWithAuthRetry(url: string, options: RequestInit, retryOnUnauthorized = true): Promise<Response> {
+	const response = await fetch(url, options);
+
+	if (response.status !== 401 || !retryOnUnauthorized) {
+		return response;
+	}
+
+	const refreshed = await refreshAccessToken();
+	if (!refreshed) {
+		return response;
+	}
+
+	return await fetch(url, options);
 }
 
 /**
@@ -101,7 +145,9 @@ function getFetchOptions(method: string, body?: unknown): RequestInit {
 async function handleResponse<T>(response: Response): Promise<T> {
 	if (!response.ok) {
 		const error = await response.json().catch(() => ({ error: 'An error occurred' }));
-		throw new Error(error.error || `Request failed with status ${response.status}`);
+		throw new Error(
+			await getApiErrorMessage(response, error.error || `Request failed with status ${response.status}`)
+		);
 	}
 	return response.json();
 }
@@ -132,7 +178,7 @@ export const inventoryItemsAPI = {
 		const query = queryParams.toString();
 		const url = `/api/inventory/items${query ? `?${query}` : ''}`;
 
-		const response = await fetch(url, getFetchOptions('GET'));
+		const response = await fetchWithAuthRetry(url, getFetchOptions('GET'));
 
 		return handleResponse(response);
 	},
@@ -141,7 +187,7 @@ export const inventoryItemsAPI = {
 	 * Get a single inventory item
 	 */
 	async getById(id: string): Promise<InventoryItem> {
-		const response = await fetch(`/api/inventory/items/${id}`, getFetchOptions('GET'));
+		const response = await fetchWithAuthRetry(`/api/inventory/items/${id}`, getFetchOptions('GET'));
 
 		return handleResponse(response);
 	},
@@ -150,7 +196,13 @@ export const inventoryItemsAPI = {
 	 * Create a new inventory item
 	 */
 	async create(data: CreateItemRequest): Promise<InventoryItem> {
-		const response = await fetch('/api/inventory/items', getFetchOptions('POST', data));
+		const response = await fetchWithAuthRetry('/api/inventory/items', getFetchOptionsWithFlags('POST', data));
+
+		return handleResponse(response);
+	},
+
+	async createForImport(data: CreateItemRequest): Promise<InventoryItem> {
+		const response = await fetchWithAuthRetry('/api/inventory/items', getFetchOptionsWithFlags('POST', data, { importContext: true }));
 
 		return handleResponse(response);
 	},
@@ -159,7 +211,10 @@ export const inventoryItemsAPI = {
 	 * Bulk create inventory items
 	 */
 	async bulkCreate(data: BulkCreateItemsRequest): Promise<BulkCreateItemsResponse> {
-		const response = await fetch('/api/inventory/items/bulk', getFetchOptions('POST', data));
+		const response = await fetchWithAuthRetry(
+			'/api/inventory/items/bulk',
+			getFetchOptionsWithFlags('POST', data, { importContext: true })
+		);
 
 		return handleResponse(response);
 	},
@@ -168,7 +223,13 @@ export const inventoryItemsAPI = {
 	 * Update an inventory item
 	 */
 	async update(id: string, data: UpdateItemRequest): Promise<InventoryItem> {
-		const response = await fetch(`/api/inventory/items/${id}`, getFetchOptions('PATCH', data));
+		const response = await fetchWithAuthRetry(`/api/inventory/items/${id}`, getFetchOptionsWithFlags('PATCH', data));
+
+		return handleResponse(response);
+	},
+
+	async updateForImport(id: string, data: UpdateItemRequest): Promise<InventoryItem> {
+		const response = await fetchWithAuthRetry(`/api/inventory/items/${id}`, getFetchOptionsWithFlags('PATCH', data, { importContext: true }));
 
 		return handleResponse(response);
 	},
@@ -177,7 +238,7 @@ export const inventoryItemsAPI = {
 	 * Delete an inventory item (soft delete)
 	 */
 	async delete(id: string): Promise<{ success: boolean; message: string }> {
-		const response = await fetch(`/api/inventory/items/${id}`, getFetchOptions('DELETE'));
+		const response = await fetchWithAuthRetry(`/api/inventory/items/${id}`, getFetchOptions('DELETE'));
 
 		return handleResponse(response);
 	}
@@ -201,7 +262,7 @@ export const inventoryCategoriesAPI = {
 		const query = queryParams.toString();
 		const url = `/api/inventory/categories${query ? `?${query}` : ''}`;
 
-		const response = await fetch(url, getFetchOptions('GET'));
+		const response = await fetchWithAuthRetry(url, getFetchOptions('GET'));
 
 		return handleResponse(response);
 	},
@@ -210,7 +271,7 @@ export const inventoryCategoriesAPI = {
 	 * Create a new category
 	 */
 	async create(data: CreateCategoryRequest): Promise<InventoryCategory> {
-		const response = await fetch('/api/inventory/categories', getFetchOptions('POST', data));
+		const response = await fetchWithAuthRetry('/api/inventory/categories', getFetchOptions('POST', data));
 
 		return handleResponse(response);
 	},
@@ -219,7 +280,7 @@ export const inventoryCategoriesAPI = {
 	 * Update a category
 	 */
 	async update(id: string, data: UpdateCategoryRequest): Promise<InventoryCategory> {
-		const response = await fetch(`/api/inventory/categories/${id}`, getFetchOptions('PATCH', data));
+		const response = await fetchWithAuthRetry(`/api/inventory/categories/${id}`, getFetchOptions('PATCH', data));
 
 		return handleResponse(response);
 	},
@@ -228,7 +289,7 @@ export const inventoryCategoriesAPI = {
 	 * Delete a category (soft delete)
 	 */
 	async delete(id: string): Promise<{ success: boolean; message: string }> {
-		const response = await fetch(`/api/inventory/categories/${id}`, getFetchOptions('DELETE'));
+		const response = await fetchWithAuthRetry(`/api/inventory/categories/${id}`, getFetchOptions('DELETE'));
 
 		return handleResponse(response);
 	}
@@ -244,14 +305,37 @@ export async function uploadInventoryImage(file: File): Promise<{ success: boole
 
 	const formData = new FormData();
 	formData.append('file', file);
+	const maxRetries = 4;
+	let lastError: Error | null = null;
 
-	const response = await fetch('/api/inventory/upload', {
-		method: 'POST',
-		credentials: 'include', // Automatically send httpOnly cookies
-		body: formData
-	});
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		try {
+			const response = await fetchWithAuthRetry('/api/inventory/upload', {
+				method: 'POST',
+				credentials: 'include', // Automatically send httpOnly cookies
+				body: formData
+			}, true);
 
-	return handleResponse(response);
+			if (!response.ok && (response.status === 429 || response.status >= 500) && attempt < maxRetries) {
+				const retryAfterHeader = response.headers.get('retry-after');
+				const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+				const backoffMs = Number.isFinite(retryAfterSeconds)
+					? Math.max(500, retryAfterSeconds * 1000)
+					: Math.min(8000, 500 * Math.pow(2, attempt));
+				await new Promise((resolve) => setTimeout(resolve, backoffMs));
+				continue;
+			}
+
+			return handleResponse(response);
+		} catch (error) {
+			lastError = error instanceof Error ? error : new Error('Image upload failed');
+			if (attempt >= maxRetries) break;
+			const backoffMs = Math.min(8000, 500 * Math.pow(2, attempt));
+			await new Promise((resolve) => setTimeout(resolve, backoffMs));
+		}
+	}
+
+	throw lastError ?? new Error('Image upload failed after retries');
 }
 
 // ─── Constant Items API ───────────────────────────────────────────────────────

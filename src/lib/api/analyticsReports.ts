@@ -4,6 +4,7 @@
  */
 
 import { browser } from '$app/environment';
+import { getApiErrorMessage } from './session';
 
 // â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -209,8 +210,6 @@ export interface AnalyticsReport {
 	};
 }
 
-// â”€â”€ Cache â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
 interface CacheEntry {
 	data: AnalyticsReport;
 	expiresAt: number;
@@ -337,7 +336,9 @@ export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<
 
 				if (!res.ok) {
 					const body = await res.json().catch(() => ({})) as { error?: string };
-					throw new Error(body.error ?? `Analytics request failed: ${res.status}`);
+					throw new Error(
+						await getApiErrorMessage(res, body.error ?? `Analytics request failed: ${res.status}`)
+					);
 				}
 
 				const data = normalizeAnalyticsReport((await res.json()) as AnalyticsReport);

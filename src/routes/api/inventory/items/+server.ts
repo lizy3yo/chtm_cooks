@@ -63,12 +63,6 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
  */
 export const GET: RequestHandler = async (event) => {
 	const { request, getClientAddress } = event;
-	
-	// Apply rate limiting
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
-	if (rateLimitResult instanceof Response) {
-		return rateLimitResult;
-	}
 
 	try {
 		// Verify authentication via cookie
@@ -171,11 +165,14 @@ export const GET: RequestHandler = async (event) => {
  */
 export const POST: RequestHandler = async (event) => {
 	const { request, getClientAddress } = event;
+	const isImportContext = request.headers.get('x-import-context') === '1';
 	
-	// Apply rate limiting
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
-	if (rateLimitResult instanceof Response) {
-		return rateLimitResult;
+	// Apply rate limiting unless this request is part of a controlled import flow
+	if (!isImportContext) {
+		const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
+		if (rateLimitResult instanceof Response) {
+			return rateLimitResult;
+		}
 	}
 
 	try {

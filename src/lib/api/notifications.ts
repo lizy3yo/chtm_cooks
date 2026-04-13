@@ -33,6 +33,8 @@ export interface NotificationListResponse {
 	unreadCount: number;
 }
 
+import { getApiErrorMessage } from './session';
+
 interface ApiError {
 	error?: string;
 	message?: string;
@@ -41,7 +43,9 @@ interface ApiError {
 async function handleResponse<T>(response: Response): Promise<T> {
 	const payload = (await response.json().catch(() => ({}))) as T & ApiError;
 	if (!response.ok) {
-		throw new Error(payload.message || payload.error || `Request failed with status ${response.status}`);
+		throw new Error(
+			await getApiErrorMessage(response, payload.message || payload.error || `Request failed with status ${response.status}`)
+		);
 	}
 	return payload;
 }

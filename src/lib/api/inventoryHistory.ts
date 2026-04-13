@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import { getApiErrorMessage } from './session';
 
 /**
  * Inventory history entry
@@ -65,7 +66,9 @@ function getFetchOptions(method: string, body?: unknown): RequestInit {
 async function handleResponse<T>(response: Response): Promise<T> {
 	if (!response.ok) {
 		const error = await response.json().catch(() => ({ error: 'An error occurred' }));
-		throw new Error(error.error || `Request failed with status ${response.status}`);
+		throw new Error(
+			await getApiErrorMessage(response, error.error || `Request failed with status ${response.status}`)
+		);
 	}
 	return response.json();
 }

@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
 import type { InventoryItem, InventoryCategory } from './inventory';
+import { getApiErrorMessage } from './session';
 
 /**
  * Catalog types for unified data fetching
@@ -120,7 +121,9 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 	if (!response.ok) {
 		const error: CatalogError = data;
-		throw new Error(error.message || error.error || `Request failed with status ${response.status}`);
+		throw new Error(
+			await getApiErrorMessage(response, error.message || error.error || `Request failed with status ${response.status}`)
+		);
 	}
 
 	return data;

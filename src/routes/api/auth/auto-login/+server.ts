@@ -5,7 +5,7 @@ import { ObjectId } from 'mongodb';
 import { generateAccessToken, generateRefreshToken } from '$lib/server/utils/jwt';
 import type { User, UserResponse } from '$lib/server/models/User';
 import { validateRememberMeToken, rotateRememberMeToken } from '$lib/server/middleware/auth/rememberMe';
-import { setAuthTokens } from '$lib/server/middleware/auth/cookies';
+import { setAuthTokens, getAccessTokenMaxAge } from '$lib/server/middleware/auth/cookies';
 
 /**
  * Auto-Login Endpoint
@@ -99,7 +99,7 @@ export const POST: RequestHandler = async (event) => {
 		};
 		
 		// Set auth tokens as httpOnly cookies
-		setAuthTokens(event, accessToken, refreshToken);
+		setAuthTokens(event, accessToken, refreshToken, getAccessTokenMaxAge(user.role));
 		
 		// Note: Token rotation is optional - uncomment below to enable
 		// Token rotation provides extra security but creates more DB writes

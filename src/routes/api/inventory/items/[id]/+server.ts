@@ -149,11 +149,14 @@ export const GET: RequestHandler = async (event) => {
  */
 export const PATCH: RequestHandler = async (event) => {
 	const { request, params, getClientAddress } = event;
+	const isImportContext = request.headers.get('x-import-context') === '1';
 	
-	// Apply rate limiting
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
-	if (rateLimitResult instanceof Response) {
-		return rateLimitResult;
+	// Apply rate limiting unless this request is part of a controlled import flow
+	if (!isImportContext) {
+		const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
+		if (rateLimitResult instanceof Response) {
+			return rateLimitResult;
+		}
 	}
 
 	try {

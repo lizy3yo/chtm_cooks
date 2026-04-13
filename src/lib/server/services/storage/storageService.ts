@@ -171,16 +171,17 @@ class StorageService {
 	 * Validate uploaded file
 	 */
 	private validateFile(file: File): void {
-		// Max file size: 10MB
-		const MAX_SIZE = 10 * 1024 * 1024;
+		// Max file size: configurable (default 30MB)
+		const maxSizeMb = Math.max(1, Number(env.STORAGE_MAX_FILE_SIZE_MB || 30));
+		const MAX_SIZE = maxSizeMb * 1024 * 1024;
 		if (file.size > MAX_SIZE) {
-			throw new Error(`File size exceeds maximum limit of ${MAX_SIZE / 1024 / 1024}MB`);
+			throw new Error(`File size exceeds maximum limit of ${maxSizeMb}MB`);
 		}
 
 		// Allowed file types
-		const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+		const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 		if (!ALLOWED_TYPES.includes(file.type)) {
-			throw new Error('Invalid file type. Only JPEG, PNG, and WebP images are allowed.');
+			throw new Error('Invalid file type. Only JPEG, PNG, WebP, and GIF images are allowed.');
 		}
 	}
 

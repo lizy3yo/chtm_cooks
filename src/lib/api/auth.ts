@@ -65,6 +65,14 @@ async function apiRequest<T>(
 
 		if (!response.ok) {
 			const error = data as ApiError;
+			if (response.status === 401) {
+				throw new ApiErrorHandler(
+					'Session expired. Please sign in again.',
+					401,
+					error.code,
+					error.details
+				);
+			}
 			throw new ApiErrorHandler(
 				error.error || 'An error occurred',
 				response.status,
