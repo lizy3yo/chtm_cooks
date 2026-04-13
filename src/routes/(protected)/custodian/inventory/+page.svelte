@@ -227,8 +227,12 @@
 	 */
 	async function loadItems() {
 		try {
-			// Always invalidate cache before checking to ensure fresh data
-			inventoryStore.invalidateItems();
+			// Use cached items when still fresh to avoid refetching on route return.
+			if (inventoryStore.isItemsCacheValid()) {
+				const storeData = get(inventoryStore);
+				items = storeData.items;
+				return;
+			}
 			
 			loading = true;
 			inventoryStore.setLoading(true);

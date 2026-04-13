@@ -29,7 +29,7 @@ interface InventoryCache {
 	isLoading: boolean;
 }
 
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour (aligned with session timeout)
+const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
 
 const initialState: InventoryCache = {
 	items: [],
