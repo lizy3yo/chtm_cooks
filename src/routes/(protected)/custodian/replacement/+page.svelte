@@ -296,7 +296,12 @@
 		// Parallel reconciliation and data load
 		try {
 			await replacementObligationsAPI.reconcile();
-			await Promise.all([loadObligations(shouldShowLoading), loadDonations(shouldShowLoading)]);
+			await Promise.all([
+				// Revalidate against source-of-truth to correct any out-of-band DB changes.
+				loadObligations(shouldShowLoading, true),
+				// Revalidate against source-of-truth to correct any out-of-band DB changes.
+				loadDonations(shouldShowLoading, true)
+			]);
 		} catch (err) {
 			console.error('Initial load failed', err);
 			if (isMounted && !error) {
@@ -340,14 +345,14 @@
 		};
 	});
 
-	async function loadObligations(showLoading = true): Promise<void> {
+	async function loadObligations(showLoading = true, forceRefresh = false): Promise<void> {
 		if (showLoading) {
 			isLoading = true;
 		}
 		error = null;
 		
 		try {
-			const response = await replacementObligationsAPI.getObligations({ limit: 500 });
+			const response = await replacementObligationsAPI.getObligations({ limit: 500 }, { forceRefresh });
 			if (isMounted) {
 				obligations = response.obligations;
 			}
@@ -363,7 +368,7 @@
 		}
 	}
 
-	async function loadDonations(showLoading = true): Promise<void> {
+	async function loadDonations(showLoading = true, forceRefresh = false): Promise<void> {
 		if (showLoading && isMounted) {
 			donationsLoading = true;
 		}
@@ -371,7 +376,8 @@
 		try {
 			const response = await donationsAPI.getAll({ 
 				search: donationsSearch || undefined, 
-				limit: 200 
+				limit: 200,
+				forceRefresh
 			});
 			if (isMounted) {
 				donations = response.donations;

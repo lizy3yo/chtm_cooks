@@ -17,6 +17,7 @@ import {
 
 export const REPLACEMENT_OBLIGATIONS_COLLECTION = 'replacement_obligations';
 export const REPLACEMENT_OBLIGATIONS_CACHE_TAG = 'replacement-obligations';
+export const REPORTS_ANALYTICS_CACHE_TAG = 'reports-analytics';
 
 export function getAuthenticatedUser(event: RequestEvent) {
 	return getUserFromToken(event);
@@ -56,7 +57,7 @@ export function buildReplacementObligationDetailCacheKey(id: string): string {
 export async function invalidateReplacementObligationCaches(): Promise<void> {
 	await Promise.all([
 		cacheService.deletePattern('replacement-obligations:*'),
-		cacheService.invalidateByTags([REPLACEMENT_OBLIGATIONS_CACHE_TAG])
+		cacheService.invalidateByTags([REPLACEMENT_OBLIGATIONS_CACHE_TAG, REPORTS_ANALYTICS_CACHE_TAG])
 	]);
 }
 

@@ -45,13 +45,24 @@ export const RateLimitPresets = {
 	/**
 	 * Registration endpoint - Moderate limits
 	 * - Prevents mass account creation
-	 * - Blocks for 1 hour after 3 registrations
+	 * - Blocks for 1 hour after 10 registrations
 	 */
 	REGISTER: {
 		windowMs: 60 * 60 * 1000, // 1 hour
-		maxRequests: 3, // 3 registrations per hour
+		maxRequests: 10, // 10 registrations per hour
 		blockDurationMs: 60 * 60 * 1000, // Block for 1 hour
 		keyPrefix: 'ratelimit:register'
+	} as RateLimitConfig,
+
+	/**
+	 * Resend verification endpoint - Moderate limits
+	 * - Prevents repeated resend abuse while still allowing recovery
+	 */
+	RESEND_VERIFICATION: {
+		windowMs: 60 * 60 * 1000, // 1 hour
+		maxRequests: 10, // 10 resend attempts per hour
+		blockDurationMs: 60 * 60 * 1000, // Block for 1 hour
+		keyPrefix: 'ratelimit:resend-verification'
 	} as RateLimitConfig,
 
 	/**

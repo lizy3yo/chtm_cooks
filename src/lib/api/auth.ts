@@ -124,10 +124,11 @@ export const authApi = {
 
 	/**
 	 * Register a new user (primarily for students)
-	 * Tokens automatically set in httpOnly cookies
+	 * Registration does not authenticate the user.
+	 * Student accounts must verify email before sign-in.
 	 */
-	register: async (userData: RegisterRequest): Promise<{ user: UserResponse }> => {
-		return apiRequest<{ user: UserResponse }>('/register', {
+	register: async (userData: RegisterRequest): Promise<{ success: boolean; message: string; requiresEmailVerification: boolean; user: UserResponse }> => {
+		return apiRequest<{ success: boolean; message: string; requiresEmailVerification: boolean; user: UserResponse }>('/register', {
 			method: 'POST',
 			body: JSON.stringify(userData)
 		});

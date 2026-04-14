@@ -241,12 +241,12 @@
 				<p class="mt-0.5 text-xs text-amber-500">Awaiting action</p>
 			</div>
 
-			<div class="rounded-xl border {overdueCount > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'} p-4 shadow-sm">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {overdueCount > 0 ? 'text-red-700' : 'text-gray-600'}">
+			<div class="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-800">
 					<TriangleAlert size={12} /> Overdue
 				</div>
-				<p class="mt-2 text-3xl font-bold {overdueCount > 0 ? 'text-red-700' : 'text-gray-700'}">{overdueCount}</p>
-				<p class="mt-0.5 text-xs {overdueCount > 0 ? 'text-red-500' : 'text-gray-500'}">Past return date</p>
+				<p class="mt-2 text-3xl font-bold text-red-700">{overdueCount}</p>
+				<p class="mt-0.5 text-xs text-red-600">Past return date</p>
 			</div>
 
 			<div class="rounded-xl border {stockAlertCount > 0 ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-gray-50'} p-4 shadow-sm">

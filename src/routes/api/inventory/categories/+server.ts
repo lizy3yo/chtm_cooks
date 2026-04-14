@@ -254,7 +254,7 @@ export const POST: RequestHandler = async (event) => {
 
 			// Invalidate cache
 			await cacheService.deletePattern('inventory:categories:*');
-			await cacheService.invalidateByTags(['inventory-catalog']);
+			await cacheService.invalidateByTags(['inventory-catalog', 'reports-analytics']);
 
 			publishInventoryChange([INVENTORY_CHANNEL], {
 				action: 'category_created',
@@ -306,7 +306,7 @@ export const POST: RequestHandler = async (event) => {
 
 		// Invalidate cache
 		await cacheService.deletePattern('inventory:categories:*');
-		await cacheService.invalidateByTags(['inventory-catalog']);
+		await cacheService.invalidateByTags(['inventory-catalog', 'reports-analytics']);
 
 		publishInventoryChange([INVENTORY_CHANNEL], {
 			action: 'category_created',

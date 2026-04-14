@@ -67,6 +67,15 @@ export const POST: RequestHandler = async (event) => {
 				{ status: 403 }
 			);
 		}
+
+		// Student accounts must remain verified to restore a session.
+		if (user.role === 'student' && !user.emailVerified) {
+			console.log('[AutoLogin] Student email is not verified');
+			return json(
+				{ error: 'Email not verified' },
+				{ status: 403 }
+			);
+		}
 		
 		// Update last login
 		await usersCollection.updateOne(

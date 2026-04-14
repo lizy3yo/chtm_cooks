@@ -10,9 +10,11 @@ import { BorrowRequestStatus, toBorrowRequestResponse } from '$lib/server/models
 import type { User } from '$lib/server/models/User';
 import {
 	BORROW_REQUESTS_COLLECTION,
+	BORROW_REQUESTS_CACHE_TAG,
 	buildBorrowRequestDetailCacheKey,
 	canAccessBorrowRequest,
 	getAuthenticatedUser,
+	invalidateBorrowRequestCaches,
 	parseObjectId,
 	publishBorrowRequestRealtimeEvent
 } from '../shared';
@@ -109,7 +111,7 @@ export const GET: RequestHandler = async (event) => {
 			} : undefined
 		};
 
-		await cacheService.set(cacheKey, response, { ttl: 43200 });
+		await cacheService.set(cacheKey, response, { ttl: 43200, tags: [BORROW_REQUESTS_CACHE_TAG] });
 		return json(response);
 	} catch (error) {
 		logger.error('Error fetching borrow request detail', { error });
@@ -169,8 +171,7 @@ export const DELETE: RequestHandler = async (event) => {
 		}
 
 		// Invalidate caches
-		const cacheKey = buildBorrowRequestDetailCacheKey(event.params.id);
-		await cacheService.delete(cacheKey);
+		await invalidateBorrowRequestCaches();
 		publishBorrowRequestRealtimeEvent(updated, 'cancelled');
 		await notifyBorrowRequestLifecycle({
 			db,

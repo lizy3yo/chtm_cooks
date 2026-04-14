@@ -14,8 +14,8 @@ import { rateLimit, RateLimitPresets, applyRateLimitHeaders } from '$lib/server/
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
 	
-	// Apply rate limiting (use same as registration to prevent abuse)
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.REGISTER);
+	// Apply a dedicated resend-verification limit so it does not share quota with registration
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.RESEND_VERIFICATION);
 	if (rateLimitResult instanceof Response) {
 		return rateLimitResult;
 	}

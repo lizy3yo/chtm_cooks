@@ -17,6 +17,7 @@ import {
 import type { User } from '$lib/server/models/User';
 import {
 	BORROW_REQUESTS_COLLECTION,
+	BORROW_REQUESTS_CACHE_TAG,
 	buildBorrowRequestListCacheKey,
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
@@ -205,7 +206,7 @@ export const GET: RequestHandler = async (event) => {
 			pages: Math.ceil(total / limit)
 		};
 
-		await cacheService.set(cacheKey, response, { ttl: 43200 });
+		await cacheService.set(cacheKey, response, { ttl: 43200, tags: [BORROW_REQUESTS_CACHE_TAG] });
 		return json(response);
 	} catch (error) {
 		logger.error('Error fetching borrow requests', { error });

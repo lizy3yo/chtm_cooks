@@ -238,7 +238,7 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 
 		// Invalidate cache
-		await cacheService.invalidateByTags(['inventory-constant', 'inventory-catalog']);
+		await cacheService.invalidateByTags(['inventory-constant', 'inventory-catalog', 'reports-analytics']);
 
 		// Fetch updated items for response
 		const updatedItems = await itemsCollection
