@@ -118,8 +118,10 @@
 	<div
 		class="fixed inset-0 z-40 bg-transparent lg:hidden"
 		onclick={closeMobileMenu}
+		onkeydown={(e) => e.key === 'Enter' && closeMobileMenu()}
 		role="button"
 		tabindex="0"
+		aria-label="Close menu"
 	></div>
 {/if}
 
@@ -205,7 +207,7 @@
 							{/if}
 						</div>
 						{#if item.badge !== undefined && item.badge > 0}
-							<span class="flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-semibold text-white bg-red-500 rounded-full {$sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1' : ''}">
+							<span class="flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-semibold text-white bg-red-500 rounded-full {$sidebarCollapsed ? 'lg:absolute lg:top-1 lg:right-1' : ''}">
 								{item.badge > 99 ? '99+' : item.badge}
 							</span>
 						{/if}
@@ -221,3 +223,4 @@
 	onconfirm={handleLogout}
 	oncancel={() => (signOutOpen = false)}
 />
+
