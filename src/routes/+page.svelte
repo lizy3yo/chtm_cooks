@@ -14,6 +14,8 @@
 				goto('/instructor/dashboard');
 			} else if ($user.role === 'custodian') {
 				goto('/custodian/dashboard');
+			} else if ($user.role === 'superadmin' || $user.role === 'admin') {
+				goto('/superadmin/dashboard');
 			} else {
 				goto('/admin/dashboard');
 			}

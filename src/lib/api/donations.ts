@@ -79,7 +79,7 @@ interface CacheEntry<T> {
 	expiresAt: number;
 }
 
-const CLIENT_CACHE_TTL_MS = 3_600_000;
+const CLIENT_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const listCache = new Map<string, CacheEntry<DonationsListResponse>>();
 const detailCache = new Map<string, CacheEntry<{ donation: DonationResponse }>>();
 const inFlight = new Map<string, Promise<unknown>>();

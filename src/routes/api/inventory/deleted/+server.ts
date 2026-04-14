@@ -192,8 +192,8 @@ export const GET: RequestHandler = async (event) => {
 			pages: Math.ceil(total / limit)
 		};
 
-		// Cache for 1 hour to align with session timeout
-		await cacheService.set(cacheKey, response, { ttl: 3600 });
+		// Cache for 12 hours to align with session timeout
+		await cacheService.set(cacheKey, response, { ttl: 43200 });
 
 		logger.info('Deleted items and categories retrieved', {
 			userId: decoded.userId,

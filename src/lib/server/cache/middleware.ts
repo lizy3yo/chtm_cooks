@@ -291,7 +291,7 @@ export function handleConditionalRequest(
 			status: 304,
 			headers: {
 				'ETag': etag,
-				'Cache-Control': 'public, max-age=3600'
+				'Cache-Control': 'public, max-age=43200'
 			}
 		});
 	}
@@ -304,7 +304,7 @@ export function handleConditionalRequest(
 				status: 304,
 				headers: {
 					'Last-Modified': lastModified.toUTCString(),
-					'Cache-Control': 'public, max-age=3600'
+					'Cache-Control': 'public, max-age=43200'
 				}
 			});
 		}

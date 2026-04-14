@@ -125,9 +125,9 @@ export const GET: RequestHandler = async (event) => {
 
 		const response = items.map(toItemResponse);
 
-		// Cache for 1 hour to align with session timeout
+		// Cache for 12 hours to align with session timeout
 		await cacheService.set(cacheKey, response, {
-			ttl: 3600,
+			ttl: 43200,
 			tags: ['inventory-constant', 'inventory-catalog']
 		});
 

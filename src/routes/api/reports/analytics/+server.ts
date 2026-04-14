@@ -23,7 +23,7 @@ import { parallelAggregations, ANALYTICS_AGGREGATION_OPTIONS } from '$lib/server
 import { UserRole, type User } from '$lib/server/models/User';
 
 const ANALYTICS_CACHE_TAG = 'reports-analytics';
-const CACHE_TTL = 3600; // 1 hour - aligned with session timeout
+const CACHE_TTL = 43200; // 12 hours
 const ANALYTICS_CACHE_VERSION = 'v7';
 const TRUST_SCORE_STUDENT_LIMIT = 50; // Reduced from 200 for faster analytics response.
 

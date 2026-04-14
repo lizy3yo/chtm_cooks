@@ -90,7 +90,7 @@ export const GET: RequestHandler = async (event) => {
 			pages: Math.ceil(total / parsedLimit)
 		};
 
-		await cacheService.set(cacheKey, response, { ttl: 3600, tags: [DONATIONS_CACHE_TAG] });
+		await cacheService.set(cacheKey, response, { ttl: 43200, tags: [DONATIONS_CACHE_TAG] });
 
 		return json(response);
 	} catch (error) {

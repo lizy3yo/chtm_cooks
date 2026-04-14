@@ -91,7 +91,7 @@ export const GET: RequestHandler = async (event) => {
 		};
 
 		await cacheService.set(cacheKey, response, {
-			ttl: 3600,
+			ttl: 43200,
 			tags: [REPLACEMENT_OBLIGATIONS_CACHE_TAG]
 		});
 

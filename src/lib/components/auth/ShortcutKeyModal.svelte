@@ -64,6 +64,8 @@
 				goto('/instructor/dashboard');
 			} else if (response.user.role === 'custodian') {
 				goto('/custodian/dashboard');
+			} else if (response.user.role === 'superadmin' || response.user.role === 'admin') {
+				goto('/superadmin/dashboard');
 			} else {
 				goto('/admin/dashboard');
 			}
