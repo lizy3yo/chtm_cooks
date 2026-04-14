@@ -29,6 +29,10 @@ export const GET: RequestHandler = async (event) => {
 			return json({ error: 'User not found' }, { status: 404 });
 		}
 
+		if (user.role === UserRole.STUDENT && !user.emailVerified) {
+			return json({ error: 'Email not verified' }, { status: 403 });
+		}
+
 		const userResponse: UserResponse = {
 			id: user._id!.toString(),
 			email: user.email,

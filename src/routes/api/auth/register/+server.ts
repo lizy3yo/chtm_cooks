@@ -2,14 +2,12 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getDatabase } from '$lib/server/db/mongodb';
 import { hashPassword, validatePassword } from '$lib/server/utils/password';
-import { generateAccessToken, generateRefreshToken } from '$lib/server/utils/jwt';
 import { validateEmail, validateRole, sanitizeInput } from '$lib/server/utils/validation';
 import type { RegisterRequest, User, UserResponse } from '$lib/server/models/User';
 import { UserRole } from '$lib/server/models/User';
 import { rateLimit, RateLimitPresets, applyRateLimitHeaders } from '$lib/server/middleware/rateLimit';
 import { generateEmailVerificationToken, hashToken } from '$lib/server/utils/tokens';
 import { sendVerificationEmail } from '$lib/server/services/email';
-import { setAuthTokens, getAccessTokenMaxAge } from '$lib/server/middleware/auth/cookies';
 
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
@@ -127,16 +125,6 @@ export const POST: RequestHandler = async (event) => {
 			// Don't fail registration if email fails - user can request resend
 		});
 
-		// Generate tokens
-		const tokenPayload = {
-			userId: result.insertedId.toString(),
-			email: newUser.email,
-			role: newUser.role
-		};
-
-		const accessToken = generateAccessToken(tokenPayload);
-		const refreshToken = generateRefreshToken(tokenPayload);
-
 		// Prepare response
 		const userResponse: UserResponse = {
 			id: result.insertedId.toString(),
@@ -155,15 +143,17 @@ export const POST: RequestHandler = async (event) => {
 			})
 		};
 
-		// Set auth tokens as httpOnly cookies
-		setAuthTokens(event, accessToken, refreshToken, getAccessTokenMaxAge(newUser.role));
-
 		// Add rate limit headers to successful response
 		const responseHeaders = new Headers();
 		applyRateLimitHeaders(responseHeaders, rateLimitResult);
 
 		return json(
-			{ success: true, user: userResponse }, 
+			{
+				success: true,
+				message: 'Registration successful. Please verify your email before signing in.',
+				requiresEmailVerification: true,
+				user: userResponse
+			},
 			{ 
 				status: 201,
 				headers: responseHeaders

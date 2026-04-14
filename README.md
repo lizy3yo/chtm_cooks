@@ -140,6 +140,47 @@ See [TESTING_GUIDE.md](./TESTING_GUIDE.md) for comprehensive manual testing scen
 
 ##  Quick Start
 
+## Demo Data Workflow (Full Non-Inventory Database)
+
+Use these scripts to prepare a presentation-ready dataset across all major non-inventory collections and switch between populated and empty states safely.
+
+What the seed script adds:
+- 20 users with real names and numeric Gordon College emails (example: `202311564@gordoncollege.edu.ph`)
+- Borrow requests
+- Replacement obligations
+- Donations
+- Notifications
+- Shortcut keys
+- Remember tokens
+
+What it does not add:
+- Inventory items (intentionally excluded)
+
+Commands:
+
+```sh
+# Preview only (dry-run)
+npm run db:seed-demo-analytics
+
+# Execute seed
+npm run db:seed-demo-analytics:yes
+
+# Preview purge only (dry-run)
+npm run db:purge-demo-analytics
+
+# Purge seeded demo data (keeps seeded users)
+npm run db:purge-demo-analytics:yes
+
+# Purge seeded demo data but keep users
+npm run db:purge-demo-analytics:yes:keep-users
+```
+
+Operational notes:
+- Both scripts are dry-run by default for safety.
+- Seeded records are tagged and purged by tag only to avoid deleting non-demo data.
+- Existing users with matching emails are updated (upsert) and not duplicated.
+- Full purge (`db:purge-demo-analytics:yes`) includes seeded users by default for true empty-state demos.
+
 ### Create Your First Superadmin
 
 If starting fresh, create a superadmin account via MongoDB:

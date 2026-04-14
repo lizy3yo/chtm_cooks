@@ -237,7 +237,7 @@ function emailTemplate(content: string): string {
  * @returns HTML email template
  */
 export function emailVerificationTemplate(firstName: string, verificationToken: string): string {
-	const verificationUrl = `${getAppUrl()}/api/auth/verify-email?token=${verificationToken}`;
+    const verificationUrl = `${getAppUrl()}/auth/verify-email?token=${verificationToken}`;
 
 	const content = `
         <div class="content">

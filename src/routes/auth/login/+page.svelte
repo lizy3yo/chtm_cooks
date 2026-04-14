@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { tick } from 'svelte';
 	import { authStore } from '$lib/stores/auth';
@@ -22,7 +22,35 @@
 	let rememberMe  = $state(false);
 	let isSubmitting = $state(false);
 	let showPassword = $state(false);
+	let isResendingVerification = $state(false);
+	let showVerificationHelp = $state(false);
+	let resendCooldown = $state(0);
 	let errors = $state<{ email?: string; password?: string }>({});
+	let resendCooldownTimer: ReturnType<typeof setInterval> | null = null;
+
+	function closeVerificationModal() {
+		showVerificationHelp = false;
+	}
+
+	function startResendCooldown(seconds = 30) {
+		if (resendCooldownTimer) {
+			clearInterval(resendCooldownTimer);
+		}
+
+		resendCooldown = seconds;
+		resendCooldownTimer = setInterval(() => {
+			if (resendCooldown <= 1) {
+				if (resendCooldownTimer) {
+					clearInterval(resendCooldownTimer);
+					resendCooldownTimer = null;
+				}
+				resendCooldown = 0;
+				return;
+			}
+
+			resendCooldown -= 1;
+		}, 1000);
+	}
 
 	function clearError(field: 'email' | 'password') {
 		errors = { ...errors, [field]: undefined };
@@ -100,6 +128,49 @@
 		}
 	});
 
+	onDestroy(() => {
+		if (resendCooldownTimer) {
+			clearInterval(resendCooldownTimer);
+		}
+	});
+
+	async function handleResendVerificationEmail() {
+		const normalizedEmail = email.trim().toLowerCase();
+
+		const emailError = validateEmail(normalizedEmail);
+		if (emailError) {
+			errors = { ...errors, email: emailError.message };
+			toastStore.error('Enter a valid email first.', 'Cannot Resend Verification');
+			return;
+		}
+
+		if (resendCooldown > 0 || isResendingVerification) {
+			return;
+		}
+
+		isResendingVerification = true;
+
+		try {
+			const response = await authApi.resendVerification(normalizedEmail);
+			toastStore.success(response.message, 'Verification Email Sent');
+			startResendCooldown();
+		} catch (error) {
+			if (error instanceof ApiErrorHandler) {
+				toastStore.error(error.message, 'Cannot Resend Verification');
+			} else {
+				toastStore.error('Failed to resend verification email. Please try again.', 'Cannot Resend Verification');
+			}
+		} finally {
+			isResendingVerification = false;
+		}
+	}
+
+	function handleVerificationModalKeydown(event: KeyboardEvent) {
+		if (event.key === 'Escape') {
+			closeVerificationModal();
+		}
+	}
+
 	// ── Submit ────────────────────────────────────────────────────────────────
 
 	async function handleSubmit(e: Event) {
@@ -125,6 +196,7 @@
 		try {
 			const formData: LoginRequest = { email: normalizedEmail, password, rememberMe };
 			const response = await authApi.login(formData);
+			showVerificationHelp = false;
 
 			authStore.login(response.user);
 			await tick();
@@ -142,15 +214,23 @@
 			}
 		} catch (error) {
 			if (error instanceof ApiErrorHandler) {
+				const isEmailNotVerified =
+					error.status === 401 && /email not verified/i.test(error.message);
 				const isInvalidCredentials =
 					error.status === 401 && /invalid credentials|invalid email or password/i.test(error.message);
 
-				if (isInvalidCredentials) {
+				if (isEmailNotVerified) {
+					showVerificationHelp = true;
+					toastStore.error('Email not verified. Please verify your email or resend a new link below.', 'Login Failed');
+				} else if (isInvalidCredentials) {
+					showVerificationHelp = false;
 					toastStore.error('Invalid email or password. Please try again.', 'Login Failed');
 				} else {
+					showVerificationHelp = false;
 					toastStore.error(error.message, 'Login Failed');
 				}
 			} else {
+				showVerificationHelp = false;
 				toastStore.error('An unexpected error occurred. Please try again.', 'Login Failed');
 			}
 		} finally {
@@ -264,3 +344,65 @@
 		</p>
 	{/snippet}
 </AuthLayout>
+
+{#if showVerificationHelp}
+	<div
+		class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="verification-modal-title"
+		onkeydown={handleVerificationModalKeydown}
+	>
+		<button
+			type="button"
+			class="absolute inset-0 bg-black/45 backdrop-blur-[2px]"
+			onclick={closeVerificationModal}
+			aria-label="Close verification modal"
+		></button>
+
+		<div class="relative w-full max-w-md rounded-2xl border border-amber-200 bg-white p-5 shadow-2xl">
+			<div class="flex items-start justify-between gap-3">
+				<div>
+					<h3 id="verification-modal-title" class="text-lg font-semibold text-gray-900">Email verification required</h3>
+					<p class="mt-1 text-sm leading-relaxed text-gray-600">
+						Your account is not verified yet. Check your inbox for the verification link, or resend a new one now.
+					</p>
+				</div>
+				<button
+					type="button"
+					onclick={closeVerificationModal}
+					class="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+					aria-label="Close"
+				>
+					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
+
+			<div class="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+				<button
+					type="button"
+					onclick={handleResendVerificationEmail}
+					disabled={isResendingVerification || resendCooldown > 0}
+					class="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition duration-200 hover:from-pink-700 hover:to-rose-700 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+				>
+					{#if isResendingVerification}
+						Sending...
+					{:else if resendCooldown > 0}
+						Resend in {resendCooldown}s
+					{:else}
+						Resend verification email
+					{/if}
+				</button>
+				<button
+					type="button"
+					onclick={closeVerificationModal}
+					class="inline-flex w-full items-center justify-center rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition duration-200 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2"
+				>
+					Close
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}

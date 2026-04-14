@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { authStore } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
 	import { authApi, ApiErrorHandler } from '$lib/api/auth';
 	import type { ValidationError } from '$lib/types/auth';
@@ -378,12 +377,11 @@
 			registrationSuccess = true;
 			
 			// Show success toast
-			toastStore.success('Your account has been created successfully! Redirecting...', 'Registration Successful');
+			toastStore.success(response.message, 'Registration Successful');
 			
-			// Show success message for a moment before redirecting
+			// Redirect to login after giving time to read the verification notice
 			setTimeout(() => {
-				authStore.login(response.user);
-				goto('/student/dashboard');
+				goto('/auth/login');
 			}, 2000);
 		} catch (error) {
 			if (error instanceof ApiErrorHandler) {
@@ -452,7 +450,7 @@
 					</div>
 					<div class="ml-3">
 						<h3 class="text-sm font-medium text-green-800">Registration Successful!</h3>
-						<p class="mt-2 text-sm text-green-700">Your account has been created. Redirecting to your dashboard...</p>
+						<p class="mt-2 text-sm text-green-700">Your account has been created. Please verify your email before signing in. Redirecting to login...</p>
 					</div>
 				</div>
 			</div>
