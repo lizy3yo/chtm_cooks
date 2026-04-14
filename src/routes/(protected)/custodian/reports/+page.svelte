@@ -1,4 +1,4 @@
-﻿<script lang="ts">
+<script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import {
@@ -612,7 +612,7 @@
 													<p class="text-xs text-gray-600">{borrower.studentEmail}</p>
 													<div class="mt-1 flex items-center gap-3 text-xs text-gray-500">
 														<span>{borrower.requestCount} requests</span>
-														<span>ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢</span>
+														<span>&middot;</span>
 														<span>{borrower.totalItems} items</span>
 													</div>
 												</div>
@@ -844,7 +844,7 @@
 														<div class="min-w-0 flex-1">
 															<p class="truncate text-sm font-semibold text-gray-900">{driver?.latestRequestId ? `REQ-${driver.latestRequestId.slice(-6).toUpperCase()}` : 'N/A'}</p>
 															<p class="text-xs text-gray-600">{driver?.studentName || 'Unknown student'}</p>
-															<p class="mt-2 text-xs text-gray-500">{driver?.latestRequestDate ? new Date(driver.latestRequestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No request date'} Ãƒâ€šÃ‚Â· {driver?.latestRequestStatus || 'N/A'}</p>
+															<p class="mt-2 text-xs text-gray-500">{driver?.latestRequestDate ? new Date(driver.latestRequestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No request date'} &middot; {driver?.latestRequestStatus || 'N/A'}</p>
 														</div>
 														<div class="text-right">
 															<p class="text-sm font-medium text-gray-900">{item.name}</p>
@@ -958,4 +958,3 @@
 		{/if}
 	</div>
 </div>
-
