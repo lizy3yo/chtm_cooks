@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { BorrowRequestItem } from '$lib/api/borrowRequests';
-	import { CheckCircle2, AlertTriangle, XCircle, Package } from 'lucide-svelte';
+	import { CheckCircle2, AlertTriangle, XCircle, Package, Search } from 'lucide-svelte';
 
 	interface Props {
 		items: BorrowRequestItem[];
@@ -71,14 +71,17 @@
 		inspections.filter((i) => i.status !== null).length
 	);
 
-	function getItemEmoji(name: string): string {
+
+	// Professional Lucide icon fallback for missing item images
+	function getItemIcon(name: string) {
 		const normalized = name.toLowerCase();
-		if (normalized.includes('knife')) return '🔪';
-		if (normalized.includes('bowl')) return '🥣';
-		if (normalized.includes('scale')) return '⚖️';
-		if (normalized.includes('mixer')) return '🧁';
-		if (normalized.includes('processor')) return '🍽️';
-		return '📦';
+		// You can expand this mapping as needed for more item types
+		if (normalized.includes('knife')) return CheckCircle2; // Example: use CheckCircle2 for knife
+		if (normalized.includes('bowl')) return Package; // Example: use Package for bowl
+		if (normalized.includes('scale')) return AlertTriangle; // Example: use AlertTriangle for scale
+		if (normalized.includes('mixer')) return Package; // Example: use Package for mixer
+		if (normalized.includes('processor')) return Package; // Example: use Package for processor
+		return Package;
 	}
 
 	function getStatusColor(status: 'good' | 'damaged' | 'missing' | null): string {
@@ -196,7 +199,7 @@
 					<div class="flex items-start gap-3 sm:gap-4">
 						<!-- Icon -->
 						<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
-							<Package class="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" />
+							<Search class="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" />
 						</div>
 						
 						<div class="min-w-0 flex-1">
@@ -286,8 +289,11 @@
 										}}
 									/>
 								{:else}
-									<div class="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-pink-50 to-pink-100 border-2 border-pink-200 text-3xl shadow-md">
-										{getItemEmoji(currentItem.name)}
+									<div class="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-pink-50 to-pink-100 border-2 border-pink-200 shadow-md">
+										{#key currentItem.name}
+											{@const Icon = getItemIcon(currentItem.name)}
+											<Icon class="h-8 w-8 text-pink-400" aria-label="No image available" />
+										{/key}
 									</div>
 								{/if}
 								<div class="flex-1 min-w-0">
