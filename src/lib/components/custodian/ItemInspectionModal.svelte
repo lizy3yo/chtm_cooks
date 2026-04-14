@@ -25,42 +25,39 @@
 		replacementQuantity: number;
 	}
 
-	let inspections = $derived.by(() =>
+	// Initialize inspection data from items (stable reference)
+	let inspections = $state<ItemInspection[]>(
 		items.map((item) => ({
 			itemId: item.itemId,
 			name: item.name,
 			quantity: item.quantity,
 			picture: item.picture ?? null,
-			status: null as 'good' | 'damaged' | 'missing' | null,
+			status: null,
 			notes: '',
 			replacementQuantity: 0
 		}))
 	);
 
-	let inspectionStates = $state<Map<string, {
-		status: 'good' | 'damaged' | 'missing' | null;
-		notes: string;
-		replacementQuantity: number;
-	}>>(new Map());
-
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 
-	function getInspectionState(itemId: string) {
-		if (!inspectionStates.has(itemId)) {
-			inspectionStates.set(itemId, { status: null, notes: '', replacementQuantity: 0 });
+	function getInspection(itemId: string): ItemInspection {
+		return inspections.find((i) => i.itemId === itemId)!;
+	}
+
+	function setInspectionStatus(itemId: string, status: 'good' | 'damaged' | 'missing') {
+		const inspection = getInspection(itemId);
+		inspection.status = status;
+		if (status === 'good') {
+			inspection.replacementQuantity = 0;
 		}
-		return inspectionStates.get(itemId)!;
 	}
 
 	const allInspected = $derived(
-		inspections.every((i) => getInspectionState(i.itemId).status !== null)
+		inspections.every((i) => i.status !== null)
 	);
 	const hasIssues = $derived(
-		inspections.some((i) => {
-			const state = getInspectionState(i.itemId);
-			return state.status === 'damaged' || state.status === 'missing';
-		})
+		inspections.some((i) => i.status === 'damaged' || i.status === 'missing')
 	);
 
 	function getItemEmoji(name: string): string {
@@ -105,12 +102,11 @@
 			return;
 		}
 
-		// Require a valid replacement quantity for non-good returns.
+		// Require a valid replacement quantity for non-good returns
 		for (const inspection of inspections) {
-			const state = getInspectionState(inspection.itemId);
 			if (
-				(state.status === 'damaged' || state.status === 'missing') &&
-				(!Number.isInteger(state.replacementQuantity) || state.replacementQuantity <= 0)
+				(inspection.status === 'damaged' || inspection.status === 'missing') &&
+				(!Number.isInteger(inspection.replacementQuantity) || inspection.replacementQuantity <= 0)
 			) {
 				error = `Please enter a replacement quantity for ${inspection.name}`;
 				return;
@@ -121,15 +117,24 @@
 		error = null;
 
 		try {
+			// Only include replacementQuantity for damaged/missing items
 			await onSubmit(
 				inspections.map((i) => {
-					const state = getInspectionState(i.itemId);
-					return {
+					const baseInspection = {
 						itemId: i.itemId,
-						status: state.status!,
-						notes: state.notes,
-						replacementQuantity: state.replacementQuantity
+						status: i.status!,
+						notes: i.notes
 					};
+
+					// Only include replacementQuantity for damaged/missing items
+					if (i.status === 'damaged' || i.status === 'missing') {
+						return {
+							...baseInspection,
+							replacementQuantity: i.replacementQuantity
+						};
+					}
+
+					return baseInspection;
 				})
 			);
 		} catch (err) {
@@ -196,7 +201,6 @@
 
 			<div class="space-y-4">
 				{#each inspections as inspection, index (inspection.itemId)}
-					{@const state = getInspectionState(inspection.itemId)}
 					<div class="rounded-lg border border-gray-200 bg-white p-4">
 						<!-- Item Header -->
 						<div class="mb-4 flex items-start gap-4">
@@ -219,8 +223,8 @@
 								<h3 class="font-semibold text-gray-900">{inspection.name}</h3>
 								<p class="text-sm text-gray-600">Quantity: {inspection.quantity}</p>
 							</div>
-							<div class={`rounded-full border px-3 py-1 text-sm font-medium ${getStatusColor(state.status)}`}>
-								{getStatusLabel(state.status)}
+							<div class={`rounded-full border px-3 py-1 text-sm font-medium ${getStatusColor(inspection.status)}`}>
+								{getStatusLabel(inspection.status)}
 							</div>
 						</div>
 
@@ -230,15 +234,13 @@
 							<div class="grid grid-cols-3 gap-3" role="group" aria-labelledby={`status-label-${index}`}>
 								<button
 									type="button"
-									class={`rounded-lg border-2 p-3 text-center transition-all ${
-										state.status === 'good'
+									class={`rounded-lg border-2 p-3 text-center transition-all hover:scale-105 active:scale-95 ${
+										inspection.status === 'good'
 											? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm'
-											: 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+											: 'border-gray-200 bg-white text-gray-700 hover:border-emerald-300 hover:bg-emerald-50'
 									}`}
-									onclick={() => {
-										state.status = 'good';
-										state.replacementQuantity = 0;
-									}}
+									onclick={() => setInspectionStatus(inspection.itemId, 'good')}
+									aria-pressed={inspection.status === 'good'}
 								>
 									<svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -248,14 +250,13 @@
 
 								<button
 									type="button"
-									class={`rounded-lg border-2 p-3 text-center transition-all ${
-										state.status === 'damaged'
+									class={`rounded-lg border-2 p-3 text-center transition-all hover:scale-105 active:scale-95 ${
+										inspection.status === 'damaged'
 											? 'border-rose-500 bg-rose-50 text-rose-700 shadow-sm'
-											: 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+											: 'border-gray-200 bg-white text-gray-700 hover:border-rose-300 hover:bg-rose-50'
 									}`}
-									onclick={() => {
-										state.status = 'damaged';
-									}}
+									onclick={() => setInspectionStatus(inspection.itemId, 'damaged')}
+									aria-pressed={inspection.status === 'damaged'}
 								>
 									<svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -265,14 +266,13 @@
 
 								<button
 									type="button"
-									class={`rounded-lg border-2 p-3 text-center transition-all ${
-										state.status === 'missing'
+									class={`rounded-lg border-2 p-3 text-center transition-all hover:scale-105 active:scale-95 ${
+										inspection.status === 'missing'
 											? 'border-red-500 bg-red-50 text-red-700 shadow-sm'
-											: 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+											: 'border-gray-200 bg-white text-gray-700 hover:border-red-300 hover:bg-red-50'
 									}`}
-									onclick={() => {
-										state.status = 'missing';
-									}}
+									onclick={() => setInspectionStatus(inspection.itemId, 'missing')}
+									aria-pressed={inspection.status === 'missing'}
 								>
 									<svg class="mx-auto mb-1 h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -283,7 +283,7 @@
 						</div>
 
 						<!-- Replacement Quantity (for damaged/missing) -->
-						{#if state.status === 'damaged' || state.status === 'missing'}
+						{#if inspection.status === 'damaged' || inspection.status === 'missing'}
 							<div class="mb-4">
 								<label for={`replacement-quantity-${index}`} class="mb-2 block text-sm font-medium text-gray-700">
 									Replacement Quantity *
@@ -292,14 +292,15 @@
 									id={`replacement-quantity-${index}`}
 									type="number"
 									min="1"
+									max={inspection.quantity}
 									step="1"
-									bind:value={state.replacementQuantity}
+									bind:value={inspection.replacementQuantity}
 									class="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
 									placeholder="Enter quantity to replace"
 									required
 								/>
 								<p class="mt-1 text-sm text-gray-600">
-									Selected replacement quantity: {state.replacementQuantity}
+									Selected replacement quantity: {inspection.replacementQuantity} (max: {inspection.quantity})
 								</p>
 							</div>
 						{/if}
@@ -311,11 +312,11 @@
 							</label>
 							<textarea
 								id={`notes-${index}`}
-								bind:value={state.notes}
+								bind:value={inspection.notes}
 								rows="2"
 								class="block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
 								placeholder={
-									state.status === 'good'
+									inspection.status === 'good'
 										? 'Any observations about this item...'
 										: 'Describe the damage or circumstances of loss...'
 								}
@@ -337,11 +338,8 @@
 							<p class="mt-1 text-sm text-amber-800">
 								Items marked as damaged or missing will generate replacement obligations for the student.
 								Total quantity to replace: {inspections
-									.filter((i) => {
-										const state = getInspectionState(i.itemId);
-										return state.status === 'damaged' || state.status === 'missing';
-									})
-									.reduce((sum, i) => sum + getInspectionState(i.itemId).replacementQuantity, 0)
+									.filter((i) => i.status === 'damaged' || i.status === 'missing')
+									.reduce((sum, i) => sum + i.replacementQuantity, 0)
 									.toLocaleString()}
 							</p>
 						</div>
@@ -354,14 +352,14 @@
 		<div class="border-t border-gray-200 px-6 py-4">
 			<div class="flex items-center justify-between">
 				<p class="text-sm text-gray-600">
-					{inspections.filter((i) => getInspectionState(i.itemId).status !== null).length} of {inspections.length} items inspected
+					{inspections.filter((i) => i.status !== null).length} of {inspections.length} items inspected
 				</p>
 				<div class="flex gap-3">
 					<button
 						type="button"
 						onclick={onCancel}
 						disabled={submitting}
-						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						Cancel
 					</button>
@@ -369,7 +367,7 @@
 						type="button"
 						onclick={handleSubmit}
 						disabled={!allInspected || submitting}
-						class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+						class="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
 					>
 						{#if submitting}
 							<span class="flex items-center gap-2">
