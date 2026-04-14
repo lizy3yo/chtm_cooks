@@ -162,9 +162,9 @@
 			
 			<!-- Role Selection -->
 			<div>
-				<label class="mb-2 block text-sm font-medium text-gray-700">
+				<div class="mb-2 text-sm font-medium text-gray-700" role="group" aria-label="Role selection">
 					Role <span class="text-red-500">*</span>
-				</label>
+				</div>
 				<div class="grid grid-cols-3 gap-3">
 					<label class="relative flex cursor-pointer items-center justify-center rounded-lg border-2 p-4 transition-all {formData.role === 'instructor' ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-gray-300'}">
 						<input

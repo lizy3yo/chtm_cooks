@@ -84,6 +84,7 @@
 			<button
 				onclick={onClose}
 				class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+				aria-label="Close modal"
 			>
 				<svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
@@ -124,8 +125,9 @@
 			<div class="mt-6 space-y-4">
 				<!-- Shortcut Type -->
 				<div>
-					<label class="block text-sm font-medium text-gray-700">Shortcut Type</label>
+					<label for="shortcut-type" class="block text-sm font-medium text-gray-700">Shortcut Type</label>
 					<select
+						id="shortcut-type"
 						bind:value={shortcutType}
 						disabled={userRole === 'superadmin' || ['instructor', 'custodian'].includes(userRole)}
 						class="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200 disabled:bg-gray-100 disabled:cursor-not-allowed"
@@ -140,8 +142,9 @@
 
 				<!-- Expiration -->
 				<div>
-					<label class="block text-sm font-medium text-gray-700">Expires In (Optional)</label>
+					<label for="expires-in" class="block text-sm font-medium text-gray-700">Expires In (Optional)</label>
 					<select
+						id="expires-in"
 						bind:value={expiresInDays}
 						class="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-purple-500 focus:outline-none focus:ring-2 focus:ring-purple-200"
 					>
