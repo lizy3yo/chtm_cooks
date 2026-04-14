@@ -176,20 +176,20 @@
 		<!-- ── KPI Strip ───────────────────────────────────────────────────── -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 
-			<div class="rounded-xl border {pendingApprovalCount > 0 ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'} p-4 shadow-sm">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {pendingApprovalCount > 0 ? 'text-amber-700' : 'text-gray-600'}">
+			<div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4 shadow-sm">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-yellow-800">
 					<Clock size={12} /> Pending Approval
 				</div>
-				<p class="mt-2 text-3xl font-bold {pendingApprovalCount > 0 ? 'text-amber-700' : 'text-gray-700'}">{pendingApprovalCount}</p>
-				<p class="mt-0.5 text-xs {pendingApprovalCount > 0 ? 'text-amber-500' : 'text-gray-500'}">Awaiting your review</p>
+				<p class="mt-2 text-3xl font-bold text-yellow-700">{pendingApprovalCount}</p>
+				<p class="mt-0.5 text-xs text-yellow-600">Awaiting your review</p>
 			</div>
 
-			<div class="rounded-xl border {fulfillmentCount > 0 ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-gray-50'} p-4 shadow-sm">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {fulfillmentCount > 0 ? 'text-blue-700' : 'text-gray-600'}">
+			<div class="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-blue-800">
 					<PackageOpen size={12} /> In Fulfillment
 				</div>
-				<p class="mt-2 text-3xl font-bold {fulfillmentCount > 0 ? 'text-blue-700' : 'text-gray-700'}">{fulfillmentCount}</p>
-				<p class="mt-0.5 text-xs {fulfillmentCount > 0 ? 'text-blue-500' : 'text-gray-500'}">Approved / ready for pickup</p>
+				<p class="mt-2 text-3xl font-bold text-blue-700">{fulfillmentCount}</p>
+				<p class="mt-0.5 text-xs text-blue-600">Approved / ready for pickup</p>
 			</div>
 
 			<div class="rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
@@ -200,12 +200,12 @@
 				<p class="mt-0.5 text-xs text-violet-500">Currently borrowed</p>
 			</div>
 
-			<div class="rounded-xl border {overdueCount > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'} p-4 shadow-sm">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {overdueCount > 0 ? 'text-red-700' : 'text-gray-600'}">
+			<div class="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-800">
 					<TriangleAlert size={12} /> Overdue
 				</div>
-				<p class="mt-2 text-3xl font-bold {overdueCount > 0 ? 'text-red-700' : 'text-gray-700'}">{overdueCount}</p>
-				<p class="mt-0.5 text-xs {overdueCount > 0 ? 'text-red-500' : 'text-gray-500'}">Past return date</p>
+				<p class="mt-2 text-3xl font-bold text-red-700">{overdueCount}</p>
+				<p class="mt-0.5 text-xs text-red-600">Past return date</p>
 			</div>
 		</div>
 
