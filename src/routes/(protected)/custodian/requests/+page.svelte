@@ -217,14 +217,22 @@ toastStore.error(getErrorMessage(error, 'Failed to confirm item pickup.'));
 }
 
 async function confirmReturn(rawId: string): Promise<void> {
-closeActionMenu();
+	console.log('[confirmReturn] Called with rawId:', rawId);
+	closeActionMenu();
 	
 	// Open inspection modal instead of directly confirming
 	const request = requests.find(r => r.rawId === rawId);
+	console.log('[confirmReturn] Found request:', request);
+	
 	if (request) {
 		selectedRequest = request;
 		inspectionItems = buildInspectionItems(request);
+		console.log('[confirmReturn] Inspection items:', inspectionItems);
+		console.log('[confirmReturn] Opening modal, showInspectionModal = true');
 		showInspectionModal = true;
+		showDetailModal = false; // Close detail modal after opening inspection modal
+	} else {
+		console.error('[confirmReturn] Request not found for rawId:', rawId);
 	}
 }
 
@@ -233,13 +241,20 @@ async function handleInspectionSubmit(
 		itemId: string;
 		status: 'good' | 'damaged' | 'missing';
 		notes: string;
-		replacementQuantity: number;
+		replacementQuantity?: number;
 	}>
 ): Promise<void> {
 	if (!selectedRequest) return;
 	
+	console.log('[handleInspectionSubmit] Starting inspection submission', {
+		requestId: selectedRequest.rawId,
+		inspections
+	});
+	
 	try {
 		const result = await borrowRequestsAPI.inspectItems(selectedRequest.rawId, inspections);
+		console.log('[handleInspectionSubmit] Inspection API call successful', result);
+		
 		await loadRequests(true);
 		showInspectionModal = false;
 		selectedRequest = null;
@@ -252,7 +267,7 @@ async function handleInspectionSubmit(
 			toastStore.success('All items returned intact. Inventory updated successfully.');
 		}
 	} catch (error) {
-		console.error('Failed to submit inspection', error);
+		console.error('[handleInspectionSubmit] Failed to submit inspection', error);
 		toastStore.error(getErrorMessage(error, 'Failed to submit inspection.'));
 		throw error;
 	}
@@ -1702,7 +1717,6 @@ return { text: '', color: 'text-gray-500' };
 						{#if selectedRequest.status === 'active' && selectedRequest.rawStatus === 'pending_return'}
 							<button
 								onclick={() => {
-									closeDetailModal();
 									confirmReturn(selectedRequest.rawId);
 								}}
 								class="rounded-xl bg-gradient-to-r from-orange-600 to-orange-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-orange-700 hover:to-orange-800 active:scale-[0.98]"

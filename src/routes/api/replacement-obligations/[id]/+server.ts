@@ -104,7 +104,7 @@ export const GET: RequestHandler = async (event) => {
 
 /**
  * PATCH /api/replacement-obligations/[id]
- * Resolve a replacement obligation (item replacement or waiver)
+ * Resolve a replacement obligation (item replacement)
  * Custodian only
  */
 export const PATCH: RequestHandler = async (event) => {
@@ -175,8 +175,6 @@ export const PATCH: RequestHandler = async (event) => {
 				return json({ error: 'Replacement quantity exceeds outstanding balance' }, { status: 400 });
 			}
 			newStatus = totalAmountPaid >= obligation.amount ? ObligationStatus.REPLACED : ObligationStatus.PENDING;
-		} else if (sanitizedBody.resolutionType === ResolutionType.WAIVER) {
-			newStatus = ObligationStatus.WAIVED;
 		}
 
 		// Update obligation

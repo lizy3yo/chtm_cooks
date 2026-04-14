@@ -7,13 +7,11 @@ export enum ObligationType {
 
 export enum ObligationStatus {
 	PENDING = 'pending',
-	REPLACED = 'replaced',
-	WAIVED = 'waived'
+	REPLACED = 'replaced'
 }
 
 export enum ResolutionType {
-	REPLACEMENT = 'replacement',
-	WAIVER = 'waiver'
+	REPLACEMENT = 'replacement'
 }
 
 export interface ReplacementObligation {

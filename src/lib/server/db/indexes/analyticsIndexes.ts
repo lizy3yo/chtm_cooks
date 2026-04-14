@@ -170,7 +170,7 @@ export const analyticsIndexes: IndexDefinition[] = [
 		options: {
 			name: 'idx_replacement_obligations_analytics_resolution',
 			background: true,
-			partialFilterExpression: { status: { $in: ['paid', 'replaced', 'waived'] } }
+			partialFilterExpression: { status: { $in: ['replaced'] } }
 		},
 		description: 'Monthly revenue and resolution analytics',
 		priority: 'high',

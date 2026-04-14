@@ -207,7 +207,7 @@ function computeTrustStatsForStudent(
 		if (obl.status === 'pending') {
 			pendingObligationPenalty += 3;
 			activeObligations += 1;
-		} else if (obl.status === 'replaced' || obl.status === 'waived') {
+		} else if (obl.status === 'replaced') {
 			resolvedObligationBonus += 2;
 		}
 	}
@@ -1065,7 +1065,7 @@ export const GET: RequestHandler = async (event) => {
 			}
 		]).toArray();
 
-		// Resolution breakdown (paid / replaced / waived)
+		// Resolution breakdown (replaced)
 		const resolutionBreakdown = await obligations.aggregate([
 			{ $match: { status: { $ne: 'pending' } } },
 			{ $group: { _id: '$resolutionType', count: { $sum: 1 }, total: { $sum: '$amountPaid' } } }
