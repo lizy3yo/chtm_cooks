@@ -375,7 +375,7 @@ function buildReplacementObligations(borrowRequests) {
 		const req = source[i];
 		const isMissing = req.status === 'missing';
 		const resolved = i % 3 !== 0;
-		const resolutionType = resolved ? (i % 2 === 0 ? 'replacement' : 'waiver') : undefined;
+		const resolutionType = resolved ? 'replacement' : undefined;
 
 		rows.push({
 			_id: new ObjectId(),
@@ -386,7 +386,7 @@ function buildReplacementObligations(borrowRequests) {
 			itemCategory: req.items[0].category,
 			quantity: req.items[0].quantity,
 			type: isMissing ? 'missing' : 'damaged',
-			status: resolved ? (resolutionType === 'waiver' ? 'waived' : 'replaced') : 'pending',
+			status: resolved ? 'replaced' : 'pending',
 			amount: req.items[0].quantity,
 			amountPaid: resolved ? req.items[0].quantity : 0,
 			resolutionType,

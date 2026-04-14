@@ -9,8 +9,8 @@ import { browser } from '$app/environment';
 import { getApiErrorMessage } from './session';
 
 export type ObligationType = 'missing' | 'damaged';
-export type ObligationStatus = 'pending' | 'replaced' | 'waived';
-export type ResolutionType = 'replacement' | 'waiver';
+export type ObligationStatus = 'pending' | 'replaced';
+export type ResolutionType = 'replacement';
 
 export interface ReplacementObligation {
 	id: string;
@@ -228,7 +228,7 @@ export const replacementObligationsAPI = {
 	},
 
 	/**
-	 * Resolve a replacement obligation (payment, replacement, or waiver).
+	 * Resolve a replacement obligation (item replacement).
 	 * Invalidates all client-side caches on success.
 	 */
 	async resolveObligation(

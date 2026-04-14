@@ -235,7 +235,7 @@ function computeTrustScore(allRequests: BorrowRequest[], allObligations: Replace
 	for (const obl of allObligations) {
 		if (obl.status === 'pending') {
 			breakdown.pendingObligationPenalty += 3;
-		} else if (obl.status === 'replaced' || obl.status === 'waived') {
+		} else if (obl.status === 'replaced') {
 			breakdown.resolvedObligationBonus += 2;
 		}
 	}

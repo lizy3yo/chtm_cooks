@@ -9,8 +9,8 @@
 	import { Package, AlertCircle, CheckCircle2, TrendingUp } from 'lucide-svelte';
 
 	let activeTab = $state<'donations' | 'replacements' | 'history'>('replacements');
-	let replacementsFilter = $state<'all' | 'pending' | 'paid' | 'replaced' | 'waived'>('all');
-	let historyFilter = $state<'all' | 'resolved' | 'waived'>('all');
+	let replacementsFilter = $state<'all' | 'pending' | 'replaced'>('all');
+	let historyFilter = $state<'all' | 'resolved'>('all');
 	let replacementsView = $state<'by-request' | 'by-item'>('by-item');
 	let obligations = $state<ReplacementObligation[]>([]);
 	let isLoading = $state(false);
@@ -112,10 +112,10 @@
 				type: 'replacement' as const,
 				amount: o.amountPaid,
 				date: o.resolutionDate || o.updatedAt,
-				status: o.status === 'waived' ? 'waived' : 'resolved',
+				status: 'resolved',
 				obligationStatus: o.status,
 				resolutionType: o.resolutionType,
-				paymentMethod: o.resolutionType === 'replacement' ? 'Item Replaced' : 'Waived',
+				paymentMethod: 'Item Replaced',
 				receiptNumber: o.paymentReference || `REP-${o.id.slice(-6).toUpperCase()}`
 			}))
 			.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
@@ -139,8 +139,7 @@
 
 	const historyCounts = $derived({
 		all: paymentHistory.length,
-		resolved: paymentHistory.filter((p) => p.status === 'resolved').length,
-		waived: paymentHistory.filter((p) => p.status === 'waived').length
+		resolved: paymentHistory.filter((p) => p.status === 'resolved').length
 	});
 
 	let donationSubmitting = $state(false);
@@ -164,8 +163,7 @@
 	const obligationCounts = $derived({
 		all: obligations.length,
 		pending: obligations.filter((o) => o.status === 'pending').length,
-		replaced: obligations.filter((o) => o.status === 'replaced').length,
-		waived: obligations.filter((o) => o.status === 'waived').length
+		replaced: obligations.filter((o) => o.status === 'replaced').length
 	});
 
 	const filteredObligations = $derived(
@@ -398,13 +396,12 @@
 	}
 
 	async function handleResolveObligation(
-		id: string,
-		resolutionType: 'replacement' | 'waiver'
+		id: string
 	): Promise<void> {
 		try {
 			await replacementObligationsAPI.resolveObligation(id, {
-				resolutionType,
-				resolutionNotes: `Resolved via ${resolutionType}`
+				resolutionType: 'replacement',
+				resolutionNotes: 'Resolved via replacement'
 			});
 			await loadObligations();
 			toastStore.success('Obligation resolved successfully', 'Success');
@@ -594,8 +591,6 @@
 				return 'bg-amber-100 text-amber-800';
 			case 'replaced':
 				return 'bg-cyan-100 text-cyan-800';
-			case 'waived':
-				return 'bg-slate-100 text-slate-700';
 			default:
 				return 'bg-gray-100 text-gray-700';
 		}
@@ -713,8 +708,8 @@
 			<div class="flex items-center justify-between gap-2">
 				<div class="min-w-0">
 					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Resolved</p>
-					<p class="mt-1 text-2xl font-semibold text-green-600 sm:mt-2 sm:text-3xl">{obligationCounts.replaced + obligationCounts.waived}</p>
-					<p class="text-xs text-gray-500 mt-0.5">Replaced/waived</p>
+					<p class="mt-1 text-2xl font-semibold text-green-600 sm:mt-2 sm:text-3xl">{obligationCounts.replaced}</p>
+					<p class="text-xs text-gray-500 mt-0.5">Items replaced</p>
 				</div>
 				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 sm:h-12 sm:w-12">
 					<CheckCircle2 size={18} class="text-green-600 sm:hidden" />
@@ -987,8 +982,7 @@
 							{#each [
 								{ key: 'all', label: 'All', count: obligationCounts.all },
 								{ key: 'pending', label: 'Pending', count: obligationCounts.pending },
-								{ key: 'replaced', label: 'Replaced', count: obligationCounts.replaced },
-								{ key: 'waived', label: 'Waived', count: obligationCounts.waived }
+								{ key: 'replaced', label: 'Replaced', count: obligationCounts.replaced }
 							] as tab}
 								<button
 									onclick={() => (replacementsFilter = tab.key as typeof replacementsFilter)}
@@ -1351,8 +1345,7 @@
 						<nav class="-mb-px flex overflow-x-auto" aria-label="History filter" style="scrollbar-width: none; -ms-overflow-style: none;">
 							{#each [
 								{ key: 'all', label: 'All', count: historyCounts.all },
-								{ key: 'resolved', label: 'Resolved', count: historyCounts.resolved },
-								{ key: 'waived', label: 'Waived', count: historyCounts.waived }
+								{ key: 'resolved', label: 'Resolved', count: historyCounts.resolved }
 							] as tab}
 								<button
 									onclick={() => (historyFilter = tab.key as typeof historyFilter)}
@@ -1401,8 +1394,8 @@
 										<p class="truncate text-sm font-semibold text-gray-900">{transaction.name}</p>
 										<p class="truncate text-xs text-gray-500">{transaction.receiptNumber}</p>
 										<div class="mt-1 flex flex-wrap items-center gap-1">
-											<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {transaction.resolutionType === 'replacement' ? 'bg-cyan-100 text-cyan-800' : 'bg-slate-100 text-slate-700'}">
-												{transaction.resolutionType === 'replacement' ? 'Replaced' : 'Waived'}
+											<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-cyan-100 text-cyan-800">
+												Replaced
 											</span>
 										</div>
 									</div>
@@ -1613,18 +1606,6 @@
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
 									</svg>
 									Mark Replaced
-								</button>
-								<button
-									onclick={async () => {
-										const confirmed = await confirmStore.danger('Waive this obligation? This action cannot be undone.', 'Waive Obligation', 'Waive');
-										if (confirmed) {
-											await handleResolveObligation(selectedSummaryItem!.id, 'waiver');
-											selectedSummary = null;
-										}
-									}}
-									class="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 active:scale-95 sm:w-auto"
-								>
-									Waive
 								</button>
 							</div>
 						{/if}
@@ -2121,18 +2102,6 @@
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
 									</svg>
 									Mark Replaced
-								</button>
-								<button
-									onclick={async () => {
-										const confirmed = await confirmStore.danger('Waive this obligation? This action cannot be undone.', 'Waive Obligation', 'Waive');
-										if (confirmed) {
-											await handleResolveObligation(selectedObligation!.id, 'waiver');
-											selectedObligation = null;
-										}
-									}}
-									class="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-gray-300 bg-white px-5 py-3 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 active:scale-95 sm:w-auto"
-								>
-									Waive
 								</button>
 							</div>
 						{/if}

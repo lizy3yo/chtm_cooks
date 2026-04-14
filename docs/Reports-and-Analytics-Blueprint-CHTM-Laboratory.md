@@ -64,7 +64,7 @@ Source surfaces:
 
 Core reportable features:
 - Pending vs resolved obligations
-- Resolution method mix (`replacement`, `waiver`)
+- Resolution method (replacement)
 - Average resolution cycle time
 - Balance aging and backlog buckets
 - Category-level obligation burden
@@ -204,7 +204,6 @@ Mandatory interaction standards:
 - Resolution rate
 - Median resolution days
 - Aging backlog (0-7, 8-30, 31+ days)
-- Waiver ratio and governance exceptions
 
 ### Donation KPIs
 - Donation inflow trend
