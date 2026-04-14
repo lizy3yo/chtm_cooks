@@ -116,6 +116,8 @@
 		const ctx = canvasEl.getContext('2d', { willReadFrequently: true });
 		if (!ctx) return;
 
+		const decoder = jsQR;
+
 		function frame() {
 			if (!videoEl || !canvasEl || !scanning || session !== scanSession) return;
 			if (videoEl.readyState === videoEl.HAVE_ENOUGH_DATA) {
@@ -123,7 +125,7 @@
 				canvasEl.height = videoEl.videoHeight;
 				ctx!.drawImage(videoEl, 0, 0);
 				const data = ctx!.getImageData(0, 0, canvasEl.width, canvasEl.height);
-				const result = jsQR(data.data, data.width, data.height, { inversionAttempts: 'dontInvert' });
+				const result = decoder(data.data, data.width, data.height, { inversionAttempts: 'dontInvert' });
 				if (result?.data) {
 					stop();
 					onResult(result.data);
@@ -201,7 +203,7 @@
 			const ctx = canvas.getContext('2d')!;
 			ctx.drawImage(bitmap, 0, 0);
 			const data = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
-			const result = jsQR(data.data, data.width, data.height);
+			const result = jsQR ? jsQR(data.data, data.width, data.height) : null;
 			if (result?.data) { onResult(result.data); }
 			else { errorMsg = 'No QR code found. Try a clearer photo.'; }
 		} catch {

@@ -6,6 +6,7 @@
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
+	import ReplacementObligationModal from '$lib/components/custodian/ReplacementObligationModal.svelte';
 	import { Package, AlertCircle, CheckCircle2, TrendingUp } from 'lucide-svelte';
 
 	let activeTab = $state<'donations' | 'replacements' | 'history'>('replacements');
@@ -396,18 +397,23 @@
 	}
 
 	async function handleResolveObligation(
-		id: string
+		id: string,
+		quantityReplaced: number,
+		resolutionNotes?: string
 	): Promise<void> {
 		try {
 			await replacementObligationsAPI.resolveObligation(id, {
 				resolutionType: 'replacement',
-				resolutionNotes: 'Resolved via replacement'
+				amountPaid: quantityReplaced,
+				resolutionNotes: resolutionNotes || 'Item replaced by student'
 			});
 			await loadObligations();
+			selectedObligation = null;
 			toastStore.success('Obligation resolved successfully', 'Success');
 		} catch (err) {
 			console.error('Failed to resolve obligation', err);
 			toastStore.error(err instanceof Error ? err.message : 'Failed to resolve obligation', 'Error');
+			throw err;
 		}
 	}
 
@@ -1464,41 +1470,36 @@
 <!-- Request Summary Detail Modal -->
 {#if selectedSummary}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
+		<!-- Backdrop -->
 		<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={() => selectedSummary = null} aria-label="Close modal" tabindex="-1"></button>
-		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
-			<div class="relative w-full max-w-2xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden">
-
+		<!-- Modal -->
+		<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+			<div class="relative w-full max-w-2xl sm:max-w-3xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden mx-0 sm:mx-auto" role="dialog" aria-labelledby="summary-modal-title" aria-modal="true">
 				<!-- Header -->
-				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8 sm:py-6">
-					<div class="flex items-start justify-between gap-3">
-						<div class="flex items-start gap-3 min-w-0 flex-1">
-							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
-								<svg class="h-5 w-5 text-white sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
+					<div class="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+						<div class="flex items-start gap-3 sm:gap-4">
+							<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+								<svg class="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
 								</svg>
 							</div>
 							<div class="min-w-0 flex-1">
-								<h2 id="summary-modal-title" class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Request Summary</h2>
+								<h2 id="summary-modal-title" class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">Request Summary</h2>
 								<p class="mt-0.5 font-mono text-xs sm:text-sm font-semibold text-pink-600">{selectedSummary.requestCode}</p>
 								<p class="mt-1 text-xs text-gray-500">{selectedSummary.items} item{selectedSummary.items !== 1 ? 's' : ''}</p>
 							</div>
+							<button type="button" onclick={() => selectedSummary = null} class="rounded-lg sm:rounded-xl p-1.5 sm:p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95 shrink-0" aria-label="Close modal">
+								<svg class="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
 						</div>
-						<button 
-							onclick={() => selectedSummary = null}
-							aria-label="Close modal"
-							class="rounded-xl p-2 sm:p-2.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
-						>
-							<svg class="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-							</svg>
-						</button>
 					</div>
 				</div>
-
 				<!-- Content -->
-				<div class="max-h-[70vh] overflow-y-auto px-4 py-5 sm:px-8 sm:py-8">
-					<div class="space-y-6 sm:space-y-8">
-
+				<div class="max-h-[calc(100vh-240px)] sm:max-h-[60vh] overflow-y-auto">
+					<div class="px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 space-y-6 sm:space-y-8">
 						<!-- Student Info Card -->
 						<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5 sm:p-6">
 							<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1523,126 +1524,116 @@
 								</div>
 							</div>
 						</div>
-
-					<!-- Item selector dropdown -->
-					{#if selectedSummaryItems.length > 0}
-						<div>
-							<label for="summary-item-select" class="block text-sm font-semibold text-gray-700 mb-2">Select Item</label>
-							<select
-								id="summary-item-select"
-								bind:value={selectedSummaryItemIndex}
-								class="block w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm transition-colors focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-							>
-								{#each selectedSummaryItems as item, i}
-									<option value={i}>
-										{item.itemName} — {item.type === 'missing' ? 'Missing' : 'Damaged'} · Qty {item.quantity}
-									</option>
-								{/each}
-							</select>
-						</div>
-					{/if}
-
-					<!-- Selected item detail -->
-					{#if selectedSummaryItem}
-						<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5 sm:p-6 space-y-4">
-							<div class="flex items-center justify-between pb-3 border-b border-gray-200">
-								<span class="text-sm font-semibold text-gray-700">Item Details</span>
-								<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {selectedSummaryItem.type === 'missing' ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-rose-50 text-rose-700 ring-rose-200'}">
-									<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-									{selectedSummaryItem.type === 'missing' ? 'Missing' : 'Damaged'}
-								</span>
-							</div>
-							
-							<div class="grid grid-cols-2 gap-4 text-sm">
-								<div>
-									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</p>
-									<span class="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {getObligationStatusClass(selectedSummaryItem.status)}">
-										<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-										{selectedSummaryItem.status.charAt(0).toUpperCase() + selectedSummaryItem.status.slice(1)}
-									</span>
-								</div>
-								<div>
-									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Due Date</p>
-									<p class="mt-1.5 font-semibold text-gray-900">{new Date(selectedSummaryItem.dueDate).toLocaleDateString()}</p>
-								</div>
-							</div>
-						</div>
-
-						<!-- Replacement Details -->
-						<div class="rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-							<div class="bg-gradient-to-r from-gray-50 to-white px-5 py-3 border-b border-gray-200">
-								<h3 class="text-sm font-semibold text-gray-900">Replacement Information</h3>
-							</div>
-							<div class="divide-y divide-gray-100">
-								<div class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-									<span class="text-sm text-gray-600">Item Name</span>
-									<span class="font-semibold text-gray-900">{selectedSummaryItem.itemName}</span>
-								</div>
-								<div class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-									<span class="text-sm text-gray-600">Quantity Required</span>
-									<span class="font-semibold text-gray-900">{selectedSummaryItem.quantity}</span>
-								</div>
-								<div class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-									<span class="text-sm text-gray-600">Due Date</span>
-									<span class="font-semibold text-gray-900">{new Date(selectedSummaryItem.dueDate).toLocaleDateString()}</span>
-								</div>
-							</div>
-						</div>
-
-						<!-- Actions for selected item -->
-						{#if selectedSummaryItem.status === 'pending'}
-							<div class="flex flex-col gap-3 pt-2 sm:flex-row">
-								<button
-									onclick={async () => {
-										const confirmed = await confirmStore.confirm({ type: 'info', title: 'Mark as Replaced', message: 'Mark this item as replaced by the student?', confirmText: 'Mark Replaced' });
-										if (confirmed) {
-											await handleResolveObligation(selectedSummaryItem!.id, 'replacement');
-											selectedSummary = null;
-										}
-									}}
-									class="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 active:scale-95 sm:flex-1"
+						<!-- Item selector dropdown -->
+						{#if selectedSummaryItems.length > 0}
+							<div>
+								<label for="summary-item-select" class="block text-sm font-semibold text-gray-700 mb-2">Select Item</label>
+								<select
+									id="summary-item-select"
+									bind:value={selectedSummaryItemIndex}
+									class="block w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm transition-colors focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
 								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-									</svg>
-									Mark Replaced
-								</button>
+									{#each selectedSummaryItems as item, i}
+										<option value={i}>
+											{item.itemName} — {item.type === 'missing' ? 'Missing' : 'Damaged'} · Qty {item.quantity}
+										</option>
+									{/each}
+								</select>
 							</div>
 						{/if}
-					{/if}
-
-					<!-- Request totals -->
-					<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5">
-						<div class="flex items-center gap-3 mb-3">
-							<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
-								<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-								</svg>
+						<!-- Selected item detail -->
+						{#if selectedSummaryItem}
+							<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5 sm:p-6 space-y-4">
+								<div class="flex items-center justify-between pb-3 border-b border-gray-200">
+									<span class="text-sm font-semibold text-gray-700">Item Details</span>
+									<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {selectedSummaryItem.type === 'missing' ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-rose-50 text-rose-700 ring-rose-200'}">
+										<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+										{selectedSummaryItem.type === 'missing' ? 'Missing' : 'Damaged'}
+									</span>
+								</div>
+								<div class="grid grid-cols-2 gap-4 text-sm">
+									<div>
+										<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</p>
+										<span class="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {getObligationStatusClass(selectedSummaryItem.status)}">
+											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+											{selectedSummaryItem.status.charAt(0).toUpperCase() + selectedSummaryItem.status.slice(1)}
+										</span>
+									</div>
+									<div>
+										<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Due Date</p>
+										<p class="mt-1.5 font-semibold text-gray-900">{new Date(selectedSummaryItem.dueDate).toLocaleDateString()}</p>
+									</div>
+								</div>
 							</div>
-							<h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">Request Summary</h3>
-						</div>
-						<div class="flex items-center justify-between">
-							<span class="text-sm font-medium text-gray-700">Total Items</span>
-							<span class="text-2xl font-bold text-gray-900">{selectedSummary.items}</span>
+							<!-- Replacement Details -->
+							<div class="rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+								<div class="bg-gradient-to-r from-gray-50 to-white px-5 py-3 border-b border-gray-200">
+									<h3 class="text-sm font-semibold text-gray-900">Replacement Information</h3>
+								</div>
+								<div class="divide-y divide-gray-100">
+									<div class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+										<span class="text-sm text-gray-600">Item Name</span>
+										<span class="font-semibold text-gray-900">{selectedSummaryItem.itemName}</span>
+									</div>
+									<div class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+										<span class="text-sm text-gray-600">Quantity Required</span>
+										<span class="font-semibold text-gray-900">{selectedSummaryItem.quantity}</span>
+									</div>
+									<div class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+										<span class="text-sm text-gray-600">Due Date</span>
+										<span class="font-semibold text-gray-900">{new Date(selectedSummaryItem.dueDate).toLocaleDateString()}</span>
+									</div>
+								</div>
+							</div>
+							<!-- Actions for selected item -->
+							{#if selectedSummaryItem.status === 'pending'}
+								<div class="flex flex-col gap-3 pt-2 sm:flex-row">
+									<button
+										onclick={async () => {
+											const confirmed = await confirmStore.confirm({ type: 'info', title: 'Mark as Replaced', message: 'Mark this item as replaced by the student?', confirmText: 'Mark Replaced' });
+											if (confirmed) {
+												await handleResolveObligation(selectedSummaryItem!.id, selectedSummaryItem!.balance);
+												selectedSummary = null;
+											}
+										}}
+										class="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 active:scale-95 sm:flex-1"
+									>
+										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+										</svg>
+										Mark Replaced
+									</button>
+								</div>
+							{/if}
+						{/if}
+						<!-- Request totals -->
+						<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5">
+							<div class="flex items-center gap-3 mb-3">
+								<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
+									<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+									</svg>
+								</div>
+								<h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">Request Summary</h3>
+							</div>
+							<div class="flex items-center justify-between">
+								<span class="text-sm font-medium text-gray-700">Total Items</span>
+								<span class="text-2xl font-bold text-gray-900">{selectedSummary.items}</span>
+							</div>
 						</div>
 					</div>
 				</div>
-			</div>
-
-			<!-- Footer -->
-			<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8">
-				<div class="flex justify-end">
-					<button
-						onclick={() => selectedSummary = null}
-						class="rounded-xl border-2 border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 active:scale-95"
-					>
-						Close
-					</button>
+				<!-- Footer -->
+				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8">
+					<div class="flex justify-end">
+						<button type="button" onclick={() => selectedSummary = null} class="rounded-xl border-2 border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 active:scale-95">
+							Close
+						</button>
+					</div>
 				</div>
 			</div>
 		</div>
 	</div>
-</div>
 {/if}
 
 <!-- Record Donation Modal -->
@@ -1939,194 +1930,6 @@
 	</div>
 {/if}
 
-<!-- Obligation Detail Modal -->
-{#if selectedObligation}
-	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={() => {
-			selectedObligation = null;
-			editingAmountReplacedId = null;
-		}} aria-label="Close modal" tabindex="-1"></button>
-		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
-			<div class="relative w-full max-w-2xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden">
-
-				<!-- Header -->
-				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8 sm:py-6">
-					<div class="flex items-start justify-between gap-3">
-						<div class="flex items-start gap-3 min-w-0 flex-1">
-							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-rose-600 shadow-lg shadow-rose-500/30">
-								<svg class="h-5 w-5 text-white sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-								</svg>
-							</div>
-							<div class="min-w-0 flex-1">
-								<h2 id="obligation-modal-title" class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Obligation Details</h2>
-								<p class="mt-0.5 text-xs sm:text-sm font-medium text-gray-600">{selectedObligation.itemName}</p>
-								<p class="mt-0.5 text-xs text-gray-500">{selectedObligation.studentName || 'Unknown Student'}</p>
-							</div>
-						</div>
-						<button 
-							onclick={() => {
-								selectedObligation = null;
-								editingAmountReplacedId = null;
-							}}
-							aria-label="Close modal"
-							class="rounded-xl p-2 sm:p-2.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
-						>
-							<svg class="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-							</svg>
-						</button>
-					</div>
-				</div>
-
-				<!-- Content -->
-				<div class="max-h-[70vh] overflow-y-auto px-4 py-5 sm:px-8 sm:py-8">
-					<div class="space-y-6 sm:space-y-8">
-
-						<!-- Student Info Card -->
-						<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5 sm:p-6">
-							<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-								<div class="flex items-center gap-3">
-									<div class="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-sm font-semibold text-pink-700 ring-2 ring-pink-200">
-										{#if selectedObligation.studentProfilePhotoUrl}
-											<img src={selectedObligation.studentProfilePhotoUrl} alt={selectedObligation.studentName || ''} class="h-full w-full object-cover" />
-										{:else}
-											<span class="text-base sm:text-lg">{getInitials(selectedObligation.studentName || 'Unknown Student')}</span>
-										{/if}
-									</div>
-									<div>
-										<p class="text-base font-semibold text-gray-900">{selectedObligation.studentName || 'Unknown Student'}</p>
-										<p class="mt-0.5 text-sm text-gray-500">{selectedObligation.studentEmail || 'N/A'}</p>
-									</div>
-								</div>
-								<div class="sm:ml-auto">
-									<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-inset {getObligationStatusClass(selectedObligation.status)}">
-										<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-										{selectedObligation.status.charAt(0).toUpperCase() + selectedObligation.status.slice(1)}
-									</span>
-								</div>
-							</div>
-						</div>
-
-						<!-- Details Card -->
-						<div class="rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-							<div class="bg-gradient-to-r from-gray-50 to-white px-5 py-3 border-b border-gray-200">
-								<h3 class="text-sm font-semibold text-gray-900">Obligation Information</h3>
-							</div>
-							<div class="grid grid-cols-1 sm:grid-cols-2 gap-5 p-5">
-								<div>
-									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Item Name</p>
-									<p class="font-semibold text-gray-900">{selectedObligation.itemName}</p>
-								</div>
-								<div>
-									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Replacement Quantity</p>
-									<p class="font-semibold text-gray-900">{selectedObligation.amount}</p>
-								</div>
-								<div>
-									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Original Borrowed Qty</p>
-									<p class="font-semibold text-gray-900">{selectedObligation.quantity}</p>
-								</div>
-								<div>
-									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Amount Replaced</p>
-									{#if editingAmountReplacedId === selectedObligation.id}
-										<div class="flex items-center gap-2">
-											<input
-												type="number"
-												min="0"
-												max={selectedObligation.amount}
-												bind:value={editedAmountReplaced}
-												placeholder="0"
-												class="w-24 rounded-lg border-2 border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-												disabled={isUpdatingAmountReplaced}
-											/>
-											<button
-												onclick={updateAmountReplaced}
-												disabled={isUpdatingAmountReplaced}
-												class="rounded-lg px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 transition-all active:scale-95"
-											>
-												{isUpdatingAmountReplaced ? 'Saving...' : 'Save'}
-											</button>
-											<button
-												onclick={() => editingAmountReplacedId = null}
-												disabled={isUpdatingAmountReplaced}
-												class="rounded-lg px-3 py-1.5 text-xs font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-1 transition-all active:scale-95"
-											>
-												Cancel
-											</button>
-										</div>
-									{:else}
-										<div class="flex items-center justify-between">
-											<p class="font-semibold text-gray-900">{selectedObligation.amountPaid}</p>
-											{#if selectedObligation.status === 'pending'}
-												<button
-													onclick={() => {
-														editingAmountReplacedId = selectedObligation!.id;
-														editedAmountReplaced = selectedObligation!.amountPaid;
-													}}
-													class="text-xs text-blue-600 hover:text-blue-700 font-semibold focus:outline-none hover:underline"
-												>
-													Edit
-												</button>
-											{/if}
-										</div>
-									{/if}
-								</div>
-								<div>
-									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Type</p>
-									<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {selectedObligation.type === 'missing' ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-rose-50 text-rose-700 ring-rose-200'}">
-										<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-										{selectedObligation.type === 'missing' ? 'Missing' : 'Damaged'}
-									</span>
-								</div>
-								<div>
-									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1.5">Due Date</p>
-									<p class="font-semibold text-gray-900">{new Date(selectedObligation.dueDate).toLocaleDateString()}</p>
-								</div>
-							</div>
-						</div>
-
-						<!-- Actions -->
-						{#if selectedObligation.status === 'pending'}
-							<div class="flex flex-col gap-3 pt-2 sm:flex-row">
-								<button
-									onclick={async () => {
-										const confirmed = await confirmStore.confirm({ type: 'info', title: 'Mark as Replaced', message: 'Mark this item as replaced by the student?', confirmText: 'Mark Replaced' });
-										if (confirmed) {
-											await handleResolveObligation(selectedObligation!.id, 'replacement');
-											selectedObligation = null;
-										}
-									}}
-									class="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 active:scale-95 sm:flex-1"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-									</svg>
-									Mark Replaced
-								</button>
-							</div>
-						{/if}
-					</div>
-				</div>
-
-				<!-- Footer -->
-				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8">
-					<div class="flex justify-end">
-						<button
-							onclick={() => {
-								selectedObligation = null;
-								editingAmountReplacedId = null;
-							}}
-							class="rounded-xl border-2 border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 active:scale-95"
-						>
-							Close
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-{/if}
-
 <!-- Donation Detail Modal -->
 {#if selectedDonation}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
@@ -2290,4 +2093,13 @@
 			</div>
 		</div>
 	</div>
+{/if}
+
+<!-- Replacement Obligation Modal -->
+{#if selectedObligation}
+	<ReplacementObligationModal
+		obligation={selectedObligation}
+		onResolve={handleResolveObligation}
+		onCancel={() => selectedObligation = null}
+	/>
 {/if}

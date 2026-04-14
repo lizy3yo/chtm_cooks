@@ -218,7 +218,7 @@
 					</div>
 				{:else}
 					<!-- Scanner component -->
-					<QrScanner onResult={handleScanResult} onClose={closeScanner} />
+					<QrScanner onResult={handleScanResult} />
 				{/if}
 			</div>
 		</div>

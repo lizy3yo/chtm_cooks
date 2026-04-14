@@ -125,7 +125,7 @@
 {#if isInstructorRoute}
 <header
 	class="fixed inset-x-0 top-0 z-30 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 shadow-sm transition-all duration-300 sm:px-6
-		{$sidebarCollapsed ? 'lg:pl-24' : 'lg:pl-[19rem]'}"
+		{$sidebarCollapsed ? 'lg:pl-24' : 'lg:pl-76'}"
 >
 	<!-- Left: branding on mobile/tablet -->
 	<div class="flex items-center gap-2">
@@ -191,7 +191,7 @@
 
 			{#if notifOpen}
 				<div
-					class="fixed left-2 right-2 top-[4.25rem] rounded-xl border border-gray-200 bg-white shadow-lg sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80"
+					class="fixed left-2 right-2 top-17 rounded-xl border border-gray-200 bg-white shadow-lg sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80"
 					role="dialog"
 					aria-label="Notifications"
 				>
@@ -236,7 +236,7 @@
 					aria-label="Account menu"
 					aria-expanded={profileOpen}
 				>
-					<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-pink-100 to-pink-50 border-2 border-pink-200 text-pink-700 text-xs font-semibold shadow-sm">
+					<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-pink-100 to-pink-50 border-2 border-pink-200 text-pink-700 text-xs font-semibold shadow-sm">
 						{#if $user.profilePhotoUrl}
 							<img src={$user.profilePhotoUrl} alt="{$user.firstName} {$user.lastName}" class="h-full w-full object-cover" />
 						{:else}
@@ -287,3 +287,4 @@
 	onconfirm={logout}
 	oncancel={() => (signOutOpen = false)}
 />
+
