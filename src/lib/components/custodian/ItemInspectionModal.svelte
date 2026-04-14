@@ -27,8 +27,11 @@
 	}
 
 	// Initialize inspection data from items (stable reference)
-	let inspections = $state<ItemInspection[]>(
-		items.map((item) => ({
+	let inspections = $state<ItemInspection[]>([]);
+
+	// Initialize inspections when items change
+	$effect(() => {
+		inspections = items.map((item) => ({
 			itemId: item.itemId,
 			name: item.name,
 			quantity: item.quantity,
@@ -36,8 +39,8 @@
 			status: null,
 			notes: '',
 			replacementQuantity: 0
-		}))
-	);
+		}));
+	});
 
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
@@ -198,7 +201,7 @@
 				<div class="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
 					<div class="flex items-start gap-3 sm:gap-4">
 						<!-- Icon -->
-						<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+						<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
 							<Search class="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" />
 						</div>
 						
@@ -214,7 +217,7 @@
 								</div>
 								<div class="h-2 rounded-full bg-gray-100 overflow-hidden">
 									<div 
-										class="h-full bg-gradient-to-r from-pink-500 to-pink-600 transition-all duration-500 ease-out"
+										class="h-full bg-linear-to-r from-pink-500 to-pink-600 transition-all duration-500 ease-out"
 										style="width: {progress}%"
 									></div>
 								</div>
@@ -275,7 +278,7 @@
 
 					<!-- Current Item Card -->
 					{#if currentItem}
-						<div class="rounded-2xl border-2 border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5 sm:p-6 shadow-sm">
+						<div class="rounded-2xl border-2 border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6 shadow-sm">
 							<!-- Item Header -->
 							<div class="mb-5 flex items-start gap-4">
 								{#if currentItem.picture}
@@ -285,11 +288,11 @@
 										class="h-16 w-16 rounded-xl border-2 border-gray-200 object-cover shadow-md"
 										loading="lazy"
 										onerror={() => {
-											currentItem.picture = null;
+											inspections[currentItemIndex].picture = null;
 										}}
 									/>
 								{:else}
-									<div class="flex h-16 w-16 items-center justify-center rounded-xl bg-gradient-to-br from-pink-50 to-pink-100 border-2 border-pink-200 shadow-md">
+									<div class="flex h-16 w-16 items-center justify-center rounded-xl bg-linear-to-br from-pink-50 to-pink-100 border-2 border-pink-200 shadow-md">
 										{#key currentItem.name}
 											{@const Icon = getItemIcon(currentItem.name)}
 											<Icon class="h-8 w-8 text-pink-400" aria-label="No image available" />
@@ -316,9 +319,8 @@
 
 							<!-- Status Selection -->
 							<div class="mb-5">
-								<label class="mb-3 block text-sm font-bold text-gray-900">
-									Condition Status <span class="text-pink-500">*</span>
-								</label>
+								<div class="mb-3 text-sm font-bold text-gray-900" role="group" aria-label="Condition Status">
+									Condition Status <span class="text-pink-500">*</span>`n</div>
 								<div class="grid grid-cols-3 gap-2 sm:gap-3">
 									<button
 										type="button"
@@ -592,3 +594,5 @@
 		</div>
 	</div>
 </div>
+
+
