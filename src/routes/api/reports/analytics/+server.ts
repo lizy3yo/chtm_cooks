@@ -24,8 +24,8 @@ import { UserRole, type User } from '$lib/server/models/User';
 
 const ANALYTICS_CACHE_TAG = 'reports-analytics';
 const CACHE_TTL = 3600; // 1 hour - aligned with session timeout
-const ANALYTICS_CACHE_VERSION = 'v3';
-const TRUST_SCORE_STUDENT_LIMIT = 200;
+const ANALYTICS_CACHE_VERSION = 'v7';
+const TRUST_SCORE_STUDENT_LIMIT = 50; // Reduced from 200 for faster analytics response.
 
 const ALLOWED_ROLES = new Set(['instructor', 'custodian', 'superadmin']);
 
@@ -141,6 +141,11 @@ function computeTrustStatsForStudent(
 			returnedCount += 1;
 		}
 
+		// Check for cancelled after approval (before terminal status check)
+		if (status === 'cancelled' && req.approvedAt) {
+			cancelledAfterApprovalPenalty += 3;
+		}
+
 		const isTerminal = status === 'returned' || status === 'missing';
 		if (!isTerminal) continue;
 
@@ -184,10 +189,6 @@ function computeTrustStatsForStudent(
 			} else {
 				returnedOnTime = true;
 			}
-		}
-
-		if (status === 'cancelled' && req.approvedAt) {
-			cancelledAfterApprovalPenalty += 3;
 		}
 
 		if (
@@ -246,6 +247,9 @@ function computeTrustStatsForStudent(
 }
 
 export const GET: RequestHandler = async (event) => {
+	const requestStart = Date.now();
+	logger.info('reports-analytics', 'Analytics request started');
+	
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
 	if (rateLimitResult instanceof Response) return rateLimitResult;
 
@@ -260,6 +264,8 @@ export const GET: RequestHandler = async (event) => {
 		const to = url.searchParams.get('to') || undefined;
 		const skipCache = url.searchParams.has('_t');
 
+		logger.info('reports-analytics', 'Request params', { period, from, to, skipCache });
+
 		if (!['week', 'month', 'semester'].includes(period)) {
 			return json({ error: 'Invalid period. Use week, month, or semester.' }, { status: 400 });
 		}
@@ -269,22 +275,30 @@ export const GET: RequestHandler = async (event) => {
 
 		if (!skipCache) {
 			const cached = await cacheService.get(cacheKey);
-			if (cached) return json(cached);
+			if (cached) {
+				logger.info('reports-analytics', 'Cache hit - returning cached data', { duration: Date.now() - requestStart });
+				return json(cached);
+			}
 		}
 
+		logger.info('reports-analytics', 'Cache miss, querying database');
 		const db = await getDatabase();
 		const borrowRequests = db.collection('borrow_requests');
 		const obligations = db.collection('replacement_obligations');
 		const donationsCol = db.collection('donations');
 		const inventory = db.collection('inventory_items');
+		const inventoryHistory = db.collection('inventory_history');
 
 		const now = new Date();
 		
 		const queryStartTime = Date.now();
+		logger.info('reports-analytics', 'Starting parallel queries');
 
 		// ── 1. Borrow Request Operations (Parallel Execution) ────────────────
 
 		// Execute borrow request queries in parallel for better performance
+		logger.info('reports-analytics', 'Executing borrow request queries');
+		const borrowQueryStart = Date.now();
 		const borrowRequestData = await parallelAggregations<{
 			requestsOverTime: any[];
 			statusBreakdown: any[];
@@ -378,6 +392,7 @@ export const GET: RequestHandler = async (event) => {
 				], ANALYTICS_AGGREGATION_OPTIONS).toArray()
 			}
 		});
+		logger.info('reports-analytics', 'Borrow request queries completed', { duration: Date.now() - borrowQueryStart });
 
 		const requestsOverTime = borrowRequestData.requestsOverTime;
 		const statusBreakdown = borrowRequestData.statusBreakdown;
@@ -385,6 +400,8 @@ export const GET: RequestHandler = async (event) => {
 		const peakHeatmap = borrowRequestData.peakHeatmap;
 
 		// Overdue returns (separate queries due to different match criteria)
+		logger.info('reports-analytics', 'Querying overdue requests');
+		const overdueStart = Date.now();
 		const overdueCount = await borrowRequests.countDocuments({
 			status: 'borrowed',
 			returnDate: { $lt: now }
@@ -421,8 +438,293 @@ export const GET: RequestHandler = async (event) => {
 			{ $sort: { daysOverdue: -1 } },
 			{ $limit: 20 }
 		], ANALYTICS_AGGREGATION_OPTIONS).toArray();
+		logger.info('reports-analytics', 'Overdue queries completed', { duration: Date.now() - overdueStart });
+
+		// ── Enhanced Borrowing Analytics (Optimized) ──────────────────────────────────────
+
+		// Calculate time boundaries once
+		const todayStart = new Date(now);
+		todayStart.setHours(0, 0, 0, 0);
+		
+		const last7DaysStart = new Date(now);
+		last7DaysStart.setDate(last7DaysStart.getDate() - 7);
+		last7DaysStart.setHours(0, 0, 0, 0);
+
+		const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+		monthStart.setHours(0, 0, 0, 0);
+
+		// Parallel execution of borrowing analytics queries
+		logger.info('reports-analytics', 'Executing borrowing analytics queries');
+		const borrowingAnalyticsStart = Date.now();
+		const borrowingAnalyticsData = await parallelAggregations<{
+			itemsBorrowed: any[];
+			borrowers: any[];
+			borrowingAverages: any[];
+		}>({
+			itemsBorrowed: {
+				name: 'itemsBorrowed',
+				promise: borrowRequests.aggregate([
+					{ $match: { createdAt: { $gte: start, $lte: end } } },
+					{ $unwind: '$items' },
+					{
+						$group: {
+							_id: '$items.itemId',
+							name: { $first: '$items.name' },
+							category: { $first: '$items.category' },
+							totalQuantity: { $sum: '$items.quantity' },
+							borrowCount: { $sum: 1 }
+						}
+					},
+					{ $sort: { totalQuantity: -1 } }
+				], { allowDiskUse: true }).toArray()
+			},
+			borrowers: {
+				name: 'borrowers',
+				promise: borrowRequests.aggregate([
+					{ $match: { createdAt: { $gte: start, $lte: end } } },
+					{
+						$group: {
+							_id: '$studentId',
+							requestCount: { $sum: 1 },
+							totalItems: { $sum: { $size: '$items' } }
+						}
+					},
+					{
+						$lookup: {
+							from: 'users',
+							localField: '_id',
+							foreignField: '_id',
+							as: 'studentDoc'
+						}
+					},
+					{ $unwind: { path: '$studentDoc', preserveNullAndEmptyArrays: true } },
+					{
+						$project: {
+							_id: { $toString: '$_id' },
+							studentName: {
+								$concat: [
+									{ $ifNull: ['$studentDoc.firstName', ''] },
+									' ',
+									{ $ifNull: ['$studentDoc.lastName', ''] }
+								]
+							},
+							studentEmail: { $ifNull: ['$studentDoc.email', 'N/A'] },
+							requestCount: 1,
+							totalItems: 1
+						}
+					},
+					{ $sort: { requestCount: -1 } }
+				], { allowDiskUse: true }).toArray()
+			},
+			borrowingAverages: {
+				name: 'borrowingAverages',
+				promise: borrowRequests.aggregate([
+					{ $match: { createdAt: { $gte: start, $lte: end } } },
+					{
+						$group: {
+							_id: null,
+							avgItemsPerRequest: { $avg: { $size: '$items' } },
+							avgQuantityPerRequest: {
+								$avg: {
+									$sum: {
+										$map: {
+											input: '$items',
+											as: 'item',
+											in: '$$item.quantity'
+										}
+									}
+								}
+							},
+							totalRequests: { $sum: 1 }
+						}
+					}
+				], ANALYTICS_AGGREGATION_OPTIONS).toArray()
+			}
+		});
+
+		const itemsBorrowed = borrowingAnalyticsData.itemsBorrowed;
+		const borrowers = borrowingAnalyticsData.borrowers;
+		const borrowingAverages = borrowingAnalyticsData.borrowingAverages;
+		logger.info('reports-analytics', 'Borrowing analytics queries completed', { duration: Date.now() - borrowingAnalyticsStart });
+
+		// ── Loss/Damage Analytics (Optimized with Parallel Execution) ─────────────────
+
+		logger.info('reports-analytics', 'Executing loss and damage queries');
+		const lossAndDamageStart = Date.now();
+		const lossAndDamageData = await parallelAggregations<{
+			lossAndDamageTracking: any[];
+			lossAndDamageSummary: any[];
+		}>({
+			lossAndDamageTracking: {
+				name: 'lossAndDamageTracking',
+				promise: obligations.aggregate([
+					{ $match: { incidentDate: { $gte: start, $lte: end } } },
+					{
+						$lookup: {
+							from: 'borrow_requests',
+							localField: 'borrowRequestId',
+							foreignField: '_id',
+							as: 'requestDoc'
+						}
+					},
+					{ $unwind: { path: '$requestDoc', preserveNullAndEmptyArrays: true } },
+					{
+						$lookup: {
+							from: 'users',
+							localField: 'studentId',
+							foreignField: '_id',
+							as: 'studentDoc'
+						}
+					},
+					{ $unwind: { path: '$studentDoc', preserveNullAndEmptyArrays: true } },
+					{
+						$project: {
+							_id: { $toString: '$_id' },
+							type: 1,
+							status: 1,
+							itemName: 1,
+							itemCategory: 1,
+							amount: 1,
+							amountPaid: 1,
+							incidentDate: 1,
+							resolutionDate: 1,
+							resolutionType: 1,
+							studentName: {
+								$concat: [
+									{ $ifNull: ['$studentDoc.firstName', ''] },
+									' ',
+									{ $ifNull: ['$studentDoc.lastName', ''] }
+								]
+							},
+							requestId: { $toString: '$borrowRequestId' },
+							requestStatus: '$requestDoc.status',
+							requestCreatedAt: '$requestDoc.createdAt',
+							requestReturnedAt: '$requestDoc.returnedAt',
+							daysToResolve: {
+								$cond: [
+									{ $and: [{ $ifNull: ['$resolutionDate', false] }, { $ifNull: ['$incidentDate', false] }] },
+									{ $divide: [{ $subtract: ['$resolutionDate', '$incidentDate'] }, 86400000] },
+									null
+								]
+							}
+						}
+					},
+					{ $sort: { incidentDate: -1 } },
+					{ $limit: 30 }
+				], { allowDiskUse: true }).toArray()
+			},
+			lossAndDamageSummary: {
+				name: 'lossAndDamageSummary',
+				promise: obligations.aggregate([
+					// Use incident date index to reduce collection scope first
+					{ $match: { incidentDate: { $gte: start, $lte: end } } },
+					{
+						$group: {
+							_id: null,
+							todayTotal: {
+								$sum: {
+									$cond: [
+										{ $gte: ['$incidentDate', todayStart] },
+										1,
+										0
+									]
+								}
+							},
+							todayMissing: {
+								$sum: {
+									$cond: [
+										{ $and: [{ $gte: ['$incidentDate', todayStart] }, { $eq: ['$type', 'missing'] }] },
+										1,
+										0
+									]
+								}
+							},
+							todayDamaged: {
+								$sum: {
+									$cond: [
+										{ $and: [{ $gte: ['$incidentDate', todayStart] }, { $eq: ['$type', 'damaged'] }] },
+										1,
+										0
+									]
+								}
+							},
+							last7DaysTotal: {
+								$sum: {
+									$cond: [
+										{ $gte: ['$incidentDate', last7DaysStart] },
+										1,
+										0
+									]
+								}
+							},
+							last7DaysMissing: {
+								$sum: {
+									$cond: [
+										{ $and: [{ $gte: ['$incidentDate', last7DaysStart] }, { $eq: ['$type', 'missing'] }] },
+										1,
+										0
+									]
+								}
+							},
+							last7DaysDamaged: {
+								$sum: {
+									$cond: [
+										{ $and: [{ $gte: ['$incidentDate', last7DaysStart] }, { $eq: ['$type', 'damaged'] }] },
+										1,
+										0
+									]
+								}
+							},
+							mtdTotal: {
+								$sum: {
+									$cond: [
+										{ $gte: ['$incidentDate', monthStart] },
+										1,
+										0
+									]
+								}
+							},
+							mtdMissing: {
+								$sum: {
+									$cond: [
+										{ $and: [{ $gte: ['$incidentDate', monthStart] }, { $eq: ['$type', 'missing'] }] },
+										1,
+										0
+									]
+								}
+							},
+							mtdDamaged: {
+								$sum: {
+									$cond: [
+										{ $and: [{ $gte: ['$incidentDate', monthStart] }, { $eq: ['$type', 'damaged'] }] },
+										1,
+										0
+									]
+								}
+							},
+							periodTotal: {
+								$sum: 1
+							},
+							periodMissing: {
+								$sum: { $cond: [{ $eq: ['$type', 'missing'] }, 1, 0] }
+							},
+							periodDamaged: {
+								$sum: { $cond: [{ $eq: ['$type', 'damaged'] }, 1, 0] }
+							}
+						}
+					}
+				], ANALYTICS_AGGREGATION_OPTIONS).toArray()
+			}
+		});
+
+		const lossAndDamageTracking = lossAndDamageData.lossAndDamageTracking;
+		const lossAndDamageSummary = lossAndDamageData.lossAndDamageSummary;
+		logger.info('reports-analytics', 'Loss and damage queries completed', { duration: Date.now() - lossAndDamageStart });
 
 		// ── 2. Inventory Utilization ──────────────────────────────────────────
+
+		logger.info('reports-analytics', 'Executing inventory queries');
+		const inventoryStart = Date.now();
 
 		// Most borrowed items (by frequency in borrow requests within period)
 		const mostBorrowedItems = await borrowRequests.aggregate([
@@ -441,9 +743,54 @@ export const GET: RequestHandler = async (event) => {
 			{ $limit: 10 }
 		], { allowDiskUse: true }).toArray();
 
-		// Inventory totals (real data from inventory_items)
+		// Date-scoped inventory activity derived from inventory_history
+		const inventoryActivityByItem = await inventoryHistory.aggregate([
+			{
+				$match: {
+					entityType: 'item',
+					timestamp: { $gte: start, $lte: end }
+				}
+			},
+			{
+				$project: {
+					entityId: 1,
+					delta: {
+						$subtract: [
+							{ $ifNull: ['$metadata.newQuantity', { $ifNull: ['$metadata.previousQuantity', 0] }] },
+							{ $ifNull: ['$metadata.previousQuantity', { $ifNull: ['$metadata.newQuantity', 0] }] }
+						]
+					}
+				}
+			},
+			{
+				$group: {
+					_id: '$entityId',
+					itemNetChange: { $sum: '$delta' },
+					itemQuantityAdded: {
+						$sum: {
+							$cond: [{ $gt: ['$delta', 0] }, '$delta', 0]
+						}
+					},
+					itemQuantityDeducted: {
+						$sum: {
+							$cond: [{ $lt: ['$delta', 0] }, { $abs: '$delta' }, 0]
+						}
+					}
+				}
+			}
+		], ANALYTICS_AGGREGATION_OPTIONS).toArray();
+
+		const touchedItemIds = inventoryActivityByItem
+			.map((row: any) => row._id)
+			.filter((id: unknown) => Boolean(id));
+
+		const scopedInventoryMatch = touchedItemIds.length > 0
+			? { archived: false, _id: { $in: touchedItemIds } }
+			: { archived: false, _id: { $in: [] } };
+
+		// Inventory totals scoped to selected date range activity
 		const inventorySummary = await inventory.aggregate([
-			{ $match: { archived: false } },
+			{ $match: scopedInventoryMatch },
 			{
 				$group: {
 					_id: null,
@@ -453,7 +800,8 @@ export const GET: RequestHandler = async (event) => {
 					constantCount: { $sum: { $cond: [{ $eq: ['$isConstant', true] }, 1, 0] } },
 					lowStockCount: {
 						$sum: { $cond: [{ $in: ['$status', ['Low Stock', 'Out of Stock']] }, 1, 0] }
-					}
+					},
+					touchedItems: { $sum: 1 }
 				}
 			},
 			{
@@ -551,7 +899,7 @@ export const GET: RequestHandler = async (event) => {
 
 		// EOM variance (quantity vs eomCount)
 		const eomVariance = await inventory.aggregate([
-			{ $match: { archived: false } },
+			{ $match: scopedInventoryMatch },
 			{
 				$project: {
 					_id: { $toString: '$_id' },
@@ -562,7 +910,61 @@ export const GET: RequestHandler = async (event) => {
 					variance: { $subtract: ['$quantity', { $ifNull: ['$eomCount', 0] }] }
 				}
 			},
-			{ $sort: { variance: 1 } },
+			{ $match: { variance: { $ne: 0 } } },
+			{ $addFields: { varianceAbs: { $abs: '$variance' } } },
+			{ $sort: { varianceAbs: -1, variance: -1 } },
+			{ $limit: 200 },
+			{ $project: { varianceAbs: 0 } }
+		]).toArray();
+
+		const varianceDrivers = await borrowRequests.aggregate([
+			{ $match: { createdAt: { $gte: start, $lte: end } } },
+			{ $sort: { createdAt: -1 } },
+			{ $unwind: '$items' },
+			{
+				$group: {
+					_id: '$items.itemId',
+					name: { $first: '$items.name' },
+					category: { $first: '$items.category' },
+					requestCount: { $sum: 1 },
+					totalBorrowedQuantity: { $sum: '$items.quantity' },
+					latestRequestId: { $first: '$_id' },
+					latestRequestDate: { $first: '$createdAt' },
+					latestRequestStatus: { $first: '$status' },
+					latestStudentId: { $first: '$studentId' }
+				}
+			},
+			{
+				$lookup: {
+					from: 'users',
+					localField: 'latestStudentId',
+					foreignField: '_id',
+					as: 'studentDoc'
+				}
+			},
+			{ $unwind: { path: '$studentDoc', preserveNullAndEmptyArrays: true } },
+			{
+				$project: {
+					_id: { $toString: '$_id' },
+					name: 1,
+					category: 1,
+					requestCount: 1,
+					totalBorrowedQuantity: 1,
+					latestRequestId: { $toString: '$latestRequestId' },
+					latestRequestDate: 1,
+					latestRequestStatus: 1,
+					studentName: {
+						$concat: [
+							{ $ifNull: ['$studentDoc.firstName', ''] },
+							' ',
+							{ $ifNull: ['$studentDoc.lastName', ''] }
+						]
+					},
+					studentEmail: { $ifNull: ['$studentDoc.email', 'N/A'] },
+					studentProfilePhotoUrl: { $ifNull: ['$studentDoc.profilePhotoUrl', null] }
+				}
+			},
+			{ $sort: { totalBorrowedQuantity: -1, requestCount: -1 } },
 			{ $limit: 20 }
 		]).toArray();
 
@@ -582,7 +984,12 @@ export const GET: RequestHandler = async (event) => {
 			{ $limit: 20 }
 		]).toArray();
 
+		logger.info('reports-analytics', 'Inventory queries completed', { duration: Date.now() - inventoryStart });
+
 		// ── 3. replacement Overview ─────────────────────────────────────────────
+
+		logger.info('reports-analytics', 'Executing replacement obligation queries');
+		const replacementStart = Date.now();
 
 		// Outstanding vs collected (total)
 		const replacementSummary = await obligations.aggregate([
@@ -700,7 +1107,12 @@ export const GET: RequestHandler = async (event) => {
 			{ $limit: 100 } // Limit results for performance
 		]).toArray();
 
+		logger.info('reports-analytics', 'Replacement queries completed', { duration: Date.now() - replacementStart });
+
 		// ── 4. Student Trust / Risk ───────────────────────────────────────────
+
+		logger.info('reports-analytics', 'Executing student trust score queries (limit=' + TRUST_SCORE_STUDENT_LIMIT + ')');
+		const trustScoreStart = Date.now();
 
 		// Students with most active obligations
 		const repeatOffenders = await obligations.aggregate([
@@ -950,10 +1362,29 @@ export const GET: RequestHandler = async (event) => {
 			});
 		}
 
+		logger.info('reports-analytics', 'Student trust scores calculated', { duration: Date.now() - trustScoreStart, recordsCalculated: trustScores.length });
+
 		// ── Assemble response ─────────────────────────────────────────────────
 
+		logger.info('reports-analytics', 'Assembling response payload');
 		const turnaround = turnaroundPipeline[0] ?? {};
 		const replacement = replacementSummary[0] ?? { totalItemsPending: 0, totalItemsReplaced: 0, totalObligations: 0, pendingCount: 0 };
+
+		const borrowingAvg = borrowingAverages[0] ?? { avgItemsPerRequest: 0, avgQuantityPerRequest: 0, totalRequests: 0 };
+		const lossAndDamageSummaryData = lossAndDamageSummary[0] ?? {
+			todayTotal: 0,
+			todayMissing: 0,
+			todayDamaged: 0,
+			last7DaysTotal: 0,
+			last7DaysMissing: 0,
+			last7DaysDamaged: 0,
+			mtdTotal: 0,
+			mtdMissing: 0,
+			mtdDamaged: 0,
+			periodTotal: 0,
+			periodMissing: 0,
+			periodDamaged: 0
+		};
 
 		const response = {
 			meta: {
@@ -982,6 +1413,27 @@ export const GET: RequestHandler = async (event) => {
 					dayOfWeek: p._id.dayOfWeek,
 					hour: p._id.hour,
 					count: p.count
+				})),
+				// Enhanced borrowing analytics
+				borrowingAverages: {
+					avgItemsPerRequest: Math.round((borrowingAvg.avgItemsPerRequest ?? 0) * 10) / 10,
+					avgQuantityPerRequest: Math.round((borrowingAvg.avgQuantityPerRequest ?? 0) * 10) / 10,
+					totalRequests: borrowingAvg.totalRequests ?? 0
+				},
+				itemsBorrowed: itemsBorrowed.map((i: any) => ({
+					id: i._id?.toString() ?? '',
+					name: i.name,
+					category: i.category,
+					totalQuantity: i.totalQuantity,
+					borrowCount: i.borrowCount
+				})),
+				borrowers: borrowers
+			},
+			lossAndDamage: {
+				summary: lossAndDamageSummaryData,
+				tracking: lossAndDamageTracking.map((item: any) => ({
+					...item,
+					daysToResolve: item.daysToResolve ? Math.round(item.daysToResolve * 10) / 10 : null
 				}))
 			},
 			inventory: {
@@ -1021,6 +1473,19 @@ export const GET: RequestHandler = async (event) => {
 					incidentRate: Math.round(i.incidentRate * 10) / 10
 				})),
 				eomVariance,
+				varianceDrivers: varianceDrivers.map((item) => ({
+					id: item._id?.toString() ?? '',
+					name: item.name,
+					category: item.category,
+					requestCount: item.requestCount,
+					totalBorrowedQuantity: item.totalBorrowedQuantity,
+					latestRequestId: item.latestRequestId,
+					latestRequestDate: item.latestRequestDate,
+					latestRequestStatus: item.latestRequestStatus,
+					studentName: item.studentName,
+					studentEmail: item.studentEmail,
+					studentProfilePhotoUrl: item.studentProfilePhotoUrl
+				})),
 				stockAlerts
 			},
 			replacement: {
@@ -1074,10 +1539,12 @@ export const GET: RequestHandler = async (event) => {
 			tags: [ANALYTICS_CACHE_TAG]
 		});
 
-		const totalDuration = Date.now() - queryStartTime;
-		logger.info('reports-analytics', 'Analytics report generated', {
+		const totalDuration = Date.now() - requestStart;
+		const queryDuration = Date.now() - queryStartTime;
+		logger.info('reports-analytics', 'Analytics report generated and cached', {
 			period,
-			duration: totalDuration,
+			queryDuration,
+			totalDuration,
 			cacheKey
 		});
 
