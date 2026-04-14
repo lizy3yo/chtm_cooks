@@ -29,7 +29,7 @@ type RedisClient = UpstashRedis | IORedis;
  * @example
  * ```typescript
  * const cache = CacheService.getInstance();
- * await cache.set('user:123', userData, { ttl: 3600 });
+ * await cache.set('user:123', userData, { ttl: 43200 });
  * const user = await cache.get('user:123');
  * ```
  */

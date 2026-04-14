@@ -100,7 +100,7 @@
 			} else if (response.user.role === 'custodian') {
 				goto('/custodian/dashboard');
 			} else if (response.user.role === 'superadmin') {
-				goto('/admin/dashboard');
+				goto('/superadmin/dashboard');
 			}
 		} catch (err) {
 			if (err instanceof ApiErrorHandler) {

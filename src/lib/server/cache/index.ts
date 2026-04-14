@@ -16,7 +16,7 @@
  * import { cacheService } from '$lib/server/cache';
  * 
  * // Set a value
- * await cacheService.set('user:123', userData, { ttl: 3600 });
+ * await cacheService.set('user:123', userData, { ttl: 43200 });
  * 
  * // Get a value
  * const user = await cacheService.get('user:123');
@@ -25,7 +25,7 @@
  * const result = await cacheService.wrap(
  *   'user:123',
  *   async () => await db.users.findById('123'),
- *   { ttl: 3600, tags: ['users'] }
+ *   { ttl: 43200, tags: ['users'] }
  * );
  * ```
  * 
@@ -37,14 +37,14 @@
  * const data = await stampedeProtection.fetch(
  *   'expensive-query',
  *   () => expensiveDatabaseQuery(),
- *   { ttl: 3600 }
+ *   { ttl: 43200 }
  * );
  * 
  * // Warm cache on startup
  * await cacheWarmer.warmCache(
  *   'popular-data',
  *   () => fetchPopularData(),
- *   { ttl: 3600 }
+ *   { ttl: 43200 }
  * );
  * ```
  */

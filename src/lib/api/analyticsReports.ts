@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Analytics Reports API Client
  * Client-side cache + SSE subscription for the custodian reports page.
  */
@@ -6,7 +6,7 @@
 import { browser } from '$app/environment';
 import { getApiErrorMessage } from './session';
 
-// â”€â”€ Types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export type AnalyticsPeriod = 'week' | 'month' | 'semester';
 
@@ -35,7 +35,7 @@ export interface OverdueRequest {
 }
 
 export interface PeakHeatmapPoint {
-	dayOfWeek: number; // 1=Sun â€¦ 7=Sat
+	dayOfWeek: number; // 1=Sun … 7=Sat
 	hour: number;
 	count: number;
 }
@@ -293,7 +293,7 @@ interface CacheEntry {
 	expiresAt: number;
 }
 
-const CLIENT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour - aligned with server cache and session timeout
+const CLIENT_CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours - aligned with server cache and session timeout
 const CLIENT_CACHE_VERSION = 'v6';
 const cache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<AnalyticsReport>>();
@@ -328,7 +328,7 @@ export function peekCachedAnalytics(opts: FetchAnalyticsOptions = {}): Analytics
 	return getCached(cacheKey);
 }
 
-// â”€â”€ API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── API ───────────────────────────────────────────────────────────────────────
 
 export interface FetchAnalyticsOptions {
 	period?: AnalyticsPeriod;
@@ -492,7 +492,7 @@ export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<
 	}
 }
 
-// â”€â”€ SSE subscription â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── SSE subscription ──────────────────────────────────────────────────────────
 
 export function subscribeToAnalyticsChanges(onRefresh: () => void): () => void {
 	if (!browser) return () => {};

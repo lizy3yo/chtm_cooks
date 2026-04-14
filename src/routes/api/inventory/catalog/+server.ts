@@ -223,9 +223,9 @@ export const GET: RequestHandler = async (event) => {
 					categoriesCount: 0
 				}
 			};
-			// Cache empty response for 1 hour to match session policy
+			// Cache empty response for 12 hours to match session policy
 			await cacheService.set(cacheKey, response, {
-				ttl: 3600,
+				ttl: 43200,
 				tags: ['inventory-catalog']
 			});
 			return json(response);
@@ -289,9 +289,9 @@ export const GET: RequestHandler = async (event) => {
 			categoriesCount: categories.length
 		});
 
-		// Cache for 1 hour to align with session timeout
+		// Cache for 12 hours to align with session timeout
 		await cacheService.set(cacheKey, response, {
-			ttl: 3600,
+			ttl: 43200,
 			tags: ['inventory-catalog']
 		});
 

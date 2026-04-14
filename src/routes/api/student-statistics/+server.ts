@@ -10,7 +10,7 @@
  *  - Non-student roles receive 403 Forbidden.
  *
  * Caching:
- *  - Server: Redis (TTL 3600 s / 1 hour) keyed per student.
+ *  - Server: Redis (TTL 43200 s / 12 hours) keyed per student.
  *  - Cache bust: append `?_t=<timestamp>` to skip the Redis read.
  *  - After a successful computation the result is stored back in Redis
  *    so subsequent requests are served without hitting MongoDB.
@@ -27,8 +27,8 @@ import {
 import { logger } from '$lib/server/utils/logger';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 
-// Cache TTL: 1 hour — aligned with authenticated session timeout
-const STATS_CACHE_TTL_SECONDS = 3600;
+// Cache TTL: 12 hours — aligned with authenticated session timeout
+const STATS_CACHE_TTL_SECONDS = 43200;
 
 function parsePeriod(raw: string | null): StatisticsPeriod | null {
 	if (raw === '7d' || raw === '30d' || raw === '90d' || raw === '180d' || raw === '365d' || raw === 'all') {

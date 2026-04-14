@@ -98,7 +98,7 @@ export enum CacheStrategy {
  * Cache layer configuration
  */
 export interface CacheLayerConfig {
-	/** Default TTL in seconds (1 hour) */
+	/** Default TTL in seconds (12 hours) */
 	defaultTTL: number;
 	/** Default namespace prefix */
 	defaultNamespace: string;

@@ -5,9 +5,9 @@ import { CacheStrategy, type CacheLayerConfig } from './types';
  * Follows industry best practices for distributed caching
  */
 export const DEFAULT_CACHE_CONFIG: CacheLayerConfig = {
-	// Default TTL: 1 hour (3600 seconds)
+	// Default TTL: 12 hours (43200 seconds)
 	// This is a good default for most use cases
-	defaultTTL: 3600,
+	defaultTTL: 43200,
 
 	// Default namespace to avoid key collisions
 	defaultNamespace: 'app',
@@ -43,8 +43,8 @@ export const TTL_PRESETS = {
 	/** 15 minutes - for frequently updated data */
 	MEDIUM: 900,
 
-	/** 1 hour - default for most data */
-	LONG: 3600,
+	/** 12 hours - default for most data */
+	LONG: 43200,
 
 	/** 6 hours - for semi-static data */
 	VERY_LONG: 21600,

@@ -1,21 +1,21 @@
-﻿/**
+/**
  * Client-side Statistics API module
  *
  * Provides a typed wrapper around GET /api/student-statistics with a
- * 1-hour in-memory cache to prevent redundant network round-trips
+ * 12-hour in-memory cache to prevent redundant network round-trips
  * during the same browsing session (mirrors the pattern used in
  * borrowRequests.ts and replacementObligations.ts).
  *
  * Cache layers:
- *  1. Client memory cache (this module) â€” 3600 s TTL, instant reads
- *  2. Server Redis cache (/api/student-statistics) â€” 3600 s TTL
- *  3. MongoDB aggregation (computeStudentStatistics service) â€” source of truth
+ *  1. Client memory cache (this module) — 43200 s TTL, instant reads
+ *  2. Server Redis cache (/api/student-statistics) — 43200 s TTL
+ *  3. MongoDB aggregation (computeStudentStatistics service) — source of truth
  */
 
 import { browser } from '$app/environment';
 import { getApiErrorMessage } from './session';
 
-// â”€â”€â”€ Re-export shared types so consumers import from one place â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Re-export shared types so consumers import from one place ─────────────────
 
 export type TrustTier = 'excellent' | 'good' | 'fair' | 'poor' | 'critical';
 export type StatisticsPeriod = '7d' | '30d' | '90d' | '180d' | '365d' | 'all';
@@ -124,14 +124,14 @@ export interface StudentStatisticsData {
 	computedAt: string;
 }
 
-// â”€â”€â”€ Internal cache primitives â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Internal cache primitives ─────────────────────────────────────────────────
 
 interface CacheEntry {
 	data: StudentStatisticsData;
 	expiresAt: number;
 }
 
-const CLIENT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const CLIENT_CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const cacheByPeriod = new Map<StatisticsPeriod, CacheEntry>();
 const inFlightByPeriod = new Map<StatisticsPeriod, Promise<StudentStatisticsData>>();
 
@@ -151,7 +151,7 @@ function setCache(period: StatisticsPeriod, data: StudentStatisticsData): void {
 	cacheByPeriod.set(period, { data, expiresAt: Date.now() + CLIENT_CACHE_TTL_MS });
 }
 
-// â”€â”€â”€ HTTP helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── HTTP helpers ──────────────────────────────────────────────────────────────
 
 interface ApiError {
 	error?: string;
@@ -182,7 +182,7 @@ async function doFetch(period: StatisticsPeriod, forceRefresh: boolean): Promise
 	return payload;
 }
 
-// â”€â”€â”€ Public API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─── Public API ────────────────────────────────────────────────────────────────
 
 interface FetchOptions {
 	forceRefresh?: boolean;
@@ -197,7 +197,7 @@ export const statisticsAPI = {
 	 * - Deduplicates concurrent calls: if a fetch is already in-flight the
 	 *   same promise is returned to all callers.
 	 * - Pass `forceRefresh: true` to bypass both client and server caches
-	 *   (appends `?_t=â€¦` which the server interprets as a cache-bust flag).
+	 *   (appends `?_t=…` which the server interprets as a cache-bust flag).
 	 */
 	async get(options: FetchOptions = {}): Promise<StudentStatisticsData> {
 		const period = options.period ?? '180d';
