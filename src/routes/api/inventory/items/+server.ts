@@ -294,7 +294,7 @@ export const POST: RequestHandler = async (event) => {
 		});
 
 		// Invalidate inventory cache (use tag-based invalidation — deletePattern is a no-op on Upstash)
-		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog']);
+		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'reports-analytics']);
 		await cacheService.deletePattern('inventory:archived:*');
 
 		publishInventoryChange([INVENTORY_CHANNEL], {

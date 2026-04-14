@@ -225,59 +225,44 @@
 		<!-- ── KPI strip ───────────────────────────────────────────────────── -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
 
-			<div class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-				<div class="min-w-0 flex-1">
-					<p class="text-xs font-semibold text-violet-700">Active Loans</p>
-					<p class="mt-2 text-3xl font-bold text-violet-700">{activeLoans}</p>
-					<p class="mt-1 text-xs text-violet-600">{totalItemsOut} items out</p>
+			<div class="rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-700">
+					<PackageOpen size={12} /> Active Loans
 				</div>
-				<div class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-100">
-					<PackageOpen size={20} class="text-violet-600" />
-				</div>
+				<p class="mt-2 text-3xl font-bold text-violet-700">{activeLoans}</p>
+				<p class="mt-0.5 text-xs text-violet-500">{totalItemsOut} items currently out</p>
 			</div>
 
-			<div class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-				<div class="min-w-0 flex-1">
-					<p class="text-xs font-semibold text-amber-700">Pending</p>
-					<p class="mt-2 text-3xl font-bold text-amber-700">{pendingCount}</p>
-					<p class="mt-1 text-xs text-amber-600">Awaiting action</p>
+			<div class="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-700">
+					<Clock size={12} /> Pending
 				</div>
-				<div class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
-					<Clock size={20} class="text-amber-600" />
-				</div>
+				<p class="mt-2 text-3xl font-bold text-amber-700">{pendingCount}</p>
+				<p class="mt-0.5 text-xs text-amber-500">Awaiting action</p>
 			</div>
 
-			<div class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-				<div class="min-w-0 flex-1">
-					<p class="text-xs font-semibold {overdueCount > 0 ? 'text-red-700' : 'text-gray-600'}">Overdue</p>
-					<p class="mt-2 text-3xl font-bold {overdueCount > 0 ? 'text-red-700' : 'text-gray-700'}">{overdueCount}</p>
-					<p class="mt-1 text-xs {overdueCount > 0 ? 'text-red-600' : 'text-gray-500'}">Past return date</p>
+			<div class="rounded-xl border {overdueCount > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'} p-4 shadow-sm">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {overdueCount > 0 ? 'text-red-700' : 'text-gray-600'}">
+					<TriangleAlert size={12} /> Overdue
 				</div>
-				<div class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full {overdueCount > 0 ? 'bg-red-100' : 'bg-gray-100'}">
-					<TriangleAlert size={20} class="{overdueCount > 0 ? 'text-red-600' : 'text-gray-500'}" />
-				</div>
+				<p class="mt-2 text-3xl font-bold {overdueCount > 0 ? 'text-red-700' : 'text-gray-700'}">{overdueCount}</p>
+				<p class="mt-0.5 text-xs {overdueCount > 0 ? 'text-red-500' : 'text-gray-500'}">Past return date</p>
 			</div>
 
-			<div class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-				<div class="min-w-0 flex-1">
-					<p class="text-xs font-semibold {stockAlertCount > 0 ? 'text-orange-700' : 'text-gray-600'}">Stock Alerts</p>
-					<p class="mt-2 text-3xl font-bold {stockAlertCount > 0 ? 'text-orange-700' : 'text-gray-700'}">{stockAlertCount}</p>
-					<p class="mt-1 text-xs {stockAlertCount > 0 ? 'text-orange-600' : 'text-gray-500'}">Low / out of stock</p>
+			<div class="rounded-xl border {stockAlertCount > 0 ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-gray-50'} p-4 shadow-sm">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {stockAlertCount > 0 ? 'text-orange-700' : 'text-gray-600'}">
+					<ShieldAlert size={12} /> Stock Alerts
 				</div>
-				<div class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full {stockAlertCount > 0 ? 'bg-orange-100' : 'bg-gray-100'}">
-					<ShieldAlert size={20} class="{stockAlertCount > 0 ? 'text-orange-600' : 'text-gray-500'}" />
-				</div>
+				<p class="mt-2 text-3xl font-bold {stockAlertCount > 0 ? 'text-orange-700' : 'text-gray-700'}">{stockAlertCount}</p>
+				<p class="mt-0.5 text-xs {stockAlertCount > 0 ? 'text-orange-500' : 'text-gray-500'}">Low / out of stock</p>
 			</div>
 
-			<div class="col-span-2 flex items-start justify-between rounded-xl border border-gray-200 bg-white sm:col-span-1 p-4 shadow-sm">
-				<div class="min-w-0 flex-1">
-					<p class="text-xs font-semibold {pendingObligations > 0 ? 'text-rose-700' : 'text-gray-600'}">Replacements</p>
-					<p class="mt-2 text-3xl font-bold {pendingObligations > 0 ? 'text-rose-700' : 'text-gray-700'}">{pendingObligations}</p>
-					<p class="mt-1 text-xs {pendingObligations > 0 ? 'text-rose-600' : 'text-gray-500'}">Pending cases</p>
+			<div class="col-span-2 rounded-xl border sm:col-span-1 {pendingObligations > 0 ? 'border-rose-200 bg-rose-50' : 'border-gray-200 bg-gray-50'} p-4 shadow-sm">
+				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {pendingObligations > 0 ? 'text-rose-700' : 'text-gray-600'}">
+					<AlertCircle size={12} /> Replacements
 				</div>
-				<div class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full {pendingObligations > 0 ? 'bg-rose-100' : 'bg-gray-100'}">
-					<AlertCircle size={20} class="{pendingObligations > 0 ? 'text-rose-600' : 'text-gray-500'}" />
-				</div>
+				<p class="mt-2 text-3xl font-bold {pendingObligations > 0 ? 'text-rose-700' : 'text-gray-700'}">{pendingObligations}</p>
+				<p class="mt-0.5 text-xs {pendingObligations > 0 ? 'text-rose-500' : 'text-gray-500'}">Pending cases</p>
 			</div>
 		</div>
 

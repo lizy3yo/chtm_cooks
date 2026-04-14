@@ -35,7 +35,6 @@ const { MongoClient, ObjectId } = require('mongodb');
 const DOMAIN = '@gordoncollege.edu.ph';
 const SEED_TAG = 'presentation-seed-v2';
 const DEFAULT_PASSWORD = 'GcPresent2026!';
-const EXCLUDED_EMAILS = new Set(['202311564@gordoncollege.edu.ph']);
 
 const COLLECTIONS = {
 	users: 'users',
@@ -144,43 +143,40 @@ async function getNextDonationSerialStart(db, year) {
 
 function buildPeople() {
 	const roster = [
-		['202311577', 'Miguel', 'Santos', 'student'],
-		['202311563', 'Angela', 'Reyes', 'student'],
-		['2023115674', 'Joshua', 'Fernandez', 'student'],
-		['202311565', 'Patricia', 'Villanueva', 'student'],
-		['202311566', 'Carlo', 'Domingo', 'student'],
-		['202311568', 'Bea', 'Navarro', 'student'],
-		['202311569', 'Rafael', 'Mendoza', 'student'],
-		['202311570', 'Nicole', 'Bautista', 'student'],
-		['202311571', 'Adrian', 'Flores', 'student'],
-		['202311572', 'Leah', 'Salazar', 'student'],
-		['202311573', 'Franco', 'De Leon', 'student'],
-		['202311574', 'Mariel', 'Cruz', 'student'],
-		['202311575', 'Gabriel', 'Ramos', 'student'],
-		['202311576', 'Sofia', 'Torres', 'student'],
-		['202301001', 'Clarissa', 'Lopez', 'instructor'],
-		['202301002', 'Vincent', 'Garcia', 'instructor'],
-		['202301003', 'Elena', 'Dizon', 'instructor'],
-		['202302001', 'Marvin', 'Aguilar', 'custodian'],
-		['202302002', 'Janine', 'Mercado', 'custodian'],
-		['202399001', 'Roberto', 'Lim', 'superadmin']
+		{ emailLocalPart: '202311564', firstName: 'Kharl', lastName: 'De Jesus', role: 'student', yearLevel: '3rd Year', block: 'A', agreedToTerms: true },
+		{ emailLocalPart: '202311565', firstName: 'Angela', lastName: 'Reyes', role: 'student', yearLevel: '2nd Year', block: 'B', agreedToTerms: true },
+		{ emailLocalPart: '202311566', firstName: 'Joshua', lastName: 'Fernandez', role: 'student', yearLevel: '1st Year', block: 'C', agreedToTerms: true },
+		{ emailLocalPart: '202311567', firstName: 'Patricia', lastName: 'Villanueva', role: 'student', yearLevel: '4th Year', block: 'D', agreedToTerms: true },
+		{ emailLocalPart: '202311568', firstName: 'Carlo', lastName: 'Domingo', role: 'student', yearLevel: '3rd Year', block: 'E', agreedToTerms: true },
+		{ emailLocalPart: '202311569', firstName: 'Bea', lastName: 'Navarro', role: 'student', yearLevel: '2nd Year', block: 'F', agreedToTerms: true },
+		{ emailLocalPart: '202311570', firstName: 'Rafael', lastName: 'Mendoza', role: 'student', yearLevel: '1st Year', block: 'A', agreedToTerms: true },
+		{ emailLocalPart: '202311571', firstName: 'Nicole', lastName: 'Bautista', role: 'student', yearLevel: '4th Year', block: 'B', agreedToTerms: true },
+		{ emailLocalPart: '202311572', firstName: 'Adrian', lastName: 'Flores', role: 'student', yearLevel: '3rd Year', block: 'C', agreedToTerms: true },
+		{ emailLocalPart: '202311573', firstName: 'Leah', lastName: 'Salazar', role: 'student', yearLevel: '2nd Year', block: 'D', agreedToTerms: true },
+		{ emailLocalPart: '202311574', firstName: 'Franco', lastName: 'De Leon', role: 'student', yearLevel: '1st Year', block: 'E', agreedToTerms: true },
+		{ emailLocalPart: '202311575', firstName: 'Mariel', lastName: 'Cruz', role: 'student', yearLevel: '4th Year', block: 'F', agreedToTerms: true },
+		{ emailLocalPart: '202311576', firstName: 'Gabriel', lastName: 'Ramos', role: 'student', yearLevel: '3rd Year', block: 'A', agreedToTerms: true },
+		{ emailLocalPart: '202311577', firstName: 'Sofia', lastName: 'Torres', role: 'student', yearLevel: '2nd Year', block: 'B', agreedToTerms: true },
+		{ emailLocalPart: '202311578', firstName: 'Clarissa', lastName: 'Lopez', role: 'student', yearLevel: '1st Year', block: 'C', agreedToTerms: true },
+		{ emailLocalPart: '202311579', firstName: 'Vincent', lastName: 'Garcia', role: 'student', yearLevel: '2nd Year', block: 'D', agreedToTerms: true },
+		{ emailLocalPart: '202311580', firstName: 'Elena', lastName: 'Dizon', role: 'student', yearLevel: '3rd Year', block: 'E', agreedToTerms: true },
+		{ emailLocalPart: '202311581', firstName: 'Marvin', lastName: 'Aguilar', role: 'student', yearLevel: '4th Year', block: 'F', agreedToTerms: true },
+		{ emailLocalPart: '202311582', firstName: 'Janine', lastName: 'Mercado', role: 'student', yearLevel: '1st Year', block: 'A', agreedToTerms: true },
+		{ emailLocalPart: '202311583', firstName: 'Roberto', lastName: 'Lim', role: 'student', yearLevel: '2nd Year', block: 'B', agreedToTerms: true }
 	];
 
-	const yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
-	const blocks = ['A', 'B', 'C', 'D', 'E', 'F'];
-
-	return roster.map((row, index) => {
-		const [idNumber, firstName, lastName, role] = row;
-		const isStudent = role === 'student';
+	return roster.map((user) => {
+		const isStudent = user.role === 'student';
 		return {
-			email: ensureNumericGordonEmail(idNumber),
-			firstName,
-			lastName,
-			role,
-			yearLevel: isStudent ? yearLevels[index % yearLevels.length] : undefined,
-			block: isStudent ? blocks[index % blocks.length] : undefined
+			email: ensureNumericGordonEmail(user.emailLocalPart),
+			firstName: user.firstName,
+			lastName: user.lastName,
+			role: user.role,
+			yearLevel: isStudent ? user.yearLevel : undefined,
+			block: isStudent ? user.block : undefined,
+			agreedToTerms: isStudent ? user.agreedToTerms ?? true : undefined
 		};
-	}).filter((user) => !EXCLUDED_EMAILS.has(user.email));
+	});
 }
 
 async function upsertUsers(db, users, passwordHash, execute) {
@@ -282,7 +278,7 @@ function pickRoleUsers(users, role) {
 	return users.filter((u) => u.role === role);
 }
 
-function buildBorrowRequests(students, instructors, custodians) {
+function buildBorrowRequests(students) {
 	const statuses = [
 		'pending_instructor',
 		'approved_instructor',
@@ -300,11 +296,9 @@ function buildBorrowRequests(students, instructors, custodians) {
 	let counter = 0;
 
 	for (let i = 0; i < students.length; i += 1) {
-		for (let j = 0; j < 2; j += 1) {
+		for (let j = 0; j < 3; j += 1) {
 			counter += 1;
 			const student = students[i];
-			const instructor = instructors[(i + j) % instructors.length];
-			const custodian = custodians[(i + j) % custodians.length];
 			const status = statuses[(i + j) % statuses.length];
 			const createdAt = daysAgo(3 + i * 2 + j);
 			const borrowDate = new Date(createdAt.getTime() + 2 * 60 * 60 * 1000);
@@ -322,8 +316,6 @@ function buildBorrowRequests(students, instructors, custodians) {
 			rows.push({
 				_id: new ObjectId(),
 				studentId: student._id,
-				instructorId: instructor._id,
-				custodianId: custodian._id,
 				items: [
 					{
 						itemId: new ObjectId(),
@@ -335,14 +327,14 @@ function buildBorrowRequests(students, instructors, custodians) {
 								? {
 									status: counter % 5 === 0 ? 'damaged' : 'good',
 									inspectedAt: returnedAt || new Date(),
-									inspectedBy: custodian._id,
+									inspectedBy: student._id,
 									notes: counter % 5 === 0 ? 'Minor crack observed on handle' : 'Passed return inspection'
 								}
 								: status === 'missing'
 									? {
 										status: 'missing',
 										inspectedAt: new Date(),
-										inspectedBy: custodian._id,
+										inspectedBy: student._id,
 										notes: 'Item not returned at due date'
 									}
 									: undefined
@@ -363,7 +355,7 @@ function buildBorrowRequests(students, instructors, custodians) {
 				createdAt,
 				updatedAt: new Date(),
 				createdBy: student._id,
-				updatedBy: custodian._id,
+				updatedBy: student._id,
 				seedTag: SEED_TAG
 			});
 		}
@@ -372,7 +364,7 @@ function buildBorrowRequests(students, instructors, custodians) {
 	return rows;
 }
 
-function buildReplacementObligations(borrowRequests, custodians) {
+function buildReplacementObligations(borrowRequests) {
 	const rows = [];
 	const source = borrowRequests.filter((r) => {
 		const inspection = r.items?.[0]?.inspection;
@@ -381,7 +373,6 @@ function buildReplacementObligations(borrowRequests, custodians) {
 
 	for (let i = 0; i < Math.min(8, source.length); i += 1) {
 		const req = source[i];
-		const custodian = custodians[i % custodians.length];
 		const isMissing = req.status === 'missing';
 		const resolved = i % 3 !== 0;
 		const resolutionType = resolved ? (i % 2 === 0 ? 'replacement' : 'waiver') : undefined;
@@ -407,8 +398,8 @@ function buildReplacementObligations(borrowRequests, custodians) {
 			dueDate: daysAgo(-(5 + i)),
 			createdAt: daysAgo(20 + i),
 			updatedAt: daysAgo(i),
-			createdBy: custodian._id,
-			updatedBy: custodian._id,
+			createdBy: req.studentId,
+			updatedBy: req.studentId,
 			seedTag: SEED_TAG
 		});
 	}
@@ -416,15 +407,9 @@ function buildReplacementObligations(borrowRequests, custodians) {
 	return rows;
 }
 
-function buildDonations(custodian, year, startSerial) {
-	const donorNames = [
-		'Kharl De Jesus',
-		'Angela Reyes',
-		'Joshua Fernandez',
-		'Patricia Villanueva',
-		'Carlo Domingo',
-		'Bea Navarro',
-	];
+function buildDonations(students, year, startSerial) {
+	const donorNames = students.slice(0, 6).map((student) => `${student.firstName} ${student.lastName}`);
+	const createdBy = students[0]?._id;
 
 	return donorNames.map((donorName, index) => ({
 		_id: new ObjectId(),
@@ -439,19 +424,18 @@ function buildDonations(custodian, year, startSerial) {
 		inventoryAction: 'add_to_existing',
 		createdAt: daysAgo(180 - index * 12),
 		updatedAt: daysAgo(180 - index * 12),
-		createdBy: custodian._id,
+		createdBy,
 		seedTag: SEED_TAG
 	}));
 }
 
-function buildNotifications(borrowRequests, students, staff) {
+function buildNotifications(borrowRequests, students) {
 	const rows = [];
 	const limitedRequests = borrowRequests.slice(0, 30);
 
 	for (let i = 0; i < limitedRequests.length; i += 1) {
 		const req = limitedRequests[i];
 		const student = students.find((s) => s._id.equals(req.studentId));
-		const staffUser = staff[i % staff.length];
 		if (!student) continue;
 
 		rows.push({
@@ -473,52 +457,13 @@ function buildNotifications(borrowRequests, students, staff) {
 			updatedAt: daysAgo(i % 5),
 			seedTag: SEED_TAG
 		});
-
-		rows.push({
-			_id: new ObjectId(),
-			userId: staffUser._id,
-			audienceRole: staffUser.role,
-			type: 'borrow_request_pending_review',
-			title: 'Borrow Request in Queue',
-			message: `Request ${req._id.toString().slice(-6)} requires staff attention.`,
-			link: '/custodian/requests',
-			borrowRequestId: req._id,
-			metadata: { seedTag: SEED_TAG, channel: 'staff' },
-			isRead: false,
-			createdAt: daysAgo(i % 5),
-			updatedAt: daysAgo(i % 5),
-			seedTag: SEED_TAG
-		});
 	}
 
 	return rows;
 }
 
-function buildShortcutKeys(staffUsers, superadmin) {
-	const rows = [];
-	for (let i = 0; i < staffUsers.length; i += 1) {
-		const user = staffUsers[i];
-		const shortcutType = user.role === 'superadmin' ? 'SUPERADMIN' : 'STAFF';
-		const deviceFingerprint = `seed-device-${user._id.toString().slice(-8)}`;
-		const shortcutKeyString = `${shortcutType}_${deviceFingerprint}`;
-
-		rows.push({
-			_id: new ObjectId(),
-			userId: user._id,
-			shortcutKeyHash: hashToken(shortcutKeyString),
-			deviceFingerprint,
-			shortcutType,
-			isActive: true,
-			lastUsed: daysAgo(i % 4),
-			usageCount: 5 + i,
-			createdAt: daysAgo(15 + i),
-			expiresAt: daysAgo(-(180 - i)),
-			createdBy: superadmin._id,
-			seedTag: SEED_TAG
-		});
-	}
-
-	return rows;
+function buildShortcutKeys() {
+	return [];
 }
 
 async function buildRememberTokens(users) {
@@ -572,40 +517,26 @@ async function run() {
 		console.log(`Seed mode: ${execute ? 'EXECUTE' : 'DRY-RUN'}`);
 		console.log(`Seed tag: ${SEED_TAG}`);
 
-		const excludedFilter = { email: { $in: [...EXCLUDED_EMAILS] }, seedTag: SEED_TAG };
-		const excludedExistingCount = await db.collection(COLLECTIONS.users).countDocuments(excludedFilter);
-		let excludedRemovedCount = 0;
-		if (execute && excludedExistingCount > 0) {
-			const removeExcluded = await db.collection(COLLECTIONS.users).deleteMany(excludedFilter);
-			excludedRemovedCount = removeExcluded.deletedCount || 0;
-		}
-
 		const passwordHash = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 		const people = buildPeople();
 		const usersResult = await upsertUsers(db, people, passwordHash, execute);
 
 		const users = usersResult.users;
 		const students = pickRoleUsers(users, 'student');
-		const instructors = pickRoleUsers(users, 'instructor');
-		const custodians = pickRoleUsers(users, 'custodian');
-		const superadmins = pickRoleUsers(users, 'superadmin');
-		const staff = [...instructors, ...custodians, ...superadmins];
-		const primaryCustodian = custodians[0];
-		const primarySuperadmin = superadmins[0];
 
-		if (!students.length || !instructors.length || !custodians.length || !superadmins.length) {
-			throw new Error('Seed requires at least one user per role: student, instructor, custodian, superadmin.');
+		if (!students.length) {
+			throw new Error('Seed requires at least one student user.');
 		}
 
 		const purgePreview = await purgeExistingSeedData(db, execute);
 
-		const borrowRequests = buildBorrowRequests(students, instructors, custodians);
-		const obligations = buildReplacementObligations(borrowRequests, custodians);
+		const borrowRequests = buildBorrowRequests(students);
+		const obligations = buildReplacementObligations(borrowRequests);
 		const donationYear = new Date().getFullYear();
 		const donationSerialStart = await getNextDonationSerialStart(db, donationYear);
-		const donations = buildDonations(primaryCustodian, donationYear, donationSerialStart);
-		const notifications = buildNotifications(borrowRequests, students, staff);
-		const shortcutKeys = buildShortcutKeys(staff, primarySuperadmin);
+		const donations = buildDonations(students, donationYear, donationSerialStart);
+		const notifications = buildNotifications(borrowRequests, students);
+		const shortcutKeys = buildShortcutKeys();
 		const rememberTokens = await buildRememberTokens(users);
 
 		const insertedBorrowRequests = await insertMany(db, COLLECTIONS.borrowRequests, borrowRequests, execute);
@@ -621,8 +552,6 @@ async function run() {
 		console.log(`Users upserted: ${usersResult.inserted + usersResult.updated}`);
 		console.log(`- inserted: ${usersResult.inserted}`);
 		console.log(`- updated:  ${usersResult.updated}`);
-		console.log(`Excluded users found: ${excludedExistingCount}`);
-		console.log(`Excluded users removed: ${excludedRemovedCount}`);
 		console.log(`Previous seed borrow_requests removed: ${purgePreview.deleted.borrowRequests}`);
 		console.log(`Previous seed replacement_obligations removed: ${purgePreview.deleted.replacementObligations}`);
 		console.log(`Previous seed donations removed: ${purgePreview.deleted.donations}`);

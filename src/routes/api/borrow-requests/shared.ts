@@ -13,6 +13,8 @@ import {
 } from '$lib/server/realtime/borrowRequestEvents';
 
 export const BORROW_REQUESTS_COLLECTION = 'borrow_requests';
+export const BORROW_REQUESTS_CACHE_TAG = 'borrow-requests';
+export const REPORTS_ANALYTICS_CACHE_TAG = 'reports-analytics';
 
 export function getAuthenticatedUser(event: RequestEvent): JWTPayload | null {
 	return getUserFromToken(event);
@@ -61,7 +63,7 @@ export async function invalidateBorrowRequestCaches(): Promise<void> {
 	await Promise.all([
 		cacheService.deletePattern('borrow-requests:*'),
 		cacheService.deletePattern('inventory:items:*'),
-		cacheService.invalidateByTags(['inventory-catalog'])
+		cacheService.invalidateByTags(['inventory-catalog', BORROW_REQUESTS_CACHE_TAG, REPORTS_ANALYTICS_CACHE_TAG])
 	]);
 }
 

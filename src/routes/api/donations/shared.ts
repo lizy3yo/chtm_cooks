@@ -8,6 +8,7 @@ import { getUserFromToken } from '$lib/server/middleware/auth/verify';
 import type { RequestEvent } from '@sveltejs/kit';
 
 export const DONATIONS_CACHE_TAG = 'donations';
+export const REPORTS_ANALYTICS_CACHE_TAG = 'reports-analytics';
 
 export function getAuthenticatedUser(event: RequestEvent) {
 	return getUserFromToken(event);
@@ -33,7 +34,7 @@ export function buildDonationDetailCacheKey(id: string): string {
 export async function invalidateDonationCaches(): Promise<void> {
 	await Promise.all([
 		cacheService.deletePattern('donations:*'),
-		cacheService.invalidateByTags([DONATIONS_CACHE_TAG])
+		cacheService.invalidateByTags([DONATIONS_CACHE_TAG, REPORTS_ANALYTICS_CACHE_TAG])
 	]);
 }
 

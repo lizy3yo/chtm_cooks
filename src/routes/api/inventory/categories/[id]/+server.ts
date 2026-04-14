@@ -198,7 +198,7 @@ export const PATCH: RequestHandler = async (event) => {
 
 		// Invalidate catalog and category caches
 		await cacheService.deletePattern('inventory:categories:*');
-		await cacheService.invalidateByTags(['inventory-catalog']);
+		await cacheService.invalidateByTags(['inventory-catalog', 'reports-analytics']);
 
 		publishInventoryChange([INVENTORY_CHANNEL], {
 			action: 'category_updated',
@@ -323,7 +323,7 @@ export const DELETE: RequestHandler = async (event) => {
 		await cacheService.deletePattern('inventory:categories:*');
 		await cacheService.deletePattern('inventory:deleted:*');
 		await cacheService.deletePattern('inventory:history:*');
-		await cacheService.invalidateByTags(['inventory-catalog']);
+		await cacheService.invalidateByTags(['inventory-catalog', 'reports-analytics']);
 
 		publishInventoryChange([INVENTORY_CHANNEL], {
 			action: 'category_deleted',

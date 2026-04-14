@@ -338,7 +338,7 @@ export const PATCH: RequestHandler = async (event) => {
 		});
 
 		// Invalidate inventory cache (use tag-based invalidation — deletePattern is a no-op on Upstash)
-		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant']);
+		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'reports-analytics']);
 		await cacheService.deletePattern('inventory:archived:*');
 		await cacheService.deletePattern('inventory:history:*');
 
@@ -501,7 +501,7 @@ export const DELETE: RequestHandler = async (event) => {
 		});
 
 		// Invalidate inventory cache (use tag-based invalidation — deletePattern is a no-op on Upstash)
-		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog']);
+		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'reports-analytics']);
 		await cacheService.deletePattern('inventory:deleted:*');
 		await cacheService.deletePattern('inventory:history:*');
 
