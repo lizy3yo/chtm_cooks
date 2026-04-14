@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import {
@@ -17,7 +17,10 @@
 		Package,
 		BarChart3,
 		Download,
-		FileText
+		FileText,
+		AlertCircle,
+		TriangleAlert,
+		CheckCircle2
 	} from 'lucide-svelte';
 
 	type Tab = 'overview' | 'borrowing' | 'loss-damage' | 'inventory' | 'students';
@@ -231,7 +234,7 @@
 		});
 
 		function getTrustTierClasses(tier?: string): string {
-			if (tier === 'excellent') return 'bg-emerald-100 text-emerald-700';
+			if (tier === 'excellent') return 'bg-pink-100 text-emerald-700';
 			if (tier === 'good') return 'bg-green-100 text-green-700';
 			if (tier === 'fair') return 'bg-amber-100 text-amber-700';
 			if (tier === 'poor') return 'bg-orange-100 text-orange-700';
@@ -335,7 +338,7 @@
 
 				{#if activeTab === 'overview'}
 					<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-						<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-pink-50 to-white p-5">
+						<div class="rounded-xl border border-gray-200 bg-white p-5">
 							<div class="flex items-start justify-between">
 								<div>
 									<p class="text-sm font-semibold text-gray-700">Total Requests</p>
@@ -345,17 +348,17 @@
 								<div class="rounded-full bg-pink-100 p-3"><BarChart3 size={20} class="text-pink-600" /></div>
 							</div>
 						</div>
-						<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-emerald-50 to-white p-5">
+						<div class="rounded-xl border border-gray-200 bg-white p-5">
 							<div class="flex items-start justify-between">
 								<div>
 									<p class="text-sm font-semibold text-gray-700">Return Rate</p>
 									<p class="mt-2 text-3xl font-bold {returnRate >= 85 ? 'text-emerald-600' : 'text-amber-600'}">{returnRate}%</p>
 									<p class="mt-1 text-xs text-gray-600">Target: 90%</p>
 								</div>
-								<div class="rounded-full bg-emerald-100 p-3"><TrendingUp size={20} class="text-emerald-600" /></div>
+								<div class="rounded-full bg-pink-100 p-3"><TrendingUp size={20} class="text-pink-600" /></div>
 							</div>
 						</div>
-						<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-rose-50 to-white p-5">
+						<div class="rounded-xl border border-gray-200 bg-white p-5">
 							<div class="flex items-start justify-between">
 								<div>
 									<p class="text-sm font-semibold text-gray-700">Overdue Items</p>
@@ -365,7 +368,7 @@
 								<div class="rounded-full bg-rose-100 p-3"><AlertTriangle size={20} class="text-rose-600" /></div>
 							</div>
 						</div>
-						<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-amber-50 to-white p-5">
+						<div class="rounded-xl border border-gray-200 bg-white p-5">
 							<div class="flex items-start justify-between">
 								<div>
 									<p class="text-sm font-semibold text-gray-700">Loss/Damage (MTD)</p>
@@ -609,7 +612,7 @@
 													<p class="text-xs text-gray-600">{borrower.studentEmail}</p>
 													<div class="mt-1 flex items-center gap-3 text-xs text-gray-500">
 														<span>{borrower.requestCount} requests</span>
-														<span>•</span>
+														<span>ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¢</span>
 														<span>{borrower.totalItems} items</span>
 													</div>
 												</div>
@@ -625,20 +628,35 @@
 				{#if activeTab === 'loss-damage'}
 					<div class="space-y-6">
 						<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-							<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-rose-50 to-white p-5">
-								<p class="text-sm font-semibold text-gray-700">Missing</p>
-								<p class="mt-2 text-3xl font-bold text-rose-700">{lossAndDamageSummary.periodMissing}</p>
-								<p class="mt-2 text-xs text-gray-500">Items marked missing in selected range</p>
+							<div class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+								<div class="min-w-0 flex-1">
+									<p class="text-xs font-semibold text-rose-700">Missing</p>
+									<p class="mt-2 text-3xl font-bold text-rose-700">{lossAndDamageSummary.periodMissing}</p>
+									<p class="mt-1 text-xs text-rose-600">In selected range</p>
+								</div>
+								<div class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100">
+									<AlertCircle size={20} class="text-rose-600" />
+								</div>
 							</div>
-							<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-amber-50 to-white p-5">
-								<p class="text-sm font-semibold text-gray-700">Damaged</p>
-								<p class="mt-2 text-3xl font-bold text-amber-700">{lossAndDamageSummary.periodDamaged}</p>
-								<p class="mt-2 text-xs text-gray-500">Items marked damaged in selected range</p>
+							<div class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+								<div class="min-w-0 flex-1">
+									<p class="text-xs font-semibold text-amber-700">Damaged</p>
+									<p class="mt-2 text-3xl font-bold text-amber-700">{lossAndDamageSummary.periodDamaged}</p>
+									<p class="mt-1 text-xs text-amber-600">In selected range</p>
+								</div>
+								<div class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+									<TriangleAlert size={20} class="text-amber-600" />
+								</div>
 							</div>
-							<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-5">
-								<p class="text-sm font-semibold text-gray-700">Total Incidents</p>
-								<p class="mt-2 text-3xl font-bold text-gray-900">{lossAndDamageSummary.periodTotal}</p>
-								<p class="mt-2 text-xs text-gray-500">Missing + Damaged combined in selected range</p>
+							<div class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+								<div class="min-w-0 flex-1">
+									<p class="text-xs font-semibold text-pink-700">Total Incidents</p>
+									<p class="mt-2 text-3xl font-bold text-pink-700">{lossAndDamageSummary.periodTotal}</p>
+									<p class="mt-1 text-xs text-pink-600">Missing + Damaged</p>
+								</div>
+								<div class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100">
+									<CheckCircle2 size={20} class="text-pink-600" />
+								</div>
 							</div>
 						</div>
 
@@ -783,7 +801,7 @@
 														</div>
 														<div class="text-right">
 															<p class="text-lg font-bold {item.variance > 0 ? 'text-emerald-700' : 'text-rose-700'}">{item.variance > 0 ? '+' : ''}{numberFmt.format(item.variance)}</p>
-															<span class="inline-flex rounded-full px-2 py-1 text-xs font-medium {item.variance > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
+															<span class="inline-flex rounded-full px-2 py-1 text-xs font-medium {item.variance > 0 ? 'bg-pink-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
 																{item.variance > 0 ? 'Over' : 'Short'}
 															</span>
 														</div>
@@ -826,7 +844,7 @@
 														<div class="min-w-0 flex-1">
 															<p class="truncate text-sm font-semibold text-gray-900">{driver?.latestRequestId ? `REQ-${driver.latestRequestId.slice(-6).toUpperCase()}` : 'N/A'}</p>
 															<p class="text-xs text-gray-600">{driver?.studentName || 'Unknown student'}</p>
-															<p class="mt-2 text-xs text-gray-500">{driver?.latestRequestDate ? new Date(driver.latestRequestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No request date'} · {driver?.latestRequestStatus || 'N/A'}</p>
+															<p class="mt-2 text-xs text-gray-500">{driver?.latestRequestDate ? new Date(driver.latestRequestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No request date'} Ãƒâ€šÃ‚Â· {driver?.latestRequestStatus || 'N/A'}</p>
 														</div>
 														<div class="text-right">
 															<p class="text-sm font-medium text-gray-900">{item.name}</p>
@@ -940,3 +958,4 @@
 		{/if}
 	</div>
 </div>
+
