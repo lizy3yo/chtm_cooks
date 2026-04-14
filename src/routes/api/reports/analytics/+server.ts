@@ -24,7 +24,7 @@ import { UserRole, type User } from '$lib/server/models/User';
 
 const ANALYTICS_CACHE_TAG = 'reports-analytics';
 const CACHE_TTL = 43200; // 12 hours
-const ANALYTICS_CACHE_VERSION = 'v7';
+const ANALYTICS_CACHE_VERSION = 'v8';
 const TRUST_SCORE_STUDENT_LIMIT = 50; // Reduced from 200 for faster analytics response.
 
 const ALLOWED_ROLES = new Set(['instructor', 'custodian', 'superadmin']);
@@ -458,6 +458,7 @@ export const GET: RequestHandler = async (event) => {
 		const borrowingAnalyticsStart = Date.now();
 		const borrowingAnalyticsData = await parallelAggregations<{
 			itemsBorrowed: any[];
+			itemEntries: any[];
 			borrowers: any[];
 			borrowingAverages: any[];
 		}>({
@@ -476,6 +477,53 @@ export const GET: RequestHandler = async (event) => {
 						}
 					},
 					{ $sort: { totalQuantity: -1 } }
+				], { allowDiskUse: true }).toArray()
+			},
+			itemEntries: {
+				name: 'itemEntries',
+				promise: borrowRequests.aggregate([
+					{
+						$match: {
+							$or: [
+								{ createdAt: { $gte: start, $lte: end } },
+								{ status: { $in: ['borrowed', 'pending_return', 'missing'] } }
+							]
+						}
+					},
+					{ $unwind: '$items' },
+					{
+						$lookup: {
+							from: 'users',
+							localField: 'studentId',
+							foreignField: '_id',
+							as: 'studentDoc'
+						}
+					},
+					{ $unwind: { path: '$studentDoc', preserveNullAndEmptyArrays: true } },
+					{
+						$project: {
+							_id: { $concat: [{ $toString: '$_id' }, ':', { $toString: { $ifNull: ['$items.itemId', ''] } }] },
+							requestId: { $toString: '$_id' },
+							requestDate: '$createdAt',
+							requestStatus: '$status',
+							name: '$items.name',
+							category: '$items.category',
+							quantity: { $ifNull: ['$items.quantity', 0] },
+							studentName: {
+								$trim: {
+									input: {
+										$concat: [
+											{ $ifNull: ['$studentDoc.firstName', ''] },
+											' ',
+											{ $ifNull: ['$studentDoc.lastName', ''] }
+										]
+									}
+								}
+							},
+							studentEmail: { $ifNull: ['$studentDoc.email', 'N/A'] }
+						}
+					},
+					{ $sort: { requestDate: -1 } }
 				], { allowDiskUse: true }).toArray()
 			},
 			borrowers: {
@@ -543,6 +591,7 @@ export const GET: RequestHandler = async (event) => {
 		});
 
 		const itemsBorrowed = borrowingAnalyticsData.itemsBorrowed;
+		const itemEntries = borrowingAnalyticsData.itemEntries;
 		const borrowers = borrowingAnalyticsData.borrowers;
 		const borrowingAverages = borrowingAnalyticsData.borrowingAverages;
 		logger.info('reports-analytics', 'Borrowing analytics queries completed', { duration: Date.now() - borrowingAnalyticsStart });
@@ -1426,6 +1475,17 @@ export const GET: RequestHandler = async (event) => {
 					category: i.category,
 					totalQuantity: i.totalQuantity,
 					borrowCount: i.borrowCount
+				})),
+				itemEntries: itemEntries.map((entry: any) => ({
+					id: entry._id,
+					requestId: entry.requestId,
+					requestDate: entry.requestDate,
+					requestStatus: entry.requestStatus,
+					name: entry.name,
+					category: entry.category,
+					quantity: entry.quantity,
+					studentName: entry.studentName || 'Unknown Student',
+					studentEmail: entry.studentEmail || 'N/A'
 				})),
 				borrowers: borrowers
 			},

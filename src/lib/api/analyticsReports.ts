@@ -54,6 +54,18 @@ export interface ItemBorrowed {
 	borrowCount: number;
 }
 
+export interface BorrowedItemEntry {
+	id: string;
+	requestId: string;
+	requestDate: string;
+	requestStatus: string;
+	name: string;
+	category: string;
+	quantity: number;
+	studentName: string;
+	studentEmail: string;
+}
+
 export interface BorrowerEntry {
 	_id: string;
 	studentName: string;
@@ -256,6 +268,7 @@ export interface AnalyticsReport {
 		peakHeatmap: PeakHeatmapPoint[];
 		borrowingAverages: BorrowingAverages;
 		itemsBorrowed: ItemBorrowed[];
+		itemEntries: BorrowedItemEntry[];
 		borrowers: BorrowerEntry[];
 	};
 	lossAndDamage: {
@@ -294,7 +307,7 @@ interface CacheEntry {
 }
 
 const CLIENT_CACHE_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours - aligned with server cache and session timeout
-const CLIENT_CACHE_VERSION = 'v6';
+const CLIENT_CACHE_VERSION = 'v8';
 const cache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<AnalyticsReport>>();
 
@@ -355,6 +368,7 @@ function normalizeAnalyticsReport(raw: AnalyticsReport): AnalyticsReport {
 			peakHeatmap: borrowRequests.peakHeatmap ?? [],
 			borrowingAverages: borrowRequests.borrowingAverages ?? { avgItemsPerRequest: 0, avgQuantityPerRequest: 0, totalRequests: 0 },
 			itemsBorrowed: borrowRequests.itemsBorrowed ?? [],
+			itemEntries: borrowRequests.itemEntries ?? [],
 			borrowers: borrowRequests.borrowers ?? []
 		},
 		lossAndDamage: {
