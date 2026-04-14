@@ -40,6 +40,62 @@ export interface PeakHeatmapPoint {
 	count: number;
 }
 
+export interface BorrowingAverages {
+	avgItemsPerRequest: number;
+	avgQuantityPerRequest: number;
+	totalRequests: number;
+}
+
+export interface ItemBorrowed {
+	id: string;
+	name: string;
+	category: string;
+	totalQuantity: number;
+	borrowCount: number;
+}
+
+export interface BorrowerEntry {
+	_id: string;
+	studentName: string;
+	studentEmail: string;
+	requestCount: number;
+	totalItems: number;
+}
+
+export interface LossAndDamageSummary {
+	todayTotal: number;
+	todayMissing: number;
+	todayDamaged: number;
+	last7DaysTotal: number;
+	last7DaysMissing: number;
+	last7DaysDamaged: number;
+	mtdTotal: number;
+	mtdMissing: number;
+	mtdDamaged: number;
+	periodTotal: number;
+	periodMissing: number;
+	periodDamaged: number;
+}
+
+export interface LossAndDamageTrackingItem {
+	_id: string;
+	type: 'missing' | 'damaged';
+	status: string;
+	itemName: string;
+	itemCategory: string;
+	amount: number;
+	amountPaid: number;
+	incidentDate: string;
+	resolutionDate?: string;
+	resolutionType?: string;
+	studentName: string;
+	requestId: string;
+	requestStatus?: string;
+	requestCreatedAt?: string;
+	requestReturnedAt?: string;
+	daysToResolve?: number | null;
+}
+
 export interface MostBorrowedItem {
 	id: string;
 	name: string;
@@ -73,6 +129,20 @@ export interface EomVarianceItem {
 	quantity: number;
 	eomCount: number;
 	variance: number;
+}
+
+export interface InventoryVarianceDriver {
+	id: string;
+	name: string;
+	category: string;
+	requestCount: number;
+	totalBorrowedQuantity: number;
+	latestRequestId: string;
+	latestRequestDate: string;
+	latestRequestStatus: string;
+	studentName: string;
+	studentEmail: string;
+	studentProfilePhotoUrl: string | null;
 }
 
 export interface InventorySummary {
@@ -184,6 +254,13 @@ export interface AnalyticsReport {
 		overdueCount: number;
 		overdueRequests: OverdueRequest[];
 		peakHeatmap: PeakHeatmapPoint[];
+		borrowingAverages: BorrowingAverages;
+		itemsBorrowed: ItemBorrowed[];
+		borrowers: BorrowerEntry[];
+	};
+	lossAndDamage: {
+		summary: LossAndDamageSummary;
+		tracking: LossAndDamageTrackingItem[];
 	};
 	inventory: {
 		summary: InventorySummary;
@@ -192,6 +269,7 @@ export interface AnalyticsReport {
 		itemsCurrentlyOut: ItemCurrentlyOut[];
 		damageRateItems: DamageRateItem[];
 		eomVariance: EomVarianceItem[];
+		varianceDrivers: InventoryVarianceDriver[];
 		stockAlerts: StockAlert[];
 	};
 	replacement: {
@@ -216,7 +294,7 @@ interface CacheEntry {
 }
 
 const CLIENT_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour - aligned with server cache and session timeout
-const CLIENT_CACHE_VERSION = 'v3';
+const CLIENT_CACHE_VERSION = 'v6';
 const cache = new Map<string, CacheEntry>();
 const inFlight = new Map<string, Promise<AnalyticsReport>>();
 
@@ -262,9 +340,40 @@ export interface FetchAnalyticsOptions {
 function normalizeAnalyticsReport(raw: AnalyticsReport): AnalyticsReport {
 	const inventory = raw.inventory ?? ({} as AnalyticsReport['inventory']);
 	const replacement = raw.replacement ?? ({} as AnalyticsReport['replacement']);
+	const borrowRequests = raw.borrowRequests ?? ({} as AnalyticsReport['borrowRequests']);
+	const lossAndDamage = raw.lossAndDamage ?? ({} as AnalyticsReport['lossAndDamage']);
 
 	return {
 		...raw,
+		borrowRequests: {
+			...borrowRequests,
+			requestsOverTime: borrowRequests.requestsOverTime ?? [],
+			statusBreakdown: borrowRequests.statusBreakdown ?? [],
+			turnaround: borrowRequests.turnaround ?? { avgApprovalHours: 0, avgReleaseHours: 0, avgReturnHours: 0 },
+			overdueCount: borrowRequests.overdueCount ?? 0,
+			overdueRequests: borrowRequests.overdueRequests ?? [],
+			peakHeatmap: borrowRequests.peakHeatmap ?? [],
+			borrowingAverages: borrowRequests.borrowingAverages ?? { avgItemsPerRequest: 0, avgQuantityPerRequest: 0, totalRequests: 0 },
+			itemsBorrowed: borrowRequests.itemsBorrowed ?? [],
+			borrowers: borrowRequests.borrowers ?? []
+		},
+		lossAndDamage: {
+			summary: lossAndDamage.summary ?? {
+				todayTotal: 0,
+				todayMissing: 0,
+				todayDamaged: 0,
+				last7DaysTotal: 0,
+				last7DaysMissing: 0,
+				last7DaysDamaged: 0,
+				mtdTotal: 0,
+				mtdMissing: 0,
+				mtdDamaged: 0,
+				periodTotal: 0,
+				periodMissing: 0,
+				periodDamaged: 0
+			},
+			tracking: lossAndDamage.tracking ?? []
+		},
 		inventory: {
 			...inventory,
 			summary: inventory.summary ?? {
@@ -280,6 +389,7 @@ function normalizeAnalyticsReport(raw: AnalyticsReport): AnalyticsReport {
 			itemsCurrentlyOut: inventory.itemsCurrentlyOut ?? [],
 			damageRateItems: inventory.damageRateItems ?? [],
 			eomVariance: inventory.eomVariance ?? [],
+			varianceDrivers: inventory.varianceDrivers ?? [],
 			stockAlerts: inventory.stockAlerts ?? []
 		},
 		replacement: {
@@ -309,12 +419,20 @@ export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<
 	const { period = 'month', from, to, forceRefresh = false } = opts;
 	const cacheKey = buildAnalyticsCacheKey(period, from, to);
 
+	console.log('[Analytics API] Fetching analytics...', { period, from, to, forceRefresh });
+
 	if (!forceRefresh) {
 		const cached = getCached(cacheKey);
-		if (cached) return cached;
+		if (cached) {
+			console.log('[Analytics API] Returning cached data');
+			return cached;
+		}
 
 		const existingRequest = inFlight.get(cacheKey);
-		if (existingRequest) return existingRequest;
+		if (existingRequest) {
+			console.log('[Analytics API] Returning in-flight request');
+			return existingRequest;
+		}
 	}
 
 	const params = new URLSearchParams({ period });
@@ -325,14 +443,18 @@ export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<
 	const requestPromise = (async () => {
 		// Retry logic for transient failures
 		let lastError: Error | null = null;
-		const maxRetries = 2;
+		const maxRetries = 1; // Reduced from 2
 
 		for (let attempt = 0; attempt <= maxRetries; attempt++) {
 			try {
+				console.log('[Analytics API] Fetching from server, attempt', attempt + 1);
+				const fetchStart = Date.now();
 				const res = await fetch(`/api/reports/analytics?${params}`, {
 					credentials: 'include',
-					signal: AbortSignal.timeout(45000) // 45 second timeout
+					signal: AbortSignal.timeout(60000) // Increased to 60 seconds
 				});
+
+				console.log('[Analytics API] Fetch completed in', Date.now() - fetchStart, 'ms, status:', res.status);
 
 				if (!res.ok) {
 					const body = await res.json().catch(() => ({})) as { error?: string };
@@ -342,9 +464,11 @@ export async function fetchAnalytics(opts: FetchAnalyticsOptions = {}): Promise<
 				}
 
 				const data = normalizeAnalyticsReport((await res.json()) as AnalyticsReport);
+				console.log('[Analytics API] Data normalized successfully');
 				setCached(cacheKey, data);
 				return data;
 			} catch (error) {
+				console.error('[Analytics API] Fetch error:', error);
 				lastError = error instanceof Error ? error : new Error(String(error));
 
 				// Don't retry on client errors (4xx) or last attempt
@@ -375,15 +499,24 @@ export function subscribeToAnalyticsChanges(onRefresh: () => void): () => void {
 
 	let es: EventSource | null = null;
 	let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 	let stopped = false;
+
+	const scheduleRefresh = () => {
+		if (refreshTimer) return;
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			clearAnalyticsCache();
+			onRefresh();
+		}, 300);
+	};
 
 	function connect() {
 		if (stopped) return;
 		es = new EventSource('/api/reports/analytics/stream', { withCredentials: true });
 
 		es.addEventListener('analytics_change', () => {
-			clearAnalyticsCache();
-			onRefresh();
+			scheduleRefresh();
 		});
 
 		es.addEventListener('error', () => {
@@ -399,6 +532,7 @@ export function subscribeToAnalyticsChanges(onRefresh: () => void): () => void {
 	return () => {
 		stopped = true;
 		if (reconnectTimer) clearTimeout(reconnectTimer);
+		if (refreshTimer) clearTimeout(refreshTimer);
 		es?.close();
 	};
 }

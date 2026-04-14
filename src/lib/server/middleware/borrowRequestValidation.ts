@@ -49,7 +49,7 @@ const ITEM_CONSTRAINTS = {
  * Date validation constraints
  */
 const DATE_CONSTRAINTS = {
-	MIN_BORROW_DAYS_AHEAD: 0, // Can borrow same day
+	MIN_BORROW_DAYS_AHEAD: 0, // Allow same-day requests
 	MAX_BORROW_DAYS_AHEAD: 90, // Max 3 months in advance
 	MIN_BORROW_DURATION_HOURS: 1, // Minimum 1 hour
 	MAX_BORROW_DURATION_HOURS: 12, // Maximum 12 hours (same-day return policy)
@@ -268,13 +268,23 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 	}
 
 	const now = new Date();
+	const minimumBorrowDate = new Date(now);
+	minimumBorrowDate.setHours(0, 0, 0, 0);
+	const maximumBorrowDate = new Date(minimumBorrowDate);
+	maximumBorrowDate.setDate(maximumBorrowDate.getDate() + 2);
 	
-	// Check borrow datetime is not in the past (with 5 minute grace for clock differences)
-	const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
-	if (borrow < fiveMinutesAgo) {
+	// Check borrow date is within the allowed request window
+	if (borrow < minimumBorrowDate) {
 		return {
 			valid: false,
-			error: 'Borrow date and time cannot be in the past'
+			error: 'Borrow date cannot be in the past'
+		};
+	}
+
+	if (borrow > maximumBorrowDate) {
+		return {
+			valid: false,
+			error: 'Borrow date must be within the next 2 days'
 		};
 	}
 

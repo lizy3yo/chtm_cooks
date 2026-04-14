@@ -121,7 +121,24 @@
 	];
 
 	// Get today's date in YYYY-MM-DD format
-	const today = new Date().toISOString().split('T')[0];
+	function formatDateForInput(date: Date): string {
+		const year = date.getFullYear();
+		const month = String(date.getMonth() + 1).padStart(2, '0');
+		const day = String(date.getDate()).padStart(2, '0');
+
+		return `${year}-${month}-${day}`;
+	}
+
+	function addDaysToDateInput(dateValue: string, days: number): string {
+		const [year, month, day] = dateValue.split('-').map(Number);
+		const nextDate = new Date(year, month - 1, day);
+		nextDate.setDate(nextDate.getDate() + days);
+
+		return formatDateForInput(nextDate);
+	}
+
+	const today = formatDateForInput(new Date());
+	const maximumBorrowDate = addDaysToDateInput(today, 2);
 
 	function inferItemIcon(itemName: string): string {
 		const normalized = itemName.toLowerCase();
@@ -529,6 +546,8 @@
 			errors.borrowDate = 'Borrow date is required';
 		} else if (borrowDate < today) {
 			errors.borrowDate = 'Borrow date cannot be in the past';
+		} else if (borrowDate > maximumBorrowDate) {
+			errors.borrowDate = 'Borrow date must be within the next 2 days';
 		}
 
 		if (!borrowTime) {
@@ -1115,7 +1134,7 @@
 			<!-- Borrow Period -->
 			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
 				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Borrow Period</h2>
-				<p class="mb-4 text-sm text-gray-600">Equipment must be returned on the same day</p>
+				<p class="mb-4 text-sm text-gray-600">Equipment must be returned on the same day, and requests must be made at least 2 days in advance.</p>
 				<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 					<!-- Borrow Date -->
 					<div class="sm:col-span-3">
@@ -1127,10 +1146,13 @@
 							id="borrowDate"
 							bind:value={borrowDate}
 							min={today}
+							max={maximumBorrowDate}
 							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowDate ? 'border-red-500' : ''}"
 						/>
 						{#if errors.borrowDate}
 							<p class="mt-1 text-xs text-red-600">{errors.borrowDate}</p>
+					{:else}
+							<p class="mt-1 text-xs text-gray-500">You can request equipment for today up to 2 days ahead only.</p>
 						{/if}
 					</div>
 
