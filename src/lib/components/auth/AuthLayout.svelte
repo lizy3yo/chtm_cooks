@@ -12,7 +12,7 @@
 	let { title, subtitle, children, footer }: Props = $props();
 </script>
 
-<div class="min-h-screen bg-gradient-to-br from-pink-50 via-white to-rose-50 flex items-center justify-center px-4 py-8 sm:px-6 lg:px-8 relative overflow-hidden">
+<div class="min-h-screen bg-linear-to-br from-pink-50 via-white to-rose-50 flex items-center justify-center px-4 py-8 sm:px-6 lg:px-8 relative overflow-hidden">
 	<!-- Decorative Background Elements -->
 	<div class="absolute inset-0 overflow-hidden pointer-events-none">
 		<div class="absolute top-0 right-0 w-96 h-96 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
@@ -25,7 +25,7 @@
 		<div class="text-center">
 			<div class="mx-auto mb-6 flex justify-center">
 				<div class="relative group">
-					<div class="absolute inset-0 bg-gradient-to-r from-pink-600 to-rose-600 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300"></div>
+					<div class="absolute inset-0 bg-linear-to-r from-pink-600 to-rose-600 rounded-3xl blur-xl opacity-20 group-hover:opacity-30 transition-opacity duration-300"></div>
 					<img 
 						src={logo} 
 						alt="CHTM Logo" 
@@ -46,8 +46,8 @@
 		<!-- Main Content Card -->
 		<div class="relative bg-white rounded-3xl px-8 py-10 shadow-2xl border border-pink-100 backdrop-blur-sm">
 			<!-- Decorative corner accents -->
-			<div class="absolute top-0 left-0 w-20 h-20 bg-gradient-to-br from-pink-100 to-transparent rounded-tl-3xl opacity-50"></div>
-			<div class="absolute bottom-0 right-0 w-20 h-20 bg-gradient-to-tl from-rose-100 to-transparent rounded-br-3xl opacity-50"></div>
+			<div class="absolute top-0 left-0 w-20 h-20 bg-linear-to-br from-pink-100 to-transparent rounded-tl-3xl opacity-50"></div>
+			<div class="absolute bottom-0 right-0 w-20 h-20 bg-linear-to-tl from-rose-100 to-transparent rounded-br-3xl opacity-50"></div>
 			
 			<div class="relative z-10">
 				{@render children()}
@@ -97,3 +97,4 @@
 		animation-delay: 2s;
 	}
 </style>
+

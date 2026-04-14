@@ -17,7 +17,7 @@
 	
 	let isAuthenticating = $state(false);
 	let error = $state<string | null>(null);
-	let username = $state('');
+	let email = $state('');
 	let password = $state('');
 	
 	const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -45,7 +45,7 @@
 		error = null;
 		
 		try {
-			const response = await authApi.login({ username, password });
+			const response = await authApi.login({ email, password });
 			
 			// Verify user has appropriate role for the shortcut used
 			const allowedRoles = shortcutType === 'SUPERADMIN' 
@@ -64,7 +64,7 @@
 				goto('/instructor/dashboard');
 			} else if (response.user.role === 'custodian') {
 				goto('/custodian/dashboard');
-			} else if (response.user.role === 'superadmin' || response.user.role === 'admin') {
+			} else if (response.user.role === 'superadmin') {
 				goto('/superadmin/dashboard');
 			} else {
 				goto('/admin/dashboard');
@@ -177,16 +177,18 @@
 
 						<form onsubmit={handleLogin} class="space-y-4 text-left">
 							<Input
+								id="shortcut-email"
 								type="text"
-								label="Username"
-								bind:value={username}
-								placeholder="Enter your username"
+								label="Email"
+								bind:value={email}
+								placeholder="Enter your email"
 								disabled={isAuthenticating}
 								required
 								autocomplete="username"
 							/>
 
 							<Input
+								id="shortcut-password"
 								type="password"
 								label="Password"
 								bind:value={password}
@@ -204,7 +206,7 @@
 									type="submit" 
 									variant="primary" 
 									fullWidth 
-									disabled={isAuthenticating || !username || !password}
+									disabled={isAuthenticating || !email || !password}
 									loading={isAuthenticating}
 								>
 									{isAuthenticating ? 'Logging in...' : 'Login'}
@@ -217,7 +219,7 @@
 				<!-- Security Notice -->
 				<div class="mt-6 rounded-lg bg-yellow-50 p-3">
 					<div class="flex items-start text-left">
-						<svg class="mr-2 mt-0.5 h-4 w-4 flex-shrink-0 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+						<svg class="mr-2 mt-0.5 h-4 w-4 shrink-0 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
 							<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
 						</svg>
 						<p class="text-xs text-yellow-800">
