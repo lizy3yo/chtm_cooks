@@ -159,13 +159,14 @@
 			return new Date(d.createdAt) >= sevenDaysAgo;
 		}).length
 	);
-	const outstandingObligations = $derived(obligationCounts.pending);
 
 	const obligationCounts = $derived({
 		all: obligations.length,
 		pending: obligations.filter((o) => o.status === 'pending').length,
 		replaced: obligations.filter((o) => o.status === 'replaced').length
 	});
+
+	const outstandingObligations = $derived(obligationCounts.pending);
 
 	const filteredObligations = $derived(
 		replacementsFilter === 'all' ? obligations : obligations.filter((o) => o.status === replacementsFilter)
@@ -272,7 +273,7 @@
 		}, delay);
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		isMounted = true;
 
 		// Initialize from cache if available, otherwise show loading
@@ -293,22 +294,24 @@
 		}
 
 		// Parallel reconciliation and data load
-		try {
-			await replacementObligationsAPI.reconcile();
-			await Promise.all([
-				// Revalidate against source-of-truth to correct any out-of-band DB changes.
-				loadObligations(shouldShowLoading, true),
-				// Revalidate against source-of-truth to correct any out-of-band DB changes.
-				loadDonations(shouldShowLoading, true)
-			]);
-		} catch (err) {
-			console.error('Initial load failed', err);
-			if (isMounted && !error) {
-				error = 'Failed to load resource management data';
+		(async () => {
+			try {
+				await replacementObligationsAPI.reconcile();
+				await Promise.all([
+					// Revalidate against source-of-truth to correct any out-of-band DB changes.
+					loadObligations(shouldShowLoading, true),
+					// Revalidate against source-of-truth to correct any out-of-band DB changes.
+					loadDonations(shouldShowLoading, true)
+				]);
+			} catch (err) {
+				console.error('Initial load failed', err);
+				if (isMounted && !error) {
+					error = 'Failed to load resource management data';
+				}
 			}
-		}
 
-		hasInitialized = true;
+			hasInitialized = true;
+		})();
 
 		// Set up real-time subscriptions with debouncing
 		unsubscribereplacement = replacementObligationsAPI.subscribeToChanges(() => {
@@ -1479,7 +1482,7 @@
 				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
 					<div class="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
 						<div class="flex items-start gap-3 sm:gap-4">
-							<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+							<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
 								<svg class="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
 								</svg>
@@ -1501,7 +1504,7 @@
 				<div class="max-h-[calc(100vh-240px)] sm:max-h-[60vh] overflow-y-auto">
 					<div class="px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 space-y-6 sm:space-y-8">
 						<!-- Student Info Card -->
-						<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5 sm:p-6">
+						<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6">
 							<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 								<div class="flex items-center gap-3">
 									<div class="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-sm font-semibold text-pink-700 ring-2 ring-pink-200">
@@ -1543,7 +1546,7 @@
 						{/if}
 						<!-- Selected item detail -->
 						{#if selectedSummaryItem}
-							<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5 sm:p-6 space-y-4">
+							<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6 space-y-4">
 								<div class="flex items-center justify-between pb-3 border-b border-gray-200">
 									<span class="text-sm font-semibold text-gray-700">Item Details</span>
 									<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {selectedSummaryItem.type === 'missing' ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-rose-50 text-rose-700 ring-rose-200'}">
@@ -1567,7 +1570,7 @@
 							</div>
 							<!-- Replacement Details -->
 							<div class="rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-								<div class="bg-gradient-to-r from-gray-50 to-white px-5 py-3 border-b border-gray-200">
+								<div class="bg-linear-to-r from-gray-50 to-white px-5 py-3 border-b border-gray-200">
 									<h3 class="text-sm font-semibold text-gray-900">Replacement Information</h3>
 								</div>
 								<div class="divide-y divide-gray-100">
@@ -1596,7 +1599,7 @@
 												selectedSummary = null;
 											}
 										}}
-										class="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 active:scale-95 sm:flex-1"
+										class="inline-flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-emerald-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 active:scale-95 sm:flex-1"
 									>
 										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
@@ -1607,9 +1610,9 @@
 							{/if}
 						{/if}
 						<!-- Request totals -->
-						<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5">
+						<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-blue-50 to-indigo-50 p-5">
 							<div class="flex items-center gap-3 mb-3">
-								<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
+								<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
 									<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
 									</svg>
@@ -1941,7 +1944,7 @@
 				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8 sm:py-6">
 					<div class="flex items-start justify-between gap-3">
 						<div class="flex items-start gap-3 min-w-0 flex-1">
-							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/30">
+							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/30">
 								<svg class="h-5 w-5 text-white sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
 								</svg>
@@ -1968,9 +1971,9 @@
 					<div class="space-y-6 sm:space-y-8">
 
 						<!-- Item Info Card -->
-						<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5 sm:p-6">
+						<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6">
 							<div class="flex items-start gap-4">
-								<div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-100 to-emerald-200 text-emerald-700 ring-2 ring-emerald-200">
+								<div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-100 to-emerald-200 text-emerald-700 ring-2 ring-emerald-200">
 									<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
 									</svg>
@@ -1990,7 +1993,7 @@
 
 						<!-- Details Card -->
 						<div class="rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-							<div class="bg-gradient-to-r from-gray-50 to-white px-5 py-3 border-b border-gray-200">
+							<div class="bg-linear-to-r from-gray-50 to-white px-5 py-3 border-b border-gray-200">
 								<h3 class="text-sm font-semibold text-gray-900">Donation Information</h3>
 							</div>
 							<div class="divide-y divide-gray-100">
@@ -2014,7 +2017,7 @@
 						</div>
 
 						{#if selectedDonation.notes}
-							<div class="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-5">
+							<div class="rounded-2xl border border-blue-200 bg-linear-to-br from-blue-50 to-indigo-50 p-5">
 								<div class="flex items-start gap-3">
 									<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-100">
 										<svg class="h-4 w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2033,7 +2036,7 @@
 						<div class="flex flex-col gap-3 pt-2 sm:flex-row">
 							<button
 								onclick={(e) => { e.stopPropagation(); openAddQuantityModal(selectedDonation!); selectedDonation = null; }}
-								class="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:scale-95 sm:flex-1"
+								class="inline-flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-blue-600 to-blue-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:shadow-blue-500/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 active:scale-95 sm:flex-1"
 							>
 								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
@@ -2042,7 +2045,7 @@
 							</button>
 							<button
 								onclick={(e) => { e.stopPropagation(); printReceipt(selectedDonation!.receiptNumber); }}
-								class="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-300 bg-gradient-to-r from-emerald-50 to-emerald-100 px-5 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:from-emerald-100 hover:to-emerald-200 hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 active:scale-95 sm:flex-1"
+								class="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-300 bg-linear-to-r from-emerald-50 to-emerald-100 px-5 py-3 text-sm font-semibold text-emerald-700 shadow-sm transition-all hover:from-emerald-100 hover:to-emerald-200 hover:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 active:scale-95 sm:flex-1"
 							>
 								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
@@ -2069,7 +2072,7 @@
 									toastStore.error(err instanceof Error ? err.message : 'Failed to delete donation', 'Error');
 								}
 							}}
-							class="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-red-300 bg-gradient-to-r from-red-50 to-red-100 px-5 py-3 text-sm font-semibold text-red-700 shadow-sm transition-all hover:from-red-100 hover:to-red-200 hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 active:scale-95"
+							class="inline-flex items-center justify-center gap-2 rounded-xl border-2 border-red-300 bg-linear-to-r from-red-50 to-red-100 px-5 py-3 text-sm font-semibold text-red-700 shadow-sm transition-all hover:from-red-100 hover:to-red-200 hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 active:scale-95"
 						>
 							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>

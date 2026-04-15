@@ -347,10 +347,11 @@
 
 {#if showVerificationHelp}
 	<div
-		class="fixed inset-0 z-[100] flex items-center justify-center p-4"
+		class="fixed inset-0 z-100 flex items-center justify-center p-4"
 		role="dialog"
 		aria-modal="true"
 		aria-labelledby="verification-modal-title"
+		tabindex="-1"
 		onkeydown={handleVerificationModalKeydown}
 	>
 		<button
@@ -385,7 +386,7 @@
 					type="button"
 					onclick={handleResendVerificationEmail}
 					disabled={isResendingVerification || resendCooldown > 0}
-					class="inline-flex w-full items-center justify-center rounded-xl bg-gradient-to-r from-pink-600 to-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition duration-200 hover:from-pink-700 hover:to-rose-700 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+					class="inline-flex w-full items-center justify-center rounded-xl bg-linear-to-r from-pink-600 to-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition duration-200 hover:from-pink-700 hover:to-rose-700 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
 				>
 					{#if isResendingVerification}
 						Sending...

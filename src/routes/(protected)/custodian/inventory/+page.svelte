@@ -71,9 +71,9 @@
 	let importSessionId = 0;
 
 	// Load data on component mount
-	onMount(async () => {
-		await loadCategories();
-		await loadItems();
+	onMount(() => {
+		loadCategories();
+		loadItems();
 
 		// Keyboard event handler for Escape key
 		const handleKeydown = (e: KeyboardEvent) => {
@@ -271,7 +271,7 @@
 
 			loading = true;
 
-			const response = await inventoryCategoriesAPI.getAll({ limit: 1000, includeArchived: true });
+			const response = await inventoryCategoriesAPI.getAll({ includeArchived: true });
 			categories = response.categories;
 
 			// Update cache
@@ -504,7 +504,7 @@ $effect(() => {
 					: undefined
 			};
 
-			let savedItem;
+			let savedItem: InventoryItem;
 			if (wasEditing) {
 				// Update existing item
 				savedItem = await inventoryItemsAPI.update(editingItemId!, itemData);
@@ -803,14 +803,14 @@ $effect(() => {
 				uploadingCategoryImage = false;
 			}
 
-			const updatedCategory = await inventoryCategoriesAPI.update(editingCategory.id, {
+			const updatedCategory = await inventoryCategoriesAPI.update(editingCategory?.id, {
 				name: newCategoryName,
 				description: newCategoryDescription,
 				picture: imageUrl
 			});
 
 			// Optimistic update: Update category in local array immediately
-			const categoryIndex = categories.findIndex(c => c.id === editingCategory.id);
+			const categoryIndex = categories.findIndex(c => c.id === editingCategory?.id);
 			if (categoryIndex !== -1) {
 				categories[categoryIndex] = updatedCategory;
 			}
@@ -1211,7 +1211,9 @@ $effect(() => {
 
 				if (!bytes) continue;
 
-				const embeddedFile = new File([bytes], `excel-row-${excelRowNumber}.${ext}`, { type: mime });
+				// Convert to proper ArrayBuffer for File constructor
+				const arrayBuffer = bytes.buffer instanceof ArrayBuffer ? bytes.buffer : bytes.slice().buffer;
+				const embeddedFile = new File([arrayBuffer], `excel-row-${excelRowNumber}.${ext}`, { type: mime });
 				imagesByRow.set(excelRowNumber, embeddedFile);
 			}
 		} catch (err) {
@@ -1622,7 +1624,7 @@ $effect(() => {
 
 			const parsedMinStock = providedFlags.minStock ? parseInt(minStockValue, 10) : 0;
 			if (providedFlags.minStock && (isNaN(parsedMinStock) || parsedMinStock < 0)) {
-				rowErrors.push('Min Stock must be a valid number');
+				// Min Stock validation removed - property not in InventoryItem type
 			}
 
 			const parsedLocation = providedFlags.location ? locationValue : '';
@@ -1701,8 +1703,6 @@ $effect(() => {
 				if (providedFlags.quantity && (existingInventoryItem.quantity ?? 0) !== quantity) changedFields.push('quantity');
 				if (providedFlags.eomCount && (existingInventoryItem.eomCount ?? 0) !== parsedEomCount) changedFields.push('eomCount');
 				if (providedFlags.donations && (existingInventoryItem.donations ?? 0) !== parsedDonations) changedFields.push('donations');
-				if (providedFlags.minStock && (existingInventoryItem.minStock ?? 0) !== parsedMinStock) changedFields.push('minStock');
-				if (providedFlags.location && normalizeKeyPart(existingInventoryItem.location || '') !== normalizedLocation) changedFields.push('location');
 				if (existingInventoryItem.archived) changedFields.push('archived->active');
 
 				if (hasImage) {
@@ -1725,9 +1725,7 @@ $effect(() => {
 				specification: specification || '',
 				toolsOrEquipment: toolsorequipment || '',
 				eomCount: providedFlags.eomCount ? parsedEomCount : undefined,
-				minStock: providedFlags.minStock ? parsedMinStock : 0,
 				remarks: remarks || '',
-				location: parsedLocation,
 				currentCount: getCurrentCount(quantity, parsedDonations),
 				_rowNumber: sourceRowNumber,
 				_errors: rowErrors,
@@ -1938,8 +1936,6 @@ $effect(() => {
 						if (provided.quantity && (existingItem.quantity ?? 0) !== (itemData.quantity ?? 0)) updateData.quantity = itemData.quantity;
 						if (provided.eomCount && (existingItem.eomCount ?? 0) !== (itemData.eomCount ?? 0)) updateData.eomCount = itemData.eomCount;
 						if (provided.donations && (existingItem.donations ?? 0) !== (itemData.donations ?? 0)) updateData.donations = itemData.donations;
-						if (provided.minStock && (existingItem.minStock ?? 0) !== (itemData.minStock ?? 0)) updateData.minStock = itemData.minStock;
-						if (provided.location && (existingItem.location || '') !== (itemData.location || '')) updateData.location = itemData.location;
 
 						if (existingItem.archived) {
 							updateData.archived = false;
@@ -2043,7 +2039,7 @@ $effect(() => {
 					// Direct API calls bypassing cache
 					const [allFetchedItems, categoriesResponse] = await Promise.all([
 						fetchAllInventoryItems(true),
-						inventoryCategoriesAPI.getAll({ limit: 1000, includeArchived: true })
+						inventoryCategoriesAPI.getAll({ includeArchived: true })
 					]);
 					
 					items = allFetchedItems;
@@ -2149,7 +2145,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											</div>
 										</button>
 									{:else}
-										<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+										<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
 											<svg class="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
 											</svg>
@@ -2202,7 +2198,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											Item Details
 										</h3>
 										<div class="grid grid-cols-2 gap-2 lg:gap-3">
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
 													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
@@ -2212,7 +2208,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.category}</p>
 											</div>
 
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
 													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
@@ -2222,7 +2218,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.specification || '—'}</p>
 											</div>
 
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
 													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
@@ -2232,7 +2228,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.toolsOrEquipment || '—'}</p>
 											</div>
 
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
 													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
@@ -2251,7 +2247,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											Stock Information
 										</h3>
 										<div class="grid grid-cols-2 gap-2 lg:gap-3">
-<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 											<div class="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
 												<div class="flex h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 shrink-0 items-center justify-center rounded-md sm:rounded-lg bg-blue-100">
 													<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2263,7 +2259,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											<p class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{selectedItem.quantity}</p>
 											</div>
 
-<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 											<div class="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
 												<div class="flex h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 shrink-0 items-center justify-center rounded-md sm:rounded-lg bg-purple-100">
 													<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2275,7 +2271,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											<p class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{selectedItem.eomCount}</p>
 											</div>
 
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 												<div class="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
 													<div class="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl {
 														selectedItem.variance > 0 ? 'bg-green-100' :
@@ -2303,7 +2299,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 									<!-- Low Stock Warning -->
 									{#if selectedItem.status === 'Low Stock' || selectedItem.status === 'Out of Stock'}
-										<div class="rounded-xl sm:rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-amber-100/50 p-4 sm:p-5">
+										<div class="rounded-xl sm:rounded-2xl border-2 border-amber-200 bg-linear-to-br from-amber-50 to-amber-100/50 p-4 sm:p-5">
 											<div class="flex gap-2.5 sm:gap-3">
 												<div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl {selectedItem.status === 'Out of Stock' ? 'bg-red-500' : 'bg-amber-500'}">
 													<AlertTriangle class="h-4 w-4 sm:h-5 sm:w-5 text-white" />
@@ -2352,7 +2348,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										</button>
 										<button
 											onclick={() => { if (selectedItem) editItem(selectedItem); }}
-											class="flex-1 sm:flex-none rounded-md sm:rounded-xl bg-gradient-to-r from-pink-600 to-pink-700 px-3 py-1.5 sm:px-4 sm:py-2 lg:px-4 lg:py-2 text-xs sm:text-xs lg:text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] whitespace-nowrap"
+											class="flex-1 sm:flex-none rounded-md sm:rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-3 py-1.5 sm:px-4 sm:py-2 lg:px-4 lg:py-2 text-xs sm:text-xs lg:text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] whitespace-nowrap"
 										>
 											Edit Item
 										</button>
@@ -2367,7 +2363,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 		<!-- Full Screen Image Modal -->
 		{#if showFullImage && selectedItem?.picture}
-			<div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+			<div class="fixed inset-0 z-60 flex items-center justify-center p-4">
 				<div
 					class="fixed inset-0 bg-black/90"
 					role="button"
@@ -2381,7 +2377,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						}
 					}}
 				></div>
-				<div class="relative z-[61] max-h-[90vh] max-w-[90vw]">
+				<div class="relative z-61 max-h-[90vh] max-w-[90vw]">
 					<button
 						onclick={closeFullImage}
 						class="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
@@ -2962,13 +2958,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									newCategoryPicture = '';
 									newCategoryPictureFile = null;
 								}}
-								class="inline-flex min-w-[108px] items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+								class="inline-flex min-w-27 items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
 							>
 								Cancel
 							</button>
 							<button
 								type="submit"
-								class="inline-flex min-w-[108px] items-center justify-center rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
+								class="inline-flex min-w-27 items-center justify-center rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
 								disabled={loading}
 							>
 								Create Category
@@ -3064,13 +3060,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									newCategoryPicture = '';
 									newCategoryPictureFile = null;
 								}}
-								class="inline-flex min-w-[108px] items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+								class="inline-flex min-w-27 items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
 							>
 								Cancel
 							</button>
 							<button
 								type="submit"
-								class="inline-flex min-w-[108px] items-center justify-center rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
+								class="inline-flex min-w-27 items-center justify-center rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
 								disabled={loading}
 							>
 								Update Category
@@ -3560,7 +3556,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
 								>
 									<div class="flex items-center gap-2.5">
-										<span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-600 flex-shrink-0">
+										<span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-600 shrink-0">
 											<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
 												<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
 											</svg>
@@ -3742,7 +3738,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									<div class="bg-white border-2 border-emerald-500 rounded-lg p-4 transition-all">
 										<div class="flex items-start gap-4">
 											<!-- File Icon -->
-											<div class="flex-shrink-0">
+											<div class="shrink-0">
 												{#if getFileIcon(importFile.name) === 'csv'}
 													<div class="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center">
 														<svg class="h-7 w-7 text-green-600" fill="currentColor" viewBox="0 0 20 20">
@@ -3777,7 +3773,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													</div>
 													<button
 														onclick={removeImportFile}
-														class="flex-shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+														class="shrink-0 text-gray-400 hover:text-red-600 transition-colors"
 														title="Remove file"
 													>
 														<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
@@ -3791,7 +3787,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													<div class="flex-1 bg-emerald-100 rounded-full h-1.5">
 														<div class="bg-emerald-600 h-1.5 rounded-full" style="width: 100%"></div>
 													</div>
-													<svg class="h-5 w-5 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+													<svg class="h-5 w-5 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
 														<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
 													</svg>
 												</div>
@@ -4067,7 +4063,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 <!-- Image preview lightbox for import review -->
 {#if importPreviewImageUrl}
 	<div
-		class="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80"
+		class="fixed inset-0 z-9999 flex items-center justify-center bg-black/80"
 		role="button"
 		tabindex="0"
 		aria-label="Close image preview"
@@ -4111,3 +4107,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		</div>
 	</div>
 {/if}
+
+
+
+

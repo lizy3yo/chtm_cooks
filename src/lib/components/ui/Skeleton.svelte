@@ -28,21 +28,21 @@
 	<div class="space-y-2" role="status" aria-label="Loading content">
 		{#each Array(lines) as _, i}
 			<div 
-				class="h-4 bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-shimmer bg-[length:200%_100%] {className}"
+				class="h-4 bg-linear-to-r from-gray-200 via-gray-100 to-gray-200 rounded animate-shimmer bg-size-[200%_100%] {className}"
 				style="width: {i === lines - 1 ? '75%' : '100%'}"
 			></div>
 		{/each}
 	</div>
 {:else if variant === 'circle'}
 	<div 
-		class="rounded-full bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer bg-[length:200%_100%] {className}"
+		class="rounded-full bg-linear-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer bg-size-[200%_100%] {className}"
 		role="status"
 		aria-label="Loading"
 		{...props}
 	></div>
 {:else}
 	<div 
-		class="rounded bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer bg-[length:200%_100%] {className}"
+		class="rounded bg-linear-to-r from-gray-200 via-gray-100 to-gray-200 animate-shimmer bg-size-[200%_100%] {className}"
 		role="status"
 		aria-label="Loading"
 		{...props}

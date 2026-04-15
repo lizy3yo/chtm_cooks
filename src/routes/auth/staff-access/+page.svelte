@@ -18,7 +18,7 @@
 	let activeShortcutType = $state<'STAFF' | 'SUPERADMIN' | null>(null);
 	
 	// Form fields
-	let username = $state('');
+	let email = $state('');
 	let password = $state('');
 	
 	// Shortcut definitions
@@ -69,7 +69,7 @@
 		activeShortcutType = shortcutType;
 		showLoginForm = true;
 		error = null;
-		username = '';
+		email = '';
 		password = '';
 	}
 	
@@ -81,7 +81,7 @@
 		error = null;
 		
 		try {
-			const response = await authApi.login({ username, password });
+			const response = await authApi.login({ email, password });
 			
 			// Verify user has appropriate role for the shortcut used
 			const allowedRoles = activeShortcutType === 'SUPERADMIN' 
@@ -229,16 +229,18 @@
 
 					<form onsubmit={handleLogin} class="mt-6 space-y-4">
 						<Input
+							id="staff-email"
 							type="text"
-							label="Username"
-							bind:value={username}
-							placeholder="Enter your username"
+							label="Email"
+							bind:value={email}
+							placeholder="Enter your email"
 							disabled={isAuthenticating}
 							required
 							autocomplete="username"
 						/>
 
 						<Input
+							id="staff-password"
 							type="password"
 							label="Password"
 							bind:value={password}
@@ -256,7 +258,7 @@
 								onclick={() => {
 									showLoginForm = false;
 									activeShortcutType = null;
-									username = '';
+									email = '';
 									password = '';
 									error = null;
 								}}
@@ -268,7 +270,7 @@
 								type="submit"
 								variant="primary"
 								fullWidth
-								disabled={isAuthenticating || !username || !password}
+								disabled={isAuthenticating || !email || !password}
 								loading={isAuthenticating}
 							>
 								{isAuthenticating ? 'Logging in...' : 'Login'}

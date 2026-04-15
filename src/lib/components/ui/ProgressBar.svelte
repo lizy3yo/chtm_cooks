@@ -14,7 +14,7 @@
 		amber: 'bg-amber-500'
 	};
 
-	const barColor = colorClasses[color];
+	const barColor = $derived(colorClasses[color]);
 </script>
 
 <div class="w-full overflow-hidden rounded-full bg-gray-200 {className}">

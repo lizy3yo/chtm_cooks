@@ -183,7 +183,7 @@
 			>
 				<Bell size={18} strokeWidth={1.75} />
 				{#if unreadCount > 0}
-					<span class="absolute -right-1 -top-1 inline-flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-pink-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+					<span class="absolute -right-1 -top-1 inline-flex min-h-4.5 min-w-4.5 items-center justify-center rounded-full bg-pink-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
 						{Math.min(unreadCount, 99)}
 					</span>
 				{/if}
@@ -243,7 +243,7 @@
 							{initials($user.firstName, $user.lastName)}
 						{/if}
 					</div>
-					<span class="hidden max-w-[120px] truncate text-sm font-medium text-gray-900 sm:block">
+					<span class="hidden max-w-30 truncate text-sm font-medium text-gray-900 sm:block">
 						{$user.firstName} {$user.lastName}
 					</span>
 					<ChevronDown size={14} strokeWidth={2} class="hidden text-gray-400 transition-transform duration-200 sm:block {profileOpen ? 'rotate-180' : ''}" />

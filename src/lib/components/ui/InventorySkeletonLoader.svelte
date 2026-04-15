@@ -73,7 +73,7 @@
 								<!-- Item Name -->
 								<td class="px-6 py-4">
 									<div class="flex items-center gap-3">
-										<Skeleton variant="circle" class="h-6 w-6 flex-shrink-0" />
+										<Skeleton variant="circle" class="h-6 w-6 shrink-0" />
 										<Skeleton class="h-4 w-40" />
 									</div>
 								</td>
@@ -130,8 +130,8 @@
 									<Skeleton class="h-3 w-full" />
 								</div>
 								<div class="ml-4 flex items-center gap-3">
-									<Skeleton variant="circle" class="h-12 w-12 flex-shrink-0" />
-									<Skeleton variant="circle" class="h-8 w-8 flex-shrink-0" />
+									<Skeleton variant="circle" class="h-12 w-12 shrink-0" />
+									<Skeleton variant="circle" class="h-8 w-8 shrink-0" />
 								</div>
 							</div>
 						</div>

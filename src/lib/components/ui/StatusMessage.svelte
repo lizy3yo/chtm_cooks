@@ -62,7 +62,7 @@
 	<div class="flex items-start">
 		<!-- Icon -->
 		<svg 
-			class="h-6 w-6 flex-shrink-0 {config.iconColor}" 
+			class="h-6 w-6 shrink-0 {config.iconColor}" 
 			fill="none" 
 			stroke="currentColor" 
 			viewBox="0 0 24 24"

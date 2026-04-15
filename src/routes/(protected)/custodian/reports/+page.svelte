@@ -329,17 +329,7 @@
 			buildPaginationTokens(lossDamagePage, lossDamageTotalPages)
 		);
 
-		// Student Trust Pagination
-		const studentTrustTotalPages = $derived(
-			Math.max(1, Math.ceil(filteredStudentTrustScores.length / INVENTORY_PAGE_SIZE))
-		);
-		const paginatedStudentTrustScores = $derived.by(() => {
-			const start = (studentTrustPage - 1) * INVENTORY_PAGE_SIZE;
-			return filteredStudentTrustScores.slice(start, start + INVENTORY_PAGE_SIZE);
-		});
-		const studentTrustPageTokens = $derived(
-			buildPaginationTokens(studentTrustPage, studentTrustTotalPages)
-		);
+		// Filter student trust scores
 		const filteredStudentTrustScores = $derived.by(() => {
 			const query = studentTrustQuery.trim().toLowerCase();
 			if (!query) return studentTrustScores;
@@ -352,6 +342,19 @@
 				].some((value) => value.toLowerCase().includes(query))
 			);
 		});
+
+		// Student Trust Pagination
+		const studentTrustTotalPages = $derived(
+			Math.max(1, Math.ceil(filteredStudentTrustScores.length / INVENTORY_PAGE_SIZE))
+		);
+		const paginatedStudentTrustScores = $derived.by(() => {
+			const start = (studentTrustPage - 1) * INVENTORY_PAGE_SIZE;
+			return filteredStudentTrustScores.slice(start, start + INVENTORY_PAGE_SIZE);
+		});
+		const studentTrustPageTokens = $derived(
+			buildPaginationTokens(studentTrustPage, studentTrustTotalPages)
+		);
+
 		const topBorrowedMax = $derived(
 			topBorrowedOverview.length > 0
 				? Math.max(...topBorrowedOverview.map((item) => item.totalQuantity), 1)
@@ -586,7 +589,7 @@
 					{ id: 'students', label: 'Student Risk', icon: Users }
 				] as tab}
 					<button onclick={() => (activeTab = tab.id as Tab)} class="flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition {activeTab === tab.id ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900'}">
-						<svelte:component this={tab.icon} size={16} />
+						<tab.icon size={16} />
 						{tab.label}
 					</button>
 				{/each}
@@ -655,7 +658,7 @@
 								<p class="text-xs text-gray-500">{numberFmt.format(totalRequests)} requests</p>
 							</div>
 							{#if statusChartSeries.length === 0}
-								<div class="mt-4 flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+								<div class="mt-4 flex min-h-55 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 									<div class="max-w-sm">
 										<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 											<BarChart3 size={32} class="text-pink-600" />
@@ -696,7 +699,7 @@
 							</div>
 							<div class="mt-4 space-y-3">
 								{#if topBorrowedOverview.length === 0}
-									<div class="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+									<div class="flex min-h-55 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 										<div class="max-w-sm">
 											<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 												<Package size={32} class="text-pink-600" />
@@ -849,9 +852,9 @@
 										{/if}
 									</div>
 								</div>
-								<div class="mt-4 flex min-h-[320px] flex-col rounded-lg border border-gray-200">
+								<div class="mt-4 flex min-h-80 flex-col rounded-lg border border-gray-200">
 									{#if report.borrowRequests.itemEntries.length === 0}
-										<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div class="max-w-sm">
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 													<FileText size={32} class="text-pink-600" />
@@ -861,7 +864,7 @@
 											</div>
 										</div>
 									{:else if filteredBorrowedItems.length === 0}
-										<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div class="max-w-sm">
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 													<Search size={32} class="text-pink-600" />
@@ -961,9 +964,9 @@
 										{/if}
 									</div>
 								</div>
-								<div class="mt-4 flex min-h-[320px] flex-col rounded-lg border border-gray-200">
+								<div class="mt-4 flex min-h-80 flex-col rounded-lg border border-gray-200">
 									{#if report.borrowRequests.borrowers.length === 0}
-										<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div class="max-w-sm">
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 													<FileText size={32} class="text-pink-600" />
@@ -973,7 +976,7 @@
 											</div>
 										</div>
 									{:else if filteredBorrowers.length === 0}
-										<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div class="max-w-sm">
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 													<Search size={32} class="text-pink-600" />
@@ -1127,7 +1130,7 @@
 										{#if report.lossAndDamage.tracking.length === 0}
 											<tr>
 												<td colspan="7" class="px-4 py-6">
-													<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+													<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 														<div class="max-w-sm">
 															<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 																<FileText size={32} class="text-pink-600" />
@@ -1143,7 +1146,7 @@
 										{:else if filteredLossDamageTracking.length === 0}
 											<tr>
 												<td colspan="7" class="px-4 py-6">
-													<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+													<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 														<div class="max-w-sm">
 															<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 																<Search size={32} class="text-pink-600" />
@@ -1303,7 +1306,7 @@
 
 								<div class="mt-4 flex flex-1 flex-col">
 									{#if inventoryVarianceRows.length === 0}
-										<div class="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div>
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
 													<Package size={32} class="text-pink-600" />
@@ -1315,7 +1318,7 @@
 											</div>
 										</div>
 									{:else if filteredInventoryVarianceRows.length === 0}
-										<div class="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div>
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
 													<Search size={32} class="text-pink-600" />
@@ -1435,7 +1438,7 @@
 
 								<div class="mt-4 flex flex-1 flex-col">
 									{#if inventoryVarianceRows.length === 0}
-										<div class="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div>
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
 													<Package size={32} class="text-pink-600" />
@@ -1447,7 +1450,7 @@
 											</div>
 										</div>
 									{:else if filteredRelatedRequestRows.length === 0}
-										<div class="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div>
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
 													<Search size={32} class="text-pink-600" />
@@ -1544,7 +1547,7 @@
 							</div>
 
 							{#if studentTrustScores.length === 0}
-								<div class="mt-4 flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+								<div class="mt-4 flex min-h-55 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 									<div class="max-w-sm">
 										<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 											<Users size={32} class="text-pink-600" />
@@ -1604,9 +1607,9 @@
 								</div>
 							</div>
 
-							<div class="mt-4 flex flex-col rounded-lg border border-gray-200 min-h-[320px]">
+							<div class="mt-4 flex flex-col rounded-lg border border-gray-200 min-h-80">
 								{#if studentTrustScores.length === 0}
-									<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+									<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 										<div class="max-w-sm">
 											<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 												<Users size={32} class="text-pink-600" />
@@ -1616,7 +1619,7 @@
 										</div>
 									</div>
 								{:else if filteredStudentTrustScores.length === 0}
-									<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+									<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 										<div class="max-w-sm">
 											<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 												<Search size={32} class="text-pink-600" />
@@ -1706,3 +1709,4 @@
 		{/if}
 	</div>
 </div>
+
