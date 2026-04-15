@@ -58,7 +58,7 @@
 	<div class="p-4">
 		<div class="flex items-start">
 			<!-- Icon -->
-			<div class="flex-shrink-0">
+			<div class="shrink-0">
 				<div class="flex h-10 w-10 items-center justify-center rounded-full {config.iconBg}">
 					<svg
 						class="h-6 w-6 {config.iconColor}"
@@ -86,7 +86,7 @@
 			
 			<!-- Dismiss Button -->
 			{#if toast.dismissible}
-				<div class="ml-4 flex flex-shrink-0">
+				<div class="ml-4 flex shrink-0">
 					<button
 						type="button"
 						onclick={() => onDismiss(toast.id)}

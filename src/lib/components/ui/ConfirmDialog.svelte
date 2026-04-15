@@ -52,7 +52,7 @@
 <!-- Backdrop -->
 <button
 	type="button"
-	class="fixed inset-0 z-[9998] min-h-[100dvh] w-screen bg-black/50 backdrop-blur-sm"
+	class="fixed inset-0 z-9998 min-h-dvh w-screen bg-black/50 backdrop-blur-sm"
 	transition:fade={{ duration: 200 }}
 	onclick={dialog.onCancel}
 	aria-label="Close dialog"
@@ -65,7 +65,7 @@
 	aria-modal="true"
 	aria-labelledby="dialog-title"
 	aria-describedby="dialog-description"
-	class="fixed inset-0 z-[9999] flex min-h-[100dvh] w-screen items-center justify-center p-4"
+	class="fixed inset-0 z-9999 flex min-h-dvh w-screen items-center justify-center p-4"
 >
 	<div
 		class="w-full max-w-sm rounded-xl bg-white shadow-xl ring-1 ring-black ring-opacity-5 sm:max-w-md"
@@ -74,7 +74,7 @@
 		<div class="p-5 sm:p-6">
 			<div class="flex items-start">
 				<!-- Icon -->
-				<div class="flex-shrink-0">
+				<div class="shrink-0">
 					<div class="flex h-12 w-12 items-center justify-center rounded-full {config.iconBg}">
 						<svg
 							class="h-6 w-6 {config.iconColor}"

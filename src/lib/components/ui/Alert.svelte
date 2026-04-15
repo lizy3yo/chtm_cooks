@@ -45,7 +45,7 @@
 
 <div class="rounded-lg border p-4 {styles.container}" role="alert">
 	<div class="flex items-start">
-		<div class="flex-shrink-0">
+		<div class="shrink-0">
 			<svg 
 				class="h-5 w-5 {styles.icon}" 
 				xmlns="http://www.w3.org/2000/svg" 

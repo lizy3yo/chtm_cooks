@@ -19,7 +19,7 @@
 	<!-- KPI Cards Skeleton -->
 	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 		{#each Array(4) as _}
-			<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-5">
+			<div class="rounded-xl border border-gray-200 bg-linear-to-br from-gray-50 to-white p-5">
 				<div class="flex items-start justify-between">
 					<div class="space-y-3 flex-1">
 						<Skeleton class="h-3.5 w-24" />
@@ -94,7 +94,7 @@
 		<div class="space-y-6">
 			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 				{#each Array(4) as _}
-					<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-5 space-y-3">
+					<div class="rounded-xl border border-gray-200 bg-linear-to-br from-gray-50 to-white p-5 space-y-3">
 						<Skeleton class="h-4 w-24" />
 						<Skeleton class="h-8 w-16" />
 						<div class="flex items-center gap-2">
