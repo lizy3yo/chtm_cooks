@@ -443,7 +443,7 @@
 		{#if registrationSuccess}
 			<div class="rounded-lg border border-green-200 bg-green-50 p-4">
 				<div class="flex items-start">
-					<div class="flex-shrink-0">
+					<div class="shrink-0">
 						<svg class="h-5 w-5 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
 						</svg>
@@ -461,7 +461,7 @@
 				<div class="relative mb-6">
 					<div class="h-2 bg-gray-200 rounded-full overflow-hidden">
 						<div 
-							class="h-full bg-gradient-to-r from-pink-600 to-rose-600 transition-all duration-300 ease-in-out"
+							class="h-full bg-linear-to-r from-pink-600 to-rose-600 transition-all duration-300 ease-in-out"
 							style="width: {(currentStep / totalSteps) * 100}%"
 						></div>
 					</div>
@@ -478,7 +478,7 @@
 						>
 							<div 
 								class="w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold mb-2 transition-all relative
-									{currentStep === step.number ? 'bg-gradient-to-br from-pink-600 to-rose-600 text-white scale-110' : 
+									{currentStep === step.number ? 'bg-linear-to-br from-pink-600 to-rose-600 text-white scale-110' : 
 									currentStep > step.number ? 'bg-green-500 text-white' : 
 									'bg-gray-200 text-gray-500'}"
 							>
@@ -497,7 +497,7 @@
 									</span>
 								{/if}
 							</div>
-							<div class="text-center max-w-[80px]">
+							<div class="text-center max-w-20">
 								<p class="text-xs font-medium {currentStep === step.number ? 'text-gray-900' : 'text-gray-500'}">
 									{step.title}
 								</p>
@@ -509,7 +509,7 @@
 
 			<form onsubmit={handleSubmit} class="space-y-6" novalidate>
 				<!-- Step Content -->
-				<div class="min-h-[320px]">
+				<div class="min-h-80">
 					{#if currentStep === 1}
 						<!-- Step 1: Personal Information -->
 						<div class="space-y-4 animate-fadeIn">
@@ -845,6 +845,10 @@
 			<div 
 				class="fixed inset-0 backdrop-blur-md transition-opacity" 
 				onclick={() => showTermsModal = false}
+				onkeydown={(e) => e.key === 'Enter' && (showTermsModal = false)}
+				role="button"
+				tabindex="0"
+				aria-label="Close modal"
 			></div>
 
 			<!-- Modal panel -->
@@ -858,6 +862,7 @@
 							type="button"
 							onclick={() => showTermsModal = false}
 							class="text-gray-400 hover:text-gray-500 focus:outline-none"
+							aria-label="Close modal"
 						>
 							<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -914,7 +919,7 @@
 					<button
 						type="button"
 						onclick={() => showTermsModal = false}
-						class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-gradient-to-r from-pink-600 to-rose-600 text-base font-medium text-white hover:from-pink-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 sm:ml-3 sm:w-auto sm:text-sm"
+						class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-linear-to-r from-pink-600 to-rose-600 text-base font-medium text-white hover:from-pink-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 sm:ml-3 sm:w-auto sm:text-sm"
 					>
 						Close
 					</button>
@@ -932,6 +937,10 @@
 			<div 
 				class="fixed inset-0 backdrop-blur-md transition-opacity" 
 				onclick={() => showPrivacyModal = false}
+				onkeydown={(e) => e.key === 'Enter' && (showPrivacyModal = false)}
+				role="button"
+				tabindex="0"
+				aria-label="Close modal"
 			></div>
 
 			<!-- Modal panel -->
@@ -945,6 +954,7 @@
 							type="button"
 							onclick={() => showPrivacyModal = false}
 							class="text-gray-400 hover:text-gray-500 focus:outline-none"
+							aria-label="Close modal"
 						>
 							<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -1006,7 +1016,7 @@
 					<button
 						type="button"
 						onclick={() => showPrivacyModal = false}
-						class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-gradient-to-r from-pink-600 to-rose-600 text-base font-medium text-white hover:from-pink-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 sm:ml-3 sm:w-auto sm:text-sm"
+						class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-linear-to-r from-pink-600 to-rose-600 text-base font-medium text-white hover:from-pink-700 hover:to-rose-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 sm:ml-3 sm:w-auto sm:text-sm"
 					>
 						Close
 					</button>
@@ -1015,3 +1025,4 @@
 		</div>
 	</div>
 {/if}
+
