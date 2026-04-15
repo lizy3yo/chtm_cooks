@@ -310,7 +310,7 @@
 							<span class="text-xs font-bold text-amber-700">{requestsPendingApproval.length}</span>
 						</div>
 						{#if requestsPendingApproval.length === 0}
-							<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+							<div class="flex min-h-29 flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
 								<Clock size={18} class="text-pink-600" />
 								<p class="mt-2 text-xs font-medium text-gray-500">No pending requests</p>
 							</div>
@@ -350,7 +350,7 @@
 							<span class="text-xs font-bold text-indigo-700">{requestsReadyPickup.length}</span>
 						</div>
 						{#if requestsReadyPickup.length === 0}
-							<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+							<div class="flex min-h-29 flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
 								<PackageOpen size={18} class="text-pink-600" />
 								<p class="mt-2 text-xs font-medium text-gray-500">No items ready for pickup</p>
 							</div>
@@ -392,7 +392,7 @@
 							<span class="text-xs font-bold text-violet-700">{requestsActive.length}</span>
 						</div>
 						{#if requestsActive.length === 0}
-							<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+							<div class="flex min-h-29 flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
 								<Package size={18} class="text-pink-600" />
 								<p class="mt-2 text-xs font-medium text-gray-500">No active loans</p>
 							</div>
@@ -601,14 +601,14 @@
 					</a>
 				</div>
 				{#if !report || report.inventory.mostBorrowedItems.length === 0}
-					<div class="flex h-[18rem] items-center justify-center">
+					<div class="flex h-72 items-center justify-center">
 						<div class="text-center">
 							<TrendingUp size={28} class="mx-auto text-pink-600" />
 							<p class="mt-3 text-sm text-gray-500">No borrow data for this period.</p>
 						</div>
 					</div>
 				{:else}
-					<div class="h-[18rem] divide-y divide-gray-50 overflow-hidden px-5 py-2">
+					<div class="h-72 divide-y divide-gray-50 overflow-hidden px-5 py-2">
 						{#each report.inventory.mostBorrowedItems.slice(0, 5) as item, idx}
 							<div class="flex items-center gap-3 py-3">
 								<span class="w-5 shrink-0 text-right text-xs font-bold text-gray-300">#{idx + 1}</span>
@@ -640,14 +640,14 @@
 					</a>
 				</div>
 				{#if !report || report.inventory.itemsCurrentlyOut.length === 0}
-					<div class="flex h-[18rem] items-center justify-center">
+					<div class="flex h-72 items-center justify-center">
 						<div class="text-center">
 							<PackageOpen size={28} class="mx-auto text-pink-600" />
 							<p class="mt-3 text-sm text-gray-500">No items currently out.</p>
 						</div>
 					</div>
 				{:else}
-					<ul class="h-[18rem] divide-y divide-gray-50 overflow-hidden">
+					<ul class="h-72 divide-y divide-gray-50 overflow-hidden">
 						{#each report.inventory.itemsCurrentlyOut.slice(0, 5) as item}
 							{@const total = item.quantityOut + item.totalStock}
 							{@const utilPct = total > 0 ? Math.round((item.quantityOut / total) * 100) : 0}

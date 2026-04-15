@@ -52,7 +52,7 @@ case 'approved_instructor': return 'pending';
 case 'ready_for_pickup': return 'ready';
 case 'borrowed': return 'active';
 case 'pending_return': return 'active';
-case 'missing': return 'unresolved';
+case 'missing': return 'missing';
 case 'resolved': return 'history';
 case 'cancelled': return 'history';
 case 'returned': return 'history';
@@ -1408,7 +1408,7 @@ return { text: '', color: 'text-gray-500' };
 				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8 sm:py-6">
 					<div class="flex items-start justify-between gap-3">
 						<div class="flex items-start gap-3 min-w-0 flex-1">
-							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
 								<svg class="h-5 w-5 text-white sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
 								</svg>
@@ -1440,7 +1440,7 @@ return { text: '', color: 'text-gray-500' };
 						
 						<!-- Workflow Timeline -->
 						<div>
-							<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 sm:p-5">
+							<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 sm:p-5">
 								<!-- Timeline Container -->
 								<div class="relative">
 									<!-- SVG Background for connector lines -->
@@ -1542,7 +1542,7 @@ return { text: '', color: 'text-gray-500' };
 								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
 								Student Information
 							</h3>
-							<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 sm:p-5">
+							<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 sm:p-5">
 								<div class="flex items-center gap-4">
 									<div class="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-lg sm:text-xl font-semibold text-pink-700 ring-2 ring-pink-200">
 										{#if selectedRequest.student.avatarUrl}
@@ -1576,7 +1576,7 @@ return { text: '', color: 'text-gray-500' };
 								Request Information
 							</h3>
 							<div class="grid grid-cols-2 gap-3 sm:gap-4">
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -1585,7 +1585,7 @@ return { text: '', color: 'text-gray-500' };
 									</div>
 									<p class="text-sm sm:text-base font-bold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -1596,7 +1596,7 @@ return { text: '', color: 'text-gray-500' };
 										{new Date(selectedRequest.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(selectedRequest.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
 									</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -1605,7 +1605,7 @@ return { text: '', color: 'text-gray-500' };
 									</div>
 									<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.purpose}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
@@ -1645,7 +1645,7 @@ return { text: '', color: 'text-gray-500' };
 
 						<!-- Overdue Warning -->
 						{#if selectedRequest.isOverdue}
-							<div class="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100/50 p-5">
+							<div class="rounded-2xl border-2 border-red-200 bg-linear-to-br from-red-50 to-red-100/50 p-5">
 								<div class="flex gap-3">
 									<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500">
 										<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1666,7 +1666,7 @@ return { text: '', color: 'text-gray-500' };
 						{/if}
 
 						<!-- Status Information -->
-						<div class="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/30 p-4 sm:p-5">
+						<div class="rounded-2xl border border-blue-200 bg-linear-to-br from-blue-50 to-blue-100/30 p-4 sm:p-5">
 							<div class="flex gap-3">
 								<div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500">
 									<svg class="h-4 w-4 sm:h-5 sm:w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1698,7 +1698,7 @@ return { text: '', color: 'text-gray-500' };
 									closeDetailModal();
 									markReady(selectedRequest.rawId);
 								}}
-								class="rounded-xl bg-gradient-to-r from-green-600 to-green-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-green-700 hover:to-green-800 active:scale-[0.98]"
+								class="rounded-xl bg-linear-to-r from-green-600 to-green-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-green-700 hover:to-green-800 active:scale-[0.98]"
 							>
 								Mark Ready for Pickup
 							</button>
@@ -1709,7 +1709,7 @@ return { text: '', color: 'text-gray-500' };
 									closeDetailModal();
 									confirmPickup(selectedRequest.rawId);
 								}}
-								class="rounded-xl bg-gradient-to-r from-pink-600 to-pink-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98]"
+								class="rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98]"
 							>
 								Confirm Pickup
 							</button>
@@ -1719,7 +1719,7 @@ return { text: '', color: 'text-gray-500' };
 								onclick={() => {
 									confirmReturn(selectedRequest.rawId);
 								}}
-								class="rounded-xl bg-gradient-to-r from-orange-600 to-orange-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-orange-700 hover:to-orange-800 active:scale-[0.98]"
+								class="rounded-xl bg-linear-to-r from-orange-600 to-orange-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-orange-700 hover:to-orange-800 active:scale-[0.98]"
 							>
 								Inspect & Confirm Return
 							</button>

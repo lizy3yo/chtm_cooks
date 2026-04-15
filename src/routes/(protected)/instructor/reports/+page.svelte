@@ -315,7 +315,7 @@
 					{ id: 'students', label: 'Student Risk', icon: Users }
 				] as tab}
 					<button onclick={() => (activeTab = tab.id as Tab)} class="flex items-center gap-2 whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition {activeTab === tab.id ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900'}">
-						<svelte:component this={tab.icon} size={16} />
+						<tab.icon size={16} />
 						{tab.label}
 					</button>
 				{/each}
@@ -335,7 +335,7 @@
 
 				{#if activeTab === 'overview'}
 					<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-						<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-pink-50 to-white p-5">
+						<div class="rounded-xl border border-gray-200 bg-linear-to-br from-pink-50 to-white p-5">
 							<div class="flex items-start justify-between">
 								<div>
 									<p class="text-sm font-semibold text-gray-700">Total Requests</p>
@@ -345,7 +345,7 @@
 								<div class="rounded-full bg-pink-100 p-3"><BarChart3 size={20} class="text-pink-600" /></div>
 							</div>
 						</div>
-						<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-emerald-50 to-white p-5">
+						<div class="rounded-xl border border-gray-200 bg-linear-to-br from-emerald-50 to-white p-5">
 							<div class="flex items-start justify-between">
 								<div>
 									<p class="text-sm font-semibold text-gray-700">Return Rate</p>
@@ -355,7 +355,7 @@
 								<div class="rounded-full bg-emerald-100 p-3"><TrendingUp size={20} class="text-emerald-600" /></div>
 							</div>
 						</div>
-						<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-rose-50 to-white p-5">
+						<div class="rounded-xl border border-gray-200 bg-linear-to-br from-rose-50 to-white p-5">
 							<div class="flex items-start justify-between">
 								<div>
 									<p class="text-sm font-semibold text-gray-700">Overdue Items</p>
@@ -365,7 +365,7 @@
 								<div class="rounded-full bg-rose-100 p-3"><AlertTriangle size={20} class="text-rose-600" /></div>
 							</div>
 						</div>
-						<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-amber-50 to-white p-5">
+						<div class="rounded-xl border border-gray-200 bg-linear-to-br from-amber-50 to-white p-5">
 							<div class="flex items-start justify-between">
 								<div>
 									<p class="text-sm font-semibold text-gray-700">Loss/Damage (MTD)</p>
@@ -625,17 +625,17 @@
 				{#if activeTab === 'loss-damage'}
 					<div class="space-y-6">
 						<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-							<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-rose-50 to-white p-5">
+							<div class="rounded-xl border border-gray-200 bg-linear-to-br from-rose-50 to-white p-5">
 								<p class="text-sm font-semibold text-gray-700">Missing</p>
 								<p class="mt-2 text-3xl font-bold text-rose-700">{lossAndDamageSummary.periodMissing}</p>
 								<p class="mt-2 text-xs text-gray-500">Items marked missing in selected range</p>
 							</div>
-							<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-amber-50 to-white p-5">
+							<div class="rounded-xl border border-gray-200 bg-linear-to-br from-amber-50 to-white p-5">
 								<p class="text-sm font-semibold text-gray-700">Damaged</p>
 								<p class="mt-2 text-3xl font-bold text-amber-700">{lossAndDamageSummary.periodDamaged}</p>
 								<p class="mt-2 text-xs text-gray-500">Items marked damaged in selected range</p>
 							</div>
-							<div class="rounded-xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-5">
+							<div class="rounded-xl border border-gray-200 bg-linear-to-br from-gray-50 to-white p-5">
 								<p class="text-sm font-semibold text-gray-700">Total Incidents</p>
 								<p class="mt-2 text-3xl font-bold text-gray-900">{lossAndDamageSummary.periodTotal}</p>
 								<p class="mt-2 text-xs text-gray-500">Missing + Damaged combined in selected range</p>
@@ -769,7 +769,7 @@
 											</div>
 										</div>
 									{:else}
-										<div class="max-h-[26rem] space-y-2 overflow-y-auto pr-1">
+										<div class="max-h-104 space-y-2 overflow-y-auto pr-1">
 											{#each inventoryVarianceRows as item}
 												<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
 													<div class="flex items-start justify-between gap-4">
@@ -818,7 +818,7 @@
 											</div>
 										</div>
 									{:else}
-										<div class="max-h-[26rem] space-y-2 overflow-y-auto pr-1">
+										<div class="max-h-104 space-y-2 overflow-y-auto pr-1">
 											{#each inventoryVarianceRows as item}
 												{@const driver = report.inventory.varianceDrivers.find((row) => row.id === item._id)}
 												<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
@@ -904,7 +904,7 @@
 										</div>
 									</div>
 								{:else}
-									<div class="max-h-[30rem] space-y-2 overflow-y-auto pr-1">
+									<div class="max-h-120 space-y-2 overflow-y-auto pr-1">
 										{#each studentTrustScores as student}
 											<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
 												<div class="flex items-start justify-between gap-4">
@@ -940,3 +940,5 @@
 		{/if}
 	</div>
 </div>
+
+
