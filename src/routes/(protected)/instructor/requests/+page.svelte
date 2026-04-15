@@ -204,29 +204,35 @@ async function backfillItemPictures(): Promise<void> {
 	}
 }
 
-onMount(async () => {
-await loadRequests(true);
+onMount(() => {
+	let mounted = true;
 
-const refresh = () => {
-void loadRequests(true);
-};
+	(async () => {
+		await loadRequests(true);
+		if (!mounted) return;
+	})();
 
-const intervalId = window.setInterval(refresh, 15000);
-window.addEventListener('focus', refresh);
+	const refresh = () => {
+		void loadRequests(true);
+	};
 
-const onVisibilityChange = () => {
-if (!document.hidden) {
-refresh();
-}
-};
+	const intervalId = window.setInterval(refresh, 15000);
+	window.addEventListener('focus', refresh);
 
-document.addEventListener('visibilitychange', onVisibilityChange);
+	const onVisibilityChange = () => {
+		if (!document.hidden) {
+			refresh();
+		}
+	};
 
-return () => {
-window.clearInterval(intervalId);
-window.removeEventListener('focus', refresh);
-document.removeEventListener('visibilitychange', onVisibilityChange);
-};
+	document.addEventListener('visibilitychange', onVisibilityChange);
+
+	return () => {
+		mounted = false;
+		window.clearInterval(intervalId);
+		window.removeEventListener('focus', refresh);
+		document.removeEventListener('visibilitychange', onVisibilityChange);
+	};
 });
 
 const filteredRequests = $derived(
@@ -958,7 +964,7 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 									</div>
 									<div class="flex min-w-0 items-center gap-1.5 text-xs text-gray-500">
 										<FileText size={13} class="shrink-0 text-gray-400" />
-										<span class="truncate max-w-[220px]">{request.purpose}</span>
+										<span class="truncate max-w-55">{request.purpose}</span>
 									</div>
 									<div class="flex items-center gap-1.5 text-xs text-gray-500">
 										<UserCircle size={13} class="shrink-0 text-gray-400" />
@@ -1032,7 +1038,7 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
 					<div class="flex items-start justify-between gap-3">
 						<div class="flex min-w-0 flex-1 items-start gap-3">
-							<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-md">
+							<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-pink-500 to-pink-600 shadow-md">
 								<ClipboardList class="h-5 w-5 text-white" />
 							</div>
 							<div class="min-w-0">
@@ -1044,7 +1050,7 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 								</span>
 							</div>
 						</div>
-						<button onclick={closeDetailModal} class="shrink-0 rounded-xl p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600">
+						<button onclick={closeDetailModal} aria-label="Close details modal" class="shrink-0 rounded-xl p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600">
 							<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
 							</svg>
@@ -1173,15 +1179,15 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 <!-- Bulk Reject Modal -->
 {#if showBulkRejectModal}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick={() => showBulkRejectModal = false}></div>
+		<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick={() => showBulkRejectModal = false} aria-label="Close modal" tabindex="-1"></button>
 		<div class="flex min-h-full items-center justify-center p-4">
 			<div class="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
 				<h3 class="text-lg font-semibold text-gray-900">Reject Request{selectedRequests.length > 1 ? 's' : ''}</h3>
 				<p class="mt-1 text-sm text-gray-500">{selectedRequests.length > 1 ? `Rejecting ${selectedRequests.length} requests.` : 'Provide a reason for rejection.'}</p>
 				<div class="mt-4 space-y-4">
 					<div>
-						<label class="mb-1.5 block text-sm font-medium text-gray-700">Rejection Reason</label>
-						<select bind:value={rejectReason} class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
+						<label for="reject-reason" class="mb-1.5 block text-sm font-medium text-gray-700">Rejection Reason</label>
+						<select id="reject-reason" bind:value={rejectReason} class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
 							<option value="">Select a reason…</option>
 							{#each rejectReasons as reason}
 								<option value={reason}>{reason}</option>
@@ -1189,8 +1195,8 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 						</select>
 					</div>
 					<div>
-						<label class="mb-1.5 block text-sm font-medium text-gray-700">Additional Notes <span class="text-gray-400">(optional)</span></label>
-						<textarea bind:value={rejectDetails} rows="3" placeholder="Add any additional context…" class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"></textarea>
+						<label for="reject-details" class="mb-1.5 block text-sm font-medium text-gray-700">Additional Notes <span class="text-gray-400">(optional)</span></label>
+						<textarea id="reject-details" bind:value={rejectDetails} rows="3" placeholder="Add any additional context…" class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"></textarea>
 					</div>
 				</div>
 				<div class="mt-6 flex justify-end gap-3">

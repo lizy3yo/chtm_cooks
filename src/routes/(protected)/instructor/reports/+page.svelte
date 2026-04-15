@@ -384,7 +384,7 @@
 								<p class="text-xs text-gray-500">{numberFmt.format(totalRequests)} requests</p>
 							</div>
 							{#if statusChartSeries.length === 0}
-								<div class="mt-4 flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+								<div class="mt-4 flex min-h-55 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 									<div class="max-w-sm">
 										<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 											<BarChart3 size={32} class="text-pink-600" />
@@ -425,7 +425,7 @@
 							</div>
 							<div class="mt-4 space-y-3">
 								{#if topBorrowedOverview.length === 0}
-									<div class="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+									<div class="flex min-h-55 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 										<div class="max-w-sm">
 											<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 												<Package size={32} class="text-pink-600" />
@@ -555,9 +555,9 @@
 							<div class="rounded-xl border border-gray-200 bg-white p-5">
 								<h3 class="text-lg font-semibold text-gray-900">Borrowed Items</h3>
 								<p class="mt-1 text-xs text-gray-600">{report.borrowRequests.itemsBorrowed.length} unique items in the selected range</p>
-								<div class="mt-4 min-h-[320px]">
+								<div class="mt-4 min-h-80">
 									{#if report.borrowRequests.itemsBorrowed.length === 0}
-										<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div class="max-w-sm">
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 													<FileText size={32} class="text-pink-600" />
@@ -590,9 +590,9 @@
 							<div class="rounded-xl border border-gray-200 bg-white p-5">
 								<h3 class="text-lg font-semibold text-gray-900">Borrowers</h3>
 								<p class="mt-1 text-xs text-gray-600">{report.borrowRequests.borrowers.length} students in the selected range</p>
-								<div class="mt-4 min-h-[320px]">
+								<div class="mt-4 min-h-80">
 									{#if report.borrowRequests.borrowers.length === 0}
-										<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div class="max-w-sm">
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 													<FileText size={32} class="text-pink-600" />
@@ -664,7 +664,7 @@
 										{#if report.lossAndDamage.tracking.length === 0}
 											<tr>
 												<td colspan="7" class="px-4 py-6">
-													<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+													<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 														<div class="max-w-sm">
 															<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 																<FileText size={32} class="text-pink-600" />
@@ -757,7 +757,7 @@
 
 								<div class="mt-4 space-y-2">
 									{#if inventoryVarianceRows.length === 0}
-										<div class="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div>
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
 													<Package size={32} class="text-pink-600" />
@@ -806,7 +806,7 @@
 
 								<div class="mt-4 space-y-2">
 									{#if inventoryVarianceRows.length === 0}
-										<div class="flex min-h-[280px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+										<div class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 											<div>
 												<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100">
 													<Package size={32} class="text-pink-600" />
@@ -856,7 +856,7 @@
 							</div>
 
 							{#if studentTrustScores.length === 0}
-								<div class="mt-4 flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+								<div class="mt-4 flex min-h-55 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 									<div class="max-w-sm">
 										<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 											<Users size={32} class="text-pink-600" />
@@ -894,7 +894,7 @@
 
 							<div class="mt-4 space-y-2">
 								{#if studentTrustScores.length === 0}
-									<div class="flex min-h-[320px] items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
+									<div class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center">
 										<div class="max-w-sm">
 											<div class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100">
 												<Users size={32} class="text-pink-600" />
