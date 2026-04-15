@@ -228,7 +228,7 @@
 				available: item.quantity,
 				specification: item.specification || 'No specification provided',
 				status: item.status,
-				location: item.location,
+				location: (item as any).location,
 				isConstant: item.isConstant || false,
 				maxQuantityPerRequest: item.maxQuantityPerRequest
 			}));
@@ -632,100 +632,105 @@
 		requestCartStore.clear();
 	}
 
-	onMount(async () => {
+	onMount(() => {
 		console.log('[MOUNT] Component mounted, loading equipment...');
-		await loadAvailableEquipment();
-		
-		console.log('[MOUNT] Equipment loaded, constant items:', constantItems.length);
-		
-		// Auto-add constant items to cart (including out of stock ones for visibility)
-		if (constantItems.length > 0) {
-			for (const item of constantItems) {
-				// Check if already in cart
-				const cartItems = get(requestCartItems);
-				const alreadyInCart = cartItems.some(cartItem => cartItem.itemId === item.id);
-				
-				// Add ALL constant items (even out of stock) for visibility
-				// Students will see them but won't be able to request if quantity is 0
-				if (!alreadyInCart) {
-					requestCartStore.addItem({
-						itemId: item.id,
-						name: item.name,
-						maxQuantity: Math.max(1, item.available) // Use 1 as minimum for display
-					});
-				}
-			}
-			
-			// Sync after adding all constant items
-			syncSelectedItemsFromCart();
-		}
 
-		// Handle preselected item from URL
-		const itemId = get(page).url.searchParams.get('itemId');
-		if (itemId) {
-			// Check both available equipment and constant items
-			const allItems = [...availableEquipment, ...constantItems];
-			const preselectedItem = allItems.find((item) => item.id === itemId);
-			if (preselectedItem) {
-				requestCartStore.addItem({
-					itemId: preselectedItem.id,
-					name: preselectedItem.name,
-					maxQuantity: preselectedItem.available
-				});
+		let unsubscribe: () => void = () => {};
+
+		void (async () => {
+			await loadAvailableEquipment();
+
+			console.log('[MOUNT] Equipment loaded, constant items:', constantItems.length);
+
+			// Auto-add constant items to cart (including out of stock ones for visibility)
+			if (constantItems.length > 0) {
+				for (const item of constantItems) {
+					// Check if already in cart
+					const cartItems = get(requestCartItems);
+					const alreadyInCart = cartItems.some(cartItem => cartItem.itemId === item.id);
+
+					// Add ALL constant items (even out of stock) for visibility
+					// Students will see them but won't be able to request if quantity is 0
+					if (!alreadyInCart) {
+						requestCartStore.addItem({
+							itemId: item.id,
+							name: item.name,
+							maxQuantity: Math.max(1, item.available) // Use 1 as minimum for display
+						});
+					}
+				}
+
+				// Sync after adding all constant items
 				syncSelectedItemsFromCart();
 			}
-		}
 
-		console.log('[MOUNT] Setting up SSE subscription...');
-		
-		// Subscribe to real-time inventory updates via SSE
-		const unsubscribe = subscribeToInventoryChanges(
-			async (event) => {
-				console.log('[SSE] ===== EVENT RECEIVED =====');
-				console.log('[SSE] Action:', event.action);
-				console.log('[SSE] Entity Type:', event.entityType);
-				console.log('[SSE] Entity ID:', event.entityId);
-				console.log('[SSE] Entity Name:', event.entityName);
-				console.log('[SSE] Occurred At:', event.occurredAt);
-				console.log('[SSE] Full Event:', JSON.stringify(event, null, 2));
-				console.log('[SSE] ============================');
-				
-				// Handle ALL inventory item events (created, updated, archived, restored, deleted)
-				// This includes when items are marked/unmarked as constant
-				const supportedActions = new Set([
-					'item_created',
-					'item_updated',
-					'item_archived',
-					'item_restored',
-					'item_deleted'
-				]);
-
-				if (event.entityType === 'item' && supportedActions.has(event.action)) {
-					console.log('[SSE] ✅ Item event detected, processing update...');
-					await handleInventoryUpdate(event);
-				} else {
-					console.log('[SSE] ⊘ Non-item event, ignoring');
-				}
-			},
-			{
-				onConnect: () => {
-					console.log('[SSE] ✅ Connected successfully to inventory stream');
-					sseConnected = true;
-					sseReconnecting = false;
-				},
-				onDisconnect: () => {
-					console.log('[SSE] ❌ Disconnected from inventory stream');
-					sseConnected = false;
-				},
-				onError: (error) => {
-					console.error('[SSE] ⚠️ Connection error:', error);
-					sseConnected = false;
-					sseReconnecting = true;
+			// Handle preselected item from URL
+			const itemId = get(page).url.searchParams.get('itemId');
+			if (itemId) {
+				// Check both available equipment and constant items
+				const allItems = [...availableEquipment, ...constantItems];
+				const preselectedItem = allItems.find((item) => item.id === itemId);
+				if (preselectedItem) {
+					requestCartStore.addItem({
+						itemId: preselectedItem.id,
+						name: preselectedItem.name,
+						maxQuantity: preselectedItem.available
+					});
+					syncSelectedItemsFromCart();
 				}
 			}
-		);
 
-		console.log('[MOUNT] SSE subscription set up complete');
+			console.log('[MOUNT] Setting up SSE subscription...');
+
+			// Subscribe to real-time inventory updates via SSE
+			unsubscribe = subscribeToInventoryChanges(
+				(event) => {
+					console.log('[SSE] ===== EVENT RECEIVED =====');
+					console.log('[SSE] Action:', event.action);
+					console.log('[SSE] Entity Type:', event.entityType);
+					console.log('[SSE] Entity ID:', event.entityId);
+					console.log('[SSE] Entity Name:', event.entityName);
+					console.log('[SSE] Occurred At:', event.occurredAt);
+					console.log('[SSE] Full Event:', JSON.stringify(event, null, 2));
+					console.log('[SSE] ============================');
+
+					// Handle ALL inventory item events (created, updated, archived, restored, deleted)
+					// This includes when items are marked/unmarked as constant
+					const supportedActions = new Set([
+						'item_created',
+						'item_updated',
+						'item_archived',
+						'item_restored',
+						'item_deleted'
+					]);
+
+					if (event.entityType === 'item' && supportedActions.has(event.action)) {
+						console.log('[SSE] ✅ Item event detected, processing update...');
+						void handleInventoryUpdate(event);
+					} else {
+						console.log('[SSE] ⊘ Non-item event, ignoring');
+					}
+				},
+				{
+					onConnect: () => {
+						console.log('[SSE] ✅ Connected successfully to inventory stream');
+						sseConnected = true;
+						sseReconnecting = false;
+					},
+					onDisconnect: () => {
+						console.log('[SSE] ❌ Disconnected from inventory stream');
+						sseConnected = false;
+					},
+					onError: (error) => {
+						console.error('[SSE] ⚠️ Connection error:', error);
+						sseConnected = false;
+						sseReconnecting = true;
+					}
+				}
+			);
+
+			console.log('[MOUNT] SSE subscription set up complete');
+		})();
 
 		return () => {
 			console.log('[MOUNT] Component unmounting, cleaning up...');
@@ -801,7 +806,7 @@
 						
 						<!-- Search Dropdown -->
 						{#if showItemSelector}
-							<div class="absolute left-0 right-0 top-full z-50 mt-2 w-full animate-slide-in sm:left-auto sm:right-0 sm:w-[600px] sm:max-w-[calc(100vw-2rem)]">
+							<div class="absolute left-0 right-0 top-full z-50 mt-2 w-full animate-slide-in sm:left-auto sm:right-0 sm:w-150 sm:max-w-[calc(100vw-2rem)]">
 								<div class="rounded-xl border border-gray-200 bg-white shadow-2xl">
 									<!-- Search Input -->
 									<div class="border-b border-gray-200 p-4">
@@ -820,6 +825,8 @@
 											/>
 											{#if searchQuery}
 												<button
+													type="button"
+													aria-label="Clear search"
 													onclick={() => searchQuery = ''}
 													class="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-600"
 												>
@@ -858,7 +865,7 @@
 									</div>
 									
 									<!-- Results List -->
-									<div class="max-h-[400px] overflow-y-auto">
+									<div class="max-h-100 overflow-y-auto">
 										{#if isLoadingEquipment}
 											<div class="flex items-center justify-center py-8">
 												<div class="text-center">
@@ -982,7 +989,7 @@
 												<div class="flex items-center gap-1.5 flex-wrap">
 													<h3 class="text-xs font-semibold {item.available === 0 ? 'text-gray-500' : 'text-gray-900'}">{item.name}</h3>
 													{#if item.isConstant}
-														<span class="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-gradient-to-r from-emerald-100 to-teal-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+														<span class="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-linear-to-r from-emerald-100 to-teal-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200">
 															<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
 																<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
 															</svg>
@@ -1025,7 +1032,7 @@
 														<div class="flex items-center gap-1.5">
 															<div class="h-1 w-16 rounded-full bg-gray-200 overflow-hidden">
 																<div 
-																	class="h-full rounded-full transition-all duration-300 {item.requestedQuantity >= item.maxQuantityPerRequest ? 'bg-gradient-to-r from-purple-500 to-purple-600' : 'bg-gradient-to-r from-emerald-500 to-teal-500'}"
+																	class="h-full rounded-full transition-all duration-300 {item.requestedQuantity >= item.maxQuantityPerRequest ? 'bg-linear-to-r from-purple-500 to-purple-600' : 'bg-linear-to-r from-emerald-500 to-teal-500'}"
 																	style="width: {Math.min(100, (item.requestedQuantity / item.maxQuantityPerRequest) * 100)}%"
 																></div>
 															</div>
@@ -1118,8 +1125,8 @@
 							</div>
 						{/each}
 					</div>
-				{:else}
-					<div class="rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100 p-8 text-center">
+					{:else}
+						<div class="rounded-xl border-2 border-dashed border-gray-300 bg-linear-to-br from-gray-50 to-gray-100 p-8 text-center">
 						<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm">
 							<svg class="h-8 w-8 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
@@ -1194,9 +1201,9 @@
 
 					<!-- Duration Display -->
 					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-1">
+						<p class="block text-sm font-medium text-gray-700 mb-1">
 							Duration
-						</label>
+						</p>
 						<div class="flex h-10 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700">
 							{#if borrowTime && returnTime}
 								{(() => {

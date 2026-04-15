@@ -646,7 +646,7 @@
 		</div>
 		</div>
 
-		<div class="min-h-[600px] flex flex-col">
+		<div class="min-h-150 flex flex-col">
 		<div class="flex-1 space-y-4">
 		{#if isLoading}
 			<div class="space-y-4" role="status" aria-live="polite" aria-label="Loading borrowed items">
@@ -718,7 +718,7 @@
 				</div>
 			</div>
 		{:else if filteredLoans.length === 0}
-			<div class="flex min-h-[360px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
+			<div class="flex min-h-90 flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-12 text-center">
 				<div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-gray-100">
 					<ClipboardX size={26} class="text-pink-600" />
 				</div>
@@ -839,7 +839,7 @@
 					<p class="mt-1 text-xs text-gray-600">Operational tracking per item across all active requests.</p>
 				</div>
 				<div class="overflow-x-auto">
-					<table class="min-w-[640px] w-full border-collapse text-sm">
+					<table class="min-w-160 w-full border-collapse text-sm">
 						<thead>
 							<tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
 								<th class="px-5 py-3 font-semibold">Request</th>
@@ -933,18 +933,18 @@
 
 						{#if totalPages <= 7}
 							{#each Array(totalPages) as _, i}
-								<button
-									onclick={() => currentPage = i + 1}
-									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === i + 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
-								>
+						<button
+							onclick={() => currentPage = i + 1}
+							class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === i + 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+						>
 									{i + 1}
 								</button>
 							{/each}
 						{:else}
-							<button
-								onclick={() => currentPage = 1}
-								class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
-							>
+						<button
+							onclick={() => currentPage = 1}
+							class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+						>
 								1
 							</button>
 
@@ -955,10 +955,10 @@
 							{#each Array(totalPages) as _, i}
 								{@const page = i + 1}
 								{#if page > 1 && page < totalPages && Math.abs(page - currentPage) <= 1}
-									<button
-										onclick={() => currentPage = page}
-										class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === page ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
-									>
+								<button
+									onclick={() => currentPage = page}
+									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === page ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+								>
 										{page}
 									</button>
 								{/if}
@@ -968,19 +968,19 @@
 								<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>
 							{/if}
 
-							<button
-								onclick={() => currentPage = totalPages}
-								class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === totalPages ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
-							>
+								<button
+									onclick={() => currentPage = totalPages}
+									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === totalPages ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+								>
 								{totalPages}
 							</button>
 						{/if}
 
-						<button
-							onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
-							disabled={currentPage === totalPages}
-							class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-						>
+								<button
+									onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
+									disabled={currentPage === totalPages}
+									class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+								>
 							<span class="sr-only">Next</span>
 							<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
 								<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
@@ -1067,7 +1067,7 @@
 								<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
 								</svg>
-								<span class="max-w-[420px] truncate">{selectedLoan.purpose}</span>
+								<span class="max-w-105 truncate">{selectedLoan.purpose}</span>
 							</div>
 						</div>
 

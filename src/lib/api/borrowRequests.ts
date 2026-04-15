@@ -58,6 +58,7 @@ export interface BorrowRequestItem {
 		inspectedAt: Date;
 		inspectedBy: string;
 		notes?: string;
+		replacementQuantity?: number;
 		unitPrice?: number;
 	};
 }

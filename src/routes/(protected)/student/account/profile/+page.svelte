@@ -258,7 +258,7 @@
 						{#if profile?.profilePhotoUrl}
 							<img
 								src={profile.profilePhotoUrl}
-								alt="Profile photo"
+								alt={(profile && `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim()) || 'Student'}
 								class="h-72 w-72 rounded-xl border-4 border-pink-100 object-cover"
 							/>
 							<button
@@ -274,7 +274,7 @@
 								</svg>
 							</button>
 						{:else}
-							<div class="flex h-72 w-72 items-center justify-center rounded-xl bg-gradient-to-br from-pink-600 to-rose-600 text-3xl font-semibold text-white shadow-lg">
+							<div class="flex h-72 w-72 items-center justify-center rounded-xl bg-linear-to-br from-pink-600 to-rose-600 text-3xl font-semibold text-white shadow-lg">
 								{getInitials(profile)}
 							</div>
 						{/if}

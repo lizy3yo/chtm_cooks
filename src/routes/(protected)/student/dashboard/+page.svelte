@@ -203,17 +203,17 @@
 		return map[s] ?? 'bg-gray-100 text-gray-700';
 	}
 
-	function statusIcon(s: string) {
-		const map: Record<string, unknown> = {
-			'pending': Clock,
-			'approved': CheckCircle2,
-			'ready': PackageCheck,
+	function statusIcon(s: string): typeof Clock {
+		const map: Record<string, typeof Clock> = {
+			pending: Clock,
+			approved: CheckCircle2,
+			ready: PackageCheck,
 			'picked-up': PackageCheck,
 			'pending-return': CornerDownLeft,
-			'missing': CircleAlert,
-			'returned': CircleCheck,
-			'cancelled': CircleX,
-			'rejected': CircleX
+			missing: CircleAlert,
+			returned: CircleCheck,
+			cancelled: CircleX,
+			rejected: CircleX
 		};
 		return map[s] ?? Clock;
 	}
@@ -311,15 +311,19 @@
 	}
 
 	// ── lifecycle ─────────────────────────────────────────────────────────────
-	onMount(async () => {
+	onMount(() => {
 		if ($justLoggedIn) {
 			toastStore.success('Welcome back! You have successfully logged in.', 'Login Successful', 5000);
 			authStore.clearJustLoggedIn();
 		}
 
-		await loadDashboard();
+		void (async () => {
+			await loadDashboard();
+		})();
 
-		const clockId = setInterval(() => { currentTime = new Date(); }, 60_000);
+		const clockId = setInterval(() => {
+			currentTime = new Date();
+		}, 60_000);
 		return () => clearInterval(clockId);
 	});
 </script>
@@ -732,7 +736,7 @@
 							<p class="mt-2 text-sm text-gray-500">No active loans</p>
 						</div>
 					{:else}
-						<ul class="max-h-64 divide-y divide-gray-50 overflow-y-auto lg:h-[252px]">
+						<ul class="max-h-64 divide-y divide-gray-50 overflow-y-auto lg:h-63">
 							{#each activeRequests as req}
 								{@const Icon = statusIcon(req.status)}
 								{@const badge = req.daysUntilDue !== null ? dueBadge(req.daysUntilDue) : null}
@@ -817,7 +821,7 @@
 							<p class="mt-2 text-sm text-gray-500">No pending requests</p>
 						</div>
 					{:else}
-						<ul class="max-h-64 divide-y divide-gray-50 overflow-y-auto lg:h-[252px]">
+						<ul class="max-h-64 divide-y divide-gray-50 overflow-y-auto lg:h-63">
 							{#each pendingRequests as req}
 								{@const Icon = statusIcon(req.status)}
 								<li class="px-4 py-3 hover:bg-gray-50/60 transition-colors sm:px-5 sm:py-4">
@@ -934,7 +938,7 @@
 							<p class="mt-2 text-xs text-gray-400">No notifications at the moment</p>
 						</div>
 					{:else}
-						<ul class="max-h-56 divide-y divide-gray-50 overflow-y-auto lg:h-[212px]">
+						<ul class="max-h-56 divide-y divide-gray-50 overflow-y-auto lg:h-53">
 							{#each dueSoon as req}
 								{@const badge = dueBadge(req.daysUntilDue!)}
 								<li class="px-5 py-3.5">

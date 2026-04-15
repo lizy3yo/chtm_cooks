@@ -534,6 +534,9 @@ function exportToCSV() {
 	link.click();
 	document.body.removeChild(link);
 }
+ 
+const SelectedStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(selectedRequest.status) : Clock);
+const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(selectedRequest.status) : Clock);
 </script>
 
 <svelte:head>
@@ -662,7 +665,7 @@ function exportToCSV() {
 		<div class="flex items-center gap-2 shrink-0">
 			<select
 				bind:value={sortBy}
-				class="h-10 min-w-[120px] rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-100"
+				class="h-10 min-w-30 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-100"
 			>
 				<option value="newest">Newest</option>
 				<option value="oldest">Oldest</option>
@@ -751,7 +754,7 @@ function exportToCSV() {
 						<!-- Metadata: stacked on mobile -->
 						<div class="flex flex-col gap-1.5">
 							<Skeleton class="h-3 w-36" />
-							<Skeleton class="h-3 w-full max-w-[200px]" />
+							<Skeleton class="h-3 w-full max-w-50" />
 							<Skeleton class="h-3 w-28" />
 						</div>
 					</div>
@@ -768,6 +771,7 @@ function exportToCSV() {
 		{#if paginatedRequests.length > 0}
 		<div class="space-y-4">
 		{#each paginatedRequests as request}
+			{@const StatusIcon = getStatusIconComponent(request.status)}
 			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md border-l-4 {getStatusBorderColor(request.status)}">
 
 				<!-- Card Body -->
@@ -779,7 +783,7 @@ function exportToCSV() {
 						<div class="flex flex-wrap items-center gap-2">
 							<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
 							<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusColor(request.status)}">
-								<svelte:component this={getStatusIconComponent(request.status)} size={11} />
+								<StatusIcon size={11} />
 								{getStatusLabel(request.status)}
 							</span>
 						</div>
@@ -965,6 +969,7 @@ function exportToCSV() {
 				</div>
 				<div class="divide-y divide-gray-100">
 					{#each paginatedRequests as request}
+						{@const StatusIcon = getStatusIconComponent(request.status)}
 						<div class="grid gap-3 p-4 md:grid-cols-[1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
 							<div class="min-w-0">
 								<p class="font-mono text-xs font-bold tracking-wider text-gray-900">{request.id}</p>
@@ -986,7 +991,7 @@ function exportToCSV() {
 											{:else}
 												<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
 											{/if}
-											<span class="truncate max-w-[100px]">{item.name}</span>
+											<span class="truncate max-w-25">{item.name}</span>
 										</span>
 									{/each}
 									{#if request.items.length > 3}
@@ -999,7 +1004,7 @@ function exportToCSV() {
 
 							<div class="min-w-0">
 								<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold {getStatusColor(request.status)}">
-									<svelte:component this={getStatusIconComponent(request.status)} size={11} />
+									<StatusIcon size={11} />
 									{getStatusLabel(request.status)}
 								</span>
 								{#if request.status === 'ready'}
@@ -1162,7 +1167,7 @@ function exportToCSV() {
 								{#each Array(totalPages) as _, i}
 									<button
 										onclick={() => currentPage = i + 1}
-										class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === i + 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+										class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === i + 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
 									>
 										{i + 1}
 									</button>
@@ -1170,7 +1175,7 @@ function exportToCSV() {
 							{:else}
 								<button
 									onclick={() => currentPage = 1}
-									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
 								>
 									1
 								</button>
@@ -1184,7 +1189,7 @@ function exportToCSV() {
 									{#if page > 1 && page < totalPages && Math.abs(page - currentPage) <= 1}
 										<button
 											onclick={() => currentPage = page}
-											class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === page ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+											class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === page ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
 										>
 											{page}
 										</button>
@@ -1197,7 +1202,7 @@ function exportToCSV() {
 								
 								<button
 									onclick={() => currentPage = totalPages}
-									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === totalPages ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
+									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === totalPages ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
 								>
 									{totalPages}
 								</button>
@@ -1226,7 +1231,14 @@ function exportToCSV() {
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal}></div>
+		<div
+			class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+			onclick={closeDetailModal}
+			role="button"
+			tabindex="0"
+			onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') closeDetailModal(); }}
+			aria-label="Close details modal"
+		></div>
 		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
 			<div class="relative w-full max-w-3xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden">
 				
@@ -1234,7 +1246,7 @@ function exportToCSV() {
 				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8 sm:py-6">
 					<div class="flex items-start justify-between gap-3">
 						<div class="flex items-start gap-3 min-w-0 flex-1">
-							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
 								<ClipboardList size={20} class="text-white sm:hidden" strokeWidth={2.5} />
 								<ClipboardList size={24} class="text-white hidden sm:block" strokeWidth={2.5} />
 							</div>
@@ -1242,8 +1254,8 @@ function exportToCSV() {
 								<h2 class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Request Details</h2>
 								<p class="mt-0.5 font-mono text-xs sm:text-sm font-semibold text-pink-600">{selectedRequest.id}</p>
 								<div class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 {getStatusColor(selectedRequest.status)} shadow-sm ring-1 ring-black/5">
-									<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={12} strokeWidth={2.5} class="sm:hidden" />
-									<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={14} strokeWidth={2.5} class="hidden sm:block" />
+									<SelectedStatusIcon size={12} strokeWidth={2.5} class="sm:hidden" />
+									<SelectedStatusIcon size={14} strokeWidth={2.5} class="hidden sm:block" />
 									<span class="text-[10px] sm:text-xs font-bold">{getStatusLabel(selectedRequest.status)}</span>
 								</div>
 							</div>
@@ -1276,7 +1288,7 @@ function exportToCSV() {
 						
 						<!-- Approval Timeline -->
 						<div>
-							<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 sm:p-5">
+									<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 sm:p-5">
 								<!-- Timeline Container -->
 								<div class="relative">
 									<!-- SVG Background for connector lines -->
@@ -1323,29 +1335,29 @@ function exportToCSV() {
 														'border-gray-300'
 													}">
 														{#if step.step === 'Request Submitted'}
-															<svelte:component this={FileCheck} size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
-															<svelte:component this={FileCheck} size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															<FileCheck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+															<FileCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
 														{:else if step.step === 'Instructor Approved' || step.step === 'Instructor Review'}
-															<svelte:component this={CheckCheck} size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
-															<svelte:component this={CheckCheck} size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															<CheckCheck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+															<CheckCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
 														{:else if step.step === 'Custodian Approved' || step.step === 'Custodian Approval'}
-															<svelte:component this={PackageCheck} size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
-															<svelte:component this={PackageCheck} size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															<PackageCheck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+															<PackageCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
 														{:else if step.step === 'Awaiting Pickup' || step.step === 'Pickup Confirmed'}
-															<svelte:component this={Truck} size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
-															<svelte:component this={Truck} size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															<Truck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+															<Truck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
 														{:else if step.step === 'Awaiting Return' || step.step === 'Returned'}
-															<svelte:component this={Home} size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
-															<svelte:component this={Home} size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															<Home size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+															<Home size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
 														{:else if step.step === 'Request Cancelled'}
-															<svelte:component this={CircleX} size={18} class="text-slate-400 sm:hidden" />
-															<svelte:component this={CircleX} size={20} class="text-slate-400 hidden sm:block" />
+															<CircleX size={18} class="text-slate-400 sm:hidden" />
+															<CircleX size={20} class="text-slate-400 hidden sm:block" />
 														{:else if step.step === 'Request Rejected'}
-															<svelte:component this={CircleX} size={18} class="text-red-600 sm:hidden" />
-															<svelte:component this={CircleX} size={20} class="text-red-600 hidden sm:block" />
+															<CircleX size={18} class="text-red-600 sm:hidden" />
+															<CircleX size={20} class="text-red-600 hidden sm:block" />
 														{:else}
-															<svelte:component this={Clock} size={18} class="text-gray-400 animate-pulse sm:hidden" />
-															<svelte:component this={Clock} size={20} class="text-gray-400 animate-pulse hidden sm:block" />
+															<Clock size={18} class="text-gray-400 animate-pulse sm:hidden" />
+															<Clock size={20} class="text-gray-400 animate-pulse hidden sm:block" />
 														{/if}
 													</div>
 												</div>
@@ -1401,7 +1413,7 @@ function exportToCSV() {
 								Request Information
 							</h3>
 							<div class="grid grid-cols-2 gap-3 sm:gap-4">
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<CalendarDays size={14} class="text-pink-500 sm:hidden" />
 										<CalendarDays size={16} class="text-pink-500 hidden sm:block" />
@@ -1409,7 +1421,7 @@ function exportToCSV() {
 									</div>
 									<p class="text-sm sm:text-base font-bold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<CalendarDays size={14} class="text-pink-500 sm:hidden" />
 										<CalendarDays size={16} class="text-pink-500 hidden sm:block" />
@@ -1419,7 +1431,7 @@ function exportToCSV() {
 										{new Date(selectedRequest.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(selectedRequest.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
 									</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<FileText size={14} class="text-pink-500 sm:hidden" />
 										<FileText size={16} class="text-pink-500 hidden sm:block" />
@@ -1427,7 +1439,7 @@ function exportToCSV() {
 									</div>
 									<p class="text-sm sm:text-base font-bold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<UserCircle size={14} class="text-pink-500 sm:hidden" />
 										<UserCircle size={16} class="text-pink-500 hidden sm:block" />
@@ -1463,7 +1475,7 @@ function exportToCSV() {
 						
 						<!-- Rejection Reason -->
 						{#if selectedRequest.status === 'rejected' && selectedRequest.rejectionReason}
-							<div class="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100/50 p-5">
+							<div class="rounded-2xl border-2 border-red-200 bg-linear-to-br from-red-50 to-red-100/50 p-5">
 								<div class="flex gap-3">
 									<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500">
 										<CircleAlert size={20} class="text-white" />
@@ -1485,7 +1497,7 @@ function exportToCSV() {
 							<button
 								onclick={() => requestCancelConfirmation(selectedRequest)}
 								disabled={loadingCancel === selectedRequest.rawId}
-								class="rounded-xl bg-gradient-to-r from-red-600 to-red-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-red-700 hover:to-red-800 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+								class="rounded-xl bg-linear-to-r from-red-600 to-red-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-red-700 hover:to-red-800 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
 							>
 								{#if loadingCancel === selectedRequest.rawId}
 									<svg class="h-4 w-4 inline-block animate-spin mr-2" fill="none" viewBox="0 0 24 24">
@@ -1500,7 +1512,7 @@ function exportToCSV() {
 						{/if}
 						
 						{#if selectedRequest.status === 'ready'}
-							<div class="rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/50 px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm font-medium text-blue-900">
+							<div class="rounded-xl border-2 border-blue-200 bg-linear-to-br from-blue-50 to-blue-100/50 px-4 py-2.5 sm:px-5 sm:py-3 text-xs sm:text-sm font-medium text-blue-900">
 								<div class="flex items-center gap-2">
 									<Info size={14} class="shrink-0 sm:hidden" />
 									<Info size={16} class="shrink-0 hidden sm:block" />
@@ -1510,7 +1522,7 @@ function exportToCSV() {
 						{/if}
 						
 						{#if selectedRequest.status === 'rejected'}
-							<button class="rounded-xl bg-gradient-to-r from-pink-600 to-pink-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98]">
+							<button class="rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98]">
 								Appeal Request
 							</button>
 						{/if}
@@ -1524,12 +1536,19 @@ function exportToCSV() {
 <!-- QR Code Modal -->
 {#if showQrModal && selectedRequest && qrDataUrl}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={() => showQrModal = false}></div>
+			<div
+				class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+				onclick={() => showQrModal = false}
+				role="button"
+				tabindex="0"
+				onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') showQrModal = false; }}
+				aria-label="Close QR modal"
+			></div>
 		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
 			<div class="relative w-full max-w-md rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl ring-1 ring-black/5 animate-scaleIn overflow-hidden">
 				
 				<!-- Header -->
-				<div class="relative border-b border-gray-100 bg-gradient-to-br from-pink-50 via-white to-purple-50 px-5 py-5 sm:px-6 sm:py-6">
+				<div class="relative border-b border-gray-100 bg-linear-to-br from-pink-50 via-white to-purple-50 px-5 py-5 sm:px-6 sm:py-6">
 					<div>
 						<div class="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1.5 shadow-sm ring-1 ring-gray-100">
 							<QrCode size={16} class="text-pink-600" strokeWidth={2.5} />
@@ -1558,20 +1577,20 @@ function exportToCSV() {
 						</div>
 						
 						<!-- Request ID Badge -->
-						<div class="w-full rounded-xl bg-gradient-to-br from-gray-50 to-gray-100/50 p-3 sm:p-4 text-center ring-1 ring-gray-200/50">
+						<div class="w-full rounded-xl bg-linear-to-br from-gray-50 to-gray-100/50 p-3 sm:p-4 text-center ring-1 ring-gray-200/50">
 							<p class="text-[10px] sm:text-xs font-semibold uppercase tracking-widest text-gray-500 mb-1 sm:mb-1.5">Request ID</p>
 							<p class="font-mono text-xl sm:text-2xl font-bold tracking-wider text-gray-900">{selectedRequest.id}</p>
 						</div>
 						
 						<!-- Status Badge -->
 						<div class="inline-flex items-center gap-2 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 {getStatusColor(selectedRequest.status)} ring-1 ring-black/5">
-							<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={14} class="sm:hidden" />
-							<svelte:component this={getStatusIconComponent(selectedRequest.status)} size={16} class="hidden sm:block" />
+							<QrStatusIcon size={14} class="sm:hidden" />
+							<QrStatusIcon size={16} class="hidden sm:block" />
 							<span class="text-xs sm:text-sm font-semibold">{getStatusLabel(selectedRequest.status)}</span>
 						</div>
 						
 						<!-- Instructions Card -->
-						<div class="w-full rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-blue-100/30 p-3 sm:p-4">
+						<div class="w-full rounded-xl border border-blue-200 bg-linear-to-br from-blue-50 to-blue-100/30 p-3 sm:p-4">
 							<div class="flex gap-2.5 sm:gap-3">
 								<div class="flex h-7 w-7 sm:h-8 sm:w-8 shrink-0 items-center justify-center rounded-full bg-blue-500">
 									<Info size={14} class="text-white sm:hidden" />
@@ -1598,10 +1617,10 @@ function exportToCSV() {
 				</div>
 				
 				<!-- Footer -->
-				<div class="border-t border-gray-100 bg-gradient-to-br from-gray-50 to-white px-5 py-4 sm:px-6 sm:py-5 safe-area-bottom">
+				<div class="border-t border-gray-100 bg-linear-to-br from-gray-50 to-white px-5 py-4 sm:px-6 sm:py-5 safe-area-bottom">
 					<button
 						onclick={() => showQrModal = false}
-						class="w-full rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-gray-800 hover:to-gray-700 active:scale-[0.98]"
+						class="w-full rounded-xl bg-linear-to-r from-gray-900 to-gray-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-gray-800 hover:to-gray-700 active:scale-[0.98]"
 					>
 						Close
 					</button>
