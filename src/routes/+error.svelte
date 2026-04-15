@@ -49,7 +49,7 @@
 			<!-- Browser window card -->
 			<div class="absolute bottom-0 left-1/2 z-10 -translate-x-1/2 overflow-hidden rounded-2xl shadow-md"
 				style="width: 148px; height: 112px; border: 2.5px solid {accent}; background: {accentLight};">
-				<div class="absolute -right-[11px] top-[16px] h-0 w-0 border-y-[9px] border-y-transparent border-l-[12px]" style="border-left-color: {accent};"></div>
+				<div class="absolute -right-2.75 top-4 h-0 w-0 border-y-[9px] border-y-transparent border-l-12" style="border-left-color: {accent};"></div>
 				<!-- Title bar -->
 				<div class="flex items-center gap-1.5 px-3 py-2" style="background: {accent};">
 					<span class="h-2 w-2 rounded-full bg-white/40"></span>
@@ -83,8 +83,8 @@
 			"></div>
 
 			<!-- Status badge circle -->
-			<div class="absolute right-[-40px] top-[-20px] z-0">
-				<div class="relative flex h-[100px] w-[100px] items-center justify-center overflow-hidden rounded-full shadow-[0_12px_24px_rgba(233,30,140,0.18)]"
+			<div class="absolute -right-10 -top-5 z-0">
+				<div class="relative flex h-25 w-25 items-center justify-center overflow-hidden rounded-full shadow-[0_12px_24px_rgba(233,30,140,0.18)]"
 					style="background: {accent};">
 					<span class="absolute left-5 top-5 h-4.5 w-4.5 rounded-full bg-white/20"></span>
 					<span class="absolute left-8 top-9 h-2.5 w-2.5 rounded-full bg-white/18"></span>
