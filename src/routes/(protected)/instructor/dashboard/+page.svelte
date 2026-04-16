@@ -235,7 +235,7 @@
 						<span class="text-xs font-bold text-amber-700">{requestsPending.length}</span>
 					</div>
 					{#if requestsPending.length === 0}
-						<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+						<div class="flex min-h-29 flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
 							<Clock size={18} class="text-pink-600" />
 							<p class="mt-2 text-xs font-medium text-gray-500">No pending requests</p>
 						</div>
@@ -275,7 +275,7 @@
 						<span class="text-xs font-bold text-blue-700">{requestsFulfillment.length}</span>
 					</div>
 					{#if requestsFulfillment.length === 0}
-						<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+						<div class="flex min-h-29 flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
 							<PackageOpen size={18} class="text-pink-600" />
 							<p class="mt-2 text-xs font-medium text-gray-500">All clear</p>
 						</div>
@@ -315,7 +315,7 @@
 						<span class="text-xs font-bold text-violet-700">{requestsActive.length}</span>
 					</div>
 					{#if requestsActive.length === 0}
-						<div class="flex min-h-[116px] flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
+						<div class="flex min-h-29 flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-4 text-center">
 							<Package size={18} class="text-pink-600" />
 							<p class="mt-2 text-xs font-medium text-gray-500">No active loans</p>
 						</div>
@@ -386,7 +386,7 @@
 					</a>
 				</div>
 				{#if mostBorrowedItems.length === 0}
-					<div class="flex h-[18rem] items-center justify-center">
+					<div class="flex h-72 items-center justify-center">
 						<div class="text-center">
 							<TrendingUp size={28} class="mx-auto text-pink-600" />
 							<p class="mt-3 text-sm text-gray-500">No borrow data for this period.</p>
@@ -428,7 +428,7 @@
 					</a>
 				</div>
 				{#if stockAlerts.length === 0}
-					<div class="flex h-[18rem] items-center justify-center">
+					<div class="flex h-72 items-center justify-center">
 						<div class="text-center">
 							<CheckCircle2 size={28} class="mx-auto text-pink-600" />
 							<p class="mt-3 text-sm text-gray-500">All equipment is well-stocked</p>

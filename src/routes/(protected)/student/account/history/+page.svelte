@@ -103,6 +103,8 @@ function statusIcon(status: string) {
 	return map[status] || Clock;
 }
 
+let StatusIcon = $derived.by(() => (selectedRequest ? statusIcon(selectedRequest.status) : Clock));
+
 function isCancelledRequest(status: BorrowRequestRecord['status'], rejectionReason?: string): boolean {
 	if (status === 'cancelled') return true;
 	if (!rejectionReason) return false;
@@ -290,7 +292,7 @@ function getApprovalTimeline(request: any) {
 									{/if}
 								{/each}
 								{#if req.items.length > 3}
-									<div class="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-pink-50 to-violet-50 ring-2 ring-white">
+									<div class="flex h-14 w-14 items-center justify-center rounded-xl bg-linear-to-br from-pink-50 to-violet-50 ring-2 ring-white">
 										<span class="text-sm font-semibold text-gray-700">+{req.items.length - 3}</span>
 									</div>
 								{/if}
@@ -445,7 +447,7 @@ function getApprovalTimeline(request: any) {
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal}></div>
+		<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal} aria-label="Close modal" tabindex="-1"></button>
 		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
 			<div class="relative w-full max-w-3xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden">
 				
@@ -453,7 +455,7 @@ function getApprovalTimeline(request: any) {
 				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8 sm:py-6">
 					<div class="flex items-start justify-between gap-3">
 						<div class="flex items-start gap-3 min-w-0 flex-1">
-							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
 								<ClipboardList size={20} class="text-white sm:hidden" strokeWidth={2.5} />
 								<ClipboardList size={24} class="text-white hidden sm:block" strokeWidth={2.5} />
 							</div>
@@ -461,14 +463,15 @@ function getApprovalTimeline(request: any) {
 								<h2 class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Request Details</h2>
 								<p class="mt-0.5 font-mono text-xs sm:text-sm font-semibold text-pink-600">{selectedRequest.id}</p>
 								<div class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 {getStatusColor(selectedRequest.status)} shadow-sm ring-1 ring-black/5">
-									<svelte:component this={statusIcon(selectedRequest.status)} size={12} strokeWidth={2.5} class="sm:hidden" />
-									<svelte:component this={statusIcon(selectedRequest.status)} size={14} strokeWidth={2.5} class="hidden sm:block" />
+									<StatusIcon size={12} strokeWidth={2.5} class="sm:hidden" />
+									<StatusIcon size={14} strokeWidth={2.5} class="hidden sm:block" />
 									<span class="text-[10px] sm:text-xs font-bold">{toStatusLabel(selectedRequest.status)}</span>
 								</div>
 							</div>
 						</div>
 						<button 
 							onclick={closeDetailModal} 
+							aria-label="Close details modal"
 							class="rounded-xl p-2 sm:p-2.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
 						>
 							<X size={18} class="sm:hidden" />
@@ -483,7 +486,7 @@ function getApprovalTimeline(request: any) {
 						
 						<!-- Approval Timeline -->
 						<div>
-							<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 sm:p-5">
+							<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 sm:p-5">
 								<div class="relative">
 									<svg class="absolute inset-0 w-full h-16 pointer-events-none" style="z-index: 0;">
 										{#each getApprovalTimeline(selectedRequest) as step, idx}
@@ -497,13 +500,13 @@ function getApprovalTimeline(request: any) {
 											{@const isCurrentCompleted = currentStep.status === 'completed'}
 											
 											{#if !isLastStep}
-												<line 
-													x1="{x1}%" 
-													y1="{y}" 
-													x2="{x2}%" 
-													y2="{y}" 
-													stroke="{isCurrentCompleted ? '#ec4899' : '#e5e7eb'}" 
-													stroke-width="2" 
+												<line
+													x1={x1 + '%'}
+													y1={y}
+													x2={x2 + '%'}
+													y2={y}
+													stroke={isCurrentCompleted ? '#ec4899' : '#e5e7eb'}
+													stroke-width="2"
 													stroke-linecap="round"
 												/>
 											{/if}
@@ -594,7 +597,7 @@ function getApprovalTimeline(request: any) {
 								Request Information
 							</h3>
 							<div class="grid grid-cols-2 gap-3 sm:gap-4">
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<CalendarDays size={14} class="text-pink-500 sm:hidden" />
 										<CalendarDays size={16} class="text-pink-500 hidden sm:block" />
@@ -602,7 +605,7 @@ function getApprovalTimeline(request: any) {
 									</div>
 									<p class="text-sm sm:text-base font-bold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<FileText size={14} class="text-pink-500 sm:hidden" />
 										<FileText size={16} class="text-pink-500 hidden sm:block" />
@@ -610,7 +613,7 @@ function getApprovalTimeline(request: any) {
 									</div>
 									<p class="text-sm sm:text-base font-bold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<UserCircle size={14} class="text-pink-500 sm:hidden" />
 										<UserCircle size={16} class="text-pink-500 hidden sm:block" />
@@ -648,7 +651,7 @@ function getApprovalTimeline(request: any) {
 						
 						<!-- Rejection Reason -->
 						{#if selectedRequest.status === 'rejected' && selectedRequest.rejectionReason}
-							<div class="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100/50 p-5">
+							<div class="rounded-2xl border-2 border-red-200 bg-linear-to-br from-red-50 to-red-100/50 p-5">
 								<div class="flex gap-3">
 									<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500">
 										<CircleAlert size={20} class="text-white" />
@@ -667,7 +670,7 @@ function getApprovalTimeline(request: any) {
 				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-3 sm:px-8 sm:py-5">
 					<button
 						onclick={closeDetailModal}
-						class="w-full rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-gray-800 hover:to-gray-700 active:scale-[0.98]"
+						class="w-full rounded-xl bg-linear-to-r from-gray-900 to-gray-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-gray-800 hover:to-gray-700 active:scale-[0.98]"
 					>
 						Close
 					</button>

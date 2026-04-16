@@ -333,12 +333,95 @@ function setCached(key: string, data: AnalyticsReport): void {
 export function clearAnalyticsCache(): void {
 	cache.clear();
 	inFlight.clear();
+	// clear lightweight summary caches as well
+	if (typeof summaryCache !== 'undefined') summaryCache.clear();
+	if (typeof inFlightSummary !== 'undefined') inFlightSummary.clear();
 }
 
 export function peekCachedAnalytics(opts: FetchAnalyticsOptions = {}): AnalyticsReport | null {
 	const { period = 'month', from, to } = opts;
 	const cacheKey = buildAnalyticsCacheKey(period, from, to);
 	return getCached(cacheKey);
+}
+
+// Lightweight summary cache (stale-while-revalidate friendly)
+const SUMMARY_CACHE_TTL_MS = 60 * 1000; // 1 minute
+const SUMMARY_CACHE_VERSION = 'sv1';
+const summaryCache = new Map<string, { data: Partial<AnalyticsReport>; expiresAt: number }>();
+const inFlightSummary = new Map<string, Promise<Partial<AnalyticsReport>>>();
+
+function buildAnalyticsSummaryCacheKey(period: AnalyticsPeriod, from?: string, to?: string): string {
+	return `analytics:summary:${SUMMARY_CACHE_VERSION}:${period}:${from ?? ''}:${to ?? ''}`;
+}
+
+function getCachedSummary(key: string): Partial<AnalyticsReport> | null {
+	if (!browser) return null;
+	const entry = summaryCache.get(key);
+	if (!entry || Date.now() > entry.expiresAt) {
+		summaryCache.delete(key);
+		return null;
+	}
+	return entry.data;
+}
+
+function setCachedSummary(key: string, data: Partial<AnalyticsReport>): void {
+	if (!browser) return;
+	summaryCache.set(key, { data, expiresAt: Date.now() + SUMMARY_CACHE_TTL_MS });
+}
+
+export function peekCachedAnalyticsSummary(opts: FetchAnalyticsOptions = {}): Partial<AnalyticsReport> | null {
+	const { period = 'month', from, to } = opts;
+	const cacheKey = buildAnalyticsSummaryCacheKey(period, from, to);
+	return getCachedSummary(cacheKey);
+}
+
+export async function fetchAnalyticsSummary(opts: FetchAnalyticsOptions = {}): Promise<Partial<AnalyticsReport>> {
+	const { period = 'month', from, to, forceRefresh = false } = opts;
+	const cacheKey = buildAnalyticsSummaryCacheKey(period, from, to);
+
+	console.log('[Analytics API] Fetching analytics summary...', { period, from, to, forceRefresh });
+
+	if (!forceRefresh) {
+		const cached = getCachedSummary(cacheKey);
+		if (cached) {
+			console.log('[Analytics API] Returning cached summary');
+			return cached;
+		}
+
+		const existing = inFlightSummary.get(cacheKey);
+		if (existing) {
+			console.log('[Analytics API] Returning in-flight summary request');
+			return existing;
+		}
+	}
+
+	const params = new URLSearchParams({ period });
+	if (from) params.set('from', from);
+	if (to) params.set('to', to);
+	if (forceRefresh) params.set('_t', String(Date.now()));
+
+	const request = (async () => {
+		const res = await fetch(`/api/reports/analytics/summary?${params}`, {
+			credentials: 'include',
+			signal: AbortSignal.timeout(15000)
+		});
+
+		if (!res.ok) {
+			const body = await res.json().catch(() => ({})) as { error?: string };
+			throw new Error(await getApiErrorMessage(res, body.error ?? `Summary request failed: ${res.status}`));
+		}
+
+		const data = (await res.json()) as Partial<AnalyticsReport>;
+		setCachedSummary(cacheKey, data);
+		return data;
+	})();
+
+	inFlightSummary.set(cacheKey, request);
+	try {
+		return await request;
+	} finally {
+		inFlightSummary.delete(cacheKey);
+	}
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────

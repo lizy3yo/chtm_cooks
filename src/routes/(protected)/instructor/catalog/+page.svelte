@@ -32,8 +32,8 @@
 	const filteredItems = $derived(allItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
 	const totalItems = $derived(allItems.length);
 	let selectedItemStockHealth = $derived.by(() => {
-		if (!selectedItem || selectedItem.minStock == null || selectedItem.minStock <= 0) return null;
-		return getStockHealth(selectedItem.quantity, selectedItem.minStock);
+		// minStock property not available on CatalogItem
+		return null;
 	});
 
 	const availabilityOptions = [
@@ -57,7 +57,6 @@
 		{ value: 'name', label: 'Name (A-Z)' },
 		{ value: 'category', label: 'Category' },
 		{ value: 'availability', label: 'Availability' },
-		{ value: 'condition', label: 'Condition' },
 		{ value: 'recent', label: 'Recently Added' },
 		{ value: 'updated', label: 'Recently Updated' }
 	];
@@ -108,9 +107,7 @@
 			const filters: CatalogFilters = {
 				search: searchQuery || undefined,
 				category: selectedCategory !== 'all' ? selectedCategory : undefined,
-				availability: (selectedAvailability as CatalogFilters['availability']) || 'all',
-				condition: (selectedCondition as CatalogFilters['condition']) || 'all',
-				sortBy: (sortBy as CatalogFilters['sortBy']) || 'name',
+				availability: (selectedAvailability as CatalogFilters['availability']) || 'all',				sortBy: (sortBy as CatalogFilters['sortBy']) || 'name',
 				page: 1,
 				limit: 1000 // Get all items for client-side pagination
 			};
@@ -162,7 +159,6 @@
 			search: searchQuery || undefined,
 			category: selectedCategory !== 'all' ? selectedCategory : undefined,
 			availability: (selectedAvailability as CatalogFilters['availability']) || 'all',
-			condition: (selectedCondition as CatalogFilters['condition']) || 'all',
 			sortBy: (sortBy as CatalogFilters['sortBy']) || 'name',
 			page: 1,
 			limit: 1000 // Get all items for client-side pagination
@@ -234,7 +230,6 @@
 							<p class="mt-1 truncate text-sm font-semibold tracking-wide text-pink-600">CAT-{selectedItem.id.slice(0, 8).toUpperCase()}</p>
 							<div class="mt-3 flex flex-wrap items-center gap-2">
 								<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {getAvailabilityColor(selectedItem.status)}">{selectedItem.status}</span>
-								<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {getConditionColor(selectedItem.condition)}">{selectedItem.condition}</span>
 								<span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Qty: {selectedItem.quantity}</span>
 							</div>
 						</div>
@@ -270,7 +265,7 @@
 
 			<div class="px-4 py-4 sm:px-8 sm:py-6" id="instructor-catalog-item-description">
 				<div class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/70 p-3 sm:p-4">
-					<div class="relative aspect-[21/8] overflow-hidden rounded-xl bg-gray-100">
+					<div class="relative aspect-21/8 overflow-hidden rounded-xl bg-gray-100">
 						{#if selectedItem.picture}
 							<button
 								type="button"
@@ -285,7 +280,7 @@
 								<ItemImagePlaceholder size="lg" />
 							</div>
 						{/if}
-						<div class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
+						<div class="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/60 via-black/20 to-transparent p-3">
 							<p class="truncate text-sm font-semibold text-white sm:text-base">{selectedItem.name}</p>
 							<p class="truncate text-xs text-white/85">{getCategoryName(selectedItem.categoryId)}</p>
 						</div>
@@ -295,26 +290,16 @@
 				<div class="mt-5 grid grid-cols-2 gap-3">
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Item Name</p>
-						<p class="mt-1.5 break-words text-sm font-semibold text-gray-900 sm:text-base">{selectedItem.name}</p>
+						<p class="mt-1.5 wrap-break-word text-sm font-semibold text-gray-900 sm:text-base">{selectedItem.name}</p>
 					</div>
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Category</p>
-						<p class="mt-1.5 break-words text-sm font-semibold text-gray-900 sm:text-base">{getCategoryName(selectedItem.categoryId)}</p>
+						<p class="mt-1.5 wrap-break-word text-sm font-semibold text-gray-900 sm:text-base">{getCategoryName(selectedItem.categoryId)}</p>
 					</div>
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Specification</p>
-						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
+						<p class="mt-1.5 wrap-break-word text-sm font-medium text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
 					</div>
-					<div class="rounded-2xl border border-gray-200 bg-white p-4">
-						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Storage Location</p>
-						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.location || 'Not specified'}</p>
-					</div>
-					{#if selectedItem.minStock != null}
-						<div class="rounded-2xl border border-gray-200 bg-white p-4">
-							<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Min Stock</p>
-							<p class="mt-1.5 text-sm font-semibold {selectedItem.quantity <= selectedItem.minStock ? 'text-red-600' : 'text-gray-900'}">{selectedItem.minStock}</p>
-						</div>
-					{/if}
 					{#if selectedItem.eomCount != null}
 						<div class="rounded-2xl border border-gray-200 bg-white p-4">
 							<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">EOM Count</p>
@@ -332,24 +317,7 @@
 				<div class="mt-3 rounded-2xl border border-gray-200 bg-white p-4">
 					<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Description</p>
 					<p class="mt-2 text-sm leading-relaxed text-gray-700">{selectedItem.description || 'No description available.'}</p>
-				</div>
-
-				{#if selectedItem.minStock != null && selectedItem.minStock > 0}
-					<div class="mt-3 rounded-2xl border border-gray-200 bg-white p-4">
-						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Stock Health</p>
-						<div class="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-3">
-							<div class="mb-1.5 flex items-center justify-between">
-								<span class="text-xs text-gray-600">Stock vs Minimum</span>
-								<span class="text-xs font-semibold {selectedItemStockHealth?.labelColor}">{selectedItemStockHealth?.label}</span>
-							</div>
-							<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-								<div class="h-2 rounded-full transition-all {selectedItemStockHealth?.barColor}" style="width: {selectedItemStockHealth?.pct ?? 0}%"></div>
-							</div>
-							<p class="mt-1.5 text-xs text-gray-500">{selectedItem.quantity} on hand · minimum {selectedItem.minStock}</p>
-						</div>
-					</div>
-				{/if}
-			</div>
+				</div></div>
 
 			<div class="sticky bottom-0 z-10 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8">
 				<div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -370,9 +338,9 @@
 
 <!-- Full image lightbox -->
 {#if showFullImage && selectedItem?.picture}
-	<div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+	<div class="fixed inset-0 z-60 flex items-center justify-center p-4">
 		<div class="fixed inset-0 bg-black/90" aria-hidden="true" onclick={closeFullImage}></div>
-		<div class="relative z-[61] max-h-[90vh] max-w-[90vw]">
+		<div class="relative z-61 max-h-[90vh] max-w-[90vw]">
 			<button type="button" onclick={closeFullImage} class="absolute -top-12 right-0 rounded-md p-2 text-white hover:bg-white/10" aria-label="Close full image">
 				<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -519,7 +487,7 @@
 				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
 					{#each Array(8) as _}
 						<div class="overflow-hidden rounded-lg bg-white shadow-sm">
-							<div class="aspect-[4/3] bg-gray-200"></div>
+							<div class="aspect-4/3 bg-gray-200"></div>
 							<div class="p-2 space-y-1.5">
 								<div class="h-3 w-full rounded bg-gray-200"></div>
 								<div class="h-3 w-3/4 rounded bg-gray-200"></div>
@@ -547,7 +515,7 @@
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
 			{#each filteredItems as item (item.id)}
 				<div class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
-					<div class="relative aspect-[4/3] overflow-hidden bg-gray-100">
+					<div class="relative aspect-4/3 overflow-hidden bg-gray-100">
 						{#if item.picture}
 							<img src={item.picture} alt={item.name} class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
 						{:else}
@@ -561,7 +529,6 @@
 						<h3 class="line-clamp-2 text-xs font-semibold leading-snug text-gray-900 sm:text-sm">{item.name}</h3>
 						<div class="mt-1.5 flex flex-wrap items-center gap-1">
 							<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">{getCategoryName(item.categoryId)}</span>
-							<span class="rounded px-1 py-0.5 text-[10px] font-semibold {getConditionColor(item.condition)}">{item.condition}</span>
 						</div>
 						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.quantity}</p>
 						<div class="mt-auto pt-2">
@@ -595,11 +562,7 @@
 						<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
 						<div class="mt-1 flex flex-wrap items-center gap-1">
 							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
-							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getConditionColor(item.condition)}">{item.condition}</span>
 							<span class="text-[10px] text-gray-400">Qty: {item.quantity}</span>
-							{#if item.location}
-								<span class="text-[10px] text-gray-400">· {item.location}</span>
-							{/if}
 						</div>
 					</div>
 					<div class="shrink-0">
@@ -676,3 +639,4 @@
 		</div>
 	{/if}
 </div>
+

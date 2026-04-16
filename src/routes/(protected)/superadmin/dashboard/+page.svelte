@@ -47,10 +47,29 @@
 </script>
 
 <div class="space-y-6">
-	<!-- Header -->
-	<div>
-		<h1 class="text-2xl font-bold text-gray-900">System Dashboard</h1>
-		<p class="mt-1 text-sm text-gray-500">Monitor and manage your entire system from here</p>
+	<!-- Header with Info -->
+	<div class="flex flex-col gap-4">
+		<div class="flex-1">
+			<h1 class="text-2xl font-bold text-gray-900">System Dashboard</h1>
+			<p class="mt-1 text-sm text-gray-500">Comprehensive overview of system health, user activity, and key metrics</p>
+			
+			<!-- Info Banner -->
+			<div class="mt-4 flex items-start gap-3 rounded-lg border border-pink-200 bg-pink-50 p-4">
+				<svg class="mt-0.5 h-5 w-5 shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+				</svg>
+				<div class="flex-1 text-sm">
+					<p class="font-medium text-pink-900">Superadmin Dashboard Overview</p>
+					<ul class="mt-2 space-y-1 text-pink-800">
+						<li>• Real-time system health monitoring: CPU, memory, storage, and active connections</li>
+						<li>• User activity tracking: total users, active sessions, new registrations</li>
+						<li>• Request volume metrics: pending approvals, active loans, completion rates</li>
+						<li>• Recent activity feed: user actions, system events, security alerts</li>
+						<li>• Quick access to critical management functions and reports</li>
+					</ul>
+				</div>
+			</div>
+		</div>
 	</div>
 
 	<!-- System Alerts -->
@@ -81,8 +100,8 @@
 						+12% from last month
 					</p>
 				</div>
-				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
-					<Users size={24} class="text-purple-600" />
+				<div class="flex h-12 w-12 items-center justify-center rounded-full bg-pink-100">
+					<Users size={24} class="text-pink-600" />
 				</div>
 			</div>
 		</div>
@@ -142,7 +161,7 @@
 				<span class="text-sm font-medium text-gray-900">{stats.storageUsed}%</span>
 			</div>
 			<div class="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-				<div class="h-full rounded-full bg-purple-600 transition-all duration-500" style="width: {stats.storageUsed}%"></div>
+				<div class="h-full rounded-full bg-pink-600 transition-all duration-500" style="width: {stats.storageUsed}%"></div>
 			</div>
 			<p class="mt-2 text-xs text-gray-500">673 GB of 1 TB used</p>
 		</div>
@@ -200,7 +219,7 @@
 			{/each}
 		</div>
 		<div class="border-t border-gray-200 px-6 py-3">
-			<a href="/superadmin/audit" class="text-sm font-medium text-purple-600 hover:text-purple-700">
+			<a href="/superadmin/audit" class="text-sm font-medium text-pink-600 hover:text-pink-700">
 				View all activity →
 			</a>
 		</div>
@@ -208,31 +227,33 @@
 
 	<!-- Quick Actions -->
 	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-		<a href="/superadmin/users" class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-purple-300 hover:shadow-md">
-			<Users size={24} class="mb-3 text-purple-600" />
-			<h3 class="font-semibold text-gray-900 group-hover:text-purple-600">Manage Users</h3>
+		<a href="/superadmin/users" class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-pink-300 hover:shadow-md">
+			<Users size={24} class="mb-3 text-pink-600" />
+			<h3 class="font-semibold text-gray-900 group-hover:text-pink-600">Manage Users</h3>
 			<p class="mt-1 text-sm text-gray-500">Add, edit, or remove users</p>
 		</a>
 
-		<a href="/superadmin/settings" class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-purple-300 hover:shadow-md">
-			<svg class="mb-3 h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+		<a href="/superadmin/class-codes" class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-pink-300 hover:shadow-md">
+			<svg class="mb-3 h-6 w-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
 			</svg>
-			<h3 class="font-semibold text-gray-900 group-hover:text-purple-600">System Settings</h3>
-			<p class="mt-1 text-sm text-gray-500">Configure system parameters</p>
+			<h3 class="font-semibold text-gray-900 group-hover:text-pink-600">Class Codes</h3>
+			<p class="mt-1 text-sm text-gray-500">Organize students by class</p>
 		</a>
 
-		<a href="/superadmin/database" class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-purple-300 hover:shadow-md">
-			<Database size={24} class="mb-3 text-purple-600" />
-			<h3 class="font-semibold text-gray-900 group-hover:text-purple-600">Database</h3>
-			<p class="mt-1 text-sm text-gray-500">Manage database operations</p>
+		<a href="/superadmin/requests" class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-pink-300 hover:shadow-md">
+			<svg class="mb-3 h-6 w-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+			</svg>
+			<h3 class="font-semibold text-gray-900 group-hover:text-pink-600">All Requests</h3>
+			<p class="mt-1 text-sm text-gray-500">System-wide request oversight</p>
 		</a>
 
-		<a href="/superadmin/analytics" class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-purple-300 hover:shadow-md">
-			<svg class="mb-3 h-6 w-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+		<a href="/superadmin/analytics" class="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-all hover:border-pink-300 hover:shadow-md">
+			<svg class="mb-3 h-6 w-6 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
 			</svg>
-			<h3 class="font-semibold text-gray-900 group-hover:text-purple-600">Analytics</h3>
+			<h3 class="font-semibold text-gray-900 group-hover:text-pink-600">Analytics</h3>
 			<p class="mt-1 text-sm text-gray-500">View detailed reports</p>
 		</a>
 	</div>
