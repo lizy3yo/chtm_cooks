@@ -371,7 +371,7 @@
 
 			<div class="px-4 py-4 sm:px-8 sm:py-6" id="catalog-item-details-description">
 				<div class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/70 p-3 sm:p-4">
-					<div class="relative aspect-[21/8] overflow-hidden rounded-xl bg-gray-100">
+					<div class="relative aspect-21/8 overflow-hidden rounded-xl bg-gray-100">
 						{#if selectedItem.picture}
 							<button
 								type="button"
@@ -386,7 +386,7 @@
 								<ItemImagePlaceholder size="lg" />
 							</div>
 						{/if}
-						<div class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent p-3">
+						<div class="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/60 via-black/20 to-transparent p-3">
 							<p class="truncate text-sm font-semibold text-white sm:text-base">{selectedItem.name}</p>
 							<p class="truncate text-xs text-white/85">{getCategoryName(selectedItem.categoryId)}</p>
 						</div>
@@ -396,15 +396,15 @@
 				<div class="mt-5 grid grid-cols-2 gap-3">
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Item Name</p>
-						<p class="mt-1.5 break-words text-sm font-semibold text-gray-900 sm:text-base">{selectedItem.name}</p>
+						<p class="mt-1.5 wrap-break-word text-sm font-semibold text-gray-900 sm:text-base">{selectedItem.name}</p>
 					</div>
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Category</p>
-						<p class="mt-1.5 break-words text-sm font-semibold text-gray-900 sm:text-base">{getCategoryName(selectedItem.categoryId)}</p>
+						<p class="mt-1.5 wrap-break-word text-sm font-semibold text-gray-900 sm:text-base">{getCategoryName(selectedItem.categoryId)}</p>
 					</div>
 					<div class="rounded-2xl border border-gray-200 bg-white p-4">
 						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Specification</p>
-						<p class="mt-1.5 break-words text-sm font-medium text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
+						<p class="mt-1.5 wrap-break-word text-sm font-medium text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
 					</div>
 				</div>
 
@@ -441,9 +441,9 @@
 {/if}
 
 {#if showFullImage && selectedItem?.picture}
-	<div class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+	<div class="fixed inset-0 z-60 flex items-center justify-center p-4">
 		<div class="fixed inset-0 bg-black/90" aria-hidden="true" onclick={closeFullImage}></div>
-		<div class="relative z-[61] max-h-[90vh] max-w-[90vw]">
+		<div class="relative z-61 max-h-[90vh] max-w-[90vw]">
 			<button
 				type="button"
 				onclick={closeFullImage}
@@ -568,7 +568,7 @@
 	{#if error}
 		<div class="rounded-lg bg-red-50 border border-red-200 p-4">
 			<div class="flex">
-				<div class="flex-shrink-0">
+				<div class="shrink-0">
 					<svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
 					</svg>
@@ -607,7 +607,7 @@
 				<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
 					{#each Array(8) as _}
 						<div class="overflow-hidden rounded-lg bg-white shadow-sm">
-							<div class="aspect-[4/3] bg-gray-200"></div>
+							<div class="aspect-4/3 bg-gray-200"></div>
 							<div class="p-2 space-y-1.5">
 								<div class="h-3 w-full rounded bg-gray-200"></div>
 								<div class="h-3 w-3/4 rounded bg-gray-200"></div>
@@ -640,7 +640,7 @@
 				<div class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
 
 					<!-- Image — 4:3 ratio like Shopee product cards -->
-					<div class="relative aspect-[4/3] overflow-hidden bg-gray-100">
+					<div class="relative aspect-4/3 overflow-hidden bg-gray-100">
 						{#if item.picture}
 							<img
 								src={item.picture}

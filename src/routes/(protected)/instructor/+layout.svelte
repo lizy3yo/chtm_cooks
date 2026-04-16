@@ -19,7 +19,7 @@
 
 	<!-- Main Content -->
 	<main class="min-w-0 flex-1 bg-white transition-all duration-300 {$sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'}">
-		<div class="mx-auto max-w-7xl px-4 pt-[30px] pb-24 sm:px-6 lg:pb-6 lg:px-8">
+		<div class="mx-auto max-w-7xl px-4 pt-7.5 pb-24 sm:px-6 lg:pb-6 lg:px-8">
 			{@render children()}
 		</div>
 	</main>

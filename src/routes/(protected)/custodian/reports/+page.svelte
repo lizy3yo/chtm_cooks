@@ -3,6 +3,7 @@
 	import { browser } from '$app/environment';
 	import {
 		fetchAnalytics,
+		fetchAnalyticsSummary,
 		peekCachedAnalytics,
 		subscribeToAnalyticsChanges,
 		type AnalyticsReport,
@@ -33,6 +34,7 @@
 		const initialReport = browser ? peekCachedAnalytics({ period: 'month', from: initialFrom, to: initialTo }) : null;
 
 		let report = $state<AnalyticsReport | null>(initialReport);
+		let summaryReport = $state<Partial<AnalyticsReport> | null>(null);
 		let loading = $state(!initialReport);
 		let error = $state<string | null>(null);
 		let unsubscribeSSE: (() => void) | null = null;
@@ -105,6 +107,17 @@
 		function scheduleLoad(forceRefresh = false): void {
 			if (!hasMounted) return;
 			if (pendingLoadTimer) clearTimeout(pendingLoadTimer);
+
+			// fetch a lightweight summary immediately for faster UI feedback
+			void (async () => {
+				try {
+					const s = await fetchAnalyticsSummary({ period, from: customFrom || undefined, to: customTo || undefined, forceRefresh });
+					summaryReport = s as Partial<AnalyticsReport>;
+				} catch (err) {
+					console.error('[Reports] Failed to load summary', err);
+				}
+			})();
+
 			pendingLoadTimer = setTimeout(() => {
 				pendingLoadTimer = null;
 				void loadReport(forceRefresh);
@@ -461,6 +474,16 @@
 		onMount(() => {
 			hasMounted = true;
 			if (!initialReport) {
+				// Prefetch a lightweight summary first so the UI can show fast metrics
+				void (async () => {
+					try {
+						const s = await fetchAnalyticsSummary({ period, from: customFrom || undefined, to: customTo || undefined });
+						summaryReport = s as Partial<AnalyticsReport>;
+					} catch (err) {
+						console.error('[Reports] Failed to prefetch summary', err);
+					}
+				})();
+
 				void loadReport();
 			}
 			unsubscribeSSE = subscribeToAnalyticsChanges(() => scheduleLoad(true));
@@ -812,15 +835,15 @@
 							<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 								<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
 									<p class="text-sm text-gray-600">Total Requests</p>
-									<p class="mt-2 text-2xl font-bold text-gray-900">{numberFmt.format(borrowingAvg.totalRequests)}</p>
+									<p class="mt-2 text-2xl font-bold text-gray-900">{numberFmt.format(summaryReport?.borrowRequests?.borrowingAverages?.totalRequests ?? borrowingAvg.totalRequests)}</p>
 								</div>
 								<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
 									<p class="text-sm text-gray-600">Avg Items / Request</p>
-									<p class="mt-2 text-2xl font-bold text-pink-700">{borrowingAvg.avgItemsPerRequest.toFixed(1)}</p>
+									<p class="mt-2 text-2xl font-bold text-pink-700">{(summaryReport?.borrowRequests?.borrowingAverages?.avgItemsPerRequest ?? borrowingAvg.avgItemsPerRequest ?? 0).toFixed(1)}</p>
 								</div>
 								<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
 									<p class="text-sm text-gray-600">Avg Quantity / Request</p>
-									<p class="mt-2 text-2xl font-bold text-purple-700">{borrowingAvg.avgQuantityPerRequest.toFixed(1)}</p>
+									<p class="mt-2 text-2xl font-bold text-purple-700">{(summaryReport?.borrowRequests?.borrowingAverages?.avgQuantityPerRequest ?? borrowingAvg.avgQuantityPerRequest ?? 0).toFixed(1)}</p>
 								</div>
 							</div>
 						</div>
