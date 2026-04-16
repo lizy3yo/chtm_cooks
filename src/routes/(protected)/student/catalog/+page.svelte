@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { catalogAPI, type CatalogResponse, type CatalogFilters, type CatalogItem } from '$lib/api/catalog';
 	import { subscribeToInventoryChanges } from '$lib/api/inventory';
-	import { requestCartCount, requestCartStore } from '$lib/stores/requestCart';
+	import { requestCartCount, requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	
@@ -208,37 +208,49 @@
 	/**
 	 * Add item to request cart (shop-style behavior without redirect).
 	 */
-	function requestItem(item: CatalogItem): void {
+	async function requestItem(item: CatalogItem): Promise<void> {
 		if (item.status === 'Out of Stock') {
 			toastStore.error('This item is currently out of stock', 'Cannot Request Item');
 			return;
 		}
 
-		const result = requestCartStore.addItem({
-			itemId: item.id,
-			name: item.name,
-			maxQuantity: item.quantity,
-			categoryId: item.categoryId,
-			picture: item.picture
-		});
+		try {
+			const result = await requestCartStore.addItem({
+				itemId: item.id,
+				name: item.name,
+				maxQuantity: item.quantity,
+				categoryId: item.categoryId,
+				picture: item.picture
+			});
 
-		if (result === 'added') {
-			toastStore.success(`${item.name} was added to your request list.`, 'Item Added');
-			return;
+			if (result === 'added') {
+				toastStore.success(`${item.name} was added to your request list.`, 'Item Added');
+				return;
+			}
+
+			if (result === 'incremented') {
+				toastStore.success(`${item.name} quantity updated in your request list.`, 'Request List Updated');
+				return;
+			}
+
+			toastStore.info(`${item.name} is already at max available quantity in your request list.`, 'Max Quantity Reached');
+		} catch (error) {
+			console.error('Failed to add item to cart:', error);
+			toastStore.error('Failed to add item to request list. Please try again.', 'Error');
 		}
-
-		if (result === 'incremented') {
-			toastStore.success(`${item.name} quantity updated in your request list.`, 'Request List Updated');
-			return;
-		}
-
-		toastStore.info(`${item.name} is already at max available quantity in your request list.`, 'Max Quantity Reached');
 	}
+
+
 	
 	/**
 	 * Load catalog on component mount
 	 */
 	onMount(() => {
+		// Initialize cart from database
+		requestCartStore.init().catch((error) => {
+			console.error('Failed to initialize cart:', error);
+		});
+
 		const currentFilters: CatalogFilters = {
 			search: searchQuery || undefined,
 			category: selectedCategory !== 'all' ? selectedCategory : undefined,
@@ -252,10 +264,15 @@
 		if (cached) {
 			catalogData = cached;
 			isLoading = false;
+			// Load constant items into cart after catalog is loaded
+			loadConstantItemsToCart();
 			// Revalidate in background to keep data fresh.
 			fetchCatalog({ background: true, forceRefresh: true });
 		} else {
-			fetchCatalog();
+			fetchCatalog().then(() => {
+				// Load constant items into cart after initial fetch
+				loadConstantItemsToCart();
+			});
 		}
 		
 		// Set up refresh timer for periodic cache refresh (optional)
@@ -275,10 +292,48 @@
 		};
 	});
 
+	/**
+	 * Load constant items into the request cart
+	 * This ensures constant items are always available in the cart dropdown
+	 */
+	async function loadConstantItemsToCart(): Promise<void> {
+		if (!catalogData) return;
+
+		// Filter constant items from catalog
+		const constantItems = catalogData.items.filter(item => item.isConstant === true);
+
+		if (constantItems.length === 0) return;
+
+		// Get current cart items
+		const currentCartItems = $requestCartItems;
+
+		// Add constant items that aren't already in the cart
+		for (const item of constantItems) {
+			const alreadyInCart = currentCartItems.some(cartItem => cartItem.itemId === item.id);
+
+			if (!alreadyInCart) {
+				try {
+					await requestCartStore.addItem({
+						itemId: item.id,
+						name: item.name,
+						maxQuantity: Math.max(1, item.quantity),
+						categoryId: item.categoryId,
+						picture: item.picture
+					});
+				} catch (error) {
+					console.error('Failed to add constant item to cart:', error);
+				}
+			}
+		}
+	}
+
 	// Real-time inventory updates via SSE
 	onMount(() => {
 		const unsub = subscribeToInventoryChanges(() => {
-			fetchCatalog({ background: true, forceRefresh: true });
+			fetchCatalog({ background: true, forceRefresh: true }).then(() => {
+				// Reload constant items after inventory update
+				loadConstantItemsToCart();
+			});
 		});
 		return () => unsub();
 	});
@@ -468,13 +523,7 @@
 			<p class="mt-1 text-sm text-gray-500">Browse and request available cooking equipment</p>
 		</div>
 		<div class="flex items-center gap-2">
-			<button
-				onclick={() => goto('/student/request')}
-				class="inline-flex items-center rounded-lg border border-pink-300 bg-pink-50 px-3 py-2 text-sm font-medium text-pink-700 hover:bg-pink-100"
-			>
-				Request List
-				<span class="ml-2 rounded-full bg-pink-600 px-2 py-0.5 text-xs font-semibold text-white">{$requestCartCount}</span>
-			</button>
+			<!-- View Mode Toggle -->
 			<div class="flex rounded-lg border border-gray-300 overflow-hidden">
 				<button
 					onclick={() => (viewMode = 'grid')}

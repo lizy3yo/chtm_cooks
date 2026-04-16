@@ -1,131 +1,125 @@
 <script lang="ts">
+	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { isAuthenticated, user } from '$lib/stores/auth';
-	import { onMount } from 'svelte';
-	import logo from '$lib/assets/CHTM_LOGO.png';
 
-	// Redirect if already logged in - reactive to auth state changes
-	$effect(() => {
-		if ($isAuthenticated && $user) {
-			console.log('[HomePage] User authenticated, redirecting to dashboard...');
-			if ($user.role === 'student') {
-				goto('/student/dashboard');
-			} else if ($user.role === 'instructor') {
-				goto('/instructor/dashboard');
-			} else if ($user.role === 'custodian') {
-				goto('/custodian/dashboard');
-			} else if ($user.role === 'superadmin' || $user.role === 'admin') {
-				goto('/superadmin/dashboard');
-			} else {
-				goto('/admin/dashboard');
-			}
+	const statusConfig = {
+		404: {
+			title: 'Page Not Found',
+			lines: ["We looked everywhere for this page.", "Are you sure the URL is correct?", "Get in touch with your system administrator."],
+		},
+		403: {
+			title: 'Access Denied',
+			lines: ["You don't have permission to view this page.", "Contact your administrator if you think this is a mistake."],
+		},
+		500: {
+			title: 'Internal Server Error',
+			lines: ["Something went wrong on our end.", "Our team has been notified.", "Please try again in a moment."],
+		},
+		503: {
+			title: 'Service Unavailable',
+			lines: ["The service is temporarily down.", "Please try again shortly."],
 		}
-	});
+	} as const;
+
+	type StatusKey = keyof typeof statusConfig;
+
+	const status = $derived($page.status as StatusKey);
+	const config = $derived(
+		statusConfig[status] ?? {
+			title: 'Unexpected Error',
+			lines: ["An unexpected error occurred.", "Please try again or contact support."],
+		}
+	);
+
+	const is5xx = $derived($page.status >= 500);
+	const accent = $derived(is5xx ? '#f97316' : '#e91e8c');
+	const accentLight = $derived(is5xx ? '#fff7ed' : '#fce4f3');
 </script>
 
 <svelte:head>
-	<title>CHTM Cooks - Kitchen Management System</title>
-	<meta name="description" content="Welcome to CHTM Cooks - Gordon College Kitchen Management System" />
+	<title>Error {$page.status} — {config.title} · CHTM Cooks</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gradient-to-br from-pink-50 via-white to-rose-50 flex items-center justify-center relative overflow-hidden px-4">
-	<!-- Decorative Background Elements -->
-	<div class="absolute inset-0 overflow-hidden pointer-events-none">
-		<div class="absolute -top-40 -right-40 w-80 h-80 bg-pink-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-		<div class="absolute -bottom-40 -left-40 w-80 h-80 bg-rose-200 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
-		<div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-pink-100 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
-	</div>
+<div class="flex min-h-screen flex-col items-center justify-center bg-white px-4 py-16">
+	<div class="flex w-full max-w-lg flex-col items-center text-center">
 
-	<!-- Main Content -->
-	<div class="relative z-10 max-w-4xl mx-auto text-center py-12">
-		<!-- Logo and Branding -->
-		<div class="mb-12 animate-fadeIn">
-			<div class="flex justify-center mb-8">
-				<div class="relative group">
-					<div class="absolute inset-0 bg-gradient-to-r from-pink-600 to-rose-600 rounded-3xl blur-2xl opacity-20 group-hover:opacity-30 transition-opacity duration-300"></div>
-					<img 
-						src={logo} 
-						alt="CHTM Logo" 
-						class="relative h-32 md:h-40 lg:h-48 w-auto object-contain drop-shadow-2xl transform group-hover:scale-105 transition-transform duration-300"
-					/>
+		<!-- Illustration -->
+		<div class="relative mb-8" style="width: 200px; height: 160px;">
+
+			<!-- Browser window card -->
+			<div class="absolute bottom-0 left-1/2 z-10 -translate-x-1/2 overflow-hidden rounded-2xl shadow-md"
+				style="width: 148px; height: 112px; border: 2.5px solid {accent}; background: {accentLight};">
+				<div class="absolute -right-2.75 top-4 h-0 w-0 border-y-[9px] border-y-transparent border-l-12" style="border-left-color: {accent};"></div>
+				<!-- Title bar -->
+				<div class="flex items-center gap-1.5 px-3 py-2" style="background: {accent};">
+					<span class="h-2 w-2 rounded-full bg-white/40"></span>
+					<span class="h-2 w-2 rounded-full bg-white/40"></span>
+					<span class="h-2 w-2 rounded-full bg-white/40"></span>
+				</div>
+				<!-- Face -->
+				<div class="flex flex-col items-center justify-center gap-2 py-3">
+					<!-- Eyes -->
+					<div class="flex gap-4">
+						<span class="h-2.5 w-2.5 rounded-full bg-gray-700"></span>
+						<span class="h-2.5 w-2.5 rounded-full bg-gray-700"></span>
+					</div>
+					<!-- Cheeks + mouth -->
+					<div class="relative flex items-center justify-center">
+						<span class="h-2.5 w-2.5 rounded-full opacity-80" style="background: {accent};"></span>
+						<div class="mx-3 h-2.5 w-6 rounded-t-full border-t-[2.5px] border-x-[2.5px] border-gray-700"></div>
+						<span class="h-2.5 w-2.5 rounded-full opacity-80" style="background: {accent};"></span>
+					</div>
 				</div>
 			</div>
-			
-			<h1 class="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-gray-900 mb-4 tracking-tight">
-				CHTM <span class="text-gradient">Cooks</span>
-			</h1>
-			
-			<div class="h-1 w-32 mx-auto bg-gradient-to-r from-pink-600 to-rose-600 rounded-full mb-6"></div>
-			
-			<p class="text-lg md:text-xl lg:text-2xl text-gray-600 font-medium mb-8">
-				Gordon College Kitchen Management System
-			</p>
-			
-			<p class="text-base md:text-lg text-gray-700 max-w-2xl mx-auto mb-12 leading-relaxed">
-				Streamline your culinary education with our comprehensive kitchen management platform.
-			</p>
+
+			<!-- Arrow pointer on right side of card -->
+			<div class="absolute" style="
+				top: 50px;
+				right: 12px;
+				width: 0; height: 0;
+				border-top: 10px solid transparent;
+				border-bottom: 10px solid transparent;
+				border-left: 14px solid {accent};
+			"></div>
+
+			<!-- Status badge circle -->
+			<div class="absolute -right-10 -top-5 z-0">
+				<div class="relative flex h-25 w-25 items-center justify-center overflow-hidden rounded-full shadow-[0_12px_24px_rgba(233,30,140,0.18)]"
+					style="background: {accent};">
+					<span class="absolute left-5 top-5 h-4.5 w-4.5 rounded-full bg-white/20"></span>
+					<span class="absolute left-8 top-9 h-2.5 w-2.5 rounded-full bg-white/18"></span>
+					<span class="relative text-[1.95rem] font-medium leading-none tracking-tight text-white">{$page.status}</span>
+				</div>
+			</div>
 		</div>
 
-		<!-- CTA Buttons -->
-		<div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12 animate-fadeIn">
-			<a
-				href="/auth/login"
-				class="group relative w-full sm:w-auto px-10 py-5 bg-gradient-to-r from-pink-600 to-rose-600 text-white font-semibold rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 overflow-hidden"
-			>
-				<span class="relative z-10 flex items-center justify-center gap-2 text-lg">
-					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-					</svg>
-					Sign In
-				</span>
-				<div class="absolute inset-0 bg-gradient-to-r from-pink-700 to-rose-700 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-			</a>
-			
-			<a
-				href="/auth/register"
-				class="group relative w-full sm:w-auto px-10 py-5 bg-white text-pink-600 font-semibold rounded-2xl shadow-xl hover:shadow-2xl border-2 border-pink-600 transition-all duration-300 transform hover:scale-105 overflow-hidden"
-			>
-				<span class="relative z-10 flex items-center justify-center gap-2 text-lg">
-					<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-					</svg>
-					Create Account
-				</span>
-				<div class="absolute inset-0 bg-gradient-to-r from-pink-50 to-rose-50 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-			</a>
+		<!-- Title -->
+		<h1 class="text-4xl font-black uppercase tracking-wide" style="color: {accent}; letter-spacing: 0.06em;">
+			{config.title}
+		</h1>
+
+		<!-- Description lines -->
+		<div class="mt-4 space-y-1">
+			{#each config.lines as line}
+				<p class="text-sm text-gray-500">{line}</p>
+			{/each}
 		</div>
 
-		<!-- Footer -->
-		<div class="mt-16 pt-8 border-t border-pink-100 animate-fadeIn">
-			<p class="text-sm text-gray-600">
-				© 2026 Gordon College - College of Hospitality and Tourism Management
-			</p>
-		</div>
+		<!-- Error detail box -->
+		{#if $page.error?.message}
+			<div class="mt-6 w-full rounded-2xl border border-gray-200 bg-white px-6 py-4">
+				<p class="font-mono text-sm text-gray-500">{$page.error.message}</p>
+			</div>
+		{/if}
+
+		<!-- Go Back Home button -->
+		<button
+			onclick={() => goto('/')}
+			class="mt-8 rounded-2xl border-2 bg-white px-10 py-3 text-base font-semibold transition-colors hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2"
+			style="border-color: {accent}; color: {accent};"
+		>
+			Go Back Home
+		</button>
+
 	</div>
 </div>
-
-<style>
-	@keyframes blob {
-		0%, 100% {
-			transform: translate(0, 0) scale(1);
-		}
-		33% {
-			transform: translate(30px, -50px) scale(1.1);
-		}
-		66% {
-			transform: translate(-20px, 20px) scale(0.9);
-		}
-	}
-
-	.animate-blob {
-		animation: blob 7s infinite;
-	}
-
-	.animation-delay-2000 {
-		animation-delay: 2s;
-	}
-
-	.animation-delay-4000 {
-		animation-delay: 4s;
-	}
-</style>

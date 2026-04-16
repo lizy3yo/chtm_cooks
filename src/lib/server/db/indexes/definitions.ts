@@ -13,8 +13,10 @@ import { statisticsIndexes } from './statisticsIndexes';
 import { donationIndexes } from './donationIndexes';
 import { analyticsIndexes } from './analyticsIndexes';
 import { notificationIndexes } from './notificationIndexes';
+import { cartIndexes } from './cartIndexes';
 
 export { notificationIndexes } from './notificationIndexes';
+export { cartIndexes } from './cartIndexes';
 
 /**
  * ============================================================================
@@ -939,7 +941,8 @@ export const allIndexDefinitions: IndexDefinition[] = [
 	...statisticsIndexes,
 	...donationIndexes,
 	...analyticsIndexes,
-	...notificationIndexes
+	...notificationIndexes,
+	...cartIndexes
 	// ...sessionIndexes,
 	// ...otherCollectionIndexes,
 ];

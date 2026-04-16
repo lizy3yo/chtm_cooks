@@ -1,10 +1,11 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { get } from 'svelte/store';
 	import { catalogAPI, type CatalogItem } from '$lib/api/catalog';
 	import { subscribeToInventoryChanges, type InventoryRealtimeEvent } from '$lib/api/inventory';
+	import { subscribeToCartUpdates } from '$lib/api/cartStream';
 	import { borrowRequestsAPI } from '$lib/api/borrowRequests';
 	import { requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
@@ -36,6 +37,8 @@
 	let showItemSelector = $state(false);
 	let sseConnected = $state(false);
 	let sseReconnecting = $state(false);
+	let cartEventListener: ((event: Event) => void) | null = null;
+	let cartSSEUnsubscribe: (() => void) | null = null;
 	
 	// Search and filter state
 	let searchQuery = $state('');
@@ -107,6 +110,18 @@
 				
 				returnTime = `${String(newHour).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}`;
 			}
+		}
+	});
+
+	// Reactive effect: Sync selected items when cart items change
+	$effect(() => {
+		// Watch for changes in cart items
+		const cartItems = $requestCartItems;
+		
+		// Only sync if we have equipment loaded and cart has items
+		if (availableEquipment.length > 0 || constantItems.length > 0) {
+			console.log('[REACTIVE] Cart items changed, syncing selected items...', cartItems.length);
+			syncSelectedItemsFromCart();
 		}
 	});
 
@@ -680,7 +695,30 @@
 				}
 			}
 
-			console.log('[MOUNT] Setting up SSE subscription...');
+			console.log('[MOUNT] Setting up cart synchronization...');
+
+			// Listen for cart updates via custom events (same-page sync)
+			cartEventListener = (event: Event) => {
+				const customEvent = event as CustomEvent;
+				console.log('[CART-SYNC] Cart updated:', customEvent.detail);
+				
+				// Sync selected items when cart changes
+				syncSelectedItemsFromCart();
+			};
+
+			window.addEventListener('cart-updated', cartEventListener);
+
+			// Also subscribe to cart updates via SSE for cross-tab/device sync
+			cartSSEUnsubscribe = subscribeToCartUpdates(
+				(event) => {
+					console.log('[CART-SSE] Cart updated from another tab/device:', event);
+					// Sync selected items when cart changes
+					syncSelectedItemsFromCart();
+				},
+				(error) => {
+					console.error('[CART-SSE] Error:', error);
+				}
+			);
 
 			// Subscribe to real-time inventory updates via SSE
 			unsubscribe = subscribeToInventoryChanges(
@@ -729,7 +767,7 @@
 				}
 			);
 
-			console.log('[MOUNT] SSE subscription set up complete');
+			console.log('[MOUNT] SSE subscriptions set up complete');
 		})();
 
 		return () => {
@@ -738,8 +776,30 @@
 			if (updateDebounceTimer) {
 				clearTimeout(updateDebounceTimer);
 			}
+			// Cleanup event listeners
+			if (cartEventListener) {
+				window.removeEventListener('cart-updated', cartEventListener);
+				cartEventListener = null;
+			}
+			// Cleanup SSE subscriptions
 			unsubscribe();
+			if (cartSSEUnsubscribe) {
+				cartSSEUnsubscribe();
+				cartSSEUnsubscribe = null;
+			}
 		};
+	});
+
+	// Cleanup on component destroy
+	onDestroy(() => {
+		if (cartEventListener) {
+			window.removeEventListener('cart-updated', cartEventListener);
+			cartEventListener = null;
+		}
+		if (cartSSEUnsubscribe) {
+			cartSSEUnsubscribe();
+			cartSSEUnsubscribe = null;
+		}
 	});
 </script>
 
