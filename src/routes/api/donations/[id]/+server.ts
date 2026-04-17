@@ -152,6 +152,11 @@ export const PATCH: RequestHandler = async (event) => {
 
 		await invalidateDonationCaches();
 
+		console.log('[DONATION-API] Publishing donation_updated event:', {
+			donationId: id,
+			channel: DONATION_CHANNEL
+		});
+
 		publishDonationChange([DONATION_CHANNEL], {
 			action: 'donation_updated',
 			entityId: id,
@@ -196,6 +201,11 @@ export const DELETE: RequestHandler = async (event) => {
 		if (result.deletedCount === 0) return json({ error: 'Donation not found' }, { status: 404 });
 
 		await invalidateDonationCaches();
+
+		console.log('[DONATION-API] Publishing donation_deleted event:', {
+			donationId: id,
+			channel: DONATION_CHANNEL
+		});
 
 		publishDonationChange([DONATION_CHANNEL], {
 			action: 'donation_deleted',

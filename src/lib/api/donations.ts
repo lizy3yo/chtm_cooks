@@ -237,22 +237,60 @@ export const donationsAPI = {
 	/**
 	 * Subscribe to real-time donation changes via SSE.
 	 * Returns an unsubscribe function.
+	 * 
+	 * Opens an SSE connection to `/api/donations/stream` and invokes
+	 * `callback` whenever the server emits a `donation_change` event.
+	 * 
+	 * Safe to call from SSR context (no-ops when not in browser).
+	 * EventSource automatically reconnects on connection loss.
 	 */
-	subscribeToChanges(onEvent: () => void): () => void {
-		if (!browser) return () => {};
+	subscribeToChanges(callback: () => void): () => void {
+		if (!browser) {
+			console.log('[DONATION-SSE] Not in browser, skipping subscription');
+			return () => {};
+		}
 
-		const es = new EventSource('/api/donations/stream', { withCredentials: true });
+		console.log('[DONATION-SSE] Creating EventSource connection to /api/donations/stream');
+		const source = new EventSource('/api/donations/stream', { withCredentials: true });
 
-		es.addEventListener('donation_change', () => {
-			invalidateAllCaches();
-			onEvent();
+		source.addEventListener('open', () => {
+			console.log('[DONATION-SSE] ✓ Connection opened');
 		});
 
-		es.addEventListener('error', () => {
-			// EventSource auto-reconnects; no action needed.
+		source.addEventListener('connected', (e: MessageEvent) => {
+			console.log('[DONATION-SSE] ✓ Connected event received:', e.data);
 		});
 
-		return () => es.close();
+		source.addEventListener('donation_change', (e: MessageEvent) => {
+			console.log('[DONATION-SSE] ✓ donation_change event received:', e.data);
+			try {
+				const eventData = JSON.parse(e.data);
+				console.log('[DONATION-SSE] Parsed event data:', eventData);
+				console.log('[DONATION-SSE] Calling callback function...');
+				callback();
+				console.log('[DONATION-SSE] Callback completed');
+			} catch (err) {
+				console.error('[DONATION-SSE] ✗ Error handling event:', err);
+			}
+		});
+
+		source.addEventListener('heartbeat', (e: MessageEvent) => {
+			console.log('[DONATION-SSE] ♥ Heartbeat received');
+		});
+
+		source.addEventListener('error', (e) => {
+			console.error('[DONATION-SSE] ✗ Connection error:', e);
+			console.error('[DONATION-SSE] ReadyState:', source.readyState);
+			// EventSource will attempt to reconnect automatically
+		});
+
+		console.log('[DONATION-SSE] EventSource created, readyState:', source.readyState);
+
+		return () => {
+			console.log('[DONATION-SSE] Disconnecting...');
+			source.close();
+			console.log('[DONATION-SSE] Disconnected');
+		};
 	},
 
 	// ─── Cache utilities ────────────────────────────────────────────────────

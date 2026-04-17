@@ -7,6 +7,7 @@
 	import { subscribeToInventoryChanges, type InventoryRealtimeEvent } from '$lib/api/inventory';
 	import { subscribeToCartUpdates } from '$lib/api/cartStream';
 	import { borrowRequestsAPI } from '$lib/api/borrowRequests';
+	import { donationsAPI } from '$lib/api/donations';
 	import { requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
@@ -39,6 +40,7 @@
 	let sseReconnecting = $state(false);
 	let cartEventListener: ((event: Event) => void) | null = null;
 	let cartSSEUnsubscribe: (() => void) | null = null;
+	let donationSSEUnsubscribe: (() => void) | null = null;
 	
 	// Search and filter state
 	let searchQuery = $state('');
@@ -184,6 +186,18 @@
 				item.category.toLowerCase().includes(query) ||
 				item.specification.toLowerCase().includes(query)
 			);
+
+			// Also subscribe to donations stream to catch donation events that affect inventory
+			donationSSEUnsubscribe = donationsAPI.subscribeToChanges(() => {
+				console.log('[SSE] Donation change detected (donations stream) - triggering inventory update');
+				void handleInventoryUpdate({
+					action: 'item_updated',
+					entityType: 'item',
+					entityId: '',
+					entityName: 'donation_event',
+					occurredAt: new Date().toISOString()
+				});
+			});
 		}
 		
 		// Apply category filter
@@ -787,6 +801,10 @@
 				cartSSEUnsubscribe();
 				cartSSEUnsubscribe = null;
 			}
+			if (donationSSEUnsubscribe) {
+				donationSSEUnsubscribe();
+				donationSSEUnsubscribe = null;
+			}
 		};
 	});
 
@@ -799,6 +817,10 @@
 		if (cartSSEUnsubscribe) {
 			cartSSEUnsubscribe();
 			cartSSEUnsubscribe = null;
+		}
+		if (donationSSEUnsubscribe) {
+			donationSSEUnsubscribe();
+			donationSSEUnsubscribe = null;
 		}
 	});
 </script>

@@ -15,6 +15,7 @@ import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
 import { BORROW_REQUESTS_COLLECTION, publishBorrowRequestRealtimeEvent } from '../../borrow-requests/shared';
 import { cacheService } from '$lib/server/cache';
+import { publishInventoryChange, INVENTORY_CHANNEL } from '$lib/server/realtime/inventoryEvents';
 import {
 	buildReplacementObligationDetailCacheKey,
 	REPLACEMENT_OBLIGATIONS_CACHE_TAG,
@@ -186,12 +187,18 @@ export const PATCH: RequestHandler = async (event) => {
 				status: newStatus,
 				amountPaid: totalAmountPaid,
 				resolutionType: sanitizedBody.resolutionType,
-				resolutionNotes: sanitizedBody.resolutionNotes,
-				paymentReference: sanitizedBody.paymentReference,
 				updatedAt: now,
 				updatedBy: new ObjectId(user.userId)
 			}
 		};
+
+		// Only set optional fields if provided
+		if (sanitizedBody.resolutionNotes) {
+			updateDoc.$set.resolutionNotes = sanitizedBody.resolutionNotes;
+		}
+		if (sanitizedBody.paymentReference) {
+			updateDoc.$set.paymentReference = sanitizedBody.paymentReference;
+		}
 
 		if (newStatus !== ObligationStatus.PENDING) {
 			updateDoc.$set.resolutionDate = now;
@@ -209,6 +216,72 @@ export const PATCH: RequestHandler = async (event) => {
 
 		if (!updatedObligation) {
 			return json({ error: 'Failed to update obligation' }, { status: 500 });
+		}
+
+		// Update inventory: Add replaced items back to stock
+		// This follows industry-standard inventory management where returned/replaced items are restocked
+		if (sanitizedBody.resolutionType === ResolutionType.REPLACEMENT && sanitizedBody.amountPaid) {
+			try {
+				const inventoryUpdateResult = await db
+					.collection('inventory_items')
+					.updateOne(
+						{ _id: obligation.itemId },
+						{
+							$inc: {
+								donations: sanitizedBody.amountPaid
+							},
+							$set: {
+								updatedAt: now,
+								updatedBy: new ObjectId(user.userId)
+							}
+						}
+					);
+
+				if (inventoryUpdateResult.matchedCount > 0) {
+					logger.info('replacement-obligations', 'Inventory updated with replaced items', {
+						obligationId,
+						itemId: obligation.itemId.toString(),
+						quantityAdded: sanitizedBody.amountPaid,
+						itemName: obligation.itemName
+					});
+
+					// Invalidate inventory caches
+					await Promise.all([
+						cacheService.deletePattern('inventory:*'),
+						cacheService.invalidateByTags(['inventory-items', 'inventory-catalog'])
+					]);
+
+					// Publish real-time inventory update event
+					// This ensures all connected clients see the inventory change immediately
+					publishInventoryChange([INVENTORY_CHANNEL], {
+						action: 'item_updated',
+						entityType: 'item',
+						entityId: obligation.itemId.toString(),
+						entityName: obligation.itemName,
+						occurredAt: now.toISOString()
+					});
+
+					logger.info('replacement-obligations', 'Real-time inventory event published', {
+						obligationId,
+						itemId: obligation.itemId.toString(),
+						action: 'item_updated'
+					});
+				} else {
+					logger.warn('replacement-obligations', 'Inventory item not found for replacement', {
+						obligationId,
+						itemId: obligation.itemId.toString(),
+						itemName: obligation.itemName
+					});
+				}
+			} catch (inventoryError) {
+				// Log the error but don't fail the obligation resolution
+				// The obligation is still resolved even if inventory update fails
+				logger.error('replacement-obligations', 'Failed to update inventory', {
+					error: inventoryError,
+					obligationId,
+					itemId: obligation.itemId.toString()
+				});
+			}
 		}
 
 		// Fetch the related borrow request before cache invalidation

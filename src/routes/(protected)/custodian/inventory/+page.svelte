@@ -10,6 +10,7 @@
 		uploadInventoryImage,
 		subscribeToInventoryChanges
 	} from '$lib/api/inventory';
+	import { donationsAPI } from '$lib/api/donations';
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
 	import { inventoryStore } from '$lib/stores/inventory';
@@ -27,6 +28,13 @@
 	let categories = $state<InventoryCategory[]>([]);
 	let loading = $state(false);
 	let uploadingImage = $state(false);
+	
+	// Real-time refresh state
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+	let refreshInFlight = $state(false);
+	let pendingRefresh = $state(false);
+	let lastEventReceived = $state<string | null>(null);
+	let lastRefreshTime = $state<string | null>(null);
 	
 	// Form state for adding new item
 	let newItem = $state({
@@ -72,8 +80,23 @@
 
 	// Load data on component mount
 	onMount(() => {
-		loadCategories();
-		loadItems();
+		console.log('[INVENTORY-SSE] 🎬 Component mounted, loading data...');
+		
+		// Check if we should force refresh based on navigation
+		// Only force refresh if cache is invalid or if we're coming from a page
+		// where inventory might have changed (replacement, requests)
+		const shouldForceRefresh = !inventoryStore.isItemsCacheValid();
+		
+		if (shouldForceRefresh) {
+			console.log('[INVENTORY-SSE] 🗑️ Cache invalid, forcing refresh');
+			inventoryStore.invalidateAll();
+			loadCategories(true);
+			loadItems(true);
+		} else {
+			console.log('[INVENTORY-SSE] 💾 Cache valid, using cached data');
+			loadCategories(false);
+			loadItems(false);
+		}
 
 		// Keyboard event handler for Escape key
 		const handleKeydown = (e: KeyboardEvent) => {
@@ -106,16 +129,271 @@
 		};
 	});
 
+	/**
+	 * Refresh inventory data (debounced, prevents concurrent refreshes)
+	 * Industry-standard pattern used by Shopify, Stripe, etc.
+	 */
+	async function refreshInventory(): Promise<void> {
+		console.log('[INVENTORY-SSE] 🔄 refreshInventory called, refreshInFlight:', refreshInFlight);
+		console.log('[INVENTORY-SSE] 📊 Current items count BEFORE refresh:', items.length);
+		
+		if (refreshInFlight) {
+			console.log('[INVENTORY-SSE] ⏸️ Already refreshing, setting pendingRefresh=true');
+			pendingRefresh = true;
+			return;
+		}
+
+		refreshInFlight = true;
+		try {
+			console.log('[INVENTORY-SSE] 🗑️ Invalidating cache...');
+			// Invalidate store cache to force fresh data
+			inventoryStore.invalidateAll();
+			
+			const stats = inventoryStore.getStats();
+			console.log('[INVENTORY-SSE] 📊 Cache stats after invalidation:', stats);
+			
+			console.log('[INVENTORY-SSE] 📥 Fetching fresh data from API (bypassing all caches)...');
+			
+			// Fetch fresh data directly without using cache
+			const freshItems = await fetchAllInventoryItems(true, true);
+			const categoriesResponse = await inventoryCategoriesAPI.getAll({ includeArchived: true });
+			
+			console.log('[INVENTORY-SSE] ✅ Fresh data received from API');
+			console.log('[INVENTORY-SSE] 📦 Fresh items count:', freshItems.length);
+			console.log('[INVENTORY-SSE] 📦 Current items count BEFORE assignment:', items.length);
+			
+			// Update reactive state immediately
+			// This triggers Svelte's reactivity system
+			items = freshItems;
+			categories = categoriesResponse.categories;
+			
+			console.log('[INVENTORY-SSE] 📦 Current items count AFTER assignment:', items.length);
+			
+			// Update cache with fresh data
+			inventoryStore.setItems(freshItems);
+			inventoryStore.setCategories(categoriesResponse.categories);
+			
+			// Update last refresh time
+			lastRefreshTime = new Date().toLocaleTimeString();
+			
+			console.log('[INVENTORY-SSE] ✅ Reactive state and cache updated');
+			if (items.length > 0) {
+				const firstItem = items[0];
+				console.log('[INVENTORY-SSE] 📦 First item details:', {
+					name: firstItem.name,
+					quantity: firstItem.quantity,
+					donations: firstItem.donations,
+					currentCount: firstItem.currentCount,
+					id: firstItem.id
+				});
+			}
+			
+			// Force a small delay to ensure reactivity propagates
+			await new Promise(resolve => setTimeout(resolve, 50));
+			console.log('[INVENTORY-SSE] ✅ Reactivity propagation complete');
+			
+		} catch (error) {
+			console.error('[INVENTORY-SSE] ❌ Failed to refresh inventory:', error);
+		} finally {
+			refreshInFlight = false;
+			if (pendingRefresh) {
+				console.log('[INVENTORY-SSE] 🔁 Pending refresh detected, running again...');
+				pendingRefresh = false;
+				await refreshInventory();
+			}
+		}
+	}
+
+	/**
+	 * Optimistically update a single item without refetching all data
+	 * This provides instant UI updates without loading states
+	 */
+	async function updateSingleItem(itemId: string): Promise<void> {
+		console.log('[INVENTORY-SSE] 🎯 Updating single item:', itemId);
+		
+		try {
+			// Fetch just the updated item
+			const updatedItem = await inventoryItemsAPI.getById(itemId);
+			console.log('[INVENTORY-SSE] ✅ Fetched updated item:', updatedItem.name);
+			
+			// Find and update the item in the array
+			const index = items.findIndex(item => item.id === itemId);
+			if (index !== -1) {
+				console.log('[INVENTORY-SSE] 📝 Updating item at index:', index);
+				console.log('[INVENTORY-SSE] 📊 Old values:', {
+					quantity: items[index].quantity,
+					donations: items[index].donations,
+					currentCount: items[index].currentCount
+				});
+				console.log('[INVENTORY-SSE] 📊 New values:', {
+					quantity: updatedItem.quantity,
+					donations: updatedItem.donations,
+					currentCount: updatedItem.currentCount
+				});
+				
+				// Create new array with updated item to trigger reactivity
+				items = [
+					...items.slice(0, index),
+					updatedItem,
+					...items.slice(index + 1)
+				];
+				
+				// Update cache
+				inventoryStore.setItems(items);
+				
+				console.log('[INVENTORY-SSE] ✅ Item updated successfully');
+			} else {
+				console.log('[INVENTORY-SSE] ⚠️ Item not found in current list, doing full refresh');
+				// Item not found (might be new), do full refresh
+				await refreshInventory();
+			}
+		} catch (error) {
+			console.error('[INVENTORY-SSE] ❌ Failed to update single item:', error);
+			// Fallback to full refresh on error
+			await refreshInventory();
+		}
+	}
+
+	/**
+	 * Schedule a debounced refresh (250ms delay)
+	 * Prevents excessive API calls when multiple events arrive quickly
+	 */
+	function scheduleRefresh(): void {
+		console.log('[INVENTORY-SSE] ⏱️ Scheduling refresh (250ms debounce)...');
+		if (refreshTimer !== null) {
+			console.log('[INVENTORY-SSE] ⏱️ Clearing existing refresh timer');
+			clearTimeout(refreshTimer);
+		}
+		refreshTimer = setTimeout(() => {
+			console.log('[INVENTORY-SSE] ⏱️ Debounce timer fired, calling refreshInventory()');
+			refreshTimer = null;
+			refreshInventory();
+		}, 250);
+	}
+
+	// ─── TEST FUNCTIONS (for debugging) ───────────────────────────────────────
+	
+	/**
+	 * Test function: Manually trigger a refresh
+	 * Usage in browser console: window.testInventoryRefresh()
+	 */
+	function testInventoryRefresh() {
+		console.log('[TEST] 🧪 Manual refresh triggered');
+		refreshInventory();
+	}
+	
+	/**
+	 * Test function: Check current inventory state
+	 * Usage in browser console: window.testInventoryState()
+	 */
+	function testInventoryState() {
+		console.log('[TEST] 📊 Current inventory state:');
+		console.log('[TEST] Items count:', items.length);
+		console.log('[TEST] Categories count:', categories.length);
+		console.log('[TEST] Loading:', loading);
+		console.log('[TEST] RefreshInFlight:', refreshInFlight);
+		console.log('[TEST] PendingRefresh:', pendingRefresh);
+		console.log('[TEST] Cache stats:', inventoryStore.getStats());
+		if (items.length > 0) {
+			console.log('[TEST] First 3 items:', items.slice(0, 3).map(i => ({
+				name: i.name,
+				quantity: i.quantity,
+				donations: i.donations,
+				currentCount: i.currentCount
+			})));
+		}
+	}
+	
+	/**
+	 * Test function: Force invalidate cache
+	 * Usage in browser console: window.testInvalidateCache()
+	 */
+	function testInvalidateCache() {
+		console.log('[TEST] 🗑️ Manually invalidating cache');
+		inventoryStore.invalidateAll();
+		console.log('[TEST] Cache stats after invalidation:', inventoryStore.getStats());
+	}
+	
+	/**
+	 * Test function: Test single item update
+	 * Usage in browser console: window.testUpdateItem('ITEM_ID')
+	 */
+	function testUpdateItem(itemId: string) {
+		console.log('[TEST] 🎯 Testing single item update for:', itemId);
+		updateSingleItem(itemId);
+	}
+	
+	// Expose test functions to window for debugging
+	if (typeof window !== 'undefined') {
+		(window as any).testInventoryRefresh = testInventoryRefresh;
+		(window as any).testInventoryState = testInventoryState;
+		(window as any).testInvalidateCache = testInvalidateCache;
+		(window as any).testUpdateItem = testUpdateItem;
+	}
+
 	// Real-time inventory updates via SSE
 	onMount(() => {
-		const unsub = subscribeToInventoryChanges(() => {
-			console.log('[DEBUG] Inventory change detected, invalidating cache and reloading');
-			inventoryStore.invalidateAll();
-			// Force reload from API by invalidating cache first
-			loadItems();
-			loadCategories();
+		console.log('[INVENTORY-SSE] 🚀 Setting up SSE subscriptions...');
+		
+		const unsub = subscribeToInventoryChanges(
+			(event) => {
+				const timestamp = new Date().toLocaleTimeString();
+				lastEventReceived = `Inventory: ${event.action} at ${timestamp}`;
+				console.log('[INVENTORY-SSE] 📡 Inventory change event received:', event);
+				console.log('[INVENTORY-SSE] 📡 Event details:', {
+					action: event.action,
+					entityType: event.entityType,
+					entityId: event.entityId,
+					entityName: event.entityName,
+					occurredAt: event.occurredAt
+				});
+				
+				// For item updates, do optimistic single-item update
+				if (event.entityType === 'item' && (event.action === 'item_updated' || event.action === 'item_created')) {
+					console.log('[INVENTORY-SSE] 🎯 Performing optimistic single-item update');
+					updateSingleItem(event.entityId);
+				} else {
+					// For other actions (delete, archive, category changes), do full refresh
+					console.log('[INVENTORY-SSE] 🔄 Performing full refresh for action:', event.action);
+					scheduleRefresh();
+				}
+			},
+			{
+				onConnect: () => {
+					console.log('[INVENTORY-SSE] ✅ Inventory SSE connected');
+				},
+				onDisconnect: () => {
+					console.log('[INVENTORY-SSE] ⚠️ Inventory SSE disconnected');
+				},
+				onError: (error) => {
+					console.error('[INVENTORY-SSE] ❌ Inventory SSE error:', error);
+				}
+			}
+		);
+
+		// Also listen to donation stream to cover cases where donation events
+		// are published on the donation channel before/alongside inventory channel.
+		const unsubDonations = donationsAPI.subscribeToChanges(() => {
+			const timestamp = new Date().toLocaleTimeString();
+			lastEventReceived = `Donation at ${timestamp}`;
+			console.log('[INVENTORY-SSE] 📡 Donation change event received (donations stream)');
+			console.log('[INVENTORY-SSE] 📡 Triggering inventory refresh from donation event');
+			// Donations don't include item ID, so we need to do full refresh
+			scheduleRefresh();
 		});
-		return () => unsub();
+
+		console.log('[INVENTORY-SSE] ✅ SSE subscriptions established');
+		console.log('[INVENTORY-SSE] 📊 Subscription functions:', {
+			inventoryUnsub: typeof unsub,
+			donationsUnsub: typeof unsubDonations
+		});
+
+		return () => {
+			console.log('[INVENTORY-SSE] 🛑 Cleaning up SSE subscriptions');
+			unsub();
+			try { unsubDonations(); } catch {}
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+		};
 	});
 
 	function delay(ms: number): Promise<void> {
@@ -157,18 +435,24 @@
 		return quantity + donations;
 	}
 
-	async function fetchAllInventoryItems(includeArchived = true): Promise<InventoryItem[]> {
+	async function fetchAllInventoryItems(includeArchived = true, forceRefresh = false): Promise<InventoryItem[]> {
+		console.log('[INVENTORY-SSE] 🔄 fetchAllInventoryItems called, forceRefresh:', forceRefresh);
+		
 		const allItems: InventoryItem[] = [];
 		let page = 1;
 
 		while (true) {
+			console.log('[INVENTORY-SSE] 📄 Fetching page', page, 'with forceRefresh:', forceRefresh);
+			
 			const response = await inventoryItemsAPI.getAll({
 				page,
 				limit: INVENTORY_FETCH_PAGE_SIZE,
-				includeArchived
+				includeArchived,
+				forceRefresh
 			});
 
 			allItems.push(...response.items);
+			console.log('[INVENTORY-SSE] 📄 Page', page, 'fetched:', response.items.length, 'items');
 
 			if (page >= response.pages || response.items.length === 0) {
 				break;
@@ -177,6 +461,7 @@
 			page += 1;
 		}
 
+		console.log('[INVENTORY-SSE] ✅ All pages fetched, total items:', allItems.length);
 		return allItems;
 	}
 
@@ -224,32 +509,45 @@
 
 	/**
 	 * Load all items from API (with client-side caching)
+	 * @param forceRefresh - If true, bypasses cache and fetches fresh data
 	 */
-	async function loadItems() {
+	async function loadItems(forceRefresh = false) {
+		console.log('[INVENTORY-SSE] 📥 loadItems called, forceRefresh:', forceRefresh);
+		
 		try {
 			// Use cached items when still fresh to avoid refetching on route return.
-			if (inventoryStore.isItemsCacheValid()) {
+			const cacheValid = inventoryStore.isItemsCacheValid();
+			console.log('[INVENTORY-SSE] 🔍 Cache valid:', cacheValid);
+			
+			if (!forceRefresh && cacheValid) {
+				console.log('[INVENTORY-SSE] 💾 Using cached items');
 				const storeData = get(inventoryStore);
 				items = storeData.items;
+				console.log('[INVENTORY-SSE] 💾 Loaded from cache:', items.length, 'items');
 				return;
 			}
 			
+			console.log('[INVENTORY-SSE] 🌐 Fetching fresh items from API...');
 			loading = true;
 			inventoryStore.setLoading(true);
 
-			items = await fetchAllInventoryItems(true);
+			const freshItems = await fetchAllInventoryItems(true, forceRefresh);
 			
-			console.log('[DEBUG] Loaded items from API:', items.length);
+			console.log('[INVENTORY-SSE] ✅ Loaded items from API:', freshItems.length);
+			
+			// Update reactive state immediately
+			items = freshItems;
+			
 			if (items.length > 0) {
-				console.log('[DEBUG] First item:', items[0]);
-				console.log('[DEBUG] First item picture:', items[0].picture);
+				console.log('[INVENTORY-SSE] 📦 First item:', items[0].name, 'quantity:', items[0].quantity, 'donations:', items[0].donations, 'currentCount:', items[0].currentCount);
 			}
 
-			// Update cache
-			inventoryStore.setItems(items);
+			// Update cache with fresh data
+			inventoryStore.setItems(freshItems);
+			console.log('[INVENTORY-SSE] 💾 Cache updated with fresh items');
 		} catch (err: any) {
+			console.error('[INVENTORY-SSE] ❌ Error loading items:', err);
 			toastStore.error(err.message || 'Failed to load items');
-			console.error('Error loading items:', err);
 		} finally {
 			loading = false;
 			inventoryStore.setLoading(false);
@@ -258,27 +556,38 @@
 
 	/**
 	 * Load all categories from API (with client-side caching)
+	 * @param forceRefresh - If true, bypasses cache and fetches fresh data
 	 */
-	async function loadCategories() {
+	async function loadCategories(forceRefresh = false) {
+		console.log('[INVENTORY-SSE] 📥 loadCategories called, forceRefresh:', forceRefresh);
+		
 		try {
-			// Check if cache is still valid
-			if (inventoryStore.isCategoriesCacheValid()) {
+			// Check if cache is still valid (unless force refresh)
+			const cacheValid = inventoryStore.isCategoriesCacheValid();
+			console.log('[INVENTORY-SSE] 🔍 Categories cache valid:', cacheValid);
+			
+			if (!forceRefresh && cacheValid) {
+				console.log('[INVENTORY-SSE] 💾 Using cached categories');
 				// Use cached data
 				const storeData = get(inventoryStore);
 				categories = storeData.categories;
 				return;
 			}
 
+			console.log('[INVENTORY-SSE] 🌐 Fetching fresh categories from API...');
 			loading = true;
 
 			const response = await inventoryCategoriesAPI.getAll({ includeArchived: true });
 			categories = response.categories;
 
+			console.log('[INVENTORY-SSE] ✅ Loaded categories from API:', categories.length);
+
 			// Update cache
 			inventoryStore.setCategories(response.categories);
+			console.log('[INVENTORY-SSE] 💾 Categories cache updated');
 		} catch (err: any) {
+			console.error('[INVENTORY-SSE] ❌ Error loading categories:', err);
 			toastStore.error(err.message || 'Failed to load categories');
-			console.error('Error loading categories:', err);
 		} finally {
 			loading = false;
 		}
@@ -389,10 +698,16 @@ const displayItems = $derived(sortedItems.slice((currentPage - 1) * PAGE_SIZE, c
 $effect(() => {
 	if (displayItems.length > 0) {
 		console.log('[DEBUG] Display items count:', displayItems.length);
-		console.log('[DEBUG] First display item:', displayItems[0]);
-		console.log('[DEBUG] First display item picture:', displayItems[0].picture);
-		console.log('[DEBUG] Picture type:', typeof displayItems[0].picture);
-		console.log('[DEBUG] Picture value:', JSON.stringify(displayItems[0].picture));
+		try {
+			// Snapshot to avoid logging $state proxies in devtools
+			const first = displayItems[0] ? JSON.parse(JSON.stringify(displayItems[0])) : null;
+			console.log('[DEBUG] First display item:', first);
+			console.log('[DEBUG] First display item picture:', first?.picture ?? null);
+			console.log('[DEBUG] Picture type:', typeof (first?.picture));
+			console.log('[DEBUG] Picture value:', JSON.stringify(first?.picture));
+		} catch (err) {
+			console.warn('[DEBUG] Failed to snapshot display item for logging', err);
+		}
 	}
 });
 

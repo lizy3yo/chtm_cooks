@@ -439,19 +439,26 @@ export const borrowRequestsAPI = {
 	subscribeToChanges(callback: (event: BorrowRequestRealtimeEvent) => void): () => void {
 		if (!browser) return () => {};
 
-		const source = new EventSource('/api/borrow-requests/stream');
+		// Ensure cookies are sent so the server can authenticate the SSE connection
+		const source = new EventSource('/api/borrow-requests/stream', { withCredentials: true });
+
+		source.addEventListener('open', () => {
+			// no-op, but useful for debugging connections
+			console.log('[BORROW-REQUESTS-STREAM] connected');
+		});
 
 		source.addEventListener('borrow_request_change', (e: MessageEvent) => {
 			try {
 				const data = JSON.parse(e.data) as BorrowRequestRealtimeEvent;
 				callback(data);
-			} catch {
-				// Malformed payload — ignore.
+			} catch (err) {
+				console.error('[BORROW-REQUESTS-STREAM] malformed payload', err);
 			}
 		});
 
-		source.addEventListener('error', () => {
-			// EventSource auto-reconnects after error; nothing to do here.
+		source.addEventListener('error', (e) => {
+			// EventSource will attempt to reconnect automatically.
+			console.error('[BORROW-REQUESTS-STREAM] error', e);
 		});
 
 		return () => {

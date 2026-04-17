@@ -186,9 +186,11 @@ export const GET: RequestHandler = async (event) => {
 		const cachePartition = decoded.role === 'student' ? 'student' : 'staff';
 		const cacheKey = `inventory:catalog:${cachePartition}:${search}:${category}:${availability}:${sortBy}:${page}:${limit}`;
 
+		// Allow clients to force-refresh catalog by supplying `_t` query param.
+		const forceRefresh = url.searchParams.has('_t');
 		// Check cache first - 5 minute TTL for public catalog (balance freshness vs performance)
 		const cached = await cacheService.get<any>(cacheKey);
-		if (cached) {
+		if (cached && !forceRefresh) {
 			if (cached?.meta) {
 				cached.meta.cached = true;
 			}

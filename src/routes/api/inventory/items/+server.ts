@@ -94,9 +94,11 @@ export const GET: RequestHandler = async (event) => {
 		// Build cache key based on query parameters
 		const cacheKey = `inventory:items:${includeArchived}:${category || 'all'}:${status || 'all'}:${search || 'all'}:${page}:${limit}`;
 
-		// Check cache first
+		// Allow clients to force-refresh by including a cache-busting `_t` query parameter.
+		const forceRefresh = url.searchParams.has('_t');
+		// Check cache first (unless forceRefresh requested)
 		const cached = await cacheService.get<any>(cacheKey);
-		if (cached) {
+		if (cached && !forceRefresh) {
 			logger.debug('Inventory items served from cache', { cacheKey });
 			return json(cached);
 		}

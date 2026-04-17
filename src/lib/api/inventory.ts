@@ -166,7 +166,10 @@ export const inventoryItemsAPI = {
 		search?: string;
 		page?: number;
 		limit?: number;
+		forceRefresh?: boolean;
 	}): Promise<{ items: InventoryItem[]; total: number; page: number; limit: number; pages: number }> {
+		console.log('[INVENTORY-API] 🌐 getAll called with params:', params);
+		
 		const queryParams = new URLSearchParams();
 		if (params?.includeArchived) queryParams.set('includeArchived', 'true');
 		if (params?.category) queryParams.set('category', params.category);
@@ -174,13 +177,22 @@ export const inventoryItemsAPI = {
 		if (params?.search) queryParams.set('search', params.search);
 		if (params?.page) queryParams.set('page', params.page.toString());
 		if (params?.limit) queryParams.set('limit', params.limit.toString());
+		// Optional cache-bypass for force refresh (adds a timestamp query param)
+		if (params?.forceRefresh) {
+			const timestamp = String(Date.now());
+			queryParams.set('_t', timestamp);
+			console.log('[INVENTORY-API] 🔄 Force refresh enabled, adding timestamp:', timestamp);
+		}
 
 		const query = queryParams.toString();
 		const url = `/api/inventory/items${query ? `?${query}` : ''}`;
+		console.log('[INVENTORY-API] 📡 Fetching from URL:', url);
 
 		const response = await fetchWithAuthRetry(url, getFetchOptions('GET'));
 
-		return handleResponse(response);
+		const result = await handleResponse(response);
+		console.log('[INVENTORY-API] ✅ Received', result.items?.length || 0, 'items');
+		return result;
 	},
 
 	/**
@@ -432,41 +444,65 @@ export function subscribeToInventoryChanges(
 	options?: {
 		onConnect?: () => void;
 		onDisconnect?: () => void;
-		onError?: (error: Event) => void;
+		onError?: (error: Event | Error) => void;
 	}
 ): () => void {
 	if (!browser) return () => {};
-	
-	const source = new EventSource('/api/inventory/stream');
-	
-	// Handle connection opened
+
+	console.log('[INVENTORY-SSE-CLIENT] 🚀 Creating EventSource connection to /api/inventory/stream');
+
+	// Use credentials so httpOnly session cookie is sent with the EventSource
+	// (required for authenticated SSE endpoints).
+	const source = new EventSource('/api/inventory/stream', { withCredentials: true });
+
+	console.log('[INVENTORY-SSE-CLIENT] EventSource created, readyState:', source.readyState);
+
+	// Connection opened
 	source.addEventListener('open', () => {
+		console.log('[INVENTORY-SSE-CLIENT] ✓ Connection opened');
 		options?.onConnect?.();
 	});
-	
-	// Handle connected event from server
-	source.addEventListener('connected', () => {
+
+	// Server-side acknowledgement
+	source.addEventListener('connected', (e: MessageEvent) => {
+		console.log('[INVENTORY-SSE-CLIENT] ✓ Connected event received:', e.data);
 		options?.onConnect?.();
 	});
-	
-	// Handle inventory change events
+
+	// Inventory change events
 	source.addEventListener('inventory_change', (e: MessageEvent) => {
+		console.log('[INVENTORY-SSE-CLIENT] ✓ inventory_change event received');
+		console.log('[INVENTORY-SSE-CLIENT] Raw event data:', e.data);
 		try {
-			callback(JSON.parse(e.data) as InventoryRealtimeEvent);
-		} catch {
-			// ignore malformed events
+			const payload = JSON.parse(e.data) as InventoryRealtimeEvent;
+			console.log('[INVENTORY-SSE-CLIENT] Parsed payload:', payload);
+			console.log('[INVENTORY-SSE-CLIENT] Calling callback function...');
+			callback(payload);
+			console.log('[INVENTORY-SSE-CLIENT] ✓ Callback executed successfully');
+		} catch (err) {
+			console.error('[INVENTORY-SSE-CLIENT] ✗ Failed to parse event data:', err);
+			// Ignore malformed events but surface error handler
+			options?.onError?.(err instanceof Error ? err : new Error('Malformed SSE payload'));
 		}
 	});
-	
-	// Handle errors
+
+	// Errors: EventSource does automatic reconnects; notify consumer
 	source.addEventListener('error', (e) => {
+		console.error('[INVENTORY-SSE-CLIENT] ✗ Error event:', e);
+		console.error('[INVENTORY-SSE-CLIENT] EventSource readyState:', source.readyState);
 		options?.onError?.(e);
-		// EventSource will automatically reconnect
 	});
-	
+
+	console.log('[INVENTORY-SSE-CLIENT] ✓ Event listeners attached');
+
 	// Cleanup function
 	return () => {
-		options?.onDisconnect?.();
+		console.log('[INVENTORY-SSE-CLIENT] 🛑 Closing connection');
+		try {
+			options?.onDisconnect?.();
+		} catch {
+			// swallow
+		}
 		source.close();
 	};
 }

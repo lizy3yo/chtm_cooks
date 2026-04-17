@@ -329,13 +329,26 @@
 
 	// Real-time inventory updates via SSE
 	onMount(() => {
-		const unsub = subscribeToInventoryChanges(() => {
+		console.log('[STUDENT-CATALOG-SSE] Setting up inventory SSE subscription');
+		const unsub = subscribeToInventoryChanges((event) => {
+			console.log('[STUDENT-CATALOG-SSE] ✓ Inventory change received:', event);
+			console.log('[STUDENT-CATALOG-SSE] Fetching catalog with forceRefresh=true...');
 			fetchCatalog({ background: true, forceRefresh: true }).then(() => {
+				console.log('[STUDENT-CATALOG-SSE] Catalog refreshed successfully');
 				// Reload constant items after inventory update
 				loadConstantItemsToCart();
+			}).catch((err) => {
+				console.error('[STUDENT-CATALOG-SSE] Failed to refresh catalog:', err);
 			});
+		}, {
+			onConnect: () => console.log('[STUDENT-CATALOG-SSE] ✓ Connected to inventory stream'),
+			onError: (err) => console.error('[STUDENT-CATALOG-SSE] ✗ Connection error:', err)
 		});
-		return () => unsub();
+		console.log('[STUDENT-CATALOG-SSE] Subscription created');
+		return () => {
+			console.log('[STUDENT-CATALOG-SSE] Unsubscribing from inventory stream');
+			unsub();
+		};
 	});
 	
 	// Reset to page 1 when filters or view mode changes
@@ -391,7 +404,7 @@
 							<p class="mt-1 truncate text-sm font-semibold tracking-wide text-pink-600">CAT-{selectedItem.id.slice(0, 8).toUpperCase()}</p>
 							<div class="mt-3 flex flex-wrap items-center gap-2">
 								<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {getAvailabilityColor(selectedItem.status)}">{selectedItem.status}</span>
-								<span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Qty: {selectedItem.quantity}</span>
+								<span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Qty: {selectedItem.currentCount ?? (selectedItem.quantity + (selectedItem.donations ?? 0))}</span>
 							</div>
 						</div>
 					</div>
@@ -721,7 +734,7 @@
 						</div>
 
 						<!-- Qty -->
-						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.quantity}</p>
+						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</p>
 
 						<!-- Actions — pushed to bottom -->
 						<div class="mt-auto flex gap-1 pt-2">
@@ -765,7 +778,7 @@
 						<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
 						<div class="mt-1 flex flex-wrap items-center gap-1">
 							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
-							<span class="text-[10px] text-gray-400">Qty: {item.quantity}</span>
+							<span class="text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</span>
 						</div>
 					</div>
 
