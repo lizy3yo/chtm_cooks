@@ -11,6 +11,8 @@
 	import { requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+	import SelectedItemsSkeletonLoader from '$lib/components/ui/SelectedItemsSkeletonLoader.svelte';
+	import { browser } from '$app/environment';
 
 	interface RequestItemOption {
 		id: string;
@@ -31,7 +33,8 @@
 		requestedQuantity: number;
 	}
 
-	let isLoadingEquipment = $state(false);
+	// Loading state
+	let isLoading = $state(true);
 	let isSubmitting = $state(false);
 	let availableEquipment = $state<RequestItemOption[]>([]);
 	let constantItems = $state<RequestItemOption[]>([]);
@@ -120,8 +123,8 @@
 		// Watch for changes in cart items
 		const cartItems = $requestCartItems;
 		
-		// Only sync if we have equipment loaded and cart has items
-		if (availableEquipment.length > 0 || constantItems.length > 0) {
+		// Only sync if we have equipment loaded and not currently loading
+		if ((availableEquipment.length > 0 || constantItems.length > 0) && !isLoading) {
 			console.log('[REACTIVE] Cart items changed, syncing selected items...', cartItems.length);
 			syncSelectedItemsFromCart();
 		}
@@ -235,7 +238,6 @@
 	}
 
 	async function loadAvailableEquipment(options?: { forceRefresh?: boolean }): Promise<void> {
-		isLoadingEquipment = true;
 		try {
 			const response = await catalogAPI.getCatalog({
 				availability: 'all',
@@ -271,7 +273,7 @@
 			console.error('Failed to load requestable equipment', error);
 			toastStore.error('Unable to load available equipment right now', 'Load Error');
 		} finally {
-			isLoadingEquipment = false;
+			isLoading = false;
 		}
 	}
 
@@ -484,14 +486,15 @@
 
 	function syncSelectedItemsFromCart(): void {
 		const cartEntries = get(requestCartItems);
+		
+		// Combine both available equipment and constant items for lookup
+		const allEquipment = [...availableEquipment, ...constantItems];
+		const equipmentById = new Map(allEquipment.map((item) => [item.id, item]));
+		
 		if (cartEntries.length === 0) {
 			selectedItems = [];
 			return;
 		}
-
-		// Combine both available equipment and constant items for lookup
-		const allEquipment = [...availableEquipment, ...constantItems];
-		const equipmentById = new Map(allEquipment.map((item) => [item.id, item]));
 		
 		selectedItems = cartEntries
 			.map((entry) => {
@@ -667,30 +670,91 @@
 		let unsubscribe: () => void = () => {};
 
 		void (async () => {
-			await loadAvailableEquipment();
+			// Check for cached catalog data first (same as student catalog)
+			const cached = catalogAPI.peekCachedCatalog({
+				availability: 'all',
+				sortBy: 'name',
+				page: 1,
+				limit: 300
+			});
 
-			console.log('[MOUNT] Equipment loaded, constant items:', constantItems.length);
+			if (cached) {
+				console.log('[MOUNT] Using cached catalog data');
+				// Process cached data immediately
+				const allItems = cached.items.map((item) => ({
+					id: item.id,
+					name: item.name,
+					code: buildItemCode(item),
+					image: inferItemIcon(item.name),
+					picture: item.picture,
+					category: item.category || 'Uncategorized',
+					available: item.quantity,
+					specification: item.specification || 'No specification provided',
+					status: item.status,
+					location: (item as any).location,
+					isConstant: item.isConstant || false,
+					maxQuantityPerRequest: item.maxQuantityPerRequest
+				}));
 
-			// Auto-add constant items to cart (including out of stock ones for visibility)
-			if (constantItems.length > 0) {
-				for (const item of constantItems) {
-					// Check if already in cart
-					const cartItems = get(requestCartItems);
-					const alreadyInCart = cartItems.some(cartItem => cartItem.itemId === item.id);
+				constantItems = allItems.filter((item) => item.isConstant === true);
+				availableEquipment = allItems.filter((item) => item.available > 0 && !item.isConstant);
 
-					// Add ALL constant items (even out of stock) for visibility
-					// Students will see them but won't be able to request if quantity is 0
-					if (!alreadyInCart) {
-						requestCartStore.addItem({
-							itemId: item.id,
-							name: item.name,
-							maxQuantity: Math.max(1, item.available) // Use 1 as minimum for display
-						});
+				// Auto-add constant items to cart
+				if (constantItems.length > 0) {
+					for (const item of constantItems) {
+						const cartItems = get(requestCartItems);
+						const alreadyInCart = cartItems.some(cartItem => cartItem.itemId === item.id);
+
+						if (!alreadyInCart) {
+							requestCartStore.addItem({
+								itemId: item.id,
+								name: item.name,
+								maxQuantity: Math.max(1, item.available)
+							});
+						}
 					}
 				}
+				
+				// Sync cart items BEFORE setting loading to false
+				const cartItems = get(requestCartItems);
+				if (cartItems.length > 0) {
+					syncSelectedItemsFromCart();
+				}
+				
+				// Set loading to false AFTER syncing (prevents empty state flash)
+				isLoading = false;
 
-				// Sync after adding all constant items
-				syncSelectedItemsFromCart();
+				// Revalidate in background (same as catalog)
+				loadAvailableEquipment({ forceRefresh: true });
+			} else {
+				// No cache, load normally
+				console.log('[MOUNT] No cached data, loading from API...');
+				await loadAvailableEquipment();
+
+				console.log('[MOUNT] Equipment loaded, constant items:', constantItems.length);
+
+				// Auto-add constant items to cart
+				if (constantItems.length > 0) {
+					for (const item of constantItems) {
+						const cartItems = get(requestCartItems);
+						const alreadyInCart = cartItems.some(cartItem => cartItem.itemId === item.id);
+
+						if (!alreadyInCart) {
+							requestCartStore.addItem({
+								itemId: item.id,
+								name: item.name,
+								maxQuantity: Math.max(1, item.available)
+							});
+						}
+					}
+
+					syncSelectedItemsFromCart();
+				} else {
+					const cartItems = get(requestCartItems);
+					if (cartItems.length > 0) {
+						syncSelectedItemsFromCart();
+					}
+				}
 			}
 
 			// Handle preselected item from URL
@@ -948,7 +1012,7 @@
 									
 									<!-- Results List -->
 									<div class="max-h-100 overflow-y-auto">
-										{#if isLoadingEquipment}
+										{#if isLoading}
 											<div class="flex items-center justify-center py-8">
 												<div class="text-center">
 													<div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-pink-600 border-r-transparent"></div>
@@ -1052,8 +1116,10 @@
 					<div class="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-800">{errors.items}</div>
 				{/if}
 
-
-				{#if selectedItems.length > 0}
+				{#if isLoading}
+					<!-- Skeleton Loader -->
+					<SelectedItemsSkeletonLoader count={3} />
+				{:else if selectedItems.length > 0}
 					<div class="space-y-2">
 						{#each selectedItems as item}
 							<div class="group rounded-lg border {item.available === 0 ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'} p-2.5 transition-all hover:shadow-md">
