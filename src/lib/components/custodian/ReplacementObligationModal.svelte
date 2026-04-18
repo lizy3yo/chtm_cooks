@@ -4,14 +4,13 @@
 
 	interface Props {
 		obligation: ReplacementObligation;
-		onResolve: (id: string, quantityReplaced: number, notes?: string) => Promise<void>;
+		onResolve: (id: string, quantityReplaced: number) => Promise<void>;
 		onCancel: () => void;
 	}
 
 	let { obligation, onResolve, onCancel }: Props = $props();
 
 	let quantityReplaced = $state(0);
-	let resolutionNotes = $state('');
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
 
@@ -61,16 +60,11 @@
 			return;
 		}
 
-		if (!resolutionNotes.trim()) {
-			error = 'Please provide resolution notes';
-			return;
-		}
-
 		submitting = true;
 		error = null;
 
 		try {
-			await onResolve(obligation.id, quantityReplaced, resolutionNotes.trim());
+			await onResolve(obligation.id, quantityReplaced);
 		} catch (err) {
 			console.error('[ReplacementObligationModal] Resolution failed:', err);
 			error = err instanceof Error ? err.message : 'Failed to resolve obligation';
@@ -176,11 +170,6 @@
 							</div>
 							<div class="flex-1 min-w-0">
 								<h3 class="text-lg font-bold text-gray-900 truncate">{obligation.itemName}</h3>
-								<div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
-									<span>Original borrowed: <span class="font-semibold text-gray-900">{obligation.quantity}</span></span>
-									<span class="text-gray-300">•</span>
-									<span>To replace: <span class="font-semibold text-amber-700">{obligation.amount}</span></span>
-								</div>
 								<div class="mt-2 flex flex-wrap gap-2">
 									<span class={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${getTypeColor(obligation.type)}`}>
 										{#key obligation.type}
@@ -192,6 +181,27 @@
 								</div>
 							</div>
 						</div>
+
+						<!-- Replacement Metrics -->
+						<div class="mb-5 grid grid-cols-2 gap-4 rounded-xl bg-white p-4 border border-gray-200">
+							<div class="text-center">
+								<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Original Qty</p>
+								<p class="text-xl font-bold text-gray-900 tabular-nums">{obligation.quantity}</p>
+							</div>
+							<div class="text-center border-l border-gray-200">
+								<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Required</p>
+								<p class="text-xl font-bold text-gray-900 tabular-nums">{obligation.amount}</p>
+							</div>
+						</div>
+
+						{#if obligation.amountPaid > 0}
+							<div class="mb-5 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
+								<div class="flex items-center justify-between">
+									<span class="text-sm font-medium text-emerald-800">Previously Replaced</span>
+									<span class="text-base font-bold text-emerald-900 tabular-nums">{obligation.amountPaid} {obligation.amountPaid === 1 ? 'item' : 'items'}</span>
+								</div>
+							</div>
+						{/if}
 
 						<!-- Obligation Info Grid -->
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
@@ -219,43 +229,6 @@
 						{/if}
 					</div>
 
-					<!-- Replacement Confirmation -->
-					<div class="rounded-2xl border-2 border-emerald-200 bg-linear-to-br from-emerald-50 to-green-50 p-5 sm:p-6">
-						<div class="flex items-start gap-4">
-							<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 ring-2 ring-emerald-200">
-								<CheckCircle2 class="h-6 w-6 text-emerald-600" />
-							</div>
-							<div class="flex-1">
-								<h3 class="text-base font-bold text-emerald-900">Item Replacement Verification</h3>
-								<p class="mt-1 text-sm text-emerald-800">
-									Confirm that the student has provided a replacement item for <span class="font-semibold">{obligation.itemName}</span>.
-								</p>
-								<div class="mt-3 space-y-2">
-									<div class="rounded-lg bg-white/60 px-3 py-2">
-										<div class="flex items-center justify-between text-xs">
-											<span class="font-semibold text-emerald-700">Total required:</span>
-											<span class="text-lg font-bold text-emerald-900">{obligation.amount}</span>
-										</div>
-									</div>
-									{#if obligation.amountPaid > 0}
-										<div class="rounded-lg bg-white/60 px-3 py-2">
-											<div class="flex items-center justify-between text-xs">
-												<span class="font-semibold text-emerald-700">Already replaced:</span>
-												<span class="text-sm font-bold text-emerald-700">{obligation.amountPaid}</span>
-											</div>
-										</div>
-										<div class="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2">
-											<div class="flex items-center justify-between text-xs">
-												<span class="font-semibold text-amber-800">Remaining balance:</span>
-												<span class="text-lg font-bold text-amber-900">{obligation.balance}</span>
-											</div>
-										</div>
-									{/if}
-								</div>
-							</div>
-						</div>
-					</div>
-
 					<!-- Quantity Being Replaced -->
 					<div>
 						<label for="quantity-replaced" class="mb-2 block text-sm font-bold text-gray-900">
@@ -281,43 +254,6 @@
 							Enter the number of items the student is replacing in this transaction. Maximum: {obligation.balance}
 						</p>
 					</div>
-
-					<!-- Resolution Notes -->
-					<div>
-						<label for="resolution-notes" class="mb-2 block text-sm font-bold text-gray-900">
-							Replacement Details <span class="text-pink-500">*</span>
-						</label>
-						<textarea
-							id="resolution-notes"
-							bind:value={resolutionNotes}
-							rows="4"
-							class="block w-full rounded-lg border-2 border-gray-200 px-4 py-2.5 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-							placeholder="Describe the replacement item received (e.g., brand, condition, date received, verification notes)..."
-						></textarea>
-						<p class="mt-2 text-xs text-gray-500">
-							Document the replacement item details for audit and accountability purposes.
-						</p>
-					</div>
-
-					<!-- Summary Alert -->
-					<div class="rounded-xl border-2 border-blue-200 bg-blue-50 p-4">
-						<div class="flex items-start gap-3">
-							<svg class="mt-0.5 h-5 w-5 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-							</svg>
-							<div class="flex-1">
-								<p class="font-bold text-blue-900">Action Summary</p>
-								<p class="mt-1 text-sm text-blue-800">
-									Recording replacement of <span class="font-semibold">{quantityReplaced}</span> {quantityReplaced === 1 ? 'item' : 'items'} for <span class="font-semibold">{obligation.studentName || 'this student'}</span>.
-									{#if quantityReplaced >= obligation.balance}
-										This will <span class="font-semibold">fully resolve</span> the obligation.
-									{:else}
-										Remaining balance after this: <span class="font-semibold">{obligation.balance - quantityReplaced}</span>
-									{/if}
-								</p>
-							</div>
-						</div>
-					</div>
 				</div>
 			</div>
 
@@ -338,7 +274,7 @@
 					<button
 						type="button"
 						onclick={handleSubmit}
-						disabled={!resolutionNotes.trim() || !Number.isInteger(quantityReplaced) || quantityReplaced <= 0 || quantityReplaced > obligation.balance || submitting}
+						disabled={!Number.isInteger(quantityReplaced) || quantityReplaced <= 0 || quantityReplaced > obligation.balance || submitting}
 						class="order-1 sm:order-2 rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
 					>
 						{#if submitting}

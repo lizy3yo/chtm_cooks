@@ -176,8 +176,24 @@
 	});
 
 	onMount(() => {
-		const unsub = subscribeToInventoryChanges(() => fetchCatalog({ background: true, forceRefresh: true }));
-		return () => unsub();
+		console.log('[INSTRUCTOR-CATALOG-SSE] Setting up inventory SSE subscription');
+		const unsub = subscribeToInventoryChanges((event) => {
+			console.log('[INSTRUCTOR-CATALOG-SSE] ✓ Inventory change received:', event);
+			console.log('[INSTRUCTOR-CATALOG-SSE] Fetching catalog with forceRefresh=true...');
+			fetchCatalog({ background: true, forceRefresh: true }).then(() => {
+				console.log('[INSTRUCTOR-CATALOG-SSE] Catalog refreshed successfully');
+			}).catch((err) => {
+				console.error('[INSTRUCTOR-CATALOG-SSE] Failed to refresh catalog:', err);
+			});
+		}, {
+			onConnect: () => console.log('[INSTRUCTOR-CATALOG-SSE] ✓ Connected to inventory stream'),
+			onError: (err) => console.error('[INSTRUCTOR-CATALOG-SSE] ✗ Connection error:', err)
+		});
+		console.log('[INSTRUCTOR-CATALOG-SSE] Subscription created');
+		return () => {
+			console.log('[INSTRUCTOR-CATALOG-SSE] Unsubscribing from inventory stream');
+			unsub();
+		};
 	});
 	
 	// Reset to page 1 when filters or view mode changes
@@ -230,7 +246,7 @@
 							<p class="mt-1 truncate text-sm font-semibold tracking-wide text-pink-600">CAT-{selectedItem.id.slice(0, 8).toUpperCase()}</p>
 							<div class="mt-3 flex flex-wrap items-center gap-2">
 								<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {getAvailabilityColor(selectedItem.status)}">{selectedItem.status}</span>
-								<span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Qty: {selectedItem.quantity}</span>
+								<span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Qty: {selectedItem.currentCount ?? (selectedItem.quantity + (selectedItem.donations ?? 0))}</span>
 							</div>
 						</div>
 					</div>
@@ -530,7 +546,7 @@
 						<div class="mt-1.5 flex flex-wrap items-center gap-1">
 							<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">{getCategoryName(item.categoryId)}</span>
 						</div>
-						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.quantity}</p>
+						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</p>
 						<div class="mt-auto pt-2">
 							<button
 								onclick={() => openDetailModal(item)}
@@ -562,7 +578,7 @@
 						<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
 						<div class="mt-1 flex flex-wrap items-center gap-1">
 							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
-							<span class="text-[10px] text-gray-400">Qty: {item.quantity}</span>
+							<span class="text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</span>
 						</div>
 					</div>
 					<div class="shrink-0">

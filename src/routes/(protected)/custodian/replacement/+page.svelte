@@ -1,8 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { get } from 'svelte/store';
+	import { browser } from '$app/environment';
 	import { replacementObligationsAPI, type ReplacementObligation } from '$lib/api/replacementObligations';
 	import { donationsAPI, type DonationResponse, type CreateDonationRequest, type CreateDonationNewItemRequest, type CreateDonationAddToExistingRequest, type AddDonationQuantityRequest } from '$lib/api/donations';
-	import { inventoryItemsAPI, inventoryCategoriesAPI, type InventoryItem, type InventoryCategory } from '$lib/api/inventory';
+	import { inventoryItemsAPI, inventoryCategoriesAPI, subscribeToInventoryChanges, type InventoryItem, type InventoryCategory } from '$lib/api/inventory';
+	import { inventoryStore } from '$lib/stores/inventory';
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
@@ -27,6 +30,7 @@
 	let isUpdatingAmountReplaced = $state(false);
 	let selectedSummary = $state<{ borrowRequestId: string; requestCode: string; studentName: string; studentEmail: string; studentProfilePhotoUrl: string | null; items: number; missingCount: number; damagedCount: number; amount: number; amountPaid: number; balance: number; latestDueDate: string; statuses: Set<string> } | null>(null);
 	let selectedSummaryItemIndex = $state(0);
+	let quantityReplacedByRequest = $state(0);
 	let hasInitialized = $state(false);
 	let selectedDonation = $state<DonationResponse | null>(null);
 
@@ -36,6 +40,13 @@
 			: []
 	);
 	const selectedSummaryItem = $derived(selectedSummaryItems[selectedSummaryItemIndex] ?? null);
+
+	// Initialize quantityReplacedByRequest when selectedSummaryItem changes
+	$effect(() => {
+		if (selectedSummaryItem) {
+			quantityReplacedByRequest = selectedSummaryItem.balance;
+		}
+	});
 
 	// Donations real data
 	let donations = $state<DonationResponse[]>([]);
@@ -258,19 +269,113 @@
 
 	let unsubscribeDonations: (() => void) | null = null;
 	let unsubscribereplacement: (() => void) | null = null;
+	let unsubscribeInventory: (() => void) | null = null;
 	let isMounted = $state(false);
-	let refreshTimeout: ReturnType<typeof setTimeout> | null = null;
+	let refreshInFlight = $state(false);
+	let pendingRefresh = $state(false);
 
-	// Debounced refresh to prevent excessive API calls
-	function scheduleRefresh(loadFn: () => Promise<void>, delay = 300) {
-		if (refreshTimeout) {
-			clearTimeout(refreshTimeout);
+	async function refreshDonations(): Promise<void> {
+		console.log('[REFRESH] refreshDonations called, refreshInFlight:', refreshInFlight);
+		
+		if (refreshInFlight) {
+			console.log('[REFRESH] Already refreshing, setting pendingRefresh=true');
+			pendingRefresh = true;
+			return;
 		}
-		refreshTimeout = setTimeout(() => {
-			if (isMounted) {
-				loadFn();
+
+		refreshInFlight = true;
+		console.log('[REFRESH] Starting donation refresh...');
+		
+		try {
+			console.log('[REFRESH] Invalidating donations cache...');
+			donationsAPI.invalidateCache();
+			
+			console.log('[REFRESH] Loading donations with forceRefresh=true...');
+			await loadDonations(false, true);  // showLoading=false, forceRefresh=true
+			
+			console.log('[REFRESH] Donations loaded successfully');
+		} catch (err) {
+			console.error('[REFRESH] Error refreshing donations:', err);
+		} finally {
+			refreshInFlight = false;
+			console.log('[REFRESH] refreshInFlight set to false');
+			
+			if (pendingRefresh) {
+				console.log('[REFRESH] Pending refresh detected, calling refreshDonations again');
+				pendingRefresh = false;
+				await refreshDonations();
 			}
-		}, delay);
+		}
+	}
+
+	async function refreshObligations(): Promise<void> {
+		console.log('[OBLIGATIONS-SSE] 🔄 refreshObligations called, refreshInFlight:', refreshInFlight);
+		
+		if (refreshInFlight) {
+			console.log('[OBLIGATIONS-SSE] ⏸️ Already refreshing, setting pendingRefresh=true');
+			pendingRefresh = true;
+			return;
+		}
+
+		refreshInFlight = true;
+		try {
+			console.log('[OBLIGATIONS-SSE] 🗑️ Invalidating cache...');
+			replacementObligationsAPI.invalidateCache();
+			
+			console.log('[OBLIGATIONS-SSE] 📥 Fetching fresh obligations...');
+			await loadObligations(false, true);  // showLoading=false, forceRefresh=true
+			
+			console.log('[OBLIGATIONS-SSE] ✅ Obligations refreshed successfully');
+		} catch (error) {
+			console.error('[OBLIGATIONS-SSE] ❌ Failed to refresh obligations:', error);
+		} finally {
+			refreshInFlight = false;
+			if (pendingRefresh) {
+				console.log('[OBLIGATIONS-SSE] 🔁 Pending refresh detected, running again...');
+				pendingRefresh = false;
+				await refreshObligations();
+			}
+		}
+	}
+
+	/**
+	 * Optimistically update a single obligation without refetching all data
+	 * This provides instant UI updates without loading states
+	 */
+	async function updateSingleObligation(obligationId: string): Promise<void> {
+		console.log('[OBLIGATIONS-SSE] 🎯 Updating single obligation:', obligationId);
+		
+		try {
+			// Fetch just the updated obligation
+			const response = await replacementObligationsAPI.getObligation(obligationId, { forceRefresh: true });
+			const updatedObligation = response.obligation;
+			console.log('[OBLIGATIONS-SSE] ✅ Fetched updated obligation:', updatedObligation.itemName);
+			
+			// Find and update the obligation in the array
+			const index = obligations.findIndex(o => o.id === obligationId);
+			if (index !== -1) {
+				console.log('[OBLIGATIONS-SSE] 📝 Updating obligation at index:', index);
+				console.log('[OBLIGATIONS-SSE] 📊 Old status:', obligations[index].status, 'amountPaid:', obligations[index].amountPaid);
+				console.log('[OBLIGATIONS-SSE] 📊 New status:', updatedObligation.status, 'amountPaid:', updatedObligation.amountPaid);
+				
+				// Create new array with updated obligation to trigger reactivity
+				obligations = [
+					...obligations.slice(0, index),
+					updatedObligation,
+					...obligations.slice(index + 1)
+				];
+				
+				console.log('[OBLIGATIONS-SSE] ✅ Obligation updated successfully');
+			} else {
+				console.log('[OBLIGATIONS-SSE] ⚠️ Obligation not found in current list, doing full refresh');
+				// Obligation not found (might be filtered out), do full refresh
+				await refreshObligations();
+			}
+		} catch (error) {
+			console.error('[OBLIGATIONS-SSE] ❌ Failed to update single obligation:', error);
+			// Fallback to full refresh on error
+			await refreshObligations();
+		}
 	}
 
 	onMount(() => {
@@ -313,27 +418,47 @@
 			hasInitialized = true;
 		})();
 
-		// Set up real-time subscriptions with debouncing
+		// Set up real-time SSE subscriptions
+		console.log('[SSE-SETUP] Setting up SSE subscriptions...');
+		
 		unsubscribereplacement = replacementObligationsAPI.subscribeToChanges(() => {
-			if (isMounted) {
-				scheduleRefresh(() => loadObligations(false));
-			}
+			console.log('[REALTIME] ✓ Replacement obligation change detected');
+			void refreshObligations();
 		});
+		console.log('[SSE-SETUP] Replacement obligations subscription created');
 
 		unsubscribeDonations = donationsAPI.subscribeToChanges(() => {
-			if (isMounted) {
-				scheduleRefresh(() => loadDonations(false));
-			}
+			console.log('[REALTIME] ✓ Donation change detected');
+			console.log('[REALTIME] Calling refreshDonations()...');
+			void refreshDonations();
 		});
+		console.log('[SSE-SETUP] Donations subscription created');
+
+		// Subscribe to inventory changes since donations update inventory
+		unsubscribeInventory = subscribeToInventoryChanges(() => {
+			console.log('[REALTIME] ✓ Inventory change detected');
+			void loadInventoryForModal();
+		});
+		console.log('[SSE-SETUP] Inventory subscription created');
+		console.log('[SSE-SETUP] All SSE subscriptions active');
+
+		// Add test function to window for manual debugging
+		if (browser) {
+			(window as any).testRefreshDonations = () => {
+				console.log('[TEST] Manual refresh triggered');
+				void refreshDonations();
+			};
+			(window as any).testDonationsState = () => {
+				console.log('[TEST] Current donations count:', donations.length);
+				console.log('[TEST] Current donations:', donations);
+				console.log('[TEST] isMounted:', isMounted);
+				console.log('[TEST] refreshInFlight:', refreshInFlight);
+			};
+			console.log('[TEST] Test functions added to window: testRefreshDonations(), testDonationsState()');
+		}
 
 		return () => {
 			isMounted = false;
-			
-			// Clear any pending refreshes
-			if (refreshTimeout) {
-				clearTimeout(refreshTimeout);
-				refreshTimeout = null;
-			}
 			
 			// Unsubscribe from SSE connections
 			if (unsubscribereplacement) {
@@ -343,6 +468,10 @@
 			if (unsubscribeDonations) {
 				unsubscribeDonations();
 				unsubscribeDonations = null;
+			}
+			if (unsubscribeInventory) {
+				unsubscribeInventory();
+				unsubscribeInventory = null;
 			}
 		};
 	});
@@ -371,21 +500,38 @@
 	}
 
 	async function loadDonations(showLoading = true, forceRefresh = false): Promise<void> {
+		console.log('[LOAD-DONATIONS] Called with showLoading:', showLoading, 'forceRefresh:', forceRefresh);
+		
 		if (showLoading && isMounted) {
 			donationsLoading = true;
 		}
 		
 		try {
+			console.log('[LOAD-DONATIONS] Calling donationsAPI.getAll with params:', {
+				search: donationsSearch || undefined,
+				limit: 200,
+				forceRefresh
+			});
+			
 			const response = await donationsAPI.getAll({ 
 				search: donationsSearch || undefined, 
 				limit: 200,
 				forceRefresh
 			});
+			
+			console.log('[LOAD-DONATIONS] Received response:', {
+				donationsCount: response.donations.length,
+				total: response.total
+			});
+			
 			if (isMounted) {
 				donations = response.donations;
+				console.log('[LOAD-DONATIONS] Donations state updated with', donations.length, 'items');
+			} else {
+				console.log('[LOAD-DONATIONS] Component not mounted, skipping state update');
 			}
 		} catch (err) {
-			console.error('Failed to load donations', err);
+			console.error('[LOAD-DONATIONS] Failed to load donations:', err);
 			if (isMounted) {
 				toastStore.error(
 					err instanceof Error ? err.message : 'Failed to load donations', 
@@ -396,21 +542,60 @@
 			if (showLoading && isMounted) {
 				donationsLoading = false;
 			}
+			console.log('[LOAD-DONATIONS] Completed');
+		}
+	}
+
+	/**
+	 * Load inventory data for the donation modal
+	 * Called when inventory changes are detected via SSE
+	 */
+	async function loadInventoryForModal(): Promise<void> {
+		// Only refresh if modal is open and inventory data is already loaded
+		if (!showDonationModal || inventoryItems.length === 0) {
+			return;
+		}
+
+		try {
+			const [itemsRes, catsRes] = await Promise.all([
+				inventoryItemsAPI.getAll({ limit: 500, forceRefresh: true }),
+				inventoryCategoriesAPI.getAll()
+			]);
+			
+			if (isMounted) {
+				inventoryItems = itemsRes.items;
+				inventoryCategories = catsRes.categories;
+				console.log('[REALTIME] Inventory data refreshed for donation modal');
+			}
+		} catch (err) {
+			console.error('[REALTIME] Failed to refresh inventory data:', err);
+			// Don't show toast for background refresh errors
 		}
 	}
 
 	async function handleResolveObligation(
 		id: string,
-		quantityReplaced: number,
-		resolutionNotes?: string
+		quantityReplaced: number
 	): Promise<void> {
 		try {
+			const obligation = obligations.find(o => o.id === id);
+			if (!obligation) {
+				throw new Error('Obligation not found');
+			}
+			
 			await replacementObligationsAPI.resolveObligation(id, {
 				resolutionType: 'replacement',
-				amountPaid: quantityReplaced,
-				resolutionNotes: resolutionNotes || 'Item replaced by student'
+				amountPaid: quantityReplaced
 			});
-			await loadObligations();
+			
+			// Update inventory cache directly
+			console.log('[REPLACEMENT] Updating inventory cache after obligation resolution');
+			await updateInventoryCacheForItem(obligation.itemId);
+			
+			// Update the obligation in the local array optimistically
+			console.log('[REPLACEMENT] Updating obligation in local array');
+			await updateSingleObligation(id);
+			
 			selectedObligation = null;
 			toastStore.success('Obligation resolved successfully', 'Success');
 		} catch (err) {
@@ -429,7 +614,15 @@
 				resolutionType: 'replacement',
 				amountPaid: editedAmountReplaced
 			});
-			await loadObligations();
+			
+			// Update inventory cache directly
+			console.log('[REPLACEMENT] Updating inventory cache after amount update');
+			await updateInventoryCacheForItem(selectedObligation.itemId);
+			
+			// Update the obligation in the local array optimistically
+			console.log('[REPLACEMENT] Updating obligation in local array');
+			await updateSingleObligation(selectedObligation.id);
+			
 			editingAmountReplacedId = null;
 			toastStore.success('Amount replaced updated successfully', 'Success');
 		} catch (err) {
@@ -437,6 +630,46 @@
 			toastStore.error(err instanceof Error ? err.message : 'Failed to update amount replaced', 'Error');
 		} finally {
 			isUpdatingAmountReplaced = false;
+		}
+	}
+
+	/**
+	 * Update a single item in the inventory cache
+	 * This allows seamless navigation back to inventory without full reload
+	 */
+	async function updateInventoryCacheForItem(itemId: string): Promise<void> {
+		try {
+			console.log('[REPLACEMENT] Fetching updated item:', itemId);
+			const updatedItem = await inventoryItemsAPI.getById(itemId);
+			console.log('[REPLACEMENT] Updated item fetched:', updatedItem.name, 'currentCount:', updatedItem.currentCount);
+			
+			// Get current cached items
+			const currentStore = inventoryStore.getStats();
+			if (currentStore.itemsCount === 0) {
+				console.log('[REPLACEMENT] No items in cache, skipping update');
+				return;
+			}
+			
+			// Update the item in the store
+			const storeData = get(inventoryStore);
+			const items = storeData.items;
+			const index = items.findIndex(item => item.id === itemId);
+			
+			if (index !== -1) {
+				console.log('[REPLACEMENT] Updating item in cache at index:', index);
+				const updatedItems = [
+					...items.slice(0, index),
+					updatedItem,
+					...items.slice(index + 1)
+				];
+				inventoryStore.setItems(updatedItems);
+				console.log('[REPLACEMENT] ✅ Cache updated successfully');
+			} else {
+				console.log('[REPLACEMENT] Item not found in cache, will be fetched on next load');
+			}
+		} catch (error) {
+			console.error('[REPLACEMENT] Failed to update cache:', error);
+			// Don't throw - just log the error
 		}
 	}
 
@@ -448,7 +681,7 @@
 			inventoryLoading = true;
 			try {
 				const [itemsRes, catsRes] = await Promise.all([
-					inventoryItemsAPI.getAll({ limit: 500 }),
+					inventoryItemsAPI.getAll({ limit: 500, forceRefresh: true }),
 					inventoryCategoriesAPI.getAll()
 				]);
 				inventoryItems = itemsRes.items;
@@ -485,7 +718,14 @@
 					date: newItemForm.date,
 					notes: newItemForm.notes.trim() || undefined
 				};
-				await donationsAPI.create(payload);
+				const createdDonation = await donationsAPI.create(payload);
+				
+				// Update cache directly with the new/updated item
+				if (createdDonation.inventoryItemId) {
+					console.log('[REPLACEMENT] Updating inventory cache after donation creation');
+					await updateInventoryCacheForItem(createdDonation.inventoryItemId);
+				}
+				
 				// Refresh inventory cache
 				inventoryItems = [];
 				await loadDonations();
@@ -514,7 +754,14 @@
 					date: addToExistingForm.date,
 					notes: addToExistingForm.notes.trim() || undefined
 				};
-				await donationsAPI.create(payload);
+				const createdDonation = await donationsAPI.create(payload);
+				
+				// Update cache directly with the updated item
+				if (createdDonation.inventoryItemId) {
+					console.log('[REPLACEMENT] Updating inventory cache after donation creation');
+					await updateInventoryCacheForItem(createdDonation.inventoryItemId);
+				}
+				
 				inventoryItems = [];
 				await loadDonations();
 				resetDonationForms();
@@ -1484,13 +1731,19 @@
 						<div class="flex items-start gap-3 sm:gap-4">
 							<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
 								<svg class="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
 								</svg>
 							</div>
 							<div class="min-w-0 flex-1">
-								<h2 id="summary-modal-title" class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">Request Summary</h2>
-								<p class="mt-0.5 font-mono text-xs sm:text-sm font-semibold text-pink-600">{selectedSummary.requestCode}</p>
-								<p class="mt-1 text-xs text-gray-500">{selectedSummary.items} item{selectedSummary.items !== 1 ? 's' : ''}</p>
+								<h2 id="summary-modal-title" class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">Resolve Obligation</h2>
+								<p class="mt-0.5 text-xs text-gray-500 sm:text-sm">Record the resolution of this accountability obligation</p>
+								
+								<!-- Status Badge -->
+								<div class="mt-2">
+									<span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold {getObligationStatusClass(selectedSummaryItem?.status || 'pending')}">
+										{selectedSummaryItem?.status ? selectedSummaryItem.status.charAt(0).toUpperCase() + selectedSummaryItem.status.slice(1) : 'Pending'}
+									</span>
+								</div>
 							</div>
 							<button type="button" onclick={() => selectedSummary = null} class="rounded-lg sm:rounded-xl p-1.5 sm:p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95 shrink-0" aria-label="Close modal">
 								<svg class="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1502,136 +1755,292 @@
 				</div>
 				<!-- Content -->
 				<div class="max-h-[calc(100vh-240px)] sm:max-h-[60vh] overflow-y-auto">
-					<div class="px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 space-y-6 sm:space-y-8">
+					<div class="px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 space-y-6">
 						<!-- Student Info Card -->
-						<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6">
-							<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-								<div class="flex items-center gap-3">
-									<div class="flex h-12 w-12 sm:h-14 sm:w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-sm font-semibold text-pink-700 ring-2 ring-pink-200">
-										{#if selectedSummary.studentProfilePhotoUrl}
-											<img src={selectedSummary.studentProfilePhotoUrl} alt={selectedSummary.studentName} class="h-full w-full object-cover" />
-										{:else}
-											<span class="text-base sm:text-lg">{getInitials(selectedSummary.studentName)}</span>
-										{/if}
-									</div>
-									<div>
-										<p class="text-base font-semibold text-gray-900">{selectedSummary.studentName}</p>
-										<p class="mt-0.5 text-sm text-gray-500">{selectedSummary.studentEmail}</p>
-									</div>
+						<div class="rounded-2xl border-2 border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6 shadow-sm">
+							<div class="mb-4 flex items-center gap-3">
+								<div class="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-sm font-semibold text-pink-700 ring-2 ring-pink-200">
+									{#if selectedSummary.studentProfilePhotoUrl}
+										<img src={selectedSummary.studentProfilePhotoUrl} alt={selectedSummary.studentName} class="h-full w-full object-cover" loading="lazy" />
+									{:else}
+										<span class="text-lg">{getInitials(selectedSummary.studentName)}</span>
+									{/if}
 								</div>
-								<div class="sm:ml-auto">
-									<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold shadow-sm ring-1 ring-inset {getRequestSummaryStatusClass(selectedSummary.statuses)}">
-										<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-										{getRequestSummaryStatusLabel(selectedSummary.statuses)}
-									</span>
+								<div class="flex-1 min-w-0">
+									<h3 class="text-lg font-bold text-gray-900 truncate">{selectedSummary.studentName}</h3>
+									<p class="text-sm text-gray-600 truncate">{selectedSummary.studentEmail}</p>
 								</div>
 							</div>
 						</div>
-						<!-- Item selector dropdown -->
-						{#if selectedSummaryItems.length > 0}
-							<div>
-								<label for="summary-item-select" class="block text-sm font-semibold text-gray-700 mb-2">Select Item</label>
-								<select
-									id="summary-item-select"
-									bind:value={selectedSummaryItemIndex}
-									class="block w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 shadow-sm transition-colors focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-								>
-									{#each selectedSummaryItems as item, i}
-										<option value={i}>
-											{item.itemName} — {item.type === 'missing' ? 'Missing' : 'Damaged'} · Qty {item.quantity}
-										</option>
-									{/each}
-								</select>
-							</div>
-						{/if}
+
 						<!-- Selected item detail -->
 						{#if selectedSummaryItem}
-							<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6 space-y-4">
-								<div class="flex items-center justify-between pb-3 border-b border-gray-200">
-									<span class="text-sm font-semibold text-gray-700">Item Details</span>
-									<span class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {selectedSummaryItem.type === 'missing' ? 'bg-red-50 text-red-700 ring-red-200' : 'bg-rose-50 text-rose-700 ring-rose-200'}">
-										<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-										{selectedSummaryItem.type === 'missing' ? 'Missing' : 'Damaged'}
-									</span>
-								</div>
-								<div class="grid grid-cols-2 gap-4 text-sm">
-									<div>
-										<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Status</p>
-										<span class="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {getObligationStatusClass(selectedSummaryItem.status)}">
-											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-											{selectedSummaryItem.status.charAt(0).toUpperCase() + selectedSummaryItem.status.slice(1)}
-										</span>
-									</div>
-									<div>
-										<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Due Date</p>
-										<p class="mt-1.5 font-semibold text-gray-900">{new Date(selectedSummaryItem.dueDate).toLocaleDateString()}</p>
-									</div>
-								</div>
-							</div>
-							<!-- Replacement Details -->
-							<div class="rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-								<div class="bg-linear-to-r from-gray-50 to-white px-5 py-3 border-b border-gray-200">
-									<h3 class="text-sm font-semibold text-gray-900">Replacement Information</h3>
-								</div>
-								<div class="divide-y divide-gray-100">
-									<div class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-										<span class="text-sm text-gray-600">Item Name</span>
-										<span class="font-semibold text-gray-900">{selectedSummaryItem.itemName}</span>
-									</div>
-									<div class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-										<span class="text-sm text-gray-600">Quantity Required</span>
-										<span class="font-semibold text-gray-900">{selectedSummaryItem.quantity}</span>
-									</div>
-									<div class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-										<span class="text-sm text-gray-600">Due Date</span>
-										<span class="font-semibold text-gray-900">{new Date(selectedSummaryItem.dueDate).toLocaleDateString()}</span>
-									</div>
-								</div>
-							</div>
-							<!-- Actions for selected item -->
-							{#if selectedSummaryItem.status === 'pending'}
-								<div class="flex flex-col gap-3 pt-2 sm:flex-row">
-									<button
-										onclick={async () => {
-											const confirmed = await confirmStore.confirm({ type: 'info', title: 'Mark as Replaced', message: 'Mark this item as replaced by the student?', confirmText: 'Mark Replaced' });
-											if (confirmed) {
-												await handleResolveObligation(selectedSummaryItem!.id, selectedSummaryItem!.balance);
-												selectedSummary = null;
-											}
-										}}
-										class="inline-flex items-center justify-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-emerald-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:shadow-xl hover:shadow-emerald-500/40 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 active:scale-95 sm:flex-1"
-									>
-										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+							<!-- Obligation Details Card -->
+							<div class="rounded-2xl border-2 border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6 shadow-sm">
+								<!-- Item Header -->
+								<div class="mb-5 flex items-start gap-4">
+									<div class="flex h-16 w-16 items-center justify-center rounded-xl bg-linear-to-br from-pink-50 to-pink-100 border-2 border-pink-200 shadow-md">
+										<svg class="h-8 w-8 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
 										</svg>
-										Mark Replaced
-									</button>
+									</div>
+									<div class="flex-1 min-w-0">
+										<h3 class="text-lg font-bold text-gray-900 truncate">{selectedSummaryItem.itemName}</h3>
+										<div class="mt-2 flex flex-wrap gap-2">
+											<span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold {selectedSummaryItem.type === 'missing' ? 'bg-red-100 text-red-800 border-red-300' : 'bg-rose-100 text-rose-800 border-rose-300'}">
+												<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													{#if selectedSummaryItem.type === 'missing'}
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+													{:else}
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+													{/if}
+												</svg>
+												{selectedSummaryItem.type === 'missing' ? 'Missing' : 'Damaged'}
+											</span>
+										</div>
+									</div>
+								</div>
+
+								<!-- Replacement Metrics -->
+								<div class="mb-5 grid grid-cols-2 gap-4 rounded-xl bg-white p-4 border border-gray-200">
+									<div class="text-center">
+										<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Original Qty</p>
+										<p class="text-xl font-bold text-gray-900 tabular-nums">{selectedSummaryItem.quantity}</p>
+									</div>
+									<div class="text-center border-l border-gray-200">
+										<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Required</p>
+										<p class="text-xl font-bold text-gray-900 tabular-nums">{selectedSummaryItem.amount}</p>
+									</div>
+								</div>
+
+								{#if selectedSummaryItem.amountPaid > 0}
+									<div class="mb-5 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
+										<div class="flex items-center justify-between">
+											<span class="text-sm font-medium text-emerald-800">Previously Replaced</span>
+											<span class="text-base font-bold text-emerald-900 tabular-nums">{selectedSummaryItem.amountPaid} {selectedSummaryItem.amountPaid === 1 ? 'item' : 'items'}</span>
+										</div>
+									</div>
+								{/if}
+
+								<!-- Obligation Info Grid -->
+								<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+									<div>
+										<div class="flex items-center gap-2 mb-1">
+											<svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+											</svg>
+											<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Due Date</p>
+										</div>
+										<p class="text-sm font-semibold text-gray-900">{new Date(selectedSummaryItem.dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+									</div>
+									<div>
+										<div class="flex items-center gap-2 mb-1">
+											<svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+											</svg>
+											<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Request ID</p>
+										</div>
+										<p class="text-sm font-mono font-semibold text-gray-900">REQ-{selectedSummaryItem.borrowRequestId.slice(-6).toUpperCase()}</p>
+									</div>
+								</div>
+
+								{#if selectedSummaryItem.incidentNotes}
+									<div class="mt-4 pt-4 border-t border-gray-200">
+										<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Incident Notes</p>
+										<p class="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{selectedSummaryItem.incidentNotes}</p>
+									</div>
+								{/if}
+							</div>
+
+							<!-- Quantity Being Replaced -->
+							{#if selectedSummaryItem.status === 'pending'}
+								<div>
+									<label for="quantity-replaced-request" class="mb-2 block text-sm font-bold text-gray-900">
+										Quantity Being Replaced <span class="text-pink-500">*</span>
+									</label>
+									<div class="relative">
+										<input
+											id="quantity-replaced-request"
+											type="number"
+											min="1"
+											max={selectedSummaryItem.balance}
+											step="1"
+											bind:value={quantityReplacedByRequest}
+											class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-base font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 pr-24"
+											placeholder="Enter quantity"
+											required
+										/>
+										<div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+											<span class="text-sm text-gray-500">of {selectedSummaryItem.balance}</span>
+										</div>
+									</div>
+									<p class="mt-2 text-xs text-gray-500">
+										Enter the number of items the student is replacing in this transaction. Maximum: {selectedSummaryItem.balance}
+									</p>
 								</div>
 							{/if}
 						{/if}
-						<!-- Request totals -->
-						<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-blue-50 to-indigo-50 p-5">
-							<div class="flex items-center gap-3 mb-3">
-								<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-linear-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/30">
-									<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-									</svg>
-								</div>
-								<h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">Request Summary</h3>
-							</div>
-							<div class="flex items-center justify-between">
-								<span class="text-sm font-medium text-gray-700">Total Items</span>
-								<span class="text-2xl font-bold text-gray-900">{selectedSummary.items}</span>
-							</div>
-						</div>
 					</div>
 				</div>
-				<!-- Footer -->
-				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8">
-					<div class="flex justify-end">
-						<button type="button" onclick={() => selectedSummary = null} class="rounded-xl border-2 border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 active:scale-95">
-							Close
+				<!-- Footer with Navigation -->
+				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
+					<!-- Mobile Layout (stacked) -->
+					<div class="flex flex-col gap-3 sm:hidden">
+						<!-- Progress Indicator (top on mobile) -->
+						{#if selectedSummaryItems.length > 1}
+							<div class="text-center text-sm font-medium text-gray-600">
+								Item {selectedSummaryItemIndex + 1} of {selectedSummaryItems.length}
+							</div>
+						{/if}
+						
+						<!-- Buttons Row -->
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								onclick={() => selectedSummary = null}
+								class="flex-1 rounded-lg border-2 border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]"
+							>
+								Cancel
+							</button>
+							
+							{#if selectedSummaryItems.length > 1 && selectedSummaryItemIndex > 0}
+								<button
+									type="button"
+									onclick={() => selectedSummaryItemIndex = Math.max(0, selectedSummaryItemIndex - 1)}
+									class="flex-1 rounded-lg border-2 border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]"
+								>
+									← Prev
+								</button>
+							{/if}
+							
+							{#if selectedSummaryItem?.status === 'pending'}
+								{#if selectedSummaryItemIndex < selectedSummaryItems.length - 1}
+									<button
+										type="button"
+										onclick={() => selectedSummaryItemIndex = Math.min(selectedSummaryItems.length - 1, selectedSummaryItemIndex + 1)}
+										class="flex-1 rounded-lg bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 active:scale-[0.98]"
+									>
+										Next →
+									</button>
+								{:else}
+									<button
+										type="button"
+										disabled={!Number.isInteger(quantityReplacedByRequest) || quantityReplacedByRequest <= 0 || quantityReplacedByRequest > selectedSummaryItem.balance}
+										onclick={async () => {
+											const confirmed = await confirmStore.confirm({ 
+												type: 'info', 
+												title: 'Resolve Obligation', 
+												message: `Mark ${quantityReplacedByRequest} ${quantityReplacedByRequest === 1 ? 'item' : 'items'} as replaced for ${selectedSummaryItem!.itemName}?`, 
+												confirmText: 'Resolve Obligation' 
+											});
+											if (confirmed) {
+												await handleResolveObligation(selectedSummaryItem!.id, quantityReplacedByRequest);
+												if (selectedSummaryItemIndex < selectedSummaryItems.length - 1) {
+													selectedSummaryItemIndex = selectedSummaryItemIndex;
+												} else if (selectedSummaryItemIndex > 0) {
+													selectedSummaryItemIndex = selectedSummaryItemIndex - 1;
+												} else {
+													selectedSummary = null;
+												}
+											}
+										}}
+										class="flex-1 rounded-lg bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
+									>
+										Resolve
+									</button>
+								{/if}
+							{:else if selectedSummaryItemIndex < selectedSummaryItems.length - 1}
+								<button
+									type="button"
+									onclick={() => selectedSummaryItemIndex = Math.min(selectedSummaryItems.length - 1, selectedSummaryItemIndex + 1)}
+									class="flex-1 rounded-lg bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 active:scale-[0.98]"
+								>
+									Next →
+								</button>
+							{/if}
+						</div>
+					</div>
+
+					<!-- Desktop Layout (single row) -->
+					<div class="hidden sm:flex items-center justify-between gap-3">
+						<!-- Cancel Button (left side) -->
+						<button
+							type="button"
+							onclick={() => selectedSummary = null}
+							class="rounded-lg border-2 border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]"
+						>
+							Cancel
 						</button>
+
+						<!-- Progress Indicator (center) -->
+						{#if selectedSummaryItems.length > 1}
+							<span class="absolute left-1/2 -translate-x-1/2 text-sm font-medium text-gray-600">
+								Item {selectedSummaryItemIndex + 1} of {selectedSummaryItems.length}
+							</span>
+						{/if}
+
+						<!-- Navigation Buttons (right side) -->
+						<div class="flex items-center gap-3">
+							<!-- Previous Button -->
+							{#if selectedSummaryItems.length > 1 && selectedSummaryItemIndex > 0}
+								<button
+									type="button"
+									onclick={() => selectedSummaryItemIndex = Math.max(0, selectedSummaryItemIndex - 1)}
+									class="rounded-lg border-2 border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]"
+								>
+									← Previous
+								</button>
+							{/if}
+							
+							{#if selectedSummaryItem?.status === 'pending'}
+								{#if selectedSummaryItemIndex < selectedSummaryItems.length - 1}
+									<!-- Show Next button when not on last item -->
+									<button
+										type="button"
+										onclick={() => selectedSummaryItemIndex = Math.min(selectedSummaryItems.length - 1, selectedSummaryItemIndex + 1)}
+										class="rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 active:scale-[0.98]"
+									>
+										Next →
+									</button>
+								{:else}
+									<!-- Show Resolve button on last item -->
+									<button
+										type="button"
+										disabled={!Number.isInteger(quantityReplacedByRequest) || quantityReplacedByRequest <= 0 || quantityReplacedByRequest > selectedSummaryItem.balance}
+										onclick={async () => {
+											const confirmed = await confirmStore.confirm({ 
+												type: 'info', 
+												title: 'Resolve Obligation', 
+												message: `Mark ${quantityReplacedByRequest} ${quantityReplacedByRequest === 1 ? 'item' : 'items'} as replaced for ${selectedSummaryItem!.itemName}?`, 
+												confirmText: 'Resolve Obligation' 
+											});
+											if (confirmed) {
+												await handleResolveObligation(selectedSummaryItem!.id, quantityReplacedByRequest);
+												if (selectedSummaryItemIndex < selectedSummaryItems.length - 1) {
+													selectedSummaryItemIndex = selectedSummaryItemIndex;
+												} else if (selectedSummaryItemIndex > 0) {
+													selectedSummaryItemIndex = selectedSummaryItemIndex - 1;
+												} else {
+													selectedSummary = null;
+												}
+											}
+										}}
+										class="rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
+									>
+										Resolve Obligation
+									</button>
+								{/if}
+							{:else if selectedSummaryItemIndex < selectedSummaryItems.length - 1}
+								<!-- Already resolved, show Next button -->
+								<button
+									type="button"
+									onclick={() => selectedSummaryItemIndex = Math.min(selectedSummaryItems.length - 1, selectedSummaryItemIndex + 1)}
+									class="rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 active:scale-[0.98]"
+								>
+									Next →
+								</button>
+							{/if}
+						</div>
 					</div>
 				</div>
 			</div>

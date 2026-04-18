@@ -296,6 +296,11 @@ export const POST: RequestHandler = async (event) => {
 
 		await invalidateDonationCaches();
 
+		console.log('[DONATION-API] Publishing donation_created event:', {
+			donationId: newDonation._id.toString(),
+			channel: DONATION_CHANNEL
+		});
+
 		publishDonationChange([DONATION_CHANNEL], {
 			action: 'donation_created',
 			entityId: newDonation._id.toString(),

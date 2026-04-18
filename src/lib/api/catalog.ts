@@ -156,7 +156,8 @@ export const catalogAPI = {
 	async getCatalog(filters: CatalogFilters = {}, options: CatalogRequestOptions = {}): Promise<CatalogResponse> {
 		try {
 			const query = buildCatalogQuery(filters);
-			const url = `/api/inventory/catalog${query ? `?${query}` : ''}`;
+			// Support forceRefresh by adding a cache-busting `_t` param when requested
+			const url = `/api/inventory/catalog${query ? `?${query}` : ''}${options.forceRefresh ? `${query ? '&' : '?'}_t=${Date.now()}` : ''}`;
 			const cacheKey = buildCatalogCacheKey(filters);
 
 			if (!options.forceRefresh) {

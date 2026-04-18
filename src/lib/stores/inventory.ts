@@ -27,6 +27,7 @@ interface InventoryCache {
 	lastFetchedItems: number | null;
 	lastFetchedCategories: number | null;
 	isLoading: boolean;
+	needsRefresh: boolean; // Flag to indicate data might be stale
 }
 
 const CACHE_TTL = 12 * 60 * 60 * 1000; // 12 hours
@@ -36,7 +37,8 @@ const initialState: InventoryCache = {
 	categories: [],
 	lastFetchedItems: null,
 	lastFetchedCategories: null,
-	isLoading: false
+	isLoading: false,
+	needsRefresh: false
 };
 
 function createInventoryStore() {
@@ -52,7 +54,8 @@ function createInventoryStore() {
 			update(state => ({
 				...state,
 				items,
-				lastFetchedItems: Date.now()
+				lastFetchedItems: Date.now(),
+				needsRefresh: false // Clear refresh flag when fresh data is loaded
 			}));
 		},
 
@@ -76,7 +79,9 @@ function createInventoryStore() {
 			let isValid = false;
 			update(state => {
 				const now = Date.now();
-				isValid = state.lastFetchedItems !== null && 
+				// Cache is invalid if needsRefresh flag is set OR TTL expired
+				isValid = !state.needsRefresh && 
+				         state.lastFetchedItems !== null && 
 				         (now - state.lastFetchedItems) < CACHE_TTL;
 				return state;
 			});
@@ -105,7 +110,8 @@ function createInventoryStore() {
 		invalidateItems: () => {
 			update(state => ({
 				...state,
-				lastFetchedItems: null
+				lastFetchedItems: null,
+				needsRefresh: true
 			}));
 		},
 
@@ -126,7 +132,19 @@ function createInventoryStore() {
 			update(state => ({
 				...state,
 				lastFetchedItems: null,
-				lastFetchedCategories: null
+				lastFetchedCategories: null,
+				needsRefresh: true
+			}));
+		},
+
+		/**
+		 * Mark cache as needing refresh without invalidating
+		 * Used when we know data might be stale but want to show cached data first
+		 */
+		markStale: () => {
+			update(state => ({
+				...state,
+				needsRefresh: true
 			}));
 		},
 
@@ -157,7 +175,8 @@ function createInventoryStore() {
 				itemsCacheAge: 0,
 				categoriesCacheAge: 0,
 				itemsCacheValid: false,
-				categoriesCacheValid: false
+				categoriesCacheValid: false,
+				needsRefresh: false
 			};
 
 			update(state => {
@@ -167,8 +186,9 @@ function createInventoryStore() {
 					categoriesCount: state.categories.length,
 					itemsCacheAge: state.lastFetchedItems ? now - state.lastFetchedItems : 0,
 					categoriesCacheAge: state.lastFetchedCategories ? now - state.lastFetchedCategories : 0,
-					itemsCacheValid: state.lastFetchedItems !== null && (now - state.lastFetchedItems) < CACHE_TTL,
-					categoriesCacheValid: state.lastFetchedCategories !== null && (now - state.lastFetchedCategories) < CACHE_TTL
+					itemsCacheValid: !state.needsRefresh && state.lastFetchedItems !== null && (now - state.lastFetchedItems) < CACHE_TTL,
+					categoriesCacheValid: state.lastFetchedCategories !== null && (now - state.lastFetchedCategories) < CACHE_TTL,
+					needsRefresh: state.needsRefresh
 				};
 				return state;
 			});

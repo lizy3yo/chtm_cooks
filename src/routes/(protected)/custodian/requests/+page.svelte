@@ -13,6 +13,7 @@ import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import ItemInspectionModal from '$lib/components/custodian/ItemInspectionModal.svelte';
 import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+import RequestsSkeletonLoader from '$lib/components/ui/RequestsSkeletonLoader.svelte';
 import { replacementObligationsAPI } from '$lib/api/replacementObligations';
 
 type Tab = 'pending' | 'ready' | 'active' | 'unresolved' | 'history';
@@ -28,6 +29,8 @@ let requests = $state<any[]>([]);
 let searchQuery = $state('');
 let sortBy = $state<'date' | 'student' | 'status'>('date');
 let viewMode = $state<ViewMode>('card');
+let loading = $state(true); // Start as true to show skeleton on mount
+let initialLoadComplete = $state(false); // Track if initial load has finished
 const PAGE_SIZE_CARD = 5;  // Card view - max 5 cards
 const PAGE_SIZE_LIST = 10; // List view - max 10 items
 const PAGE_SIZE = $derived(viewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST);
@@ -491,10 +494,22 @@ async function backfillItemPictures(): Promise<void> {
 }
 
 onMount(() => {
-	void replacementObligationsAPI.reconcile().then(({ reconciled }) => {
-		if (reconciled > 0) loadRequests(true);
+	// Initial load with loading state management
+	Promise.all([
+		replacementObligationsAPI.reconcile().then(({ reconciled }) => {
+			if (reconciled > 0) return loadRequests(true);
+		}),
+		loadRequests()
+	]).then(() => {
+		// Wait for next tick to ensure derived states are updated
+		setTimeout(() => {
+			loading = false;
+			initialLoadComplete = true;
+		}, 150);
+	}).catch(() => {
+		loading = false;
+		initialLoadComplete = true;
 	});
-	void loadRequests();
 
 	const unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((_event: BorrowRequestRealtimeEvent) => {
 		scheduleRefresh();
@@ -713,6 +728,9 @@ return { text: '', color: 'text-gray-500' };
 	<title>Requests & Loans - Custodian Portal</title>
 </svelte:head>
 
+{#if loading || !initialLoadComplete}
+	<RequestsSkeletonLoader {viewMode} />
+{:else}
 <div class="space-y-6">
 	<!-- Header -->
 	<div>
@@ -1396,6 +1414,7 @@ return { text: '', color: 'text-gray-500' };
 		</div>
 	</div>
 </div>
+{/if}
 
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
