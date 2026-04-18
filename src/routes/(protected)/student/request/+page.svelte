@@ -189,18 +189,6 @@
 				item.category.toLowerCase().includes(query) ||
 				item.specification.toLowerCase().includes(query)
 			);
-
-			// Also subscribe to donations stream to catch donation events that affect inventory
-			donationSSEUnsubscribe = donationsAPI.subscribeToChanges(() => {
-				console.log('[SSE] Donation change detected (donations stream) - triggering inventory update');
-				void handleInventoryUpdate({
-					action: 'item_updated',
-					entityType: 'item',
-					entityId: '',
-					entityName: 'donation_event',
-					occurredAt: new Date().toISOString()
-				});
-			});
 		}
 		
 		// Apply category filter
@@ -670,6 +658,16 @@
 		let unsubscribe: () => void = () => {};
 
 		void (async () => {
+			// CRITICAL: Initialize cart from database FIRST before doing anything else
+			// This ensures we don't duplicate items that are already in the cart
+			console.log('[MOUNT] Initializing cart from database...');
+			try {
+				await requestCartStore.init();
+				console.log('[MOUNT] Cart initialized successfully');
+			} catch (error) {
+				console.error('[MOUNT] Failed to initialize cart:', error);
+			}
+
 			// Check for cached catalog data first (same as student catalog)
 			const cached = catalogAPI.peekCachedCatalog({
 				availability: 'all',
@@ -699,18 +697,25 @@
 				constantItems = allItems.filter((item) => item.isConstant === true);
 				availableEquipment = allItems.filter((item) => item.available > 0 && !item.isConstant);
 
-				// Auto-add constant items to cart
+				// Get current cart items ONCE before the loop (AFTER cart is initialized)
+				const currentCartItems = get(requestCartItems);
+				console.log('[MOUNT] Current cart items before adding constants:', currentCartItems.length);
+
+				// Auto-add constant items to cart ONLY if they don't exist
 				if (constantItems.length > 0) {
 					for (const item of constantItems) {
-						const cartItems = get(requestCartItems);
-						const alreadyInCart = cartItems.some(cartItem => cartItem.itemId === item.id);
+						// Check if item already exists in cart (using the snapshot we took)
+						const alreadyInCart = currentCartItems.some(cartItem => cartItem.itemId === item.id);
 
 						if (!alreadyInCart) {
-							requestCartStore.addItem({
+							console.log('[MOUNT] Adding constant item to cart:', item.name);
+							await requestCartStore.addItem({
 								itemId: item.id,
 								name: item.name,
 								maxQuantity: Math.max(1, item.available)
 							});
+						} else {
+							console.log('[MOUNT] Constant item already in cart, skipping:', item.name);
 						}
 					}
 				}
@@ -733,18 +738,25 @@
 
 				console.log('[MOUNT] Equipment loaded, constant items:', constantItems.length);
 
-				// Auto-add constant items to cart
+				// Get current cart items ONCE before the loop (AFTER cart is initialized)
+				const currentCartItems = get(requestCartItems);
+				console.log('[MOUNT] Current cart items before adding constants:', currentCartItems.length);
+
+				// Auto-add constant items to cart ONLY if they don't exist
 				if (constantItems.length > 0) {
 					for (const item of constantItems) {
-						const cartItems = get(requestCartItems);
-						const alreadyInCart = cartItems.some(cartItem => cartItem.itemId === item.id);
+						// Check if item already exists in cart (using the snapshot we took)
+						const alreadyInCart = currentCartItems.some(cartItem => cartItem.itemId === item.id);
 
 						if (!alreadyInCart) {
-							requestCartStore.addItem({
+							console.log('[MOUNT] Adding constant item to cart:', item.name);
+							await requestCartStore.addItem({
 								itemId: item.id,
 								name: item.name,
 								maxQuantity: Math.max(1, item.available)
 							});
+						} else {
+							console.log('[MOUNT] Constant item already in cart, skipping:', item.name);
 						}
 					}
 
@@ -844,6 +856,18 @@
 					}
 				}
 			);
+
+			// Subscribe to donations stream to catch donation events that affect inventory
+			donationSSEUnsubscribe = donationsAPI.subscribeToChanges(() => {
+				console.log('[SSE] Donation change detected (donations stream) - triggering inventory update');
+				void handleInventoryUpdate({
+					action: 'item_updated',
+					entityType: 'item',
+					entityId: '',
+					entityName: 'donation_event',
+					occurredAt: new Date().toISOString()
+				});
+			});
 
 			console.log('[MOUNT] SSE subscriptions set up complete');
 		})();
