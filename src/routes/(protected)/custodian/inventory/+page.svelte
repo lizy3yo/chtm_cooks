@@ -26,8 +26,9 @@
 	// Data from store with client-side caching
 	let items = $state<InventoryItem[]>([]);
 	let categories = $state<InventoryCategory[]>([]);
-	let loading = $state(false);
+	let loading = $state(true); // Start as true to show skeleton on mount
 	let uploadingImage = $state(false);
+	let initialLoadComplete = $state(false); // Track if initial load has finished
 	
 	// Real-time refresh state
 	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -83,20 +84,31 @@
 		console.log('[INVENTORY-SSE] 🎬 Component mounted, loading data...');
 		
 		// Check if we should force refresh based on navigation
-		// Only force refresh if cache is invalid or if we're coming from a page
-		// where inventory might have changed (replacement, requests)
 		const shouldForceRefresh = !inventoryStore.isItemsCacheValid();
 		
 		if (shouldForceRefresh) {
 			console.log('[INVENTORY-SSE] 🗑️ Cache invalid, forcing refresh');
 			inventoryStore.invalidateAll();
-			loadCategories(true);
-			loadItems(true);
 		} else {
 			console.log('[INVENTORY-SSE] 💾 Cache valid, using cached data');
-			loadCategories(false);
-			loadItems(false);
 		}
+		
+		// Load data asynchronously with proper loading state management
+		Promise.all([
+			loadCategories(shouldForceRefresh),
+			loadItems(shouldForceRefresh)
+		]).then(() => {
+			console.log('[INVENTORY-SSE] ✅ Initial data load complete');
+			// Wait for next tick to ensure derived states are updated
+			setTimeout(() => {
+				loading = false;
+				initialLoadComplete = true;
+			}, 150); // Slightly longer delay to ensure displayItems is populated
+		}).catch(err => {
+			console.error('[INVENTORY-SSE] ❌ Initial data load failed:', err);
+			loading = false;
+			initialLoadComplete = true;
+		});
 
 		// Keyboard event handler for Escape key
 		const handleKeydown = (e: KeyboardEvent) => {
@@ -509,6 +521,7 @@
 
 	/**
 	 * Load all items from API (with client-side caching)
+	 * Industry-standard loading pattern with proper skeleton states
 	 * @param forceRefresh - If true, bypasses cache and fetches fresh data
 	 */
 	async function loadItems(forceRefresh = false) {
@@ -528,7 +541,6 @@
 			}
 			
 			console.log('[INVENTORY-SSE] 🌐 Fetching fresh items from API...');
-			loading = true;
 			inventoryStore.setLoading(true);
 
 			const freshItems = await fetchAllInventoryItems(true, forceRefresh);
@@ -549,13 +561,13 @@
 			console.error('[INVENTORY-SSE] ❌ Error loading items:', err);
 			toastStore.error(err.message || 'Failed to load items');
 		} finally {
-			loading = false;
 			inventoryStore.setLoading(false);
 		}
 	}
 
 	/**
 	 * Load all categories from API (with client-side caching)
+	 * Industry-standard loading pattern with proper skeleton states
 	 * @param forceRefresh - If true, bypasses cache and fetches fresh data
 	 */
 	async function loadCategories(forceRefresh = false) {
@@ -575,7 +587,6 @@
 			}
 
 			console.log('[INVENTORY-SSE] 🌐 Fetching fresh categories from API...');
-			loading = true;
 
 			const response = await inventoryCategoriesAPI.getAll({ includeArchived: true });
 			categories = response.categories;
@@ -588,8 +599,6 @@
 		} catch (err: any) {
 			console.error('[INVENTORY-SSE] ❌ Error loading categories:', err);
 			toastStore.error(err.message || 'Failed to load categories');
-		} finally {
-			loading = false;
 		}
 	}
 
@@ -751,6 +760,7 @@ $effect(() => {
 		if (!confirmed) return;
 
 		try {
+			const operationLoading = loading; // Store current loading state
 			loading = true;
 			const updatedItem = await inventoryItemsAPI.update(item.id, { archived: true });
 
@@ -777,10 +787,14 @@ $effect(() => {
 
 			closeModal();
 			toastStore.success('Item archived successfully');
+			
+			// Restore loading state if it wasn't loading before
+			if (!operationLoading) {
+				loading = false;
+			}
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to archive item');
 			console.error('Error archiving item:', err);
-		} finally {
 			loading = false;
 		}
 	}
@@ -789,6 +803,7 @@ $effect(() => {
 		e.preventDefault();
 		
 		try {
+			const operationLoading = loading; // Store current loading state
 			loading = true;
 			const wasEditing = !!editingItemId; // Store edit state before async operations
 
@@ -854,11 +869,16 @@ $effect(() => {
 
 			closeAddItemModal();
 			toastStore.success(wasEditing ? 'Item updated successfully' : 'Item created successfully');
+			
+			// Restore loading state if it wasn't loading before
+			if (!operationLoading) {
+				loading = false;
+			}
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to save item');
 			console.error('Error saving item:', err);
-		} finally {
 			loading = false;
+		} finally {
 			uploadingImage = false;
 		}
 	}
@@ -934,6 +954,7 @@ $effect(() => {
 		}
 
 		try {
+			const operationLoading = loading; // Store current loading state
 			loading = true;
 			const updatedItem = await inventoryItemsAPI.update(item.id, { isConstant: newStatus });
 
@@ -952,13 +973,17 @@ $effect(() => {
 					: `"${item.name}" removed from constant items`,
 				'Constant Item Updated'
 			);
+			
+			// Restore loading state if it wasn't loading before
+			if (!operationLoading) {
+				loading = false;
+			}
 		} catch (err: any) {
 			toastStore.error(
 				err.message || 'Failed to update constant status',
 				'Update Failed'
 			);
 			console.error('Error updating constant status:', err);
-		} finally {
 			loading = false;
 		}
 	}
@@ -978,6 +1003,7 @@ $effect(() => {
 		if (!confirmed) return;
 
 		try {
+			const operationLoading = loading; // Store current loading state
 			loading = true;
 			
 			// Delete from API
@@ -1008,10 +1034,13 @@ $effect(() => {
 			inventoryStore.setItems(items);
 			inventoryStore.setCategories(categories);
 			
+			// Restore loading state if it wasn't loading before
+			if (!operationLoading) {
+				loading = false;
+			}
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to delete item');
 			console.error('Error deleting item:', err);
-		} finally {
 			loading = false;
 		}
 	}
@@ -2738,7 +2767,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 	</div>
 
 	<!-- Global Skeleton Loading State -->
-	{#if loading}
+	{#if loading || !initialLoadComplete}
 		<InventorySkeletonLoader view={activeTab === 'categories' ? 'categories' : activeTab === 'low-stock' ? 'low-stock' : activeTab === 'constant-items' ? 'all-items' : 'all-items'} />
 	{:else}
 	
