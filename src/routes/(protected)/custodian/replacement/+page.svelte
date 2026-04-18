@@ -309,21 +309,72 @@
 	}
 
 	async function refreshObligations(): Promise<void> {
+		console.log('[OBLIGATIONS-SSE] 🔄 refreshObligations called, refreshInFlight:', refreshInFlight);
+		
 		if (refreshInFlight) {
+			console.log('[OBLIGATIONS-SSE] ⏸️ Already refreshing, setting pendingRefresh=true');
 			pendingRefresh = true;
 			return;
 		}
 
 		refreshInFlight = true;
 		try {
+			console.log('[OBLIGATIONS-SSE] 🗑️ Invalidating cache...');
 			replacementObligationsAPI.invalidateCache();
+			
+			console.log('[OBLIGATIONS-SSE] 📥 Fetching fresh obligations...');
 			await loadObligations(false, true);  // showLoading=false, forceRefresh=true
+			
+			console.log('[OBLIGATIONS-SSE] ✅ Obligations refreshed successfully');
+		} catch (error) {
+			console.error('[OBLIGATIONS-SSE] ❌ Failed to refresh obligations:', error);
 		} finally {
 			refreshInFlight = false;
 			if (pendingRefresh) {
+				console.log('[OBLIGATIONS-SSE] 🔁 Pending refresh detected, running again...');
 				pendingRefresh = false;
 				await refreshObligations();
 			}
+		}
+	}
+
+	/**
+	 * Optimistically update a single obligation without refetching all data
+	 * This provides instant UI updates without loading states
+	 */
+	async function updateSingleObligation(obligationId: string): Promise<void> {
+		console.log('[OBLIGATIONS-SSE] 🎯 Updating single obligation:', obligationId);
+		
+		try {
+			// Fetch just the updated obligation
+			const response = await replacementObligationsAPI.getObligation(obligationId, { forceRefresh: true });
+			const updatedObligation = response.obligation;
+			console.log('[OBLIGATIONS-SSE] ✅ Fetched updated obligation:', updatedObligation.itemName);
+			
+			// Find and update the obligation in the array
+			const index = obligations.findIndex(o => o.id === obligationId);
+			if (index !== -1) {
+				console.log('[OBLIGATIONS-SSE] 📝 Updating obligation at index:', index);
+				console.log('[OBLIGATIONS-SSE] 📊 Old status:', obligations[index].status, 'amountPaid:', obligations[index].amountPaid);
+				console.log('[OBLIGATIONS-SSE] 📊 New status:', updatedObligation.status, 'amountPaid:', updatedObligation.amountPaid);
+				
+				// Create new array with updated obligation to trigger reactivity
+				obligations = [
+					...obligations.slice(0, index),
+					updatedObligation,
+					...obligations.slice(index + 1)
+				];
+				
+				console.log('[OBLIGATIONS-SSE] ✅ Obligation updated successfully');
+			} else {
+				console.log('[OBLIGATIONS-SSE] ⚠️ Obligation not found in current list, doing full refresh');
+				// Obligation not found (might be filtered out), do full refresh
+				await refreshObligations();
+			}
+		} catch (error) {
+			console.error('[OBLIGATIONS-SSE] ❌ Failed to update single obligation:', error);
+			// Fallback to full refresh on error
+			await refreshObligations();
 		}
 	}
 
@@ -537,11 +588,14 @@
 				amountPaid: quantityReplaced
 			});
 			
-			// Update the cache directly instead of marking as stale
+			// Update inventory cache directly
 			console.log('[REPLACEMENT] Updating inventory cache after obligation resolution');
 			await updateInventoryCacheForItem(obligation.itemId);
 			
-			await loadObligations();
+			// Update the obligation in the local array optimistically
+			console.log('[REPLACEMENT] Updating obligation in local array');
+			await updateSingleObligation(id);
+			
 			selectedObligation = null;
 			toastStore.success('Obligation resolved successfully', 'Success');
 		} catch (err) {
@@ -561,11 +615,14 @@
 				amountPaid: editedAmountReplaced
 			});
 			
-			// Update the cache directly
+			// Update inventory cache directly
 			console.log('[REPLACEMENT] Updating inventory cache after amount update');
 			await updateInventoryCacheForItem(selectedObligation.itemId);
 			
-			await loadObligations();
+			// Update the obligation in the local array optimistically
+			console.log('[REPLACEMENT] Updating obligation in local array');
+			await updateSingleObligation(selectedObligation.id);
+			
 			editingAmountReplacedId = null;
 			toastStore.success('Amount replaced updated successfully', 'Success');
 		} catch (err) {
