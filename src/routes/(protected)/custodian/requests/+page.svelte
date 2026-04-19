@@ -2,6 +2,7 @@
 import { onMount } from 'svelte';
 import { goto } from '$app/navigation';
 import { page } from '$app/stores';
+import { browser } from '$app/environment';
 import { borrowRequestsAPI,
 type BorrowRequestItem,
 type BorrowRequestRealtimeEvent,
@@ -25,12 +26,17 @@ let historySubTab = $state<HistorySubTab>('all');
 let showDetailModal = $state(false);
 let showInspectionModal = $state(false);
 let selectedRequest = $state<any>(null);
+
+// Check for cached data before mounting to avoid unnecessary loading states
+const cachedRequests = browser ? borrowRequestsAPI.peekCachedList({}) : null;
+const hasCachedData = cachedRequests && cachedRequests.requests.length > 0;
+
 let requests = $state<any[]>([]);
 let searchQuery = $state('');
 let sortBy = $state<'date' | 'student' | 'status'>('date');
 let viewMode = $state<ViewMode>('card');
-let loading = $state(true); // Start as true to show skeleton on mount
-let initialLoadComplete = $state(false); // Track if initial load has finished
+let loading = $state(!hasCachedData); // Only show skeleton if no cached data
+let initialLoadComplete = $state(hasCachedData); // Mark as complete if we have cached data
 const PAGE_SIZE_CARD = 5;  // Card view - max 5 cards
 const PAGE_SIZE_LIST = 10; // List view - max 10 items
 const PAGE_SIZE = $derived(viewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST);
@@ -494,12 +500,20 @@ async function backfillItemPictures(): Promise<void> {
 }
 
 onMount(() => {
+	// Populate cached data if available
+	if (hasCachedData && cachedRequests) {
+		requests = cachedRequests.requests
+			.filter((record) => record.status !== 'pending_instructor')
+			.map(mapRequest);
+		console.log('[REQUESTS] 💾 Loaded from cache:', requests.length, 'requests');
+	}
+	
 	// Initial load with loading state management
 	Promise.all([
 		replacementObligationsAPI.reconcile().then(({ reconciled }) => {
 			if (reconciled > 0) return loadRequests(true);
 		}),
-		loadRequests()
+		loadRequests(!hasCachedData) // Force refresh only if no cached data
 	]).then(() => {
 		// Wait for next tick to ensure derived states are updated
 		setTimeout(() => {

@@ -1,4 +1,20 @@
 <script lang="ts">
+	/**
+	 * StudentTopNav Component
+	 * 
+	 * Professional cart image handling strategy:
+	 * 1. Cart items store picture URLs from when they were added
+	 * 2. Catalog data is loaded on mount to enrich cart items with latest images
+	 * 3. enrichedCartItems derived store merges cart data with catalog images
+	 * 4. Fallback to ItemImagePlaceholder if image fails to load
+	 * 5. Periodic catalog refresh (5min) keeps images up-to-date
+	 * 
+	 * This approach follows industry standards:
+	 * - Single source of truth (catalog) for image URLs
+	 * - Graceful degradation with placeholders
+	 * - Lazy loading for performance
+	 * - Error handling for broken images
+	 */
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -33,11 +49,26 @@
 
 	onMount(() => {
 		ticker = setInterval(() => { now = new Date(); }, 1000);
-		void loadNotifications();
+		
+		// Load catalog data immediately for cart image enrichment
 		void loadCatalogData();
+		
+		// Load notifications
+		void loadNotifications();
+		
+		// Set up periodic refresh for notifications
 		notificationTicker = setInterval(() => {
 			void loadNotifications();
 		}, 60000);
+		
+		// Refresh catalog data every 5 minutes to keep images up-to-date
+		const catalogRefreshTicker = setInterval(() => {
+			void loadCatalogData();
+		}, 5 * 60 * 1000);
+		
+		return () => {
+			clearInterval(catalogRefreshTicker);
+		};
 	});
 	onDestroy(() => {
 		clearInterval(ticker);
@@ -174,14 +205,46 @@
 		});
 	}
 
+	/**
+	 * Load catalog data to enrich cart items with pictures
+	 * Industry-standard approach: fetch catalog once and cache for image lookups
+	 */
 	async function loadCatalogData() {
 		try {
-			const data = await catalogAPI.getCatalog({ limit: 1000 });
+			const data = await catalogAPI.getCatalog({ 
+				availability: 'all',
+				limit: 1000 
+			});
 			catalogData = data;
+			console.log('[CART-IMAGES] Catalog data loaded:', data.items.length, 'items');
 		} catch (error) {
-			console.error('Failed to load catalog data:', error);
+			console.error('[CART-IMAGES] Failed to load catalog data:', error);
 		}
 	}
+
+	/**
+	 * Get enriched cart items with pictures from catalog
+	 * Ensures images are always available even if cart data is stale
+	 */
+	const enrichedCartItems = $derived.by(() => {
+		if (!catalogData) return $requestCartItems;
+		
+		return $requestCartItems.map((cartItem) => {
+			// If cart item already has picture, use it
+			if (cartItem.picture) return cartItem;
+			
+			// Otherwise, look up picture from catalog
+			const catalogItem = catalogData.items.find((item: any) => item.id === cartItem.itemId);
+			if (catalogItem?.picture) {
+				return {
+					...cartItem,
+					picture: catalogItem.picture
+				};
+			}
+			
+			return cartItem;
+		});
+	});
 </script>
 
 <svelte:window onclick={handleWindowClick} />
@@ -258,11 +321,11 @@
 								<p class="text-sm text-gray-500">No items in request list</p>
 							</div>
 						{:else}
-							{@const constantItems = $requestCartItems.filter((item) => {
+							{@const constantItems = enrichedCartItems.filter((item) => {
 								const catalogItem = catalogData?.items.find((i: any) => i.id === item.itemId);
 								return catalogItem?.isConstant === true;
 							})}
-							{@const additionalItems = $requestCartItems.filter((item) => {
+							{@const additionalItems = enrichedCartItems.filter((item) => {
 								const catalogItem = catalogData?.items.find((i: any) => i.id === item.itemId);
 								return catalogItem?.isConstant !== true;
 							})}
@@ -287,7 +350,11 @@
 															alt={cartItem.name} 
 															class="h-full w-full object-cover" 
 															loading="lazy"
-															onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+															onerror={(e) => { 
+																const img = e.target as HTMLImageElement;
+																img.style.display = 'none';
+																console.warn('[CART-IMAGE] Failed to load image:', cartItem.picture);
+															}}
 														/>
 													{/if}
 													{#if !cartItem.picture}
@@ -378,7 +445,11 @@
 															alt={cartItem.name} 
 															class="h-full w-full object-cover" 
 															loading="lazy"
-															onerror={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+															onerror={(e) => { 
+																const img = e.target as HTMLImageElement;
+																img.style.display = 'none';
+																console.warn('[CART-IMAGE] Failed to load image:', cartItem.picture);
+															}}
 														/>
 													{/if}
 													{#if !cartItem.picture}

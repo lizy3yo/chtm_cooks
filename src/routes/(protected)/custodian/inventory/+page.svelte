@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
+	import { browser } from '$app/environment';
 	import type { InventoryItem, InventoryCategory } from '$lib/api/inventory';
 	import { 
 		inventoryItemsAPI, 
@@ -23,12 +24,16 @@
 	let activeTab = $state<Tab>('all-items');
 	let showAddItemModal = $state(false);
 	
+	// Check for cached data before mounting to avoid unnecessary loading states
+	const cachedStore = browser ? get(inventoryStore) : null;
+	const hasCachedData = cachedStore && cachedStore.items.length > 0 && inventoryStore.isItemsCacheValid();
+	
 	// Data from store with client-side caching
-	let items = $state<InventoryItem[]>([]);
-	let categories = $state<InventoryCategory[]>([]);
-	let loading = $state(true); // Start as true to show skeleton on mount
+	let items = $state<InventoryItem[]>(hasCachedData ? cachedStore!.items : []);
+	let categories = $state<InventoryCategory[]>(hasCachedData ? cachedStore!.categories : []);
+	let loading = $state(!hasCachedData); // Only show skeleton if no cached data
 	let uploadingImage = $state(false);
-	let initialLoadComplete = $state(false); // Track if initial load has finished
+	let initialLoadComplete = $state(hasCachedData); // Mark as complete if we have cached data
 	
 	// Real-time refresh state
 	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -81,16 +86,17 @@
 
 	// Load data on component mount
 	onMount(() => {
-		console.log('[INVENTORY-SSE] 🎬 Component mounted, loading data...');
+		console.log('[INVENTORY-SSE]  Component mounted, loading data...');
+		console.log('[INVENTORY-SSE]  Has cached data:', hasCachedData);
 		
 		// Check if we should force refresh based on navigation
 		const shouldForceRefresh = !inventoryStore.isItemsCacheValid();
 		
 		if (shouldForceRefresh) {
-			console.log('[INVENTORY-SSE] 🗑️ Cache invalid, forcing refresh');
+			console.log('[INVENTORY-SSE]  Cache invalid, forcing refresh');
 			inventoryStore.invalidateAll();
 		} else {
-			console.log('[INVENTORY-SSE] 💾 Cache valid, using cached data');
+			console.log('[INVENTORY-SSE]  Cache valid, using cached data');
 		}
 		
 		// Load data asynchronously with proper loading state management
@@ -533,30 +539,30 @@
 			console.log('[INVENTORY-SSE] 🔍 Cache valid:', cacheValid);
 			
 			if (!forceRefresh && cacheValid) {
-				console.log('[INVENTORY-SSE] 💾 Using cached items');
+				console.log('[INVENTORY-SSE]  Using cached items');
 				const storeData = get(inventoryStore);
 				items = storeData.items;
-				console.log('[INVENTORY-SSE] 💾 Loaded from cache:', items.length, 'items');
+				console.log('[INVENTORY-SSE]  Loaded from cache:', items.length, 'items');
 				return;
 			}
 			
-			console.log('[INVENTORY-SSE] 🌐 Fetching fresh items from API...');
+			console.log('[INVENTORY-SSE]  Fetching fresh items from API...');
 			inventoryStore.setLoading(true);
 
 			const freshItems = await fetchAllInventoryItems(true, forceRefresh);
 			
-			console.log('[INVENTORY-SSE] ✅ Loaded items from API:', freshItems.length);
+			console.log('[INVENTORY-SSE]  Loaded items from API:', freshItems.length);
 			
 			// Update reactive state immediately
 			items = freshItems;
 			
 			if (items.length > 0) {
-				console.log('[INVENTORY-SSE] 📦 First item:', items[0].name, 'quantity:', items[0].quantity, 'donations:', items[0].donations, 'currentCount:', items[0].currentCount);
+				console.log('[INVENTORY-SSE]  First item:', items[0].name, 'quantity:', items[0].quantity, 'donations:', items[0].donations, 'currentCount:', items[0].currentCount);
 			}
 
 			// Update cache with fresh data
 			inventoryStore.setItems(freshItems);
-			console.log('[INVENTORY-SSE] 💾 Cache updated with fresh items');
+			console.log('[INVENTORY-SSE]  Cache updated with fresh items');
 		} catch (err: any) {
 			console.error('[INVENTORY-SSE] ❌ Error loading items:', err);
 			toastStore.error(err.message || 'Failed to load items');
@@ -571,33 +577,33 @@
 	 * @param forceRefresh - If true, bypasses cache and fetches fresh data
 	 */
 	async function loadCategories(forceRefresh = false) {
-		console.log('[INVENTORY-SSE] 📥 loadCategories called, forceRefresh:', forceRefresh);
+		console.log('[INVENTORY-SSE]  loadCategories called, forceRefresh:', forceRefresh);
 		
 		try {
 			// Check if cache is still valid (unless force refresh)
 			const cacheValid = inventoryStore.isCategoriesCacheValid();
-			console.log('[INVENTORY-SSE] 🔍 Categories cache valid:', cacheValid);
+			console.log('[INVENTORY-SSE]  Categories cache valid:', cacheValid);
 			
 			if (!forceRefresh && cacheValid) {
-				console.log('[INVENTORY-SSE] 💾 Using cached categories');
+				console.log('[INVENTORY-SSE]  Using cached categories');
 				// Use cached data
 				const storeData = get(inventoryStore);
 				categories = storeData.categories;
 				return;
 			}
 
-			console.log('[INVENTORY-SSE] 🌐 Fetching fresh categories from API...');
+			console.log('[INVENTORY-SSE]  Fetching fresh categories from API...');
 
 			const response = await inventoryCategoriesAPI.getAll({ includeArchived: true });
 			categories = response.categories;
 
-			console.log('[INVENTORY-SSE] ✅ Loaded categories from API:', categories.length);
+			console.log('[INVENTORY-SSE]  Loaded categories from API:', categories.length);
 
 			// Update cache
 			inventoryStore.setCategories(response.categories);
-			console.log('[INVENTORY-SSE] 💾 Categories cache updated');
+			console.log('[INVENTORY-SSE]  Categories cache updated');
 		} catch (err: any) {
-			console.error('[INVENTORY-SSE] ❌ Error loading categories:', err);
+			console.error('[INVENTORY-SSE] Error loading categories:', err);
 			toastStore.error(err.message || 'Failed to load categories');
 		}
 	}
