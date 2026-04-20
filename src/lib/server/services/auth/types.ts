@@ -32,5 +32,18 @@ export const REMEMBER_ME_DEFAULTS = {
 export const COOKIE_OPTIONS = {
 	httpOnly: true,
 	sameSite: 'lax' as const,
-	path: '/'
+	path: '/',
+	secure: true // Will be overridden in dev mode
 };
+
+/**
+ * Get cookie options with environment-specific settings
+ * In development, secure is set to false to allow HTTP
+ * In production, secure is always true (HTTPS only)
+ */
+export function getCookieOptions(isDev: boolean = false) {
+	return {
+		...COOKIE_OPTIONS,
+		secure: !isDev
+	};
+}

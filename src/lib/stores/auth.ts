@@ -40,46 +40,72 @@ function createAuthStore() {
 		/**
 		 * Initialize authentication state
 		 * Checks if user is authenticated via cookies
+		 * 
+		 * Flow:
+		 * 1. Check for active session (access token)
+		 * 2. If no session, try auto-login with remember-me token
+		 * 3. If both fail, user needs to login manually
 		 */
 		init: async () => {
 			if (!browser) return;
 
 			console.log('[AuthStore] Initializing authentication...');
+			
 			try {
-				// Try to get current user (will work if auth cookies exist)
-				const response = await fetch('/api/auth/me', {
-					credentials: 'include' // Include cookies
+				// First, try to get current user (checks if access token is valid)
+				const meResponse = await fetch('/api/auth/me', {
+					credentials: 'include',
+					headers: {
+						'Cache-Control': 'no-cache'
+					}
 				});
 
-				if (response.ok) {
-					const data = await response.json();
-					console.log('[AuthStore] User already authenticated:', data.user.email);
-					console.log('[AuthStore] Full user data:', JSON.stringify(data.user, null, 2));
-					console.log('[AuthStore] User keys:', Object.keys(data.user));
+				if (meResponse.ok) {
+					// User has valid access token
+					const data = await meResponse.json();
+					console.log('[AuthStore] Active session found for:', data.user.email);
 					update((state) => ({
 						...state,
 						user: data.user,
 						isAuthenticated: true,
 						isLoading: false
 					}));
-				} else if (response.status === 401) {
-					// Not logged in - try auto-login with remember-me (401 is expected here)
-					console.log('[AuthStore] No active session, trying auto-login...');
-					await authStore.tryAutoLogin();
-				} else {
-					// Other error
+					return;
+				}
+
+				// No active session - try auto-login with remember-me token
+				console.log('[AuthStore] No active session, attempting auto-login...');
+				const autoLoginResponse = await fetch('/api/auth/auto-login', {
+					method: 'POST',
+					credentials: 'include',
+					headers: {
+						'Content-Type': 'application/json',
+						'Cache-Control': 'no-cache'
+					}
+				});
+
+				if (autoLoginResponse.ok) {
+					const data = await autoLoginResponse.json();
+					console.log('[AuthStore] Auto-login successful for:', data.user.email);
 					update((state) => ({
-						...initialState,
+						...state,
+						user: data.user,
+						isAuthenticated: true,
 						isLoading: false
 					}));
+					return;
 				}
+
+				// Both methods failed - user needs to login
+				console.log('[AuthStore] No valid session or remember-me token found');
+				update((state) => ({
+					...initialState,
+					isLoading: false
+				}));
+
 			} catch (error) {
-				// Only log unexpected errors (not network issues from initial page load)
-				if (error instanceof TypeError && error.message.includes('fetch')) {
-					// Network error during initial load - fail silently
-				} else {
-					console.error('Auth initialization failed:', error);
-				}
+				// Network error or unexpected error
+				console.error('[AuthStore] Authentication initialization error:', error);
 				update((state) => ({
 					...initialState,
 					isLoading: false
@@ -205,38 +231,51 @@ function createAuthStore() {
 
 		/**
 		 * Try auto-login with remember-me cookie
+		 * This is a standalone method that can be called independently
+		 * 
+		 * @returns Promise<boolean> - true if auto-login succeeded, false otherwise
 		 */
-		tryAutoLogin: async () => {
+		tryAutoLogin: async (): Promise<boolean> => {
 			try {
+				console.log('[AuthStore] Attempting auto-login...');
 				const response = await fetch('/api/auth/auto-login', {
 					method: 'POST',
-					credentials: 'include'
+					credentials: 'include',
+					headers: {
+						'Content-Type': 'application/json',
+						'Cache-Control': 'no-cache'
+					}
 				});
 
 				if (response.ok) {
 					const data = await response.json();
-				console.log('[AuthStore] Auto-login successful, updating state');
-				update((state) => ({
-					...state,
-					user: data.user,
-					isAuthenticated: true,
-					isLoading: false
-				}));
-			} else {
-				// 401 is expected when no remember-me cookie exists - fail silently
+					console.log('[AuthStore] Auto-login successful for:', data.user.email);
+					update((state) => ({
+						...state,
+						user: data.user,
+						isAuthenticated: true,
+						isLoading: false
+					}));
+					return true;
+				}
+
+				// Auto-login failed (no remember-me token or expired)
+				console.log('[AuthStore] Auto-login failed:', response.status);
 				update((state) => ({
 					...initialState,
 					isLoading: false
 				}));
+				return false;
+
+			} catch (error) {
+				console.error('[AuthStore] Auto-login error:', error);
+				update((state) => ({
+					...initialState,
+					isLoading: false
+				}));
+				return false;
 			}
-		} catch (error) {
-			// Network error or no remember-me token - expected, fail silently
-			update((state) => ({
-				...initialState,
-				isLoading: false
-			}));
-		}
-	},
+		},
 
 	/**
 	 * Verify current session
