@@ -5,9 +5,10 @@ import { ObjectId } from 'mongodb';
 import type { User, UserRole } from '$lib/server/models/User';
 import { hashPassword } from '$lib/server/utils/password';
 import { validateEmail, sanitizeInput } from '$lib/server/utils/validation';
-import { verifyAccessToken } from '$lib/server/utils/jwt';
+import { getUserFromToken } from '$lib/server/middleware/auth/verify';
 import { rateLimit, RateLimitPresets } from '$lib/server/middleware/rateLimit';
 import { logger } from '$lib/server/utils/logger';
+import { publishUserChange, USER_CHANNEL } from '$lib/server/realtime/userEvents';
 
 /**
  * GET /api/users
@@ -23,17 +24,10 @@ export const GET: RequestHandler = async (event) => {
 	}
 
 	try {
-		// Verify authentication
-		const authHeader = request.headers.get('Authorization');
-		if (!authHeader || !authHeader.startsWith('Bearer ')) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-
-		const token = authHeader.substring(7);
-		const decoded = verifyAccessToken(token);
-		
+		// Verify authentication via cookie
+		const decoded = getUserFromToken(event);
 		if (!decoded) {
-			return json({ error: 'Invalid or expired token' }, { status: 401 });
+			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
 		// Verify superadmin role
@@ -78,7 +72,9 @@ export const GET: RequestHandler = async (event) => {
 					projection: {
 						password: 0,
 						emailVerificationToken: 0,
-						passwordResetToken: 0
+						passwordResetToken: 0,
+						passwordResetExpires: 0,
+						emailVerificationExpires: 0
 					}
 				})
 				.sort({ createdAt: -1 })
@@ -95,6 +91,7 @@ export const GET: RequestHandler = async (event) => {
 			role: user.role,
 			firstName: user.firstName,
 			lastName: user.lastName,
+			profilePhotoUrl: user.profilePhotoUrl ?? null,
 			isActive: user.isActive,
 			emailVerified: user.emailVerified,
 			createdAt: user.createdAt,
@@ -132,17 +129,10 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	try {
-		// Verify authentication
-		const authHeader = request.headers.get('Authorization');
-		if (!authHeader || !authHeader.startsWith('Bearer ')) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-
-		const token = authHeader.substring(7);
-		const decoded = verifyAccessToken(token);
-		
+		// Verify authentication via cookie
+		const decoded = getUserFromToken(event);
 		if (!decoded) {
-			return json({ error: 'Invalid or expired token' }, { status: 401 });
+			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
 		// Verify superadmin role
@@ -224,6 +214,13 @@ export const POST: RequestHandler = async (event) => {
 			ip: getClientAddress()
 		});
 
+		// Publish real-time event
+		publishUserChange([USER_CHANNEL], {
+			action: 'user_created',
+			userId: result.insertedId.toString(),
+			occurredAt: new Date().toISOString()
+		});
+
 		return json({
 			success: true,
 			message: 'User created successfully',
@@ -258,17 +255,10 @@ export const PATCH: RequestHandler = async (event) => {
 	}
 
 	try {
-		// Verify authentication
-		const authHeader = request.headers.get('Authorization');
-		if (!authHeader || !authHeader.startsWith('Bearer ')) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-
-		const token = authHeader.substring(7);
-		const decoded = verifyAccessToken(token);
-		
+		// Verify authentication via cookie
+		const decoded = getUserFromToken(event);
 		if (!decoded) {
-			return json({ error: 'Invalid or expired token' }, { status: 401 });
+			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
 		// Verify superadmin role
@@ -334,6 +324,13 @@ export const PATCH: RequestHandler = async (event) => {
 			ip: getClientAddress()
 		});
 
+		// Publish real-time event
+		publishUserChange([USER_CHANNEL], {
+			action: 'user_updated',
+			userId,
+			occurredAt: new Date().toISOString()
+		});
+
 		return json({
 			success: true,
 			message: 'User updated successfully',
@@ -358,7 +355,7 @@ export const PATCH: RequestHandler = async (event) => {
  * Delete user (superadmin only)
  */
 export const DELETE: RequestHandler = async (event) => {
-	const { request, url, getClientAddress } = event;
+	const { url, getClientAddress } = event;
 	
 	// Apply rate limiting
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -367,17 +364,10 @@ export const DELETE: RequestHandler = async (event) => {
 	}
 
 	try {
-		// Verify authentication
-		const authHeader = request.headers.get('Authorization');
-		if (!authHeader || !authHeader.startsWith('Bearer ')) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-
-		const token = authHeader.substring(7);
-		const decoded = verifyAccessToken(token);
-		
+		// Verify authentication via cookie
+		const decoded = getUserFromToken(event);
 		if (!decoded) {
-			return json({ error: 'Invalid or expired token' }, { status: 401 });
+			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
 		// Verify superadmin role
@@ -422,6 +412,13 @@ export const DELETE: RequestHandler = async (event) => {
 			deletedUserRole: user.role,
 			deletedBy: decoded.userId,
 			ip: getClientAddress()
+		});
+
+		// Publish real-time event
+		publishUserChange([USER_CHANNEL], {
+			action: 'user_deleted',
+			userId,
+			occurredAt: new Date().toISOString()
 		});
 
 		return json({
