@@ -1,11 +1,26 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { isAuthenticated, user } from '$lib/stores/auth';
+	import { isAuthenticated, user, isLoading } from '$lib/stores/auth';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
 
 	let scrollY = $state(0);
 	let isVisible = $state(false);
+	let authCheckComplete = $state(false);
+
+	// Auto-redirect authenticated users to their dashboard
+	$effect(() => {
+		// Wait for auth initialization to complete
+		if (!$isLoading && !authCheckComplete) {
+			authCheckComplete = true;
+			
+			// If user is authenticated, redirect to appropriate dashboard
+			if ($isAuthenticated && $user) {
+				console.log('[Landing] User authenticated, redirecting to dashboard...');
+				redirectToDashboard($user.role);
+			}
+		}
+	});
 
 	onMount(() => {
 		isVisible = true;
@@ -18,17 +33,28 @@
 		return () => window.removeEventListener('scroll', handleScroll);
 	});
 
+	/**
+	 * Redirect user to their role-specific dashboard
+	 */
+	function redirectToDashboard(role: string) {
+		const dashboardRoutes: Record<string, string> = {
+			student: '/student/dashboard',
+			instructor: '/instructor/dashboard',
+			custodian: '/custodian/dashboard',
+			superadmin: '/superadmin/dashboard',
+			admin: '/superadmin/dashboard'
+		};
+
+		const route = dashboardRoutes[role] || '/auth/login';
+		goto(route, { replaceState: true });
+	}
+
+	/**
+	 * Handle "Get Started" button click
+	 */
 	function handleGetStarted() {
 		if ($isAuthenticated && $user) {
-			if ($user.role === 'student') {
-				goto('/student/dashboard');
-			} else if ($user.role === 'instructor') {
-				goto('/instructor/dashboard');
-			} else if ($user.role === 'custodian') {
-				goto('/custodian/dashboard');
-			} else if ($user.role === 'superadmin' || $user.role === 'admin') {
-				goto('/superadmin/dashboard');
-			}
+			redirectToDashboard($user.role);
 		} else {
 			goto('/auth/login');
 		}
@@ -82,7 +108,25 @@
 	<meta name="description" content="Industry-leading laboratory equipment management platform with real-time tracking, smart workflows, and advanced analytics." />
 </svelte:head>
 
-<div class="relative min-h-screen overflow-hidden bg-white">
+<!-- Loading Overlay (shown during auth check) -->
+{#if $isLoading}
+	<div class="fixed inset-0 z-100 flex items-center justify-center bg-white">
+		<div class="text-center">
+			<div class="relative mx-auto mb-6 h-20 w-20">
+				<div class="absolute inset-0 animate-pulse rounded-full bg-pink-400 opacity-20 blur-md"></div>
+				<img src={favicon} alt="CHTM Logo" class="relative h-20 w-20 animate-bounce" />
+			</div>
+			<div class="flex items-center justify-center gap-2">
+				<div class="h-2 w-2 animate-bounce rounded-full bg-pink-600" style="animation-delay: 0ms;"></div>
+				<div class="h-2 w-2 animate-bounce rounded-full bg-pink-600" style="animation-delay: 150ms;"></div>
+				<div class="h-2 w-2 animate-bounce rounded-full bg-pink-600" style="animation-delay: 300ms;"></div>
+			</div>
+			<p class="mt-4 text-sm font-medium text-gray-600">Loading...</p>
+		</div>
+	</div>
+{/if}
+
+<div class="relative min-h-screen overflow-hidden bg-white" class:opacity-0={$isLoading} class:pointer-events-none={$isLoading}>
 	<!-- Animated Background -->
 	<div class="pointer-events-none fixed inset-0 z-0">
 		<div class="absolute -left-1/4 -top-1/4 h-96 w-96 animate-blob rounded-full bg-pink-200 opacity-30 mix-blend-multiply blur-3xl filter"></div>

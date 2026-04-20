@@ -1,6 +1,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { rememberMeService } from '$lib/server/services/auth';
-import { REMEMBER_ME_DEFAULTS, COOKIE_OPTIONS } from '$lib/server/services/auth/types';
+import { REMEMBER_ME_DEFAULTS, getCookieOptions } from '$lib/server/services/auth/types';
 import { dev } from '$app/environment';
 
 /**
@@ -25,8 +25,7 @@ export function setRememberMeCookie(
 	const maxAge = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
 	
 	const cookieOptions = {
-		...COOKIE_OPTIONS,
-		secure: !dev, // Allow non-secure in development
+		...getCookieOptions(dev),
 		maxAge,
 		expires: expiresAt
 	};
@@ -64,8 +63,9 @@ export function getRememberMeCookie(event: RequestEvent): string | null {
  * @param event - SvelteKit request event
  */
 export function clearRememberMeCookie(event: RequestEvent): void {
+	console.log('[RememberMe] Clearing cookie');
 	event.cookies.delete(REMEMBER_ME_DEFAULTS.COOKIE_NAME, {
-		path: COOKIE_OPTIONS.path
+		path: getCookieOptions(dev).path
 	});
 }
 
@@ -108,12 +108,12 @@ export function getClientIp(event: RequestEvent): string | undefined {
 
 /**
  * Validate and process remember-me token
- * Returns user ID if valid, null otherwise
+ * Returns validation result with user ID and token ID if valid, null otherwise
  * 
  * @param event - SvelteKit request event
- * @returns User ID or null
+ * @returns Validation result object or null
  */
-export async function validateRememberMeToken(event: RequestEvent): Promise<string | null> {
+export async function validateRememberMeToken(event: RequestEvent): Promise<{ userId: string; tokenId?: string } | null> {
 	const token = getRememberMeCookie(event);
 	if (!token) {
 		console.log('[RememberMe] No token found in cookie');
@@ -126,6 +126,7 @@ export async function validateRememberMeToken(event: RequestEvent): Promise<stri
 	console.log('[RememberMe] Validation result:', {
 		isValid: result.isValid,
 		userId: result.userId,
+		tokenId: result.tokenId,
 		error: result.error
 	});
 	
@@ -135,7 +136,10 @@ export async function validateRememberMeToken(event: RequestEvent): Promise<stri
 		return null;
 	}
 	
-	return result.userId || null;
+	return {
+		userId: result.userId!,
+		tokenId: result.tokenId
+	};
 }
 
 /**

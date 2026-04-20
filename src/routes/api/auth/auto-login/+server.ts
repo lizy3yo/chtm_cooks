@@ -27,20 +27,31 @@ import { setAuthTokens, getAccessTokenMaxAge } from '$lib/server/middleware/auth
  * 5. Client updates auth store
  */
 export const POST: RequestHandler = async (event) => {
+	const startTime = Date.now();
+	
 	try {
-		console.log('[AutoLogin] Attempting auto-login...');
-		// Validate remember-me token
-		const userId = await validateRememberMeToken(event);
+		console.log('[AutoLogin] ========== AUTO-LOGIN REQUEST START ==========');
+		console.log('[AutoLogin] Timestamp:', new Date().toISOString());
+		console.log('[AutoLogin] User-Agent:', event.request.headers.get('user-agent'));
+		console.log('[AutoLogin] IP:', event.getClientAddress());
 		
-		if (!userId) {
-			console.log('[AutoLogin] No valid remember-me token found');
+		// Validate remember-me token
+		const validationResult = await validateRememberMeToken(event);
+		
+		if (!validationResult) {
+			console.log('[AutoLogin] ❌ No valid remember-me token found');
+			console.log('[AutoLogin] Duration:', Date.now() - startTime, 'ms');
+			console.log('[AutoLogin] ========== AUTO-LOGIN REQUEST END ==========');
 			return json(
 				{ error: 'No valid remember-me token found' },
 				{ status: 401 }
 			);
 		}
 		
-		console.log('[AutoLogin] Valid token found for user:', userId);
+		const { userId, tokenId } = validationResult;
+		console.log('[AutoLogin] ✓ Valid token found');
+		console.log('[AutoLogin] User ID:', userId);
+		console.log('[AutoLogin] Token ID:', tokenId);
 		
 		// Fetch user from database
 		const db = await getDatabase();
@@ -50,18 +61,25 @@ export const POST: RequestHandler = async (event) => {
 		const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
 		
 		if (!user) {
-			console.log('[AutoLogin] User not found in database');
+			console.log('[AutoLogin] ❌ User not found in database');
+			console.log('[AutoLogin] Duration:', Date.now() - startTime, 'ms');
+			console.log('[AutoLogin] ========== AUTO-LOGIN REQUEST END ==========');
 			return json(
 				{ error: 'User not found' },
 				{ status: 404 }
 			);
 		}
 		
-		console.log('[AutoLogin] User found:', user.email);
+		console.log('[AutoLogin] ✓ User found:', user.email);
+		console.log('[AutoLogin] User role:', user.role);
+		console.log('[AutoLogin] User active:', user.isActive);
+		console.log('[AutoLogin] Email verified:', user.emailVerified);
 		
 		// Check if user is active
 		if (!user.isActive) {
-			console.log('[AutoLogin] User is inactive');
+			console.log('[AutoLogin] ❌ User account is inactive');
+			console.log('[AutoLogin] Duration:', Date.now() - startTime, 'ms');
+			console.log('[AutoLogin] ========== AUTO-LOGIN REQUEST END ==========');
 			return json(
 				{ error: 'Account is deactivated' },
 				{ status: 403 }
@@ -70,7 +88,9 @@ export const POST: RequestHandler = async (event) => {
 
 		// Student accounts must remain verified to restore a session.
 		if (user.role === 'student' && !user.emailVerified) {
-			console.log('[AutoLogin] Student email is not verified');
+			console.log('[AutoLogin] ❌ Student email not verified');
+			console.log('[AutoLogin] Duration:', Date.now() - startTime, 'ms');
+			console.log('[AutoLogin] ========== AUTO-LOGIN REQUEST END ==========');
 			return json(
 				{ error: 'Email not verified' },
 				{ status: 403 }
@@ -78,12 +98,14 @@ export const POST: RequestHandler = async (event) => {
 		}
 		
 		// Update last login
+		console.log('[AutoLogin] Updating last login timestamp...');
 		await usersCollection.updateOne(
 			{ _id: user._id },
 			{ $set: { lastLogin: new Date() } }
 		);
 		
 		// Generate new access and refresh tokens
+		console.log('[AutoLogin] Generating new access and refresh tokens...');
 		const tokenPayload = {
 			userId: user._id!.toString(),
 			email: user.email,
@@ -108,15 +130,37 @@ export const POST: RequestHandler = async (event) => {
 		};
 		
 		// Set auth tokens as httpOnly cookies
+		console.log('[AutoLogin] Setting auth tokens in cookies...');
 		setAuthTokens(event, accessToken, refreshToken, getAccessTokenMaxAge(user.role));
 		
-		// Note: Token rotation is optional - uncomment below to enable
-		// Token rotation provides extra security but creates more DB writes
-		// await rotateRememberMeToken(event, tokenId, userId);
+		// Token rotation for enhanced security
+		// Rotate the remember-me token after successful use
+		if (tokenId) {
+			try {
+				console.log('[AutoLogin] Rotating remember-me token for enhanced security...');
+				await rotateRememberMeToken(event, tokenId, userId);
+				console.log('[AutoLogin] ✓ Token rotation successful');
+			} catch (rotationError) {
+				// Token rotation failed - log but don't fail the login
+				console.error('[AutoLogin] ⚠️ Token rotation failed:', rotationError);
+				// User is still logged in, just without token rotation
+			}
+		}
+		
+		console.log('[AutoLogin] ✓✓✓ AUTO-LOGIN SUCCESSFUL ✓✓✓');
+		console.log('[AutoLogin] User:', user.email);
+		console.log('[AutoLogin] Role:', user.role);
+		console.log('[AutoLogin] Duration:', Date.now() - startTime, 'ms');
+		console.log('[AutoLogin] ========== AUTO-LOGIN REQUEST END ==========');
 		
 		return json({ success: true, user: userResponse }, { status: 200 });
 	} catch (error) {
-		console.error('Auto-login error:', error);
+		console.error('[AutoLogin] ❌❌❌ CRITICAL ERROR ❌❌❌');
+		console.error('[AutoLogin] Error:', error);
+		console.error('[AutoLogin] Stack:', error instanceof Error ? error.stack : 'No stack trace');
+		console.error('[AutoLogin] Duration:', Date.now() - startTime, 'ms');
+		console.error('[AutoLogin] ========== AUTO-LOGIN REQUEST END ==========');
+		
 		return json(
 			{ error: 'Auto-login failed' },
 			{ status: 500 }
