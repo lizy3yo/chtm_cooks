@@ -500,21 +500,21 @@
 		</div>
 		<div class="flex-1 overflow-y-auto px-6 py-6 space-y-5">
 			<div>
-				<label class="block text-sm font-medium text-gray-700">Course Name</label>
-				<input type="text" bind:value={editForm.courseName} class={inputCls} placeholder="e.g. Culinary Arts Fundamentals" />
+				<label for="edit-course-name" class="block text-sm font-medium text-gray-700">Course Name</label>
+				<input id="edit-course-name" type="text" bind:value={editForm.courseName} class={inputCls} placeholder="e.g. Culinary Arts Fundamentals" />
 			</div>
 			<div class="grid gap-4 sm:grid-cols-2">
 				<div>
-					<label class="block text-sm font-medium text-gray-700">Semester</label>
-					<select bind:value={editForm.semester} class={inputCls}>
+					<label for="edit-semester" class="block text-sm font-medium text-gray-700">Semester</label>
+					<select id="edit-semester" bind:value={editForm.semester} class={inputCls}>
 						<option value="First">First Semester</option>
 						<option value="Second">Second Semester</option>
 						<option value="Summer">Summer</option>
 					</select>
 				</div>
 				<div>
-					<label class="block text-sm font-medium text-gray-700">Academic Year</label>
-					<select bind:value={editForm.academicYear} class={inputCls}>
+					<label for="edit-academic-year" class="block text-sm font-medium text-gray-700">Academic Year</label>
+					<select id="edit-academic-year" bind:value={editForm.academicYear} class={inputCls}>
 						{#each academicYearOptions as yr}
 							<option value={yr}>{yr}</option>
 						{/each}
@@ -522,11 +522,11 @@
 				</div>
 			</div>
 			<div>
-				<label class="block text-sm font-medium text-gray-700">Max Enrollment</label>
-				<input type="number" min="1" max="500" bind:value={editForm.maxEnrollment} class={inputCls} />
+				<label for="edit-max-enrollment" class="block text-sm font-medium text-gray-700">Max Enrollment</label>
+				<input id="edit-max-enrollment" type="number" min="1" max="500" bind:value={editForm.maxEnrollment} class={inputCls} />
 			</div>
-			<div>
-				<label class="block text-sm font-medium text-gray-700 mb-2">Assign Instructors</label>
+			<fieldset>
+				<legend class="block text-sm font-medium text-gray-700 mb-2">Assign Instructors</legend>
 				<div class="rounded-lg border border-gray-200 divide-y divide-gray-100 max-h-52 overflow-y-auto">
 					{#each availableInstructors as instructor, i}
 						<label class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer transition">
@@ -551,7 +551,7 @@
 				{#if editForm.instructorIds.length > 0}
 					<p class="mt-1.5 text-xs text-pink-600 font-medium">{editForm.instructorIds.length} instructor(s) selected</p>
 				{/if}
-			</div>
+			</fieldset>
 		</div>
 		<div class="border-t border-gray-200 px-6 py-4 flex gap-3 justify-end">
 			<button onclick={() => editingClass = null} class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition">Cancel</button>
@@ -666,8 +666,10 @@
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
 			<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
 				<div class="relative flex-1">
+					<label for="search-classes" class="sr-only">Search classes</label>
 					<Search size={16} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
 					<input
+						id="search-classes"
 						type="text"
 						bind:value={searchQuery}
 						oninput={onSearchInput}
@@ -675,13 +677,15 @@
 						class="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-4 text-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
 					/>
 				</div>
-				<select bind:value={selectedSemester} onchange={onFilterChange} class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20">
+				<label for="filter-semester" class="sr-only">Filter by semester</label>
+				<select id="filter-semester" bind:value={selectedSemester} onchange={onFilterChange} class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20">
 					<option value="">All Semesters</option>
 					<option value="First">First Semester</option>
 					<option value="Second">Second Semester</option>
 					<option value="Summer">Summer</option>
 				</select>
-				<select bind:value={selectedYear} onchange={onFilterChange} class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20">
+				<label for="filter-year" class="sr-only">Filter by academic year</label>
+				<select id="filter-year" bind:value={selectedYear} onchange={onFilterChange} class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20">
 					<option value="">All Years</option>
 					{#each academicYearOptions as yr}
 						<option value={yr}>{yr}</option>
@@ -865,87 +869,119 @@
 					<!-- Course Code & Section -->
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div>
-							<label class="block text-sm font-medium text-gray-700">Course Code <span class="text-red-500">*</span></label>
+							<label for="create-course-code" class="block text-sm font-medium text-gray-700">Course Code <span class="text-red-500">*</span></label>
 							<input
+								id="create-course-code"
 								type="text"
 								bind:value={createForm.courseCode}
 								placeholder="e.g. CHTM101"
 								class="{inputCls} {createErrors.courseCode ? 'border-red-400' : ''} uppercase"
+								aria-required="true"
+								aria-invalid={createErrors.courseCode ? 'true' : 'false'}
+								aria-describedby={createErrors.courseCode ? 'create-course-code-error' : undefined}
 							/>
-							{#if createErrors.courseCode}<p class={errorCls}>{createErrors.courseCode}</p>{/if}
+							{#if createErrors.courseCode}<p id="create-course-code-error" class={errorCls}>{createErrors.courseCode}</p>{/if}
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-gray-700">Section <span class="text-red-500">*</span></label>
+							<label for="create-section" class="block text-sm font-medium text-gray-700">Section <span class="text-red-500">*</span></label>
 							<input
+								id="create-section"
 								type="text"
 								bind:value={createForm.section}
 								placeholder="e.g. A"
 								class="{inputCls} {createErrors.section ? 'border-red-400' : ''} uppercase"
+								aria-required="true"
+								aria-invalid={createErrors.section ? 'true' : 'false'}
+								aria-describedby={createErrors.section ? 'create-section-error' : undefined}
 							/>
-							{#if createErrors.section}<p class={errorCls}>{createErrors.section}</p>{/if}
+							{#if createErrors.section}<p id="create-section-error" class={errorCls}>{createErrors.section}</p>{/if}
 						</div>
 					</div>
 
 					<!-- Course Name -->
 					<div>
-						<label class="block text-sm font-medium text-gray-700">Course Name <span class="text-red-500">*</span></label>
+						<label for="create-course-name" class="block text-sm font-medium text-gray-700">Course Name <span class="text-red-500">*</span></label>
 						<input
+							id="create-course-name"
 							type="text"
 							bind:value={createForm.courseName}
 							placeholder="e.g. Culinary Arts Fundamentals"
 							class="{inputCls} {createErrors.courseName ? 'border-red-400' : ''}"
+							aria-required="true"
+							aria-invalid={createErrors.courseName ? 'true' : 'false'}
+							aria-describedby={createErrors.courseName ? 'create-course-name-error' : undefined}
 						/>
-						{#if createErrors.courseName}<p class={errorCls}>{createErrors.courseName}</p>{/if}
+						{#if createErrors.courseName}<p id="create-course-name-error" class={errorCls}>{createErrors.courseName}</p>{/if}
 					</div>
 
 					<!-- Academic Year & Semester -->
 					<div class="grid gap-4 sm:grid-cols-2">
 						<div>
-							<label class="block text-sm font-medium text-gray-700">Academic Year <span class="text-red-500">*</span></label>
-							<select bind:value={createForm.academicYear} class="{inputCls} {createErrors.academicYear ? 'border-red-400' : ''}">
+							<label for="create-academic-year" class="block text-sm font-medium text-gray-700">Academic Year <span class="text-red-500">*</span></label>
+							<select
+								id="create-academic-year"
+								bind:value={createForm.academicYear}
+								class="{inputCls} {createErrors.academicYear ? 'border-red-400' : ''}"
+								aria-required="true"
+								aria-invalid={createErrors.academicYear ? 'true' : 'false'}
+								aria-describedby={createErrors.academicYear ? 'create-academic-year-error' : undefined}
+							>
 								<option value="">Select year…</option>
 								{#each academicYearOptions as yr}
 									<option value={yr}>{yr}</option>
 								{/each}
 							</select>
-							{#if createErrors.academicYear}<p class={errorCls}>{createErrors.academicYear}</p>{/if}
+							{#if createErrors.academicYear}<p id="create-academic-year-error" class={errorCls}>{createErrors.academicYear}</p>{/if}
 						</div>
 						<div>
-							<label class="block text-sm font-medium text-gray-700">Semester <span class="text-red-500">*</span></label>
-							<select bind:value={createForm.semester} class="{inputCls} {createErrors.semester ? 'border-red-400' : ''}">
+							<label for="create-semester" class="block text-sm font-medium text-gray-700">Semester <span class="text-red-500">*</span></label>
+							<select
+								id="create-semester"
+								bind:value={createForm.semester}
+								class="{inputCls} {createErrors.semester ? 'border-red-400' : ''}"
+								aria-required="true"
+								aria-invalid={createErrors.semester ? 'true' : 'false'}
+								aria-describedby={createErrors.semester ? 'create-semester-error' : undefined}
+							>
 								<option value="">Select semester…</option>
 								<option value="First">First Semester</option>
 								<option value="Second">Second Semester</option>
 								<option value="Summer">Summer</option>
 							</select>
-							{#if createErrors.semester}<p class={errorCls}>{createErrors.semester}</p>{/if}
+							{#if createErrors.semester}<p id="create-semester-error" class={errorCls}>{createErrors.semester}</p>{/if}
 						</div>
 					</div>
 
 					<!-- Max Enrollment -->
 					<div>
-						<label class="block text-sm font-medium text-gray-700">Max Enrollment <span class="text-red-500">*</span></label>
+						<label for="create-max-enrollment" class="block text-sm font-medium text-gray-700">Max Enrollment <span class="text-red-500">*</span></label>
 						<input
+							id="create-max-enrollment"
 							type="number"
 							min="1"
 							max="500"
 							bind:value={createForm.maxEnrollment}
 							class="{inputCls} {createErrors.maxEnrollment ? 'border-red-400' : ''}"
+							aria-required="true"
+							aria-invalid={createErrors.maxEnrollment ? 'true' : 'false'}
+							aria-describedby={createErrors.maxEnrollment ? 'create-max-enrollment-error' : undefined}
 						/>
-						{#if createErrors.maxEnrollment}<p class={errorCls}>{createErrors.maxEnrollment}</p>{/if}
+						{#if createErrors.maxEnrollment}<p id="create-max-enrollment-error" class={errorCls}>{createErrors.maxEnrollment}</p>{/if}
 					</div>
 
 					<!-- Instructor Selection -->
-					<div>
-						<label class="block text-sm font-medium text-gray-700 mb-2">
+					<fieldset>
+						<legend class="block text-sm font-medium text-gray-700 mb-2">
 							Assign Instructors
 							<span class="ml-1 text-xs font-normal text-gray-400">(optional)</span>
-						</label>
+						</legend>
 
 						<!-- Instructor search -->
 						<div class="relative mb-2">
+							<label for="create-instructor-search" class="sr-only">Search instructors</label>
 							<Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
 							<input
+								id="create-instructor-search"
 								type="text"
 								bind:value={instructorSearchQuery}
 								placeholder="Search instructors…"
@@ -982,7 +1018,7 @@
 						{#if createForm.instructorIds.length > 0}
 							<p class="mt-1.5 text-xs text-pink-600 font-medium">{createForm.instructorIds.length} instructor(s) selected</p>
 						{/if}
-					</div>
+					</fieldset>
 
 					<!-- Submit -->
 					<div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
@@ -1009,8 +1045,9 @@
 		<div class="mx-auto max-w-4xl space-y-4">
 			<!-- Class selector -->
 			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-				<label class="block text-sm font-semibold text-gray-700 mb-2">Select Class to Manage Roster</label>
+				<label for="assign-class-select" class="block text-sm font-semibold text-gray-700 mb-2">Select Class to Manage Roster</label>
 				<select
+					id="assign-class-select"
 					bind:value={assignClassSelectId}
 					onchange={() => selectClassForAssign(assignClassSelectId)}
 					class="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
@@ -1064,8 +1101,10 @@
 						<div class="flex items-center justify-between gap-3">
 							<p class="font-semibold text-gray-900">All Students</p>
 							<div class="relative flex-1 max-w-xs">
+								<label for="assign-student-search" class="sr-only">Search students</label>
 								<Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
 								<input
+									id="assign-student-search"
 									type="text"
 									bind:value={studentSearchQuery}
 									placeholder="Search students…"
