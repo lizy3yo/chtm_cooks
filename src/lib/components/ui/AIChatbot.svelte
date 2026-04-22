@@ -26,6 +26,7 @@
 	let activeHistoryScope = $state<string | null>(null);
 	let isHistoryOpen = $state(false);
 	let hasBlockingModal = $state(false);
+	let previousModalState = $state(false);
 
 	const messages = $derived($chatStore.messages);
 	const conversations = $derived($chatStore.conversations);
@@ -67,6 +68,14 @@
 		}
 	});
 
+	// Auto-close chatbot when modal opens
+	$effect(() => {
+		if (hasBlockingModal && !previousModalState && isOpen) {
+			chatStore.close();
+		}
+		previousModalState = hasBlockingModal;
+	});
+
 	onMount(() => {
 		if (!activeHistoryScope) {
 			const scope = $user?.id ? `user:${$user.id}` : 'guest';
@@ -86,8 +95,22 @@
 
 		const updateBlockingModalState = () => {
 			if (typeof document === 'undefined') return;
-			const modalDialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
-			hasBlockingModal = Array.from(modalDialogs).some(isVisibleDialog);
+			
+			// Check for modals with proper ARIA attributes
+			const ariaModals = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+			
+			// Also check for common modal patterns (fixed positioning with high z-index)
+			const fixedModals = document.querySelectorAll('.fixed.inset-0.z-50, [class*="modal"][class*="fixed"]');
+			
+			const hasAriaModal = Array.from(ariaModals).some(isVisibleDialog);
+			const hasFixedModal = Array.from(fixedModals).some((node) => {
+				if (!(node instanceof HTMLElement)) return false;
+				if (node.classList.contains('chat-panel')) return false;
+				if (node.classList.contains('backdrop')) return false;
+				return isVisibleDialog(node);
+			});
+			
+			hasBlockingModal = hasAriaModal || hasFixedModal;
 		};
 
 		updateBlockingModalState();
