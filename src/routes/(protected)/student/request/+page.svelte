@@ -1389,257 +1389,258 @@
 				{/if}
 			</div>
 
-			<!-- Borrow Period -->
-			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Borrow Period</h2>
-				<p class="mb-4 text-sm text-gray-600">Equipment must be returned on the same day, and requests must be made at least 2 days in advance.</p>
-				<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-					<!-- Borrow Date -->
-					<div class="sm:col-span-3">
-						<label for="borrowDate" class="block text-sm font-medium text-gray-700 mb-1">
-							Borrow Date <span class="text-red-500">*</span>
-						</label>
-						<input
-							type="date"
-							id="borrowDate"
-							bind:value={borrowDate}
-							min={today}
-							max={maximumBorrowDate}
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowDate ? 'border-red-500' : ''}"
-						/>
-						{#if errors.borrowDate}
-							<p class="mt-1 text-xs text-red-600">{errors.borrowDate}</p>
-					{:else}
-							<p class="mt-1 text-xs text-gray-500">You can request equipment for today up to 2 days ahead only.</p>
-						{/if}
-					</div>
-
-					<!-- Borrow Time -->
-					<div>
-						<label for="borrowTime" class="block text-sm font-medium text-gray-700 mb-1">
-							Pickup Time <span class="text-red-500">*</span>
-						</label>
-						<input
-							type="time"
-							id="borrowTime"
-							bind:value={borrowTime}
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime ? 'border-red-500' : ''}"
-						/>
-						{#if errors.borrowTime}
-							<p class="mt-1 text-xs text-red-600">{errors.borrowTime}</p>
+			<!-- Row 1: Borrow Period & Purpose/Usage -->
+			<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+				<!-- Borrow Period -->
+				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Borrow Period</h2>
+					<div class="space-y-4">
+						<!-- Borrow Date -->
+						<div>
+							<label for="borrowDate" class="block text-sm font-medium text-gray-700 mb-1">
+								Borrow Date <span class="text-red-500">*</span>
+							</label>
+							<input
+								type="date"
+								id="borrowDate"
+								bind:value={borrowDate}
+								min={today}
+								max={maximumBorrowDate}
+								class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowDate ? 'border-red-500' : ''}"
+							/>
+							{#if errors.borrowDate}
+								<p class="mt-1 text-xs text-red-600">{errors.borrowDate}</p>
 						{:else}
-							<p class="mt-1 text-xs text-gray-500">When you'll pick up</p>
-						{/if}
-					</div>
-
-					<!-- Return Time -->
-					<div>
-						<label for="returnTime" class="block text-sm font-medium text-gray-700 mb-1">
-							Return Time <span class="text-red-500">*</span>
-						</label>
-						<input
-							type="time"
-							id="returnTime"
-							bind:value={returnTime}
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime ? 'border-red-500' : ''}"
-						/>
-						{#if errors.returnTime}
-							<p class="mt-1 text-xs text-red-600">{errors.returnTime}</p>
-						{:else}
-							<p class="mt-1 text-xs text-gray-500">When you'll return</p>
-						{/if}
-					</div>
-
-					<!-- Duration Display -->
-					<div>
-						<p class="block text-sm font-medium text-gray-700 mb-1">
-							Duration
-						</p>
-						<div class="flex h-10 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-							{#if borrowTime && returnTime}
-								{(() => {
-									const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
-									const [returnHour, returnMinute] = returnTime.split(':').map(Number);
-									const borrowMinutes = borrowHour * 60 + borrowMinute;
-									const returnMinutes = returnHour * 60 + returnMinute;
-									const diffMinutes = returnMinutes - borrowMinutes;
-									const hours = Math.floor(diffMinutes / 60);
-									const minutes = diffMinutes % 60;
-									if (diffMinutes <= 0) return '—';
-									if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-									if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
-									return `${minutes} min`;
-								})()}
-							{:else}
-								—
+								<p class="mt-1 text-xs text-gray-500">You can request equipment for today up to 2 days ahead only.</p>
 							{/if}
 						</div>
-						<p class="mt-1 text-xs text-gray-500">Same-day return</p>
+
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+							<!-- Borrow Time -->
+							<div>
+								<label for="borrowTime" class="block text-sm font-medium text-gray-700 mb-1">
+									Pickup Time <span class="text-red-500">*</span>
+								</label>
+								<input
+									type="time"
+									id="borrowTime"
+									bind:value={borrowTime}
+									class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime ? 'border-red-500' : ''}"
+								/>
+								{#if errors.borrowTime}
+									<p class="mt-1 text-xs text-red-600">{errors.borrowTime}</p>
+								{:else}
+									<p class="mt-1 text-xs text-gray-500">When you'll pick up</p>
+								{/if}
+							</div>
+
+							<!-- Return Time -->
+							<div>
+								<label for="returnTime" class="block text-sm font-medium text-gray-700 mb-1">
+									Return Time <span class="text-red-500">*</span>
+								</label>
+								<input
+									type="time"
+									id="returnTime"
+									bind:value={returnTime}
+									class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime ? 'border-red-500' : ''}"
+								/>
+								{#if errors.returnTime}
+									<p class="mt-1 text-xs text-red-600">{errors.returnTime}</p>
+								{:else}
+									<p class="mt-1 text-xs text-gray-500">When you'll return</p>
+								{/if}
+							</div>
+
+							<!-- Duration Display -->
+							<div>
+								<p class="block text-sm font-medium text-gray-700 mb-1">
+									Duration
+								</p>
+								<div class="flex h-10 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+									{#if borrowTime && returnTime}
+										{(() => {
+											const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
+											const [returnHour, returnMinute] = returnTime.split(':').map(Number);
+											const borrowMinutes = borrowHour * 60 + borrowMinute;
+											const returnMinutes = returnHour * 60 + returnMinute;
+											const diffMinutes = returnMinutes - borrowMinutes;
+											const hours = Math.floor(diffMinutes / 60);
+											const minutes = diffMinutes % 60;
+											if (diffMinutes <= 0) return '—';
+											if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+											if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+											return `${minutes} min`;
+										})()}
+									{:else}
+										—
+									{/if}
+								</div>
+								<p class="mt-1 text-xs text-gray-500">Same-day return</p>
+							</div>
+						</div>
 					</div>
 				</div>
-			</div>
-			
-			<!-- Purpose -->
-			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Purpose & Usage</h2>
-				<div class="space-y-4">
-					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-						<div>
-							<label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">
-								Purpose Type <span class="text-red-500">*</span>
-							</label>
-							<select
-								id="purpose"
-								bind:value={purpose}
-								class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-							>
-								{#each purposeOptions as option}
-									<option value={option.value}>{option.label}</option>
-								{/each}
-							</select>
+				
+				<!-- Purpose & Usage -->
+				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Purpose & Usage</h2>
+					<div class="space-y-4">
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div>
+								<label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">
+									Purpose Type <span class="text-red-500">*</span>
+								</label>
+								<select
+									id="purpose"
+									bind:value={purpose}
+									class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+								>
+									{#each purposeOptions as option}
+										<option value={option.value}>{option.label}</option>
+									{/each}
+								</select>
+							</div>
+							
+							<div>
+								<label for="usageLocation" class="block text-sm font-medium text-gray-700 mb-1">
+									Usage Location <span class="text-red-500">*</span>
+								</label>
+								<select
+									id="usageLocation"
+									bind:value={usageLocation}
+									class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+								>
+									<option value="school">In-School Use</option>
+									<option value="outdoor">Outdoor Use</option>
+								</select>
+							</div>
 						</div>
 						
 						<div>
-							<label for="usageLocation" class="block text-sm font-medium text-gray-700 mb-1">
-								Usage Location <span class="text-red-500">*</span>
+							<label for="purposeDetails" class="block text-sm font-medium text-gray-700 mb-1">
+								Purpose Details <span class="text-red-500">*</span>
 							</label>
-							<select
-								id="usageLocation"
-								bind:value={usageLocation}
-								class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-							>
-								<option value="school">In-School Use</option>
-								<option value="outdoor">Outdoor Use</option>
-							</select>
-							<p class="mt-1 text-xs text-gray-500">
-								{#if usageLocation === 'school'}
-									Equipment will be used within school premises
-								{:else}
-									Equipment will be used outside school premises
-								{/if}
-							</p>
+							<textarea
+								id="purposeDetails"
+								bind:value={purposeDetails}
+								rows="3"
+								placeholder="Please provide specific details about how you will use this equipment..."
+								class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.purposeDetails ? 'border-red-500' : ''}"
+							></textarea>
+							{#if errors.purposeDetails}
+								<p class="mt-1 text-xs text-red-600">{errors.purposeDetails}</p>
+							{/if}
 						</div>
-					</div>
-					
-					<div>
-						<label for="purposeDetails" class="block text-sm font-medium text-gray-700 mb-1">
-							Purpose Details <span class="text-red-500">*</span>
-						</label>
-						<textarea
-							id="purposeDetails"
-							bind:value={purposeDetails}
-							rows="3"
-							placeholder="Please provide specific details about how you will use this equipment..."
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.purposeDetails ? 'border-red-500' : ''}"
-						></textarea>
-						{#if errors.purposeDetails}
-							<p class="mt-1 text-xs text-red-600">{errors.purposeDetails}</p>
-						{/if}
 					</div>
 				</div>
 			</div>
 
-			<!-- Class Code Selection (Required) -->
-			<div class="rounded-lg bg-white p-4 shadow sm:p-6 {hasNoEnrollment ? 'ring-2 ring-red-500' : ''}">
-				<div class="mb-3 flex items-center justify-between">
-					<div class="flex items-center gap-2">
-						<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Class Code</h2>
-						<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
-							<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-								<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
-							</svg>
-							REQUIRED
-						</span>
+			<!-- Row 2: Class Code & Additional Information -->
+			<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+				<!-- Class Code Selection (Required) -->
+				<div class="rounded-lg bg-white p-4 shadow sm:p-6 {hasNoEnrollment ? 'ring-2 ring-red-500' : ''}">
+					<div class="mb-3 flex items-center justify-between">
+						<div class="flex items-center gap-2">
+							<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Class Code</h2>
+							<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+								<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+									<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+								</svg>
+								REQUIRED
+							</span>
+						</div>
+						{#if loadingClassCodes}
+							<div class="flex items-center gap-2 text-xs text-gray-500">
+								<div class="h-3 w-3 animate-spin rounded-full border-2 border-pink-600 border-t-transparent"></div>
+								Loading...
+							</div>
+						{/if}
 					</div>
-					{#if loadingClassCodes}
-						<div class="flex items-center gap-2 text-xs text-gray-500">
-							<div class="h-3 w-3 animate-spin rounded-full border-2 border-pink-600 border-t-transparent"></div>
-							Loading...
+
+					
+					{#if availableClassCodes.length > 0}
+						<div>
+							<label for="classCode" class="block text-sm font-medium text-gray-700 mb-1">
+								Select Your Class <span class="text-red-500">*</span>
+							</label>
+							<select
+								id="classCode"
+								bind:value={selectedClassCodeId}
+								class="block w-full rounded-lg border px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.classCode ? 'border-red-500 bg-red-50' : 'border-gray-300'}"
+							>
+								<option value="" disabled>-- Select a class --</option>
+								{#each availableClassCodes as classCode}
+									<option value={classCode.id}>
+										{classCode.code} - {classCode.courseName} ({classCode.semester} {classCode.academicYear})
+									</option>
+								{/each}
+							</select>
+							{#if errors.classCode}
+								<p class="mt-1.5 text-xs text-red-600 font-medium">{errors.classCode}</p>
+							{:else if selectedClassCodeId}
+								{@const selected = availableClassCodes.find(c => c.id === selectedClassCodeId)}
+								{#if selected}
+									<div class="mt-2 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 border border-emerald-200">
+										<svg class="h-4 w-4 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+											<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+										</svg>
+										<div class="flex-1 min-w-0">
+											<p class="text-xs font-semibold text-emerald-900">{selected.code}</p>
+											<p class="text-xs text-emerald-700">{selected.courseName}</p>
+										</div>
+										<span class="shrink-0 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+											{selected.semester} {selected.academicYear}
+										</span>
+									</div>
+								{/if}
+							{:else}
+								<p class="mt-1.5 text-xs text-gray-500">
+									Please select the class for which you're requesting this equipment.
+								</p>
+							{/if}
+						</div>
+					{:else if !loadingClassCodes}
+						<div class="rounded-lg border-2 border-red-300 bg-red-50 p-6 text-center">
+							<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+								<svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+								</svg>
+							</div>
+							<p class="mt-3 text-sm font-bold text-red-900">Enrollment Required</p>
+							<p class="mt-1 text-xs text-red-700">
+								You must be enrolled in at least one class to submit equipment requests.
+							</p>
+							<p class="mt-2 text-xs text-red-600">
+								Please contact your administrator or instructor to be added to a class.
+							</p>
+							{#if errors.classCode}
+								<p class="mt-2 text-xs font-medium text-red-800 bg-red-100 rounded px-2 py-1">
+									{errors.classCode}
+								</p>
+							{/if}
 						</div>
 					{/if}
 				</div>
-				<p class="mb-4 text-sm text-gray-600">
-					You must select a class code to submit equipment requests. This ensures proper request routing and instructor approval.
-				</p>
 				
-				{#if availableClassCodes.length > 0}
+				<!-- Additional Information -->
+				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Additional Information</h2>
 					<div>
-						<label for="classCode" class="block text-sm font-medium text-gray-700 mb-1">
-							Select Your Class <span class="text-red-500">*</span>
+						<label for="notes" class="block text-sm font-medium text-gray-700 mb-1">
+							Notes <span class="text-gray-400 font-normal">(Optional)</span>
 						</label>
-						<select
-							id="classCode"
-							bind:value={selectedClassCodeId}
-							class="block w-full rounded-lg border px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.classCode ? 'border-red-500 bg-red-50' : 'border-gray-300'}"
-						>
-							<option value="" disabled>-- Select a class --</option>
-							{#each availableClassCodes as classCode}
-								<option value={classCode.id}>
-									{classCode.code} - {classCode.courseName} ({classCode.semester} {classCode.academicYear})
-								</option>
-							{/each}
-						</select>
-						{#if errors.classCode}
-							<p class="mt-1.5 text-xs text-red-600 font-medium">{errors.classCode}</p>
-						{:else if selectedClassCodeId}
-							{@const selected = availableClassCodes.find(c => c.id === selectedClassCodeId)}
-							{#if selected}
-								<div class="mt-2 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 border border-emerald-200">
-									<svg class="h-4 w-4 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-										<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-									</svg>
-									<div class="flex-1 min-w-0">
-										<p class="text-xs font-semibold text-emerald-900">{selected.code}</p>
-										<p class="text-xs text-emerald-700">{selected.courseName}</p>
-									</div>
-									<span class="shrink-0 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
-										{selected.semester} {selected.academicYear}
-									</span>
-								</div>
-							{/if}
-						{:else}
-							<p class="mt-1.5 text-xs text-gray-500">
-								Please select the class for which you're requesting this equipment.
-							</p>
-						{/if}
-					</div>
-				{:else if !loadingClassCodes}
-					<div class="rounded-lg border-2 border-red-300 bg-red-50 p-6 text-center">
-						<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-							<svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-							</svg>
-						</div>
-						<p class="mt-3 text-sm font-bold text-red-900">Enrollment Required</p>
-						<p class="mt-1 text-xs text-red-700">
-							You must be enrolled in at least one class to submit equipment requests.
+						<textarea
+							id="notes"
+							bind:value={notes}
+							rows="3"
+							placeholder="Any special instructions for the custodian…"
+							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+						></textarea>
+						<p class="mt-1 text-xs text-gray-500">
+							Provide any additional details or special handling instructions for the custodian.
 						</p>
-						<p class="mt-2 text-xs text-red-600">
-							Please contact your administrator or instructor to be added to a class.
-						</p>
-						{#if errors.classCode}
-							<p class="mt-2 text-xs font-medium text-red-800 bg-red-100 rounded px-2 py-1">
-								{errors.classCode}
-							</p>
-						{/if}
 					</div>
-				{/if}
-			</div>
-			
-			<!-- Additional Notes -->
-			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Additional Information</h2>
-				<div>
-					<label for="notes" class="block text-sm font-medium text-gray-700 mb-1">
-						Notes <span class="text-gray-400 font-normal">(Optional)</span>
-					</label>
-					<textarea
-						id="notes"
-						bind:value={notes}
-						rows="3"
-						placeholder="Any special instructions for the custodian…"
-						class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-					></textarea>
 				</div>
 			</div>
 		</div>
