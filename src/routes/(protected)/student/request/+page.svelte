@@ -8,6 +8,7 @@
 	import { subscribeToCartUpdates } from '$lib/api/cartStream';
 	import { borrowRequestsAPI } from '$lib/api/borrowRequests';
 	import { donationsAPI } from '$lib/api/donations';
+	import { classCodesAPI, type ClassCodeResponse } from '$lib/api/classCodes';
 	import { requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
@@ -44,7 +45,7 @@
 	let cartEventListener: ((event: Event) => void) | null = null;
 	let cartSSEUnsubscribe: (() => void) | null = null;
 	let donationSSEUnsubscribe: (() => void) | null = null;
-	
+
 	// Search and filter state
 	let searchQuery = $state('');
 	let selectedCategoryFilter = $state<string>('all');
@@ -76,7 +77,7 @@
 			document.removeEventListener('keydown', handleKeydown);
 		};
 	});
-	
+
 	// Event deduplication and debouncing
 	let updateDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 	let lastNotificationTime = $state<number>(0);
@@ -87,32 +88,37 @@
 	let selectedItems = $state<SelectedRequestItem[]>([]);
 	let purpose = $state('lab-exercise');
 	let purposeDetails = $state('');
+	let usageLocation = $state<'school' | 'outdoor'>('school'); // Usage location: school or outdoor
 	let borrowDate = $state('');
 	let borrowTime = $state('08:00');
 	let returnTime = $state('17:00');
 	let notes = $state('');
 	let acknowledgeTerms = $state(false);
+	let selectedClassCodeId = $state<string>(''); // Required: Selected class code
+	let availableClassCodes = $state<ClassCodeResponse[]>([]); // Student's enrolled class codes
+	let loadingClassCodes = $state(false);
+	let hasNoEnrollment = $state(false); // Track if student has no class enrollment
 
 	// Auto-update return time to ensure it's after borrow time
 	$effect(() => {
 		if (borrowDate && borrowTime && returnTime) {
 			const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
 			const [returnHour, returnMinute] = returnTime.split(':').map(Number);
-			
+
 			const borrowMinutes = borrowHour * 60 + borrowMinute;
 			const returnMinutes = returnHour * 60 + returnMinute;
-			
+
 			// If return time is not at least 1 hour after borrow time, auto-adjust
 			if (returnMinutes <= borrowMinutes + 60) {
 				let newHour = borrowHour + 1;
 				let newMinute = borrowMinute;
-				
+
 				// Handle hour overflow
 				if (newHour >= 24) {
 					newHour = 23;
 					newMinute = 59;
 				}
-				
+
 				returnTime = `${String(newHour).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}`;
 			}
 		}
@@ -122,7 +128,7 @@
 	$effect(() => {
 		// Watch for changes in cart items
 		const cartItems = $requestCartItems;
-		
+
 		// Only sync if we have equipment loaded and not currently loading
 		if ((availableEquipment.length > 0 || constantItems.length > 0) && !isLoading) {
 			console.log('[REACTIVE] Cart items changed, syncing selected items...', cartItems.length);
@@ -173,29 +179,30 @@
 	// Get unique categories from available equipment
 	const categories = $derived(() => {
 		const allItems = [...availableEquipment, ...constantItems];
-		const categorySet = new Set(allItems.map(item => item.category));
+		const categorySet = new Set(allItems.map((item) => item.category));
 		return Array.from(categorySet).sort();
 	});
 
 	// Filter and sort equipment based on search and filters
 	const filteredEquipment = $derived(() => {
 		let items = [...availableEquipment];
-		
+
 		// Apply search filter
 		if (searchQuery.trim()) {
 			const query = searchQuery.toLowerCase();
-			items = items.filter(item => 
-				item.name.toLowerCase().includes(query) ||
-				item.category.toLowerCase().includes(query) ||
-				item.specification.toLowerCase().includes(query)
+			items = items.filter(
+				(item) =>
+					item.name.toLowerCase().includes(query) ||
+					item.category.toLowerCase().includes(query) ||
+					item.specification.toLowerCase().includes(query)
 			);
 		}
-		
+
 		// Apply category filter
 		if (selectedCategoryFilter !== 'all') {
-			items = items.filter(item => item.category === selectedCategoryFilter);
+			items = items.filter((item) => item.category === selectedCategoryFilter);
 		}
-		
+
 		// Apply sorting
 		items.sort((a, b) => {
 			switch (sortBy) {
@@ -209,7 +216,7 @@
 					return 0;
 			}
 		});
-		
+
 		return items;
 	});
 
@@ -227,14 +234,17 @@
 
 	async function loadAvailableEquipment(options?: { forceRefresh?: boolean }): Promise<void> {
 		try {
-			const response = await catalogAPI.getCatalog({
-				availability: 'all',
-				sortBy: 'name',
-				page: 1,
-				limit: 300
-			}, {
-				forceRefresh: options?.forceRefresh ?? false
-			});
+			const response = await catalogAPI.getCatalog(
+				{
+					availability: 'all',
+					sortBy: 'name',
+					page: 1,
+					limit: 300
+				},
+				{
+					forceRefresh: options?.forceRefresh ?? false
+				}
+			);
 
 			// Separate constant items from regular items
 			const allItems = response.items.map((item) => ({
@@ -271,15 +281,15 @@
 	 */
 	function showUpdateNotification(message: string) {
 		const now = Date.now();
-		
+
 		// Check if we're within cooldown period
 		if (now - lastNotificationTime < NOTIFICATION_COOLDOWN_MS) {
 			return; // Skip notification during cooldown
 		}
-		
+
 		// Update last notification time
 		lastNotificationTime = now;
-		
+
 		// Show notification
 		toastStore.info(message, 'Inventory Updated');
 	}
@@ -291,7 +301,7 @@
 	async function handleInventoryUpdate(event: InventoryRealtimeEvent) {
 		console.log('[UPDATE] ===== PROCESSING UPDATE =====');
 		console.log('[UPDATE] Event:', JSON.stringify(event, null, 2));
-		
+
 		// Debounce: Clear existing timer and set new one
 		if (updateDebounceTimer) {
 			console.log('[UPDATE] ⏱️ Clearing existing debounce timer');
@@ -304,43 +314,43 @@
 
 			// Ensure SSE-triggered refresh bypasses short-lived browser cache.
 			catalogAPI.invalidateCatalogCache();
-			
+
 			// Store current selected items before reload
-			const currentSelectedIds = selectedItems.map(item => item.id);
+			const currentSelectedIds = selectedItems.map((item) => item.id);
 			const currentQuantities = new Map(
-				selectedItems.map(item => [item.id, item.requestedQuantity])
+				selectedItems.map((item) => [item.id, item.requestedQuantity])
 			);
 			console.log('[UPDATE] 📋 Current selected IDs:', currentSelectedIds);
-			
+
 			// Store previous constant item IDs for comparison
-			const previousConstantIds = new Set(constantItems.map(item => item.id));
+			const previousConstantIds = new Set(constantItems.map((item) => item.id));
 			console.log('[UPDATE] 📌 Previous constant IDs:', Array.from(previousConstantIds));
-			
+
 			// Reload equipment data (this updates constantItems and availableEquipment)
 			console.log('[UPDATE] 🔃 Reloading equipment data...');
 			await loadAvailableEquipment({ forceRefresh: true });
 			console.log('[UPDATE] ✅ Equipment data reloaded');
-			
+
 			// Get new constant item IDs
-			const newConstantIds = new Set(constantItems.map(item => item.id));
+			const newConstantIds = new Set(constantItems.map((item) => item.id));
 			console.log('[UPDATE] 📌 New constant IDs:', Array.from(newConstantIds));
-			
+
 			// Identify items that were removed from constant status
 			const removedConstantIds = new Set(
-				[...previousConstantIds].filter(id => !newConstantIds.has(id))
+				[...previousConstantIds].filter((id) => !newConstantIds.has(id))
 			);
 			console.log('[UPDATE] ➖ Removed constant IDs:', Array.from(removedConstantIds));
-			
+
 			// Identify items that were added to constant status
 			const addedConstantIds = new Set(
-				[...newConstantIds].filter(id => !previousConstantIds.has(id))
+				[...newConstantIds].filter((id) => !previousConstantIds.has(id))
 			);
 			console.log('[UPDATE] ➕ Added constant IDs:', Array.from(addedConstantIds));
-			
+
 			// Re-sync cart with new data
 			console.log('[UPDATE] 🛒 Clearing cart...');
 			requestCartStore.clear();
-			
+
 			// Re-add all current constant items
 			console.log('[UPDATE] 🛒 Re-adding', constantItems.length, 'constant items...');
 			for (const item of constantItems) {
@@ -351,21 +361,29 @@
 				});
 				console.log('[UPDATE]   ✓ Added constant item:', item.name, '(ID:', item.id, ')');
 			}
-			
+
 			// Re-add previously selected non-constant items (excluding removed constant items)
 			const allItems = [...availableEquipment, ...constantItems];
 			console.log('[UPDATE] 🛒 Re-adding previously selected non-constant items...');
-			console.log('[UPDATE] 🛒 All items count:', allItems.length, '(available:', availableEquipment.length, ', constant:', constantItems.length, ')');
-			
+			console.log(
+				'[UPDATE] 🛒 All items count:',
+				allItems.length,
+				'(available:',
+				availableEquipment.length,
+				', constant:',
+				constantItems.length,
+				')'
+			);
+
 			for (const itemId of currentSelectedIds) {
 				// Skip if this item was removed from constant status
 				if (removedConstantIds.has(itemId)) {
 					console.log('[UPDATE]   ⊘ Skipping removed constant item:', itemId);
 					continue;
 				}
-				
-				const item = allItems.find(i => i.id === itemId);
-				
+
+				const item = allItems.find((i) => i.id === itemId);
+
 				// Only re-add if item exists and is not already added as constant
 				if (item && !item.isConstant) {
 					const previousQty = currentQuantities.get(itemId) || 1;
@@ -378,19 +396,33 @@
 					if (previousQty <= item.available) {
 						requestCartStore.setQuantity(itemId, previousQty);
 					}
-					console.log('[UPDATE]   ✓ Re-added non-constant item:', item.name, '(ID:', itemId, ', isConstant:', item.isConstant, ')');
+					console.log(
+						'[UPDATE]   ✓ Re-added non-constant item:',
+						item.name,
+						'(ID:',
+						itemId,
+						', isConstant:',
+						item.isConstant,
+						')'
+					);
 				} else if (item && item.isConstant) {
-					console.log('[UPDATE]   ⊘ Skipping (already added as constant):', item.name, '(ID:', itemId, ')');
+					console.log(
+						'[UPDATE]   ⊘ Skipping (already added as constant):',
+						item.name,
+						'(ID:',
+						itemId,
+						')'
+					);
 				} else {
 					console.log('[UPDATE]   ⊘ Item not found in allItems:', itemId);
 				}
 			}
-			
+
 			// Sync selected items
 			console.log('[UPDATE] 🔄 Syncing selected items from cart...');
 			syncSelectedItemsFromCart();
 			console.log('[UPDATE] ✅ Cart synced, selected items count:', selectedItems.length);
-			
+
 			// Show single, appropriate notification with cooldown
 			if (addedConstantIds.size > 0 && removedConstantIds.size > 0) {
 				showUpdateNotification('Frequently requested items updated');
@@ -401,7 +433,7 @@
 			} else {
 				showUpdateNotification('Equipment availability updated');
 			}
-			
+
 			// Reset debounce timer
 			updateDebounceTimer = null;
 			console.log('[UPDATE] ===== UPDATE COMPLETE =====');
@@ -417,7 +449,7 @@
 
 		syncSelectedItemsFromCart();
 		errors.items = '';
-		
+
 		// Optional: Show success feedback
 		toastStore.success(`"${item.name}" added to your request`, 'Item Added');
 	}
@@ -439,12 +471,12 @@
 			}
 
 			// Determine the effective maximum: either maxQuantityPerRequest or available quantity
-			const effectiveMax = item.maxQuantityPerRequest 
+			const effectiveMax = item.maxQuantityPerRequest
 				? Math.min(item.maxQuantityPerRequest, item.available)
 				: item.available;
 
 			const newQuantity = Math.max(1, Math.min(effectiveMax, parsed));
-			
+
 			// Show feedback if user tried to exceed limit
 			if (parsed > effectiveMax) {
 				if (item.maxQuantityPerRequest && item.maxQuantityPerRequest < item.available) {
@@ -474,16 +506,16 @@
 
 	function syncSelectedItemsFromCart(): void {
 		const cartEntries = get(requestCartItems);
-		
+
 		// Combine both available equipment and constant items for lookup
 		const allEquipment = [...availableEquipment, ...constantItems];
 		const equipmentById = new Map(allEquipment.map((item) => [item.id, item]));
-		
+
 		if (cartEntries.length === 0) {
 			selectedItems = [];
 			return;
 		}
-		
+
 		selectedItems = cartEntries
 			.map((entry) => {
 				const equipment = equipmentById.get(entry.itemId);
@@ -515,10 +547,12 @@
 	}
 
 	function buildPurposeText(): string {
-		const purposeLabel = purposeOptions.find((option) => option.value === purpose)?.label || 'Request';
+		const purposeLabel =
+			purposeOptions.find((option) => option.value === purpose)?.label || 'Request';
+		const locationLabel = usageLocation === 'school' ? 'In-School Use' : 'Outdoor Use';
 		const detail = purposeDetails.trim();
 		const noteText = notes.trim();
-		let composed = `${purposeLabel}: ${detail}`;
+		let composed = `${purposeLabel} (${locationLabel}): ${detail}`;
 
 		if (noteText) {
 			composed = `${composed} | Notes: ${noteText}`;
@@ -530,36 +564,46 @@
 	function validateForm() {
 		errors = {};
 
+		// Validate class code selection (required)
+		if (!selectedClassCodeId || selectedClassCodeId.trim() === '') {
+			errors.classCode =
+				'Class code is required. Please select a class from your enrolled classes.';
+		}
+
+		// Block submission if student has no enrollment
+		if (hasNoEnrollment || availableClassCodes.length === 0) {
+			errors.classCode = 'You must be enrolled in at least one class to submit equipment requests.';
+		}
+
 		if (selectedItems.length === 0) {
 			errors.items = 'Please select at least one item';
 		}
 
 		// Check for out-of-stock items
-		const outOfStockItems = selectedItems.filter(item => item.available === 0);
+		const outOfStockItems = selectedItems.filter((item) => item.available === 0);
 		if (outOfStockItems.length > 0) {
-			const itemNames = outOfStockItems.map(i => i.name).join(', ');
+			const itemNames = outOfStockItems.map((i) => i.name).join(', ');
 			errors.items = `The following items are out of stock and must be removed: ${itemNames}`;
 		}
 
 		// Validate quantities including maxQuantityPerRequest limits
 		if (
-			selectedItems.some(
-				(item) => {
-					if (item.available === 0) return false; // Already checked above
-					
-					const effectiveMax = item.maxQuantityPerRequest 
-						? Math.min(item.maxQuantityPerRequest, item.available)
-						: item.available;
-					
-					return (
-						!Number.isInteger(item.requestedQuantity) ||
-						item.requestedQuantity <= 0 ||
-						item.requestedQuantity > effectiveMax
-					);
-				}
-			)
+			selectedItems.some((item) => {
+				if (item.available === 0) return false; // Already checked above
+
+				const effectiveMax = item.maxQuantityPerRequest
+					? Math.min(item.maxQuantityPerRequest, item.available)
+					: item.available;
+
+				return (
+					!Number.isInteger(item.requestedQuantity) ||
+					item.requestedQuantity <= 0 ||
+					item.requestedQuantity > effectiveMax
+				);
+			})
 		) {
-			errors.items = 'Each selected item must have a valid quantity within available stock and request limits';
+			errors.items =
+				'Each selected item must have a valid quantity within available stock and request limits';
 		}
 
 		if (!borrowDate) {
@@ -582,10 +626,10 @@
 		if (borrowDate && borrowTime && returnTime) {
 			const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
 			const [returnHour, returnMinute] = returnTime.split(':').map(Number);
-			
+
 			const borrowMinutes = borrowHour * 60 + borrowMinute;
 			const returnMinutes = returnHour * 60 + returnMinute;
-			
+
 			if (returnMinutes <= borrowMinutes) {
 				errors.returnTime = 'Return time must be after borrow time';
 			} else if (returnMinutes - borrowMinutes < 60) {
@@ -615,6 +659,15 @@
 			return;
 		}
 
+		// Double-check class code requirement before submission
+		if (!selectedClassCodeId || selectedClassCodeId.trim() === '') {
+			toastStore.error(
+				'Class code is required. Please select a class from your enrolled classes.',
+				'Validation Error'
+			);
+			return;
+		}
+
 		isSubmitting = true;
 		try {
 			await borrowRequestsAPI.create({
@@ -623,8 +676,10 @@
 					quantity: item.requestedQuantity
 				})),
 				purpose: buildPurposeText(),
+				usageLocation,
 				borrowDate: `${borrowDate}T${borrowTime}`,
-				returnDate: `${borrowDate}T${returnTime}`
+				returnDate: `${borrowDate}T${returnTime}`,
+				classCodeId: selectedClassCodeId // Required field
 			});
 
 			requestCartStore.clear();
@@ -643,13 +698,67 @@
 		selectedItems = [];
 		purpose = 'lab-exercise';
 		purposeDetails = '';
+		usageLocation = 'school';
 		borrowDate = '';
 		borrowTime = '08:00';
 		returnTime = '17:00';
 		notes = '';
 		acknowledgeTerms = false;
+		selectedClassCodeId = '';
 		errors = {};
 		requestCartStore.clear();
+	}
+
+	/**
+	 * Load class codes that the student is enrolled in
+	 * Industry-standard: Students must be enrolled in at least one class to submit requests
+	 */
+	async function loadStudentClassCodes() {
+		loadingClassCodes = true;
+		hasNoEnrollment = false;
+
+		try {
+			// Fetch only the class codes where the student is enrolled
+			const response = await fetch('/api/class-codes/my-classes', {
+				method: 'GET',
+				credentials: 'include',
+				headers: {
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch class codes');
+			}
+
+			const data = await response.json();
+			availableClassCodes = data.classCodes || [];
+
+			// Check if student has no enrollment
+			if (availableClassCodes.length === 0) {
+				hasNoEnrollment = true;
+				toastStore.error(
+					'You must be enrolled in at least one class to submit equipment requests. Please contact your administrator.',
+					'Enrollment Required'
+				);
+			} else {
+				// Auto-select first class if only one is available
+				if (availableClassCodes.length === 1) {
+					selectedClassCodeId = availableClassCodes[0].id;
+				}
+			}
+
+			console.log('[CLASS-CODES] Loaded student class codes:', availableClassCodes.length);
+		} catch (error) {
+			console.error('[CLASS-CODES] Failed to load class codes:', error);
+			hasNoEnrollment = true;
+			toastStore.error(
+				'Unable to load your class enrollment. Please try again or contact support.',
+				'Load Error'
+			);
+		} finally {
+			loadingClassCodes = false;
+		}
 	}
 
 	onMount(() => {
@@ -667,6 +776,9 @@
 			} catch (error) {
 				console.error('[MOUNT] Failed to initialize cart:', error);
 			}
+
+			// Load student's class codes
+			await loadStudentClassCodes();
 
 			// Check for cached catalog data first (same as student catalog)
 			const cached = catalogAPI.peekCachedCatalog({
@@ -705,7 +817,7 @@
 				if (constantItems.length > 0) {
 					for (const item of constantItems) {
 						// Check if item already exists in cart (using the snapshot we took)
-						const alreadyInCart = currentCartItems.some(cartItem => cartItem.itemId === item.id);
+						const alreadyInCart = currentCartItems.some((cartItem) => cartItem.itemId === item.id);
 
 						if (!alreadyInCart) {
 							console.log('[MOUNT] Adding constant item to cart:', item.name);
@@ -719,13 +831,13 @@
 						}
 					}
 				}
-				
+
 				// Sync cart items BEFORE setting loading to false
 				const cartItems = get(requestCartItems);
 				if (cartItems.length > 0) {
 					syncSelectedItemsFromCart();
 				}
-				
+
 				// Set loading to false AFTER syncing (prevents empty state flash)
 				isLoading = false;
 
@@ -746,7 +858,7 @@
 				if (constantItems.length > 0) {
 					for (const item of constantItems) {
 						// Check if item already exists in cart (using the snapshot we took)
-						const alreadyInCart = currentCartItems.some(cartItem => cartItem.itemId === item.id);
+						const alreadyInCart = currentCartItems.some((cartItem) => cartItem.itemId === item.id);
 
 						if (!alreadyInCart) {
 							console.log('[MOUNT] Adding constant item to cart:', item.name);
@@ -791,7 +903,7 @@
 			cartEventListener = (event: Event) => {
 				const customEvent = event as CustomEvent;
 				console.log('[CART-SYNC] Cart updated:', customEvent.detail);
-				
+
 				// Sync selected items when cart changes
 				syncSelectedItemsFromCart();
 			};
@@ -859,7 +971,9 @@
 
 			// Subscribe to donations stream to catch donation events that affect inventory
 			donationSSEUnsubscribe = donationsAPI.subscribeToChanges(() => {
-				console.log('[SSE] Donation change detected (donations stream) - triggering inventory update');
+				console.log(
+					'[SSE] Donation change detected (donations stream) - triggering inventory update'
+				);
 				void handleInventoryUpdate({
 					action: 'item_updated',
 					entityType: 'item',
@@ -922,37 +1036,45 @@
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div>
 			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Request Equipment</h1>
-			<p class="mt-1 text-sm text-gray-500">Search, select, and submit your equipment borrow request</p>
+			<p class="mt-1 text-sm text-gray-500">
+				Search, select, and submit your equipment borrow request
+			</p>
 		</div>
 		<div class="flex items-center gap-3">
-			<a 
-				href="/student/catalog" 
-				class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+			<a
+				href="/student/catalog"
+				class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none"
 			>
 				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+					/>
 				</svg>
 				View Catalog
 			</a>
 		</div>
 	</div>
-	
+
 	<!-- Request Form -->
 	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 		<!-- Main Form -->
-		<div class="lg:col-span-2 space-y-4">
+		<div class="space-y-4 lg:col-span-2">
 			<!-- Selected Items -->
 			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
 				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div>
 						<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Selected Items</h2>
 						<p class="mt-0.5 text-xs text-gray-500">
-							{selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'} selected
+							{selectedItems.length}
+							{selectedItems.length === 1 ? 'item' : 'items'} selected
 						</p>
 					</div>
-					
+
 					<!-- Search Button -->
-					<div class="relative search-dropdown-container w-full sm:w-auto">
+					<div class="search-dropdown-container relative w-full sm:w-auto">
 						<button
 							onclick={() => {
 								showItemSelector = !showItemSelector;
@@ -966,24 +1088,43 @@
 									}, 100);
 								}
 							}}
-							class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-pink-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 sm:w-auto"
+							class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-pink-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none sm:w-auto"
 						>
 							<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+								/>
 							</svg>
 							Search Equipment
 						</button>
-						
+
 						<!-- Search Dropdown -->
 						{#if showItemSelector}
-							<div class="absolute left-0 right-0 top-full z-50 mt-2 w-full animate-slide-in sm:left-auto sm:right-0 sm:w-150 sm:max-w-[calc(100vw-2rem)]">
+							<div
+								class="animate-slide-in absolute top-full right-0 left-0 z-50 mt-2 w-full sm:right-0 sm:left-auto sm:w-150 sm:max-w-[calc(100vw-2rem)]"
+							>
 								<div class="rounded-xl border border-gray-200 bg-white shadow-2xl">
 									<!-- Search Input -->
 									<div class="border-b border-gray-200 p-4">
 										<div class="relative">
-											<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-												<svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+											<div
+												class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4"
+											>
+												<svg
+													class="h-5 w-5 text-gray-400"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+													/>
 												</svg>
 											</div>
 											<input
@@ -991,22 +1132,32 @@
 												type="text"
 												bind:value={searchQuery}
 												placeholder="Search equipment by name, category, or specification..."
-												class="block w-full rounded-lg border-2 border-gray-200 bg-white py-3 pl-11 pr-12 text-sm placeholder-gray-400 transition-all focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10"
+												class="block w-full rounded-lg border-2 border-gray-200 bg-white py-3 pr-12 pl-11 text-sm placeholder-gray-400 transition-all focus:border-pink-500 focus:ring-4 focus:ring-pink-500/10"
 											/>
 											{#if searchQuery}
 												<button
 													type="button"
 													aria-label="Clear search"
-													onclick={() => searchQuery = ''}
+													onclick={() => (searchQuery = '')}
 													class="absolute inset-y-0 right-0 flex items-center pr-4 text-gray-400 hover:text-gray-600"
 												>
-													<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+													<svg
+														class="h-5 w-5"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M6 18L18 6M6 6l12 12"
+														/>
 													</svg>
 												</button>
 											{/if}
 										</div>
-										
+
 										<!-- Filters Row -->
 										<div class="mt-3 flex flex-wrap items-center gap-2">
 											<select
@@ -1018,7 +1169,7 @@
 													<option value={category}>{category}</option>
 												{/each}
 											</select>
-											
+
 											<select
 												bind:value={sortBy}
 												class="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-all hover:border-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20"
@@ -1027,26 +1178,39 @@
 												<option value="category">Category</option>
 												<option value="availability">Availability</option>
 											</select>
-											
+
 											<span class="ml-auto text-xs text-gray-500">
-												{filteredEquipment().length} {filteredEquipment().length === 1 ? 'result' : 'results'}
+												{filteredEquipment().length}
+												{filteredEquipment().length === 1 ? 'result' : 'results'}
 											</span>
 										</div>
 									</div>
-									
+
 									<!-- Results List -->
 									<div class="max-h-100 overflow-y-auto">
 										{#if isLoading}
 											<div class="flex items-center justify-center py-8">
 												<div class="text-center">
-													<div class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-pink-600 border-r-transparent"></div>
+													<div
+														class="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-pink-600 border-r-transparent"
+													></div>
 													<p class="mt-2 text-sm text-gray-500">Loading equipment…</p>
 												</div>
 											</div>
 										{:else if filteredEquipment().length === 0}
 											<div class="py-8 text-center">
-												<svg class="mx-auto h-12 w-12 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+												<svg
+													class="mx-auto h-12 w-12 text-pink-600"
+													fill="none"
+													stroke="currentColor"
+													viewBox="0 0 24 24"
+												>
+													<path
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														stroke-width="2"
+														d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+													/>
 												</svg>
 												<p class="mt-2 text-sm font-medium text-gray-900">No equipment found</p>
 												<p class="text-xs text-gray-500">Try adjusting your search or filters</p>
@@ -1054,7 +1218,8 @@
 										{:else}
 											<div class="divide-y divide-gray-100">
 												{#each filteredEquipment() as item}
-													{@const isSelected = selectedItems.find((i) => i.id === item.id) !== undefined}
+													{@const isSelected =
+														selectedItems.find((i) => i.id === item.id) !== undefined}
 													<button
 														onclick={() => addItemToCart(item)}
 														disabled={isSelected}
@@ -1062,52 +1227,85 @@
 													>
 														<!-- Item Image -->
 														{#if item.picture}
-															<img 
-																src={item.picture} 
-																alt={item.name} 
-																class="h-14 w-14 shrink-0 rounded-lg object-cover ring-1 ring-gray-200" 
-																loading="lazy" 
+															<img
+																src={item.picture}
+																alt={item.name}
+																class="h-14 w-14 shrink-0 rounded-lg object-cover ring-1 ring-gray-200"
+																loading="lazy"
 															/>
 														{:else}
-															<div class="h-14 w-14 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-200">
+															<div
+																class="h-14 w-14 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-200"
+															>
 																<ItemImagePlaceholder size="sm" />
 															</div>
 														{/if}
-														
+
 														<!-- Item Details -->
 														<div class="min-w-0 flex-1">
 															<div class="flex items-center gap-2">
-																<p class="truncate text-sm font-semibold text-gray-900 group-hover:text-pink-600">
+																<p
+																	class="truncate text-sm font-semibold text-gray-900 group-hover:text-pink-600"
+																>
 																	{item.name}
 																</p>
 																{#if isSelected}
-																	<span class="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+																	<span
+																		class="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700"
+																	>
 																		<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-																			<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+																			<path
+																				fill-rule="evenodd"
+																				d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+																				clip-rule="evenodd"
+																			/>
 																		</svg>
 																		Added
 																	</span>
 																{/if}
 															</div>
-															<p class="text-xs text-gray-500 mt-0.5">{item.category}</p>
+															<p class="mt-0.5 text-xs text-gray-500">{item.category}</p>
 															<div class="mt-1.5 flex items-center gap-2">
-																<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold {item.available > 5 ? 'bg-emerald-100 text-emerald-700' : item.available > 0 ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700'}">
+																<span
+																	class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold {item.available >
+																	5
+																		? 'bg-emerald-100 text-emerald-700'
+																		: item.available > 0
+																			? 'bg-amber-100 text-amber-700'
+																			: 'bg-red-100 text-red-700'}"
+																>
 																	{item.available} available
 																</span>
 																{#if item.maxQuantityPerRequest}
-																	<span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700">
+																	<span
+																		class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-bold text-purple-700"
+																	>
 																		Max {item.maxQuantityPerRequest}
 																	</span>
 																{/if}
 															</div>
 														</div>
-														
+
 														<!-- Add Icon -->
 														{#if !isSelected}
-															<div class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100">
-																<div class="flex h-8 w-8 items-center justify-center rounded-full bg-pink-600 text-white">
-																	<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-																		<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+															<div
+																class="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
+															>
+																<div
+																	class="flex h-8 w-8 items-center justify-center rounded-full bg-pink-600 text-white"
+																>
+																	<svg
+																		class="h-4 w-4"
+																		fill="none"
+																		stroke="currentColor"
+																		viewBox="0 0 24 24"
+																	>
+																		<path
+																			stroke-linecap="round"
+																			stroke-linejoin="round"
+																			stroke-width="2.5"
+																			d="M12 4v16m8-8H4"
+																		/>
 																	</svg>
 																</div>
 															</div>
@@ -1117,13 +1315,13 @@
 											</div>
 										{/if}
 									</div>
-									
+
 									<!-- Footer -->
 									<div class="border-t border-gray-200 bg-gray-50 px-4 py-3">
 										<div class="flex items-center justify-between text-xs text-gray-500">
 											<span>Click an item to add it to your request</span>
 											<button
-												onclick={() => showItemSelector = false}
+												onclick={() => (showItemSelector = false)}
 												class="font-medium text-pink-600 hover:text-pink-700"
 											>
 												Close
@@ -1146,24 +1344,51 @@
 				{:else if selectedItems.length > 0}
 					<div class="space-y-2">
 						{#each selectedItems as item}
-							<div class="group rounded-lg border {item.available === 0 ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-white'} p-2.5 transition-all hover:shadow-md">
+							<div
+								class="group rounded-lg border {item.available === 0
+									? 'border-amber-300 bg-amber-50'
+									: 'border-gray-200 bg-white'} p-2.5 transition-all hover:shadow-md"
+							>
 								<div class="flex items-start gap-2.5">
 									{#if item.picture}
-										<img src={item.picture} alt={item.name} class="h-14 w-14 shrink-0 rounded-md object-cover ring-1 ring-gray-100 {item.available === 0 ? 'opacity-50' : ''}" loading="lazy" />
+										<img
+											src={item.picture}
+											alt={item.name}
+											class="h-14 w-14 shrink-0 rounded-md object-cover ring-1 ring-gray-100 {item.available ===
+											0
+												? 'opacity-50'
+												: ''}"
+											loading="lazy"
+										/>
 									{:else}
-										<div class="h-14 w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-gray-100 {item.available === 0 ? 'opacity-50' : ''}">
+										<div
+											class="h-14 w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-gray-100 {item.available ===
+											0
+												? 'opacity-50'
+												: ''}"
+										>
 											<ItemImagePlaceholder size="sm" />
 										</div>
 									{/if}
 									<div class="min-w-0 flex-1">
 										<div class="flex items-start justify-between gap-2">
 											<div class="flex-1">
-												<div class="flex items-center gap-1.5 flex-wrap">
-													<h3 class="text-xs font-semibold {item.available === 0 ? 'text-gray-500' : 'text-gray-900'}">{item.name}</h3>
+												<div class="flex flex-wrap items-center gap-1.5">
+													<h3
+														class="text-xs font-semibold {item.available === 0
+															? 'text-gray-500'
+															: 'text-gray-900'}"
+													>
+														{item.name}
+													</h3>
 													{#if item.isConstant}
-														<span class="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-linear-to-r from-emerald-100 to-teal-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+														<span
+															class="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-linear-to-r from-emerald-100 to-teal-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200"
+														>
 															<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
-																<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+																<path
+																	d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+																/>
 															</svg>
 															CONSTANT
 														</span>
@@ -1171,23 +1396,49 @@
 												</div>
 												<div class="mt-0.5 flex items-center gap-1.5 text-[11px]">
 													<span class="inline-flex items-center gap-0.5 text-gray-500">
-														<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+														<svg
+															class="h-3 w-3"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+															/>
 														</svg>
 														{item.category}
 													</span>
 													<span class="text-gray-300">•</span>
-													<span class="inline-flex items-center gap-0.5 {item.available === 0 ? 'text-amber-600 font-medium' : item.available > 5 ? 'text-emerald-600' : 'text-amber-600'}">
+													<span
+														class="inline-flex items-center gap-0.5 {item.available === 0
+															? 'font-medium text-amber-600'
+															: item.available > 5
+																? 'text-emerald-600'
+																: 'text-amber-600'}"
+													>
 														<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-															<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/>
+															<path
+																fill-rule="evenodd"
+																d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
+																clip-rule="evenodd"
+															/>
 														</svg>
 														{item.available} available
 													</span>
 												</div>
 												{#if item.available === 0}
-													<div class="mt-1 flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-1 text-[11px] font-medium text-amber-800">
+													<div
+														class="mt-1 flex items-center gap-1 rounded-md bg-amber-100 px-1.5 py-1 text-[11px] font-medium text-amber-800"
+													>
 														<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-															<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+															<path
+																fill-rule="evenodd"
+																d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+																clip-rule="evenodd"
+															/>
 														</svg>
 														<span>Out of stock - Remove to continue</span>
 													</div>
@@ -1196,19 +1447,34 @@
 													<div class="mt-1 flex items-center justify-between gap-2">
 														<div class="flex items-center gap-1 text-[11px] text-purple-700">
 															<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-																<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+																<path
+																	fill-rule="evenodd"
+																	d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+																	clip-rule="evenodd"
+																/>
 															</svg>
 															<span class="font-medium">Max {item.maxQuantityPerRequest}</span>
 														</div>
 														<!-- Progress Bar -->
 														<div class="flex items-center gap-1.5">
-															<div class="h-1 w-16 rounded-full bg-gray-200 overflow-hidden">
-																<div 
-																	class="h-full rounded-full transition-all duration-300 {item.requestedQuantity >= item.maxQuantityPerRequest ? 'bg-linear-to-r from-purple-500 to-purple-600' : 'bg-linear-to-r from-emerald-500 to-teal-500'}"
-																	style="width: {Math.min(100, (item.requestedQuantity / item.maxQuantityPerRequest) * 100)}%"
+															<div class="h-1 w-16 overflow-hidden rounded-full bg-gray-200">
+																<div
+																	class="h-full rounded-full transition-all duration-300 {item.requestedQuantity >=
+																	item.maxQuantityPerRequest
+																		? 'bg-linear-to-r from-purple-500 to-purple-600'
+																		: 'bg-linear-to-r from-emerald-500 to-teal-500'}"
+																	style="width: {Math.min(
+																		100,
+																		(item.requestedQuantity / item.maxQuantityPerRequest) * 100
+																	)}%"
 																></div>
 															</div>
-															<span class="text-[10px] font-bold {item.requestedQuantity >= item.maxQuantityPerRequest ? 'text-purple-700' : 'text-gray-600'}">
+															<span
+																class="text-[10px] font-bold {item.requestedQuantity >=
+																item.maxQuantityPerRequest
+																	? 'text-purple-700'
+																	: 'text-gray-600'}"
+															>
 																{item.requestedQuantity}/{item.maxQuantityPerRequest}
 															</span>
 														</div>
@@ -1216,7 +1482,7 @@
 												{/if}
 											</div>
 										</div>
-										
+
 										<!-- Quantity Controls -->
 										<div class="mt-2 flex items-center justify-between">
 											{#if item.available > 0}
@@ -1232,62 +1498,113 @@
 														class="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition-all hover:border-pink-500 hover:bg-pink-50 hover:text-pink-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:bg-white disabled:hover:text-gray-700"
 														title="Decrease quantity"
 													>
-														<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4"/>
+														<svg
+															class="h-3.5 w-3.5"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2.5"
+																d="M20 12H4"
+															/>
 														</svg>
 													</button>
-													
+
 													<!-- Quantity Display -->
 													<div class="relative">
 														<input
 															type="number"
 															min="1"
-															max={item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available}
+															max={item.maxQuantityPerRequest
+																? Math.min(item.maxQuantityPerRequest, item.available)
+																: item.available}
 															value={item.requestedQuantity}
-															onchange={(e) => updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
-															class="w-14 rounded-md border {item.isConstant ? 'border-emerald-300 bg-emerald-50 text-emerald-900' : 'border-gray-300 bg-white text-gray-900'} px-1.5 py-1 text-center text-xs font-bold focus:border-pink-500 focus:ring-1 focus:ring-pink-500/20"
-															title={item.maxQuantityPerRequest ? `Maximum ${item.maxQuantityPerRequest} per request` : `Maximum ${item.available} available`}
+															onchange={(e) =>
+																updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
+															class="w-14 rounded-md border {item.isConstant
+																? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+																: 'border-gray-300 bg-white text-gray-900'} px-1.5 py-1 text-center text-xs font-bold focus:border-pink-500 focus:ring-1 focus:ring-pink-500/20"
+															title={item.maxQuantityPerRequest
+																? `Maximum ${item.maxQuantityPerRequest} per request`
+																: `Maximum ${item.available} available`}
 														/>
 													</div>
-													
+
 													<!-- Increment -->
 													<button
 														type="button"
 														onclick={() => {
-															const maxQty = item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available;
+															const maxQty = item.maxQuantityPerRequest
+																? Math.min(item.maxQuantityPerRequest, item.available)
+																: item.available;
 															const newQty = Math.min(maxQty, item.requestedQuantity + 1);
 															updateItemQuantity(item.id, String(newQty));
 														}}
-														disabled={item.requestedQuantity >= (item.maxQuantityPerRequest ? Math.min(item.maxQuantityPerRequest, item.available) : item.available)}
+														disabled={item.requestedQuantity >=
+															(item.maxQuantityPerRequest
+																? Math.min(item.maxQuantityPerRequest, item.available)
+																: item.available)}
 														class="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition-all hover:border-pink-500 hover:bg-pink-50 hover:text-pink-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:bg-white disabled:hover:text-gray-700"
 														title="Increase quantity"
 													>
-														<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+														<svg
+															class="h-3.5 w-3.5"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2.5"
+																d="M12 4v16m8-8H4"
+															/>
 														</svg>
 													</button>
 												</div>
 											{:else}
-												<div class="rounded-md border border-amber-300 bg-amber-100 px-2 py-1 text-center text-[11px] font-bold text-amber-700">
+												<div
+													class="rounded-md border border-amber-300 bg-amber-100 px-2 py-1 text-center text-[11px] font-bold text-amber-700"
+												>
 													Not Available
 												</div>
 											{/if}
-											
+
 											<!-- Remove Button -->
 											{#if !item.isConstant}
-												<button 
-													onclick={() => removeItemFromCart(item.id)} 
+												<button
+													onclick={() => removeItemFromCart(item.id)}
 													class="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-all hover:border-red-300 hover:bg-red-100 hover:text-red-700"
 													title="Remove item"
 												>
-													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+													<svg
+														class="h-3.5 w-3.5"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2.5"
+															d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+														/>
 													</svg>
 												</button>
 											{:else}
-												<div class="flex h-7 w-7 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600" title="Constant item (cannot be removed)">
+												<div
+													class="flex h-7 w-7 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600"
+													title="Constant item (cannot be removed)"
+												>
 													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
-														<path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"/>
+														<path
+															fill-rule="evenodd"
+															d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z"
+															clip-rule="evenodd"
+														/>
 													</svg>
 												</div>
 											{/if}
@@ -1297,159 +1614,338 @@
 							</div>
 						{/each}
 					</div>
-					{:else}
-						<div class="rounded-xl border-2 border-dashed border-gray-300 bg-linear-to-br from-gray-50 to-gray-100 p-8 text-center">
-						<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm">
-							<svg class="h-8 w-8 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
+				{:else}
+					<div
+						class="rounded-xl border-2 border-dashed border-gray-300 bg-linear-to-br from-gray-50 to-gray-100 p-8 text-center"
+					>
+						<div
+							class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm"
+						>
+							<svg
+								class="h-8 w-8 text-pink-600"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+								/>
 							</svg>
 						</div>
 						<h3 class="mt-4 text-sm font-semibold text-gray-900">No items selected yet</h3>
-						<p class="mt-1 text-xs text-gray-500">Click "Browse Equipment" above to add items to your request</p>
+						<p class="mt-1 text-xs text-gray-500">
+							Click "Browse Equipment" above to add items to your request
+						</p>
 					</div>
 				{/if}
 			</div>
 
-			<!-- Borrow Period -->
-			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Borrow Period</h2>
-				<p class="mb-4 text-sm text-gray-600">Equipment must be returned on the same day, and requests must be made at least 2 days in advance.</p>
-				<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-					<!-- Borrow Date -->
-					<div class="sm:col-span-3">
-						<label for="borrowDate" class="block text-sm font-medium text-gray-700 mb-1">
-							Borrow Date <span class="text-red-500">*</span>
-						</label>
-						<input
-							type="date"
-							id="borrowDate"
-							bind:value={borrowDate}
-							min={today}
-							max={maximumBorrowDate}
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowDate ? 'border-red-500' : ''}"
-						/>
-						{#if errors.borrowDate}
-							<p class="mt-1 text-xs text-red-600">{errors.borrowDate}</p>
-					{:else}
-							<p class="mt-1 text-xs text-gray-500">You can request equipment for today up to 2 days ahead only.</p>
-						{/if}
-					</div>
-
-					<!-- Borrow Time -->
-					<div>
-						<label for="borrowTime" class="block text-sm font-medium text-gray-700 mb-1">
-							Pickup Time <span class="text-red-500">*</span>
-						</label>
-						<input
-							type="time"
-							id="borrowTime"
-							bind:value={borrowTime}
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime ? 'border-red-500' : ''}"
-						/>
-						{#if errors.borrowTime}
-							<p class="mt-1 text-xs text-red-600">{errors.borrowTime}</p>
-						{:else}
-							<p class="mt-1 text-xs text-gray-500">When you'll pick up</p>
-						{/if}
-					</div>
-
-					<!-- Return Time -->
-					<div>
-						<label for="returnTime" class="block text-sm font-medium text-gray-700 mb-1">
-							Return Time <span class="text-red-500">*</span>
-						</label>
-						<input
-							type="time"
-							id="returnTime"
-							bind:value={returnTime}
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime ? 'border-red-500' : ''}"
-						/>
-						{#if errors.returnTime}
-							<p class="mt-1 text-xs text-red-600">{errors.returnTime}</p>
-						{:else}
-							<p class="mt-1 text-xs text-gray-500">When you'll return</p>
-						{/if}
-					</div>
-
-					<!-- Duration Display -->
-					<div>
-						<p class="block text-sm font-medium text-gray-700 mb-1">
-							Duration
-						</p>
-						<div class="flex h-10 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-							{#if borrowTime && returnTime}
-								{(() => {
-									const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
-									const [returnHour, returnMinute] = returnTime.split(':').map(Number);
-									const borrowMinutes = borrowHour * 60 + borrowMinute;
-									const returnMinutes = returnHour * 60 + returnMinute;
-									const diffMinutes = returnMinutes - borrowMinutes;
-									const hours = Math.floor(diffMinutes / 60);
-									const minutes = diffMinutes % 60;
-									if (diffMinutes <= 0) return '—';
-									if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-									if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
-									return `${minutes} min`;
-								})()}
+			<!-- Row 1: Borrow Period & Purpose/Usage -->
+			<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+				<!-- Borrow Period -->
+				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Borrow Period</h2>
+					<div class="space-y-4">
+						<!-- Borrow Date -->
+						<div>
+							<label for="borrowDate" class="mb-1 block text-sm font-medium text-gray-700">
+								Borrow Date <span class="text-red-500">*</span>
+							</label>
+							<input
+								type="date"
+								id="borrowDate"
+								bind:value={borrowDate}
+								min={today}
+								max={maximumBorrowDate}
+								class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowDate
+									? 'border-red-500'
+									: ''}"
+							/>
+							{#if errors.borrowDate}
+								<p class="mt-1 text-xs text-red-600">{errors.borrowDate}</p>
 							{:else}
-								—
+								<p class="mt-1 text-xs text-gray-500">
+									You can request equipment for today up to 2 days ahead only.
+								</p>
 							{/if}
 						</div>
-						<p class="mt-1 text-xs text-gray-500">Same-day return</p>
+
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+							<!-- Borrow Time -->
+							<div>
+								<label for="borrowTime" class="mb-1 block text-sm font-medium text-gray-700">
+									Pickup Time <span class="text-red-500">*</span>
+								</label>
+								<input
+									type="time"
+									id="borrowTime"
+									bind:value={borrowTime}
+									class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime
+										? 'border-red-500'
+										: ''}"
+								/>
+								{#if errors.borrowTime}
+									<p class="mt-1 text-xs text-red-600">{errors.borrowTime}</p>
+								{:else}
+									<p class="mt-1 text-xs text-gray-500">When you'll pick up</p>
+								{/if}
+							</div>
+
+							<!-- Return Time -->
+							<div>
+								<label for="returnTime" class="mb-1 block text-sm font-medium text-gray-700">
+									Return Time <span class="text-red-500">*</span>
+								</label>
+								<input
+									type="time"
+									id="returnTime"
+									bind:value={returnTime}
+									class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime
+										? 'border-red-500'
+										: ''}"
+								/>
+								{#if errors.returnTime}
+									<p class="mt-1 text-xs text-red-600">{errors.returnTime}</p>
+								{:else}
+									<p class="mt-1 text-xs text-gray-500">When you'll return</p>
+								{/if}
+							</div>
+
+							<!-- Duration Display -->
+							<div>
+								<p class="mb-1 block text-sm font-medium text-gray-700">Duration</p>
+								<div
+									class="flex h-10 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700"
+								>
+									{#if borrowTime && returnTime}
+										{(() => {
+											const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
+											const [returnHour, returnMinute] = returnTime.split(':').map(Number);
+											const borrowMinutes = borrowHour * 60 + borrowMinute;
+											const returnMinutes = returnHour * 60 + returnMinute;
+											const diffMinutes = returnMinutes - borrowMinutes;
+											const hours = Math.floor(diffMinutes / 60);
+											const minutes = diffMinutes % 60;
+											if (diffMinutes <= 0) return '—';
+											if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+											if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
+											return `${minutes} min`;
+										})()}
+									{:else}
+										—
+									{/if}
+								</div>
+								<p class="mt-1 text-xs text-gray-500">Same-day return</p>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Purpose & Usage -->
+				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Purpose & Usage</h2>
+					<div class="space-y-4">
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							<div>
+								<label for="purpose" class="mb-1 block text-sm font-medium text-gray-700">
+									Purpose Type <span class="text-red-500">*</span>
+								</label>
+								<select
+									id="purpose"
+									bind:value={purpose}
+									class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+								>
+									{#each purposeOptions as option}
+										<option value={option.value}>{option.label}</option>
+									{/each}
+								</select>
+							</div>
+
+							<div>
+								<label for="usageLocation" class="mb-1 block text-sm font-medium text-gray-700">
+									Usage Location <span class="text-red-500">*</span>
+								</label>
+								<select
+									id="usageLocation"
+									bind:value={usageLocation}
+									class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+								>
+									<option value="school">In-School Use</option>
+									<option value="outdoor">Outdoor Use</option>
+								</select>
+							</div>
+						</div>
+
+						<div>
+							<label for="purposeDetails" class="mb-1 block text-sm font-medium text-gray-700">
+								Purpose Details <span class="text-red-500">*</span>
+							</label>
+							<textarea
+								id="purposeDetails"
+								bind:value={purposeDetails}
+								rows="3"
+								placeholder="Please provide specific details about how you will use this equipment..."
+								class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.purposeDetails
+									? 'border-red-500'
+									: ''}"
+							></textarea>
+							{#if errors.purposeDetails}
+								<p class="mt-1 text-xs text-red-600">{errors.purposeDetails}</p>
+							{/if}
+						</div>
 					</div>
 				</div>
 			</div>
-			
-			<!-- Purpose -->
-			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Purpose</h2>
-				<div class="space-y-4">
-					<div>
-						<label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">
-							Purpose Type <span class="text-red-500">*</span>
-						</label>
-						<select
-							id="purpose"
-							bind:value={purpose}
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-						>
-							{#each purposeOptions as option}
-								<option value={option.value}>{option.label}</option>
-							{/each}
-						</select>
-					</div>
-					<div>
-						<label for="purposeDetails" class="block text-sm font-medium text-gray-700 mb-1">
-							Purpose Details <span class="text-red-500">*</span>
-						</label>
-						<textarea
-							id="purposeDetails"
-							bind:value={purposeDetails}
-							rows="3"
-							placeholder="Please provide specific details about how you will use this equipment..."
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.purposeDetails ? 'border-red-500' : ''}"
-						></textarea>
-						{#if errors.purposeDetails}
-							<p class="mt-1 text-xs text-red-600">{errors.purposeDetails}</p>
+
+			<!-- Row 2: Class Code & Additional Information -->
+			<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+				<!-- Class Code Selection (Required) -->
+				<div
+					class="rounded-lg bg-white p-4 shadow sm:p-6 {hasNoEnrollment
+						? 'ring-2 ring-red-500'
+						: ''}"
+				>
+					<div class="mb-3 flex items-center justify-between">
+						<div class="flex items-center gap-2">
+							<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Class Code</h2>
+							<span
+								class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700"
+							>
+								<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+									<path
+										fill-rule="evenodd"
+										d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
+										clip-rule="evenodd"
+									/>
+								</svg>
+								REQUIRED
+							</span>
+						</div>
+						{#if loadingClassCodes}
+							<div class="flex items-center gap-2 text-xs text-gray-500">
+								<div
+									class="h-3 w-3 animate-spin rounded-full border-2 border-pink-600 border-t-transparent"
+								></div>
+								Loading...
+							</div>
 						{/if}
 					</div>
+
+					{#if availableClassCodes.length > 0}
+						<div>
+							<label for="classCode" class="mb-1 block text-sm font-medium text-gray-700">
+								Select Your Class <span class="text-red-500">*</span>
+							</label>
+							<select
+								id="classCode"
+								bind:value={selectedClassCodeId}
+								class="block w-full rounded-lg border px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.classCode
+									? 'border-red-500 bg-red-50'
+									: 'border-gray-300'}"
+							>
+								<option value="" disabled>-- Select a class --</option>
+								{#each availableClassCodes as classCode}
+									<option value={classCode.id}>
+										{classCode.code} - {classCode.courseName} ({classCode.semester}
+										{classCode.academicYear})
+									</option>
+								{/each}
+							</select>
+							{#if errors.classCode}
+								<p class="mt-1.5 text-xs font-medium text-red-600">{errors.classCode}</p>
+							{:else if selectedClassCodeId}
+								{@const selected = availableClassCodes.find((c) => c.id === selectedClassCodeId)}
+								{#if selected}
+									<div
+										class="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"
+									>
+										<svg
+											class="h-4 w-4 shrink-0 text-emerald-600"
+											fill="currentColor"
+											viewBox="0 0 20 20"
+										>
+											<path
+												fill-rule="evenodd"
+												d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+												clip-rule="evenodd"
+											/>
+										</svg>
+										<div class="min-w-0 flex-1">
+											<p class="text-xs font-semibold text-emerald-900">{selected.code}</p>
+											<p class="text-xs text-emerald-700">{selected.courseName}</p>
+										</div>
+										<span
+											class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-600"
+										>
+											{selected.semester}
+											{selected.academicYear}
+										</span>
+									</div>
+								{/if}
+							{:else}
+								<p class="mt-1.5 text-xs text-gray-500">
+									Please select the class for which you're requesting this equipment.
+								</p>
+							{/if}
+						</div>
+					{:else if !loadingClassCodes}
+						<div class="rounded-lg border-2 border-red-300 bg-red-50 p-6 text-center">
+							<div
+								class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100"
+							>
+								<svg
+									class="h-6 w-6 text-red-600"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+									/>
+								</svg>
+							</div>
+							<p class="mt-3 text-sm font-bold text-red-900">Enrollment Required</p>
+							<p class="mt-1 text-xs text-red-700">
+								You must be enrolled in at least one class to submit equipment requests.
+							</p>
+							<p class="mt-2 text-xs text-red-600">
+								Please contact your administrator or instructor to be added to a class.
+							</p>
+							{#if errors.classCode}
+								<p class="mt-2 rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-800">
+									{errors.classCode}
+								</p>
+							{/if}
+						</div>
+					{/if}
 				</div>
-			</div>
-			
-			<!-- Additional Notes -->
-			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Additional Information</h2>
-				<div>
-					<label for="notes" class="block text-sm font-medium text-gray-700 mb-1">
-						Notes <span class="text-gray-400 font-normal">(Optional)</span>
-					</label>
-					<textarea
-						id="notes"
-						bind:value={notes}
-						rows="3"
-						placeholder="Any special instructions for the custodian…"
-						class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-					></textarea>
+
+				<!-- Additional Information -->
+				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">
+						Additional Information
+					</h2>
+					<div>
+						<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">
+							Notes <span class="font-normal text-gray-400">(Optional)</span>
+						</label>
+						<textarea
+							id="notes"
+							bind:value={notes}
+							rows="3"
+							placeholder="Any special instructions for the custodian…"
+							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+						></textarea>
+						<p class="mt-1 text-xs text-gray-500">
+							Provide any additional details or special handling instructions for the custodian.
+						</p>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -1464,6 +1960,33 @@
 						<div class="flex justify-between">
 							<span class="text-gray-500">Items</span>
 							<span class="font-medium text-gray-900">{selectedItems.length}</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-gray-500">Location</span>
+							<span
+								class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {usageLocation ===
+								'school'
+									? 'bg-blue-100 text-blue-700'
+									: 'bg-green-100 text-green-700'}"
+							>
+								{#if usageLocation === 'school'}
+									<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+										<path
+											d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"
+										/>
+									</svg>
+									In-School
+								{:else}
+									<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+										<path
+											fill-rule="evenodd"
+											d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
+											clip-rule="evenodd"
+										/>
+									</svg>
+									Outdoor
+								{/if}
+							</span>
 						</div>
 						<div class="flex justify-between">
 							<span class="text-gray-500">Date</span>
@@ -1507,33 +2030,73 @@
 					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Terms & Conditions</h2>
 					<ul class="space-y-2 text-sm text-gray-600">
 						<li class="flex items-start gap-2">
-							<svg class="mt-0.5 h-4 w-4 shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+							<svg
+								class="mt-0.5 h-4 w-4 shrink-0 text-pink-600"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
 							</svg>
 							I am responsible for any damage
 						</li>
 						<li class="flex items-start gap-2">
-							<svg class="mt-0.5 h-4 w-4 shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+							<svg
+								class="mt-0.5 h-4 w-4 shrink-0 text-pink-600"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
 							</svg>
 							I will return equipment on time
 						</li>
 						<li class="flex items-start gap-2">
-							<svg class="mt-0.5 h-4 w-4 shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+							<svg
+								class="mt-0.5 h-4 w-4 shrink-0 text-pink-600"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
 							</svg>
 							Late returns may incur penalties
 						</li>
 						<li class="flex items-start gap-2">
-							<svg class="mt-0.5 h-4 w-4 shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+							<svg
+								class="mt-0.5 h-4 w-4 shrink-0 text-pink-600"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
 							</svg>
 							Educational use only
 						</li>
 					</ul>
 
 					<div class="mt-4 border-t border-gray-200 pt-4">
-						<label class="flex items-start gap-3 cursor-pointer">
+						<label class="flex cursor-pointer items-start gap-3">
 							<input
 								type="checkbox"
 								bind:checked={acknowledgeTerms}
@@ -1549,25 +2112,45 @@
 						{/if}
 					</div>
 				</div>
-				
+
 				<!-- Action Buttons -->
-				<div class="space-y-3">
+				<div class="flex flex-row gap-3">
 					<button
 						onclick={handleSubmit}
-						disabled={isSubmitting}
-						class="w-full inline-flex items-center justify-center rounded-lg bg-pink-600 px-4 py-3 text-sm font-medium text-white hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:cursor-not-allowed disabled:opacity-60"
+						disabled={isSubmitting || hasNoEnrollment || availableClassCodes.length === 0}
+						class="inline-flex w-full items-center justify-center rounded-lg bg-pink-600 px-4 py-3 text-sm font-medium text-white hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-pink-600"
+						title={hasNoEnrollment || availableClassCodes.length === 0
+							? 'You must be enrolled in a class to submit requests'
+							: ''}
 					>
 						<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M5 13l4 4L19 7"
+							/>
 						</svg>
-						{isSubmitting ? 'Submitting...' : 'Submit Request'}
+						{#if hasNoEnrollment || availableClassCodes.length === 0}
+							Enrollment Required
+						{:else if isSubmitting}
+							Submitting...
+						{:else}
+							Submit Request
+						{/if}
 					</button>
 					<button
 						onclick={resetForm}
-						class="w-full inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500"
+						disabled={hasNoEnrollment || availableClassCodes.length === 0}
+						class="inline-flex w-full items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 					>
 						<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+							/>
 						</svg>
 						Reset Form
 					</button>

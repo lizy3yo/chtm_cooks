@@ -42,8 +42,10 @@ export interface BorrowRequest {
 	studentId: ObjectId;
 	instructorId?: ObjectId;
 	custodianId?: ObjectId;
+	classCodeId: ObjectId; // Required: Class code for this request
 	items: BorrowRequestItem[];
 	purpose: string;
+	usageLocation?: 'school' | 'outdoor'; // Where equipment will be used
 	borrowDate: Date;
 	returnDate: Date;
 	status: BorrowRequestStatus;
@@ -84,8 +86,10 @@ export interface BorrowRequestResponse {
 	studentId: string;
 	instructorId?: string;
 	custodianId?: string;
+	classCodeId: string; // Required: Class code for this request
 	items: BorrowRequestResponseItem[];
 	purpose: string;
+	usageLocation?: 'school' | 'outdoor'; // Where equipment will be used
 	borrowDate: Date;
 	returnDate: Date;
 	status: BorrowRequestStatus;
@@ -112,8 +116,10 @@ export interface CreateBorrowRequestItemInput {
 export interface CreateBorrowRequestRequest {
 	items: CreateBorrowRequestItemInput[];
 	purpose: string;
+	usageLocation?: 'school' | 'outdoor'; // Where equipment will be used
 	borrowDate: string;
 	returnDate: string;
+	classCodeId: string; // Required: Class code selection
 }
 
 export interface RejectBorrowRequestRequest {
@@ -127,6 +133,7 @@ export function toBorrowRequestResponse(request: BorrowRequest): BorrowRequestRe
 		studentId: request.studentId.toString(),
 		instructorId: request.instructorId?.toString(),
 		custodianId: request.custodianId?.toString(),
+		classCodeId: request.classCodeId.toString(),
 		items: request.items.map((item) => ({
 			itemId: item.itemId.toString(),
 			name: item.name,
@@ -142,6 +149,7 @@ export function toBorrowRequestResponse(request: BorrowRequest): BorrowRequestRe
 			} : undefined
 		})),
 		purpose: request.purpose,
+		usageLocation: request.usageLocation,
 		borrowDate: request.borrowDate,
 		returnDate: request.returnDate,
 		status: request.status,

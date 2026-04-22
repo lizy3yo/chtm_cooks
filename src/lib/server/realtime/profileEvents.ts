@@ -10,6 +10,9 @@ export interface ProfileRealtimeEvent {
 	occurredAt: string;
 }
 
+/** Global channel so the superadmin users-list stream can detect any photo change. */
+export const PROFILES_BROADCAST_CHANNEL = 'profiles:all';
+
 type Listener = (event: ProfileRealtimeEvent) => void;
 
 interface BrokerState {

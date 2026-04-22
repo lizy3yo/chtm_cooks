@@ -243,9 +243,9 @@ export const POST: RequestHandler = async (event) => {
 		// Validate complete request using middleware
 		const validation = validateCreateBorrowRequest(body);
 		if (!validation.valid) {
-			logger.warn('Borrow request validation failed', { 
-				userId: user.userId, 
-				error: validation.error 
+			logger.warn('Borrow request validation failed', {
+				userId: user.userId,
+				error: validation.error
 			});
 			return json({ error: validation.error }, { status: 400 });
 		}
@@ -257,9 +257,51 @@ export const POST: RequestHandler = async (event) => {
 		const borrowDate = new Date(sanitized.borrowDate as string);
 		const returnDate = new Date(sanitized.returnDate as string);
 
+		// Validate classCodeId is provided (required)
+		if (!body.classCodeId || typeof body.classCodeId !== 'string' || body.classCodeId.trim() === '') {
+			logger.warn('Borrow request failed: Class code is required', {
+				userId: user.userId
+			});
+			return json({
+				error: 'Class code is required. You must be enrolled in a class to submit equipment requests.'
+			}, { status: 400 });
+		}
+
+		let classCodeId: ObjectId;
+		try {
+			classCodeId = new ObjectId(body.classCodeId);
+		} catch (error) {
+			logger.warn('Borrow request failed: Invalid class code format', {
+				userId: user.userId,
+				classCodeId: body.classCodeId
+			});
+			return json({
+				error: 'Invalid class code format'
+			}, { status: 400 });
+		}
+
 		const db = await getDatabase();
 		const inventoryCollection = db.collection<InventoryItem>('inventory_items');
 		const requestCollection = db.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION);
+
+		// Validate classCodeId and student enrollment (required)
+		const classCodesCollection = db.collection('class_codes');
+		const classCode = await classCodesCollection.findOne({
+			_id: classCodeId,
+			studentIds: new ObjectId(user.userId),
+			isArchived: false,
+			isActive: true
+		});
+
+		if (!classCode) {
+			logger.warn('Borrow request failed: Invalid or unauthorized class code', {
+				userId: user.userId,
+				classCodeId: classCodeId.toString()
+			});
+			return json({
+				error: 'Invalid class code or you are not enrolled in this class. Please select a valid class from your enrolled classes.'
+			}, { status: 403 });
+		}
 
 		// Verify all items exist and have sufficient stock
 		const inventoryDocs = await inventoryCollection
@@ -292,8 +334,8 @@ export const POST: RequestHandler = async (event) => {
 					requested: item.quantity,
 					available: inventoryItem.quantity
 				});
-				return json({ 
-					error: `Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.quantity}, Requested: ${item.quantity}` 
+				return json({
+					error: `Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.quantity}, Requested: ${item.quantity}`
 				}, { status: 409 });
 			}
 		}
@@ -301,6 +343,7 @@ export const POST: RequestHandler = async (event) => {
 		const now = new Date();
 		const newRequest: BorrowRequest = {
 			studentId: new ObjectId(user.userId),
+			classCodeId,
 			items: normalizedItems.map((item) => {
 				const inventoryItem = inventoryById.get(item.itemId.toString())!;
 				return {
@@ -312,6 +355,7 @@ export const POST: RequestHandler = async (event) => {
 				};
 			}),
 			purpose,
+			usageLocation: body.usageLocation || 'school', // Default to school if not provided
 			borrowDate,
 			returnDate,
 			status: BorrowRequestStatus.PENDING_INSTRUCTOR,
