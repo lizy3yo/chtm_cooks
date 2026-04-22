@@ -45,6 +45,7 @@ export interface BorrowRequest {
 	classCodeId?: ObjectId; // Class code for this request
 	items: BorrowRequestItem[];
 	purpose: string;
+	usageLocation?: 'school' | 'outdoor'; // Where equipment will be used
 	borrowDate: Date;
 	returnDate: Date;
 	status: BorrowRequestStatus;
@@ -88,6 +89,7 @@ export interface BorrowRequestResponse {
 	classCodeId?: string; // Class code for this request
 	items: BorrowRequestResponseItem[];
 	purpose: string;
+	usageLocation?: 'school' | 'outdoor'; // Where equipment will be used
 	borrowDate: Date;
 	returnDate: Date;
 	status: BorrowRequestStatus;
@@ -114,6 +116,7 @@ export interface CreateBorrowRequestItemInput {
 export interface CreateBorrowRequestRequest {
 	items: CreateBorrowRequestItemInput[];
 	purpose: string;
+	usageLocation?: 'school' | 'outdoor'; // Where equipment will be used
 	borrowDate: string;
 	returnDate: string;
 	classCodeId?: string; // Optional class code selection
@@ -146,6 +149,7 @@ export function toBorrowRequestResponse(request: BorrowRequest): BorrowRequestRe
 			} : undefined
 		})),
 		purpose: request.purpose,
+		usageLocation: request.usageLocation,
 		borrowDate: request.borrowDate,
 		returnDate: request.returnDate,
 		status: request.status,

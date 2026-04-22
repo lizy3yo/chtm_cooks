@@ -88,6 +88,7 @@
 	let selectedItems = $state<SelectedRequestItem[]>([]);
 	let purpose = $state('lab-exercise');
 	let purposeDetails = $state('');
+	let usageLocation = $state<'school' | 'outdoor'>('school'); // Usage location: school or outdoor
 	let borrowDate = $state('');
 	let borrowTime = $state('08:00');
 	let returnTime = $state('17:00');
@@ -520,9 +521,10 @@
 
 	function buildPurposeText(): string {
 		const purposeLabel = purposeOptions.find((option) => option.value === purpose)?.label || 'Request';
+		const locationLabel = usageLocation === 'school' ? 'In-School Use' : 'Outdoor Use';
 		const detail = purposeDetails.trim();
 		const noteText = notes.trim();
-		let composed = `${purposeLabel}: ${detail}`;
+		let composed = `${purposeLabel} (${locationLabel}): ${detail}`;
 
 		if (noteText) {
 			composed = `${composed} | Notes: ${noteText}`;
@@ -627,6 +629,7 @@
 					quantity: item.requestedQuantity
 				})),
 				purpose: buildPurposeText(),
+				usageLocation,
 				borrowDate: `${borrowDate}T${borrowTime}`,
 				returnDate: `${borrowDate}T${returnTime}`,
 				classCodeId: selectedClassCodeId || undefined
@@ -648,6 +651,7 @@
 		selectedItems = [];
 		purpose = 'lab-exercise';
 		purposeDetails = '';
+		usageLocation = 'school';
 		borrowDate = '';
 		borrowTime = '08:00';
 		returnTime = '17:00';
@@ -1442,22 +1446,46 @@
 			
 			<!-- Purpose -->
 			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Purpose</h2>
+				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Purpose & Usage</h2>
 				<div class="space-y-4">
-					<div>
-						<label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">
-							Purpose Type <span class="text-red-500">*</span>
-						</label>
-						<select
-							id="purpose"
-							bind:value={purpose}
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
-						>
-							{#each purposeOptions as option}
-								<option value={option.value}>{option.label}</option>
-							{/each}
-						</select>
+					<div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+						<div>
+							<label for="purpose" class="block text-sm font-medium text-gray-700 mb-1">
+								Purpose Type <span class="text-red-500">*</span>
+							</label>
+							<select
+								id="purpose"
+								bind:value={purpose}
+								class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+							>
+								{#each purposeOptions as option}
+									<option value={option.value}>{option.label}</option>
+								{/each}
+							</select>
+						</div>
+						
+						<div>
+							<label for="usageLocation" class="block text-sm font-medium text-gray-700 mb-1">
+								Usage Location <span class="text-red-500">*</span>
+							</label>
+							<select
+								id="usageLocation"
+								bind:value={usageLocation}
+								class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+							>
+								<option value="school">In-School Use</option>
+								<option value="outdoor">Outdoor Use</option>
+							</select>
+							<p class="mt-1 text-xs text-gray-500">
+								{#if usageLocation === 'school'}
+									Equipment will be used within school premises
+								{:else}
+									Equipment will be used outside school premises
+								{/if}
+							</p>
+						</div>
 					</div>
+					
 					<div>
 						<label for="purposeDetails" class="block text-sm font-medium text-gray-700 mb-1">
 							Purpose Details <span class="text-red-500">*</span>
@@ -1565,6 +1593,22 @@
 						<div class="flex justify-between">
 							<span class="text-gray-500">Items</span>
 							<span class="font-medium text-gray-900">{selectedItems.length}</span>
+						</div>
+						<div class="flex justify-between">
+							<span class="text-gray-500">Location</span>
+							<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {usageLocation === 'school' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}">
+								{#if usageLocation === 'school'}
+									<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+										<path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/>
+									</svg>
+									In-School
+								{:else}
+									<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+										<path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/>
+									</svg>
+									Outdoor
+								{/if}
+							</span>
 						</div>
 						<div class="flex justify-between">
 							<span class="text-gray-500">Date</span>

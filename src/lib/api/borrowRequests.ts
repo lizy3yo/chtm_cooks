@@ -43,6 +43,7 @@ export interface BorrowRequestItemInput {
 export interface CreateBorrowRequestInput {
 	items: BorrowRequestItemInput[];
 	purpose: string;
+	usageLocation?: 'school' | 'outdoor'; // Where equipment will be used
 	borrowDate: string;
 	returnDate: string;
 	classCodeId?: string; // Optional class code selection
@@ -86,6 +87,7 @@ export interface BorrowRequestRecord {
 	custodian?: BorrowRequestUserSummary;
 	items: BorrowRequestItem[];
 	purpose: string;
+	usageLocation?: 'school' | 'outdoor'; // Where equipment will be used
 	borrowDate: string;
 	returnDate: string;
 	status: BorrowRequestStatus;

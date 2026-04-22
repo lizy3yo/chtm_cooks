@@ -334,6 +334,7 @@ export const POST: RequestHandler = async (event) => {
 				};
 			}),
 			purpose,
+			usageLocation: body.usageLocation || 'school', // Default to school if not provided
 			borrowDate,
 			returnDate,
 			status: BorrowRequestStatus.PENDING_INSTRUCTOR,
