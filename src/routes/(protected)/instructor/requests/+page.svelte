@@ -5,7 +5,9 @@ import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestStatus } from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
+import { classCodesAPI, type ClassCodeResponse } from '$lib/api/classCodes';
 import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+import RequestDetailModal from '$lib/components/instructor/RequestDetailModal.svelte';
 import {
 	Archive,
 	CalendarDays,
@@ -32,6 +34,7 @@ let searchQuery = $state('');
 let sortBy = $state<'date' | 'student' | 'status'>('date');
 let requests = $state<any[]>([]);
 let itemPictureCache = $state<Map<string, string>>(new Map());
+let classCodeCache = $state<Map<string, ClassCodeResponse>>(new Map());
 let actionInFlightById = $state<Record<string, boolean>>({});
 let bulkActionInFlight = $state(false);
 
@@ -130,6 +133,8 @@ requestDate: record.createdAt,
 borrowDate: record.borrowDate,
 returnDate: record.returnDate,
 purpose: record.purpose,
+usageLocation: record.usageLocation,
+classCodeId: record.classCodeId,
 urgent: false,
 daysUntil: 0,
 approvedBy: record.instructor?.fullName || user?.firstName || 'Instructor',
@@ -172,6 +177,7 @@ try {
 const response = await borrowRequestsAPI.list({}, { forceRefresh });
 requests = response.requests.map(mapRequest);
 await backfillItemPictures();
+await backfillClassCodes();
 } catch (error) {
 console.error('Failed to load instructor requests', error);
 requests = [];
@@ -201,6 +207,32 @@ async function backfillItemPictures(): Promise<void> {
 		itemPictureCache = next;
 	} catch {
 		// Non-critical, fallback icon remains visible when pictures are unavailable.
+	}
+}
+
+async function backfillClassCodes(): Promise<void> {
+	const missingClassCodeIds = new Set<string>();
+	for (const req of requests) {
+		if (req.classCodeId && !classCodeCache.has(req.classCodeId)) {
+			missingClassCodeIds.add(req.classCodeId);
+		}
+	}
+
+	if (missingClassCodeIds.size === 0) return;
+
+	try {
+		const next = new Map(classCodeCache);
+		for (const classCodeId of missingClassCodeIds) {
+			try {
+				const classCode = await classCodesAPI.getById(classCodeId);
+				next.set(classCodeId, classCode);
+			} catch {
+				// Skip if class code not found
+			}
+		}
+		classCodeCache = next;
+	} catch {
+		// Keep graceful fallback when class codes are unavailable.
 	}
 }
 
@@ -1028,152 +1060,18 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
-	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm" onclick={closeDetailModal} aria-label="Close modal" tabindex="-1"></button>
-		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
-			<div class="relative w-full max-w-4xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-2xl">
-				<div class="flex justify-center pt-2.5 sm:hidden">
-					<div class="h-1 w-10 rounded-full bg-gray-300"></div>
-				</div>
-				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5">
-					<div class="flex items-start justify-between gap-3">
-						<div class="flex min-w-0 flex-1 items-start gap-3">
-							<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-pink-500 to-pink-600 shadow-md">
-								<ClipboardList class="h-5 w-5 text-white" />
-							</div>
-							<div class="min-w-0">
-								<h2 class="text-lg font-bold text-gray-900 sm:text-xl">Request Details</h2>
-								<p class="font-mono text-xs font-semibold text-pink-600 sm:text-sm">{selectedRequest.id}</p>
-								<span class="mt-1.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold {getStatusColor(selectedRequest.status, selectedRequest.rawStatus, selectedRequest.rejectionReason)}">
-									<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-									{getStatusLabel(selectedRequest.status, selectedRequest.rawStatus, selectedRequest.rejectionReason)}
-								</span>
-							</div>
-						</div>
-						<button onclick={closeDetailModal} aria-label="Close details modal" class="shrink-0 rounded-xl p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600">
-							<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-							</svg>
-						</button>
-					</div>
-				</div>
-
-				<div class="max-h-[65vh] overflow-y-auto">
-					<div class="grid grid-cols-1 lg:grid-cols-2">
-						<div class="space-y-5 border-gray-200 p-4 sm:p-6 lg:border-r">
-							<div>
-								<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Student</p>
-								<div class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
-									<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-lg font-semibold text-pink-700">
-										{#if selectedRequest.student.avatarUrl}
-											<img src={selectedRequest.student.avatarUrl} alt={selectedRequest.student.name} class="h-full w-full object-cover" loading="lazy" />
-										{:else}
-											{selectedRequest.student.avatar}
-										{/if}
-									</div>
-									<div class="min-w-0">
-										<p class="font-semibold text-gray-900">{selectedRequest.student.name}</p>
-										<p class="text-xs text-gray-500">{selectedRequest.student.yearLevel} · Block {selectedRequest.student.block}</p>
-										<p class="text-xs text-gray-400">{selectedRequest.student.studentId} · {selectedRequest.student.email}</p>
-									</div>
-								</div>
-							</div>
-							<div>
-								<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Requested Items</p>
-								<div class="space-y-2">
-									{#each selectedRequest.items as item}
-										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-										<div class="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
-											{#if pic}
-												<img src={pic} alt={item.name} class="h-10 w-10 shrink-0 rounded-lg object-cover" loading="lazy" />
-											{:else}
-												<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg">
-													<ItemImagePlaceholder size="sm" />
-												</div>
-											{/if}
-											<div class="min-w-0">
-												<p class="text-sm font-medium text-gray-900">{item.name}</p>
-												<p class="text-xs text-gray-500">{item.code} · Qty: {item.quantity}</p>
-											</div>
-										</div>
-									{/each}
-								</div>
-							</div>
-							<div>
-								<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Request Details</p>
-								<div class="space-y-2.5 rounded-xl border border-gray-200 bg-gray-50 p-3">
-									<div>
-										<p class="text-[10px] font-medium uppercase tracking-wide text-gray-400">Borrow Period</p>
-										<p class="mt-0.5 text-sm text-gray-900">{new Date(selectedRequest.borrowDate).toLocaleDateString()} – {new Date(selectedRequest.returnDate).toLocaleDateString()}</p>
-									</div>
-									<div>
-										<p class="text-[10px] font-medium uppercase tracking-wide text-gray-400">Purpose</p>
-										<p class="mt-0.5 text-sm text-gray-900">{selectedRequest.purpose}</p>
-									</div>
-								</div>
-							</div>
-						</div>
-
-						<div class="space-y-5 bg-gray-50/40 p-4 sm:p-6">
-							<div class="rounded-xl border border-gray-200 bg-white p-3">
-								<p class="text-xs font-medium {getStatusHint(selectedRequest.status, selectedRequest.rawStatus, selectedRequest.rejectionReason).color}">
-									{getStatusHint(selectedRequest.status, selectedRequest.rawStatus, selectedRequest.rejectionReason).text}
-								</p>
-							</div>
-							{#if selectedRequest.status !== 'pending'}
-								<div>
-									<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Workflow</p>
-									<div class="space-y-2 rounded-xl border border-gray-200 bg-white p-3">
-										{#if selectedRequest.approvedDate}
-											<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-green-600">✓</span><span>Approved by {selectedRequest.approvedBy} · {selectedRequest.approvedDate}</span></div>
-										{/if}
-										{#if selectedRequest.custodianStatus}
-											<div class="flex items-center gap-2 text-xs text-gray-600">
-												<span class="{['Ready for Pickup','Picked Up','Return Requested','Returned'].includes(selectedRequest.custodianStatus) ? 'text-green-600' : selectedRequest.custodianStatus === 'Missing - Investigation' ? 'text-rose-600' : 'text-blue-600'}">
-													{['Ready for Pickup','Picked Up','Return Requested','Returned'].includes(selectedRequest.custodianStatus) ? '✓' : selectedRequest.custodianStatus === 'Missing - Investigation' ? '⚠' : '⏳'}
-												</span>
-												<span>Custodian: {selectedRequest.custodianStatus}</span>
-											</div>
-										{/if}
-										{#if selectedRequest.releasedDate}<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-green-600">✓</span><span>Released · {selectedRequest.releasedDate}</span></div>{/if}
-										{#if selectedRequest.pickedUpDate}<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-green-600">✓</span><span>Picked up · {selectedRequest.pickedUpDate}</span></div>{/if}
-										{#if selectedRequest.actualReturnDate}<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-green-600">✓</span><span>Returned · {selectedRequest.actualReturnDate}</span></div>{/if}
-										{#if selectedRequest.missingDate}<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-rose-600">⚠</span><span>Reported missing · {selectedRequest.missingDate}</span></div>{/if}
-										{#if selectedRequest.resolvedDate}<div class="flex items-center gap-2 text-xs text-gray-600"><span class="text-emerald-600">✓</span><span>Resolved · {selectedRequest.resolvedDate}</span></div>{/if}
-									</div>
-								</div>
-							{/if}
-							{#if selectedRequest.status === 'pending'}
-								<div>
-									<p class="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Actions</p>
-									<div class="space-y-2">
-										<button
-											onclick={() => approveRequest(selectedRequest.rawId)}
-											disabled={isActionInFlight(selectedRequest.rawId) || bulkActionInFlight}
-											class="w-full rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-										>
-											{isActionInFlight(selectedRequest.rawId) ? 'Approving…' : 'Approve Request'}
-										</button>
-										<button
-											onclick={() => { selectedRequests = [selectedRequest.rawId]; showBulkRejectModal = true; }}
-											disabled={isActionInFlight(selectedRequest.rawId) || bulkActionInFlight}
-											class="w-full rounded-xl border border-red-200 bg-white px-4 py-3 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-										>
-											Reject Request
-										</button>
-									</div>
-								</div>
-							{/if}
-						</div>
-					</div>
-				</div>
-
-				<div class="flex justify-end border-t border-gray-200 bg-white px-4 py-3 sm:px-6 sm:py-4">
-					<button onclick={closeDetailModal} class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">Close</button>
-				</div>
-			</div>
-		</div>
-	</div>
+	<RequestDetailModal
+		request={selectedRequest}
+		{itemPictureCache}
+		{classCodeCache}
+		{isActionInFlight}
+		{bulkActionInFlight}
+		onClose={closeDetailModal}
+		onApprove={approveRequest}
+		onReject={(rawId) => { selectedRequests = [rawId]; showBulkRejectModal = true; }}
+		{getStatusLabel}
+		{getStatusColor}
+	/>
 {/if}
 
 <!-- Bulk Reject Modal -->

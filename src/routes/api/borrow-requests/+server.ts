@@ -285,10 +285,11 @@ export const POST: RequestHandler = async (event) => {
 		const requestCollection = db.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION);
 
 		// Validate classCodeId and student enrollment (required)
+		// Note: studentIds are stored as strings in the database
 		const classCodesCollection = db.collection('class_codes');
 		const classCode = await classCodesCollection.findOne({
 			_id: classCodeId,
-			studentIds: new ObjectId(user.userId),
+			studentIds: user.userId,
 			isArchived: false,
 			isActive: true
 		});

@@ -23,8 +23,10 @@ export const GET: RequestHandler = async (event) => {
 	try {
 		const decoded = getUserFromToken(event);
 		if (!decoded) return json({ error: 'Unauthorized' }, { status: 401 });
-		if (decoded.role !== 'superadmin') {
-			return json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
+		
+		// Allow superadmin, instructor, and custodian to view class codes
+		if (!['superadmin', 'instructor', 'custodian'].includes(decoded.role)) {
+			return json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
 		}
 
 		const { classCodeId } = params;
@@ -37,6 +39,14 @@ export const GET: RequestHandler = async (event) => {
 		const doc = await col.findOne({ _id: new ObjectId(classCodeId) });
 
 		if (!doc) return json({ error: 'Class code not found' }, { status: 404 });
+		
+		// Instructors can only view classes they're assigned to (unless superadmin)
+		if (decoded.role === 'instructor') {
+			const isAssigned = doc.instructorIds?.includes(decoded.userId);
+			if (!isAssigned) {
+				return json({ error: 'Forbidden: You are not assigned to this class' }, { status: 403 });
+			}
+		}
 
 		const url = new URL(request.url);
 		const populate = url.searchParams.get('populate') === 'true';
