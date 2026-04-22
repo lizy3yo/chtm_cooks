@@ -243,9 +243,9 @@ export const POST: RequestHandler = async (event) => {
 		// Validate complete request using middleware
 		const validation = validateCreateBorrowRequest(body);
 		if (!validation.valid) {
-			logger.warn('Borrow request validation failed', { 
-				userId: user.userId, 
-				error: validation.error 
+			logger.warn('Borrow request validation failed', {
+				userId: user.userId,
+				error: validation.error
 			});
 			return json({ error: validation.error }, { status: 400 });
 		}
@@ -262,8 +262,8 @@ export const POST: RequestHandler = async (event) => {
 			logger.warn('Borrow request failed: Class code is required', {
 				userId: user.userId
 			});
-			return json({ 
-				error: 'Class code is required. You must be enrolled in a class to submit equipment requests.' 
+			return json({
+				error: 'Class code is required. You must be enrolled in a class to submit equipment requests.'
 			}, { status: 400 });
 		}
 
@@ -275,8 +275,8 @@ export const POST: RequestHandler = async (event) => {
 				userId: user.userId,
 				classCodeId: body.classCodeId
 			});
-			return json({ 
-				error: 'Invalid class code format' 
+			return json({
+				error: 'Invalid class code format'
 			}, { status: 400 });
 		}
 
@@ -286,7 +286,7 @@ export const POST: RequestHandler = async (event) => {
 
 		// Validate classCodeId and student enrollment (required)
 		const classCodesCollection = db.collection('class_codes');
-		const classCode = await classCodesCollection.findOne({ 
+		const classCode = await classCodesCollection.findOne({
 			_id: classCodeId,
 			studentIds: new ObjectId(user.userId),
 			isArchived: false,
@@ -298,8 +298,8 @@ export const POST: RequestHandler = async (event) => {
 				userId: user.userId,
 				classCodeId: classCodeId.toString()
 			});
-			return json({ 
-				error: 'Invalid class code or you are not enrolled in this class. Please select a valid class from your enrolled classes.' 
+			return json({
+				error: 'Invalid class code or you are not enrolled in this class. Please select a valid class from your enrolled classes.'
 			}, { status: 403 });
 		}
 
@@ -334,8 +334,8 @@ export const POST: RequestHandler = async (event) => {
 					requested: item.quantity,
 					available: inventoryItem.quantity
 				});
-				return json({ 
-					error: `Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.quantity}, Requested: ${item.quantity}` 
+				return json({
+					error: `Insufficient stock for ${inventoryItem.name}. Available: ${inventoryItem.quantity}, Requested: ${item.quantity}`
 				}, { status: 409 });
 			}
 		}
