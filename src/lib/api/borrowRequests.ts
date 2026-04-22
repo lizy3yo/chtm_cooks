@@ -46,7 +46,7 @@ export interface CreateBorrowRequestInput {
 	usageLocation?: 'school' | 'outdoor'; // Where equipment will be used
 	borrowDate: string;
 	returnDate: string;
-	classCodeId?: string; // Optional class code selection
+	classCodeId: string; // Required: Class code selection
 }
 
 export interface BorrowRequestItem {
@@ -81,7 +81,7 @@ export interface BorrowRequestRecord {
 	studentId: string;
 	instructorId?: string;
 	custodianId?: string;
-	classCodeId?: string;
+	classCodeId: string; // Required: Class code for this request
 	student?: BorrowRequestUserSummary;
 	instructor?: BorrowRequestUserSummary;
 	custodian?: BorrowRequestUserSummary;
@@ -308,6 +308,11 @@ export const borrowRequestsAPI = {
 	},
 
 	async create(payload: CreateBorrowRequestInput): Promise<BorrowRequestRecord> {
+		// Validate required classCodeId before sending request
+		if (!payload.classCodeId || payload.classCodeId.trim() === '') {
+			throw new Error('Class code is required. You must be enrolled in a class to submit equipment requests.');
+		}
+		
 		const response = await fetch('/api/borrow-requests', getFetchOptions('POST', payload));
 		const data = await handleResponse<BorrowRequestRecord>(response);
 		invalidateAllCaches();

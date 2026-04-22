@@ -94,9 +94,10 @@
 	let returnTime = $state('17:00');
 	let notes = $state('');
 	let acknowledgeTerms = $state(false);
-	let selectedClassCodeId = $state<string>(''); // Selected class code
+	let selectedClassCodeId = $state<string>(''); // Required: Selected class code
 	let availableClassCodes = $state<ClassCodeResponse[]>([]); // Student's enrolled class codes
 	let loadingClassCodes = $state(false);
+	let hasNoEnrollment = $state(false); // Track if student has no class enrollment
 
 	// Auto-update return time to ensure it's after borrow time
 	$effect(() => {
@@ -536,6 +537,16 @@
 	function validateForm() {
 		errors = {};
 
+		// Validate class code selection (required)
+		if (!selectedClassCodeId || selectedClassCodeId.trim() === '') {
+			errors.classCode = 'Class code is required. Please select a class from your enrolled classes.';
+		}
+
+		// Block submission if student has no enrollment
+		if (hasNoEnrollment || availableClassCodes.length === 0) {
+			errors.classCode = 'You must be enrolled in at least one class to submit equipment requests.';
+		}
+
 		if (selectedItems.length === 0) {
 			errors.items = 'Please select at least one item';
 		}
@@ -621,6 +632,12 @@
 			return;
 		}
 
+		// Double-check class code requirement before submission
+		if (!selectedClassCodeId || selectedClassCodeId.trim() === '') {
+			toastStore.error('Class code is required. Please select a class from your enrolled classes.', 'Validation Error');
+			return;
+		}
+
 		isSubmitting = true;
 		try {
 			await borrowRequestsAPI.create({
@@ -632,7 +649,7 @@
 				usageLocation,
 				borrowDate: `${borrowDate}T${borrowTime}`,
 				returnDate: `${borrowDate}T${returnTime}`,
-				classCodeId: selectedClassCodeId || undefined
+				classCodeId: selectedClassCodeId // Required field
 			});
 
 			requestCartStore.clear();
@@ -664,9 +681,12 @@
 
 	/**
 	 * Load class codes that the student is enrolled in
+	 * Industry-standard: Students must be enrolled in at least one class to submit requests
 	 */
 	async function loadStudentClassCodes() {
 		loadingClassCodes = true;
+		hasNoEnrollment = false;
+		
 		try {
 			// Fetch only the class codes where the student is enrolled
 			const response = await fetch('/api/class-codes/my-classes', {
@@ -683,11 +703,26 @@
 
 			const data = await response.json();
 			availableClassCodes = data.classCodes || [];
+			
+			// Check if student has no enrollment
+			if (availableClassCodes.length === 0) {
+				hasNoEnrollment = true;
+				toastStore.error(
+					'You must be enrolled in at least one class to submit equipment requests. Please contact your administrator.',
+					'Enrollment Required'
+				);
+			} else {
+				// Auto-select first class if only one is available
+				if (availableClassCodes.length === 1) {
+					selectedClassCodeId = availableClassCodes[0].id;
+				}
+			}
 
 			console.log('[CLASS-CODES] Loaded student class codes:', availableClassCodes.length);
 		} catch (error) {
 			console.error('[CLASS-CODES] Failed to load class codes:', error);
-			toastStore.warning('Unable to load class codes. You can still submit your request.', 'Class Codes');
+			hasNoEnrollment = true;
+			toastStore.error('Unable to load your class enrollment. Please try again or contact support.', 'Load Error');
 		} finally {
 			loadingClassCodes = false;
 		}
@@ -1504,10 +1539,18 @@
 				</div>
 			</div>
 
-			<!-- Class Code Selection -->
-			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+			<!-- Class Code Selection (Required) -->
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6 {hasNoEnrollment ? 'ring-2 ring-red-500' : ''}">
 				<div class="mb-3 flex items-center justify-between">
-					<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Class Code</h2>
+					<div class="flex items-center gap-2">
+						<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Class Code</h2>
+						<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700">
+							<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+								<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+							</svg>
+							REQUIRED
+						</span>
+					</div>
 					{#if loadingClassCodes}
 						<div class="flex items-center gap-2 text-xs text-gray-500">
 							<div class="h-3 w-3 animate-spin rounded-full border-2 border-pink-600 border-t-transparent"></div>
@@ -1516,51 +1559,69 @@
 					{/if}
 				</div>
 				<p class="mb-4 text-sm text-gray-600">
-					Select the class code for which you're requesting this equipment. This helps route your request to the appropriate instructor.
+					You must select a class code to submit equipment requests. This ensures proper request routing and instructor approval.
 				</p>
 				
 				{#if availableClassCodes.length > 0}
 					<div>
 						<label for="classCode" class="block text-sm font-medium text-gray-700 mb-1">
-							Select Class <span class="text-gray-400 font-normal">(Optional)</span>
+							Select Your Class <span class="text-red-500">*</span>
 						</label>
 						<select
 							id="classCode"
 							bind:value={selectedClassCodeId}
-							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+							class="block w-full rounded-lg border px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.classCode ? 'border-red-500 bg-red-50' : 'border-gray-300'}"
 						>
-							<option value="">No specific class (General request)</option>
+							<option value="" disabled>-- Select a class --</option>
 							{#each availableClassCodes as classCode}
 								<option value={classCode.id}>
 									{classCode.code} - {classCode.courseName} ({classCode.semester} {classCode.academicYear})
 								</option>
 							{/each}
 						</select>
-						<p class="mt-1.5 text-xs text-gray-500">
-							{#if selectedClassCodeId}
-								{@const selected = availableClassCodes.find(c => c.id === selectedClassCodeId)}
-								{#if selected}
-									<span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700">
-										<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-											<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
-										</svg>
-										Selected: {selected.code}
+						{#if errors.classCode}
+							<p class="mt-1.5 text-xs text-red-600 font-medium">{errors.classCode}</p>
+						{:else if selectedClassCodeId}
+							{@const selected = availableClassCodes.find(c => c.id === selectedClassCodeId)}
+							{#if selected}
+								<div class="mt-2 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 border border-emerald-200">
+									<svg class="h-4 w-4 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+										<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+									</svg>
+									<div class="flex-1 min-w-0">
+										<p class="text-xs font-semibold text-emerald-900">{selected.code}</p>
+										<p class="text-xs text-emerald-700">{selected.courseName}</p>
+									</div>
+									<span class="shrink-0 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full">
+										{selected.semester} {selected.academicYear}
 									</span>
-								{/if}
-							{:else}
-								This request will be sent to all instructors for approval.
+								</div>
 							{/if}
-						</p>
+						{:else}
+							<p class="mt-1.5 text-xs text-gray-500">
+								Please select the class for which you're requesting this equipment.
+							</p>
+						{/if}
 					</div>
 				{:else if !loadingClassCodes}
-					<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4 text-center">
-						<svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
-						</svg>
-						<p class="mt-2 text-sm font-medium text-gray-900">No class codes available</p>
-						<p class="mt-1 text-xs text-gray-500">
-							You are not currently enrolled in any classes. Your request will be sent to all instructors.
+					<div class="rounded-lg border-2 border-red-300 bg-red-50 p-6 text-center">
+						<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+							<svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+							</svg>
+						</div>
+						<p class="mt-3 text-sm font-bold text-red-900">Enrollment Required</p>
+						<p class="mt-1 text-xs text-red-700">
+							You must be enrolled in at least one class to submit equipment requests.
 						</p>
+						<p class="mt-2 text-xs text-red-600">
+							Please contact your administrator or instructor to be added to a class.
+						</p>
+						{#if errors.classCode}
+							<p class="mt-2 text-xs font-medium text-red-800 bg-red-100 rounded px-2 py-1">
+								{errors.classCode}
+							</p>
+						{/if}
 					</div>
 				{/if}
 			</div>
@@ -1699,17 +1760,25 @@
 				<div class="space-y-3">
 					<button
 						onclick={handleSubmit}
-						disabled={isSubmitting}
-						class="w-full inline-flex items-center justify-center rounded-lg bg-pink-600 px-4 py-3 text-sm font-medium text-white hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:cursor-not-allowed disabled:opacity-60"
+						disabled={isSubmitting || hasNoEnrollment || availableClassCodes.length === 0}
+						class="w-full inline-flex items-center justify-center rounded-lg bg-pink-600 px-4 py-3 text-sm font-medium text-white hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-pink-600"
+						title={hasNoEnrollment || availableClassCodes.length === 0 ? 'You must be enrolled in a class to submit requests' : ''}
 					>
 						<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
 						</svg>
-						{isSubmitting ? 'Submitting...' : 'Submit Request'}
+						{#if hasNoEnrollment || availableClassCodes.length === 0}
+							Enrollment Required
+						{:else if isSubmitting}
+							Submitting...
+						{:else}
+							Submit Request
+						{/if}
 					</button>
 					<button
 						onclick={resetForm}
-						class="w-full inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500"
+						disabled={hasNoEnrollment || availableClassCodes.length === 0}
+						class="w-full inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 disabled:cursor-not-allowed disabled:opacity-60"
 					>
 						<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>

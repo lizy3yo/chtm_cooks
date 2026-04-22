@@ -256,30 +256,51 @@ export const POST: RequestHandler = async (event) => {
 		const purpose = sanitized.purpose as string;
 		const borrowDate = new Date(sanitized.borrowDate as string);
 		const returnDate = new Date(sanitized.returnDate as string);
-		const classCodeId = body.classCodeId ? new ObjectId(body.classCodeId) : undefined;
+
+		// Validate classCodeId is provided (required)
+		if (!body.classCodeId || typeof body.classCodeId !== 'string' || body.classCodeId.trim() === '') {
+			logger.warn('Borrow request failed: Class code is required', {
+				userId: user.userId
+			});
+			return json({ 
+				error: 'Class code is required. You must be enrolled in a class to submit equipment requests.' 
+			}, { status: 400 });
+		}
+
+		let classCodeId: ObjectId;
+		try {
+			classCodeId = new ObjectId(body.classCodeId);
+		} catch (error) {
+			logger.warn('Borrow request failed: Invalid class code format', {
+				userId: user.userId,
+				classCodeId: body.classCodeId
+			});
+			return json({ 
+				error: 'Invalid class code format' 
+			}, { status: 400 });
+		}
 
 		const db = await getDatabase();
 		const inventoryCollection = db.collection<InventoryItem>('inventory_items');
 		const requestCollection = db.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION);
 
-		// Validate classCodeId if provided
-		if (classCodeId) {
-			const classCodesCollection = db.collection('class_codes');
-			const classCode = await classCodesCollection.findOne({ 
-				_id: classCodeId,
-				studentIds: new ObjectId(user.userId),
-				isArchived: false
-			});
+		// Validate classCodeId and student enrollment (required)
+		const classCodesCollection = db.collection('class_codes');
+		const classCode = await classCodesCollection.findOne({ 
+			_id: classCodeId,
+			studentIds: new ObjectId(user.userId),
+			isArchived: false,
+			isActive: true
+		});
 
-			if (!classCode) {
-				logger.warn('Borrow request failed: Invalid or unauthorized class code', {
-					userId: user.userId,
-					classCodeId: classCodeId.toString()
-				});
-				return json({ 
-					error: 'Invalid class code or you are not enrolled in this class' 
-				}, { status: 403 });
-			}
+		if (!classCode) {
+			logger.warn('Borrow request failed: Invalid or unauthorized class code', {
+				userId: user.userId,
+				classCodeId: classCodeId.toString()
+			});
+			return json({ 
+				error: 'Invalid class code or you are not enrolled in this class. Please select a valid class from your enrolled classes.' 
+			}, { status: 403 });
 		}
 
 		// Verify all items exist and have sufficient stock
