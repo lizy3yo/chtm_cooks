@@ -1464,7 +1464,7 @@ return { text: '', color: 'text-gray-500' };
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal} aria-label="Close modal" tabindex="-1"></button>
+		<div class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" aria-hidden="true"></div>
 		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
 			<div class="relative w-full max-w-4xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden">
 				
@@ -1775,34 +1775,12 @@ return { text: '', color: 'text-gray-500' };
 								</div>
 							</div>
 						{/if}
-
-						<!-- Status Information -->
-						<div class="rounded-2xl border border-blue-200 bg-linear-to-br from-blue-50 to-blue-100/30 p-4 sm:p-5">
-							<div class="flex gap-3">
-								<div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500">
-									<svg class="h-4 w-4 sm:h-5 sm:w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-									</svg>
-								</div>
-								<div class="flex-1 min-w-0">
-									<p class="text-xs sm:text-sm font-medium text-blue-900 leading-relaxed">
-										{getRequestHint(selectedRequest.status, selectedRequest.rawStatus, selectedRequest.rejectionReason).text}
-									</p>
-								</div>
-							</div>
-						</div>
 					</div>
 				</div>
 				
 				<!-- Footer -->
 				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-3 sm:px-8 sm:py-5">
 					<div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3">
-						<button
-							onclick={closeDetailModal}
-							class="rounded-xl border border-gray-300 bg-white px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]"
-						>
-							Close
-						</button>
 						{#if selectedRequest.status === 'pending'}
 							<button
 								onclick={() => {
