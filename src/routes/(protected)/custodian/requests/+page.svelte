@@ -10,6 +10,7 @@ type BorrowRequestRecord,
 type BorrowRequestStatus
 } from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
+import { classCodesAPI, type ClassCodeResponse } from '$lib/api/classCodes';
 import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import ItemInspectionModal from '$lib/components/custodian/ItemInspectionModal.svelte';
@@ -43,6 +44,7 @@ const PAGE_SIZE = $derived(viewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST
 let currentPage = $state(1);
 let openActionMenuFor = $state<string | null>(null);
 let itemPictureCache = $state<Map<string, string>>(new Map());
+let classCodeCache = $state<Map<string, ClassCodeResponse>>(new Map());
 let liveSyncActive = $state(false);
 let inspectionItems = $state<BorrowRequestItem[]>([]);
 let handledScanToken = $state('');
@@ -155,6 +157,8 @@ requestDate: record.createdAt,
 borrowDate: record.borrowDate,
 returnDate: record.returnDate,
 purpose: record.purpose,
+usageLocation: record.usageLocation,
+classCodeId: record.classCodeId,
 daysOverdue: isOverdue ? daysOverdue : 0,
 isOverdue,
 releasedDate: formatDateTime(record.releasedAt),
@@ -333,6 +337,7 @@ requests = response.requests
 .filter((record) => record.status !== 'pending_instructor')
 .map(mapRequest);
 await backfillItemPictures();
+await backfillClassCodes();
 	await maybeOpenScannedRequestFromUrl();
 	syncSelectedRequestWithLatestData();
 } catch (error) {
@@ -499,13 +504,39 @@ async function backfillItemPictures(): Promise<void> {
 	}
 }
 
+async function backfillClassCodes(): Promise<void> {
+	const missingClassCodeIds = new Set<string>();
+	for (const req of requests) {
+		if (req.classCodeId && !classCodeCache.has(req.classCodeId)) {
+			missingClassCodeIds.add(req.classCodeId);
+		}
+	}
+
+	if (missingClassCodeIds.size === 0) return;
+
+	try {
+		const next = new Map(classCodeCache);
+		for (const classCodeId of missingClassCodeIds) {
+			try {
+				const classCode = await classCodesAPI.getById(classCodeId);
+				next.set(classCodeId, classCode);
+			} catch {
+				// Skip if class code not found
+			}
+		}
+		classCodeCache = next;
+	} catch {
+		// Keep graceful fallback when class codes are unavailable.
+	}
+}
+
 onMount(() => {
 	// Populate cached data if available
 	if (hasCachedData && cachedRequests) {
 		requests = cachedRequests.requests
 			.filter((record) => record.status !== 'pending_instructor')
 			.map(mapRequest);
-		console.log('[REQUESTS] 💾 Loaded from cache:', requests.length, 'requests');
+		console.log('[REQUESTS]  Loaded from cache:', requests.length, 'requests');
 	}
 	
 	// Initial load with loading state management
@@ -1608,7 +1639,7 @@ return { text: '', color: 'text-gray-500' };
 								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
 								Request Information
 							</h3>
-							<div class="grid grid-cols-2 gap-3 sm:gap-4">
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
 								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1629,16 +1660,60 @@ return { text: '', color: 'text-gray-500' };
 										{new Date(selectedRequest.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(selectedRequest.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
 									</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
 										</svg>
-										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Purpose</p>
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Usage Location</p>
 									</div>
-									<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.purpose}</p>
+									<p class="text-sm sm:text-base font-bold text-gray-900">
+										{#if selectedRequest.usageLocation === 'school'}
+											<span class="inline-flex items-center gap-1.5">
+												<span class="h-2 w-2 rounded-full bg-green-500"></span>
+												In-School Use
+											</span>
+										{:else if selectedRequest.usageLocation === 'outdoor'}
+											<span class="inline-flex items-center gap-1.5">
+												<span class="h-2 w-2 rounded-full bg-blue-500"></span>
+												Outdoor/Off-Campus
+											</span>
+										{:else}
+											<span class="text-gray-400">Not specified</span>
+										{/if}
+									</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+										</svg>
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Class Code</p>
+									</div>
+									{#if selectedRequest.classCodeId}
+										{@const classCode = classCodeCache.get(selectedRequest.classCodeId)}
+										{#if classCode}
+											<p class="text-sm sm:text-base font-bold text-gray-900">{classCode.code}</p>
+											<p class="text-xs text-gray-600 mt-1">{classCode.courseName}</p>
+											<p class="text-xs text-gray-500 mt-0.5">{classCode.semester} {classCode.academicYear}</p>
+										{:else}
+											<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.classCodeId.slice(-8).toUpperCase()}</p>
+										{/if}
+									{:else}
+										<p class="text-sm sm:text-base font-medium text-gray-400">Not specified</p>
+									{/if}
+								</div>
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-1 sm:col-span-2">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"/>
+										</svg>
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Purpose & Details</p>
+									</div>
+									<p class="text-sm sm:text-base font-semibold text-gray-900 leading-relaxed">{selectedRequest.purpose}</p>
+								</div>
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-1 sm:col-span-2">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
@@ -1646,6 +1721,9 @@ return { text: '', color: 'text-gray-500' };
 										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Approved By</p>
 									</div>
 									<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.approvedBy}</p>
+									{#if selectedRequest.approvedDate}
+										<p class="text-xs text-gray-500 mt-1">Approved on {selectedRequest.approvedDate}</p>
+									{/if}
 								</div>
 							</div>
 						</div>
