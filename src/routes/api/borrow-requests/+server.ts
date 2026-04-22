@@ -256,10 +256,31 @@ export const POST: RequestHandler = async (event) => {
 		const purpose = sanitized.purpose as string;
 		const borrowDate = new Date(sanitized.borrowDate as string);
 		const returnDate = new Date(sanitized.returnDate as string);
+		const classCodeId = body.classCodeId ? new ObjectId(body.classCodeId) : undefined;
 
 		const db = await getDatabase();
 		const inventoryCollection = db.collection<InventoryItem>('inventory_items');
 		const requestCollection = db.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION);
+
+		// Validate classCodeId if provided
+		if (classCodeId) {
+			const classCodesCollection = db.collection('class_codes');
+			const classCode = await classCodesCollection.findOne({ 
+				_id: classCodeId,
+				studentIds: new ObjectId(user.userId),
+				isArchived: false
+			});
+
+			if (!classCode) {
+				logger.warn('Borrow request failed: Invalid or unauthorized class code', {
+					userId: user.userId,
+					classCodeId: classCodeId.toString()
+				});
+				return json({ 
+					error: 'Invalid class code or you are not enrolled in this class' 
+				}, { status: 403 });
+			}
+		}
 
 		// Verify all items exist and have sufficient stock
 		const inventoryDocs = await inventoryCollection
@@ -301,6 +322,7 @@ export const POST: RequestHandler = async (event) => {
 		const now = new Date();
 		const newRequest: BorrowRequest = {
 			studentId: new ObjectId(user.userId),
+			classCodeId,
 			items: normalizedItems.map((item) => {
 				const inventoryItem = inventoryById.get(item.itemId.toString())!;
 				return {

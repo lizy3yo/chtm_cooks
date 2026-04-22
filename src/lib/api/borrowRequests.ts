@@ -45,6 +45,7 @@ export interface CreateBorrowRequestInput {
 	purpose: string;
 	borrowDate: string;
 	returnDate: string;
+	classCodeId?: string; // Optional class code selection
 }
 
 export interface BorrowRequestItem {
@@ -79,6 +80,7 @@ export interface BorrowRequestRecord {
 	studentId: string;
 	instructorId?: string;
 	custodianId?: string;
+	classCodeId?: string;
 	student?: BorrowRequestUserSummary;
 	instructor?: BorrowRequestUserSummary;
 	custodian?: BorrowRequestUserSummary;

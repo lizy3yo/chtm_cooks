@@ -8,6 +8,7 @@
 	import { subscribeToCartUpdates } from '$lib/api/cartStream';
 	import { borrowRequestsAPI } from '$lib/api/borrowRequests';
 	import { donationsAPI } from '$lib/api/donations';
+	import { classCodesAPI, type ClassCodeResponse } from '$lib/api/classCodes';
 	import { requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
@@ -92,6 +93,9 @@
 	let returnTime = $state('17:00');
 	let notes = $state('');
 	let acknowledgeTerms = $state(false);
+	let selectedClassCodeId = $state<string>(''); // Selected class code
+	let availableClassCodes = $state<ClassCodeResponse[]>([]); // Student's enrolled class codes
+	let loadingClassCodes = $state(false);
 
 	// Auto-update return time to ensure it's after borrow time
 	$effect(() => {
@@ -624,7 +628,8 @@
 				})),
 				purpose: buildPurposeText(),
 				borrowDate: `${borrowDate}T${borrowTime}`,
-				returnDate: `${borrowDate}T${returnTime}`
+				returnDate: `${borrowDate}T${returnTime}`,
+				classCodeId: selectedClassCodeId || undefined
 			});
 
 			requestCartStore.clear();
@@ -648,8 +653,40 @@
 		returnTime = '17:00';
 		notes = '';
 		acknowledgeTerms = false;
+		selectedClassCodeId = '';
 		errors = {};
 		requestCartStore.clear();
+	}
+
+	/**
+	 * Load class codes that the student is enrolled in
+	 */
+	async function loadStudentClassCodes() {
+		loadingClassCodes = true;
+		try {
+			// Fetch only the class codes where the student is enrolled
+			const response = await fetch('/api/class-codes/my-classes', {
+				method: 'GET',
+				credentials: 'include',
+				headers: {
+					'Content-Type': 'application/json'
+				}
+			});
+
+			if (!response.ok) {
+				throw new Error('Failed to fetch class codes');
+			}
+
+			const data = await response.json();
+			availableClassCodes = data.classCodes || [];
+
+			console.log('[CLASS-CODES] Loaded student class codes:', availableClassCodes.length);
+		} catch (error) {
+			console.error('[CLASS-CODES] Failed to load class codes:', error);
+			toastStore.warning('Unable to load class codes. You can still submit your request.', 'Class Codes');
+		} finally {
+			loadingClassCodes = false;
+		}
 	}
 
 	onMount(() => {
@@ -667,6 +704,9 @@
 			} catch (error) {
 				console.error('[MOUNT] Failed to initialize cart:', error);
 			}
+
+			// Load student's class codes
+			await loadStudentClassCodes();
 
 			// Check for cached catalog data first (same as student catalog)
 			const cached = catalogAPI.peekCachedCatalog({
@@ -1434,6 +1474,67 @@
 						{/if}
 					</div>
 				</div>
+			</div>
+
+			<!-- Class Code Selection -->
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+				<div class="mb-3 flex items-center justify-between">
+					<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Class Code</h2>
+					{#if loadingClassCodes}
+						<div class="flex items-center gap-2 text-xs text-gray-500">
+							<div class="h-3 w-3 animate-spin rounded-full border-2 border-pink-600 border-t-transparent"></div>
+							Loading...
+						</div>
+					{/if}
+				</div>
+				<p class="mb-4 text-sm text-gray-600">
+					Select the class code for which you're requesting this equipment. This helps route your request to the appropriate instructor.
+				</p>
+				
+				{#if availableClassCodes.length > 0}
+					<div>
+						<label for="classCode" class="block text-sm font-medium text-gray-700 mb-1">
+							Select Class <span class="text-gray-400 font-normal">(Optional)</span>
+						</label>
+						<select
+							id="classCode"
+							bind:value={selectedClassCodeId}
+							class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500"
+						>
+							<option value="">No specific class (General request)</option>
+							{#each availableClassCodes as classCode}
+								<option value={classCode.id}>
+									{classCode.code} - {classCode.courseName} ({classCode.semester} {classCode.academicYear})
+								</option>
+							{/each}
+						</select>
+						<p class="mt-1.5 text-xs text-gray-500">
+							{#if selectedClassCodeId}
+								{@const selected = availableClassCodes.find(c => c.id === selectedClassCodeId)}
+								{#if selected}
+									<span class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 font-medium text-emerald-700">
+										<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+											<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+										</svg>
+										Selected: {selected.code}
+									</span>
+								{/if}
+							{:else}
+								This request will be sent to all instructors for approval.
+							{/if}
+						</p>
+					</div>
+				{:else if !loadingClassCodes}
+					<div class="rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4 text-center">
+						<svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+						</svg>
+						<p class="mt-2 text-sm font-medium text-gray-900">No class codes available</p>
+						<p class="mt-1 text-xs text-gray-500">
+							You are not currently enrolled in any classes. Your request will be sent to all instructors.
+						</p>
+					</div>
+				{/if}
 			</div>
 			
 			<!-- Additional Notes -->
