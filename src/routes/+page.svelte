@@ -3,594 +3,273 @@
 	import { goto } from '$app/navigation';
 	import { isAuthenticated, user, isLoading } from '$lib/stores/auth';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
+	import LandingNav  from '$lib/components/landing/LandingNav.svelte';
+	import LandingHero from '$lib/components/landing/LandingHero.svelte';
 
-	let scrollY = $state(0);
-	let isVisible = $state(false);
 	let authCheckComplete = $state(false);
 
-	// Auto-redirect authenticated users to their dashboard
 	$effect(() => {
-		// Wait for auth initialization to complete
 		if (!$isLoading && !authCheckComplete) {
 			authCheckComplete = true;
-			
-			// If user is authenticated, redirect to appropriate dashboard
 			if ($isAuthenticated && $user) {
-				console.log('[Landing] User authenticated, redirecting to dashboard...');
-				redirectToDashboard($user.role);
+				const routes: Record<string, string> = {
+					student: '/student/dashboard',
+					instructor: '/instructor/dashboard',
+					custodian: '/custodian/dashboard',
+					superadmin: '/superadmin/dashboard',
+					admin: '/superadmin/dashboard'
+				};
+				goto(routes[$user.role] || '/auth/login', { replaceState: true });
 			}
 		}
 	});
 
-	onMount(() => {
-		isVisible = true;
-		
-		const handleScroll = () => {
-			scrollY = window.scrollY;
-		};
-		
-		window.addEventListener('scroll', handleScroll);
-		return () => window.removeEventListener('scroll', handleScroll);
-	});
-
-	/**
-	 * Redirect user to their role-specific dashboard
-	 */
-	function redirectToDashboard(role: string) {
-		const dashboardRoutes: Record<string, string> = {
-			student: '/student/dashboard',
-			instructor: '/instructor/dashboard',
-			custodian: '/custodian/dashboard',
-			superadmin: '/superadmin/dashboard',
-			admin: '/superadmin/dashboard'
-		};
-
-		const route = dashboardRoutes[role] || '/auth/login';
-		goto(route, { replaceState: true });
-	}
-
-	/**
-	 * Handle "Get Started" button click
-	 */
-	function handleGetStarted() {
-		if ($isAuthenticated && $user) {
-			redirectToDashboard($user.role);
-		} else {
-			goto('/auth/login');
-		}
-	}
-
-	const features = [
-		{
-			icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4',
-			title: 'Equipment Catalog',
-			description: 'Comprehensive inventory management with real-time availability tracking',
-			color: 'from-pink-500 to-rose-500',
-			bgColor: 'bg-pink-50',
-			iconColor: 'text-pink-600'
-		},
-		{
-			icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
-			title: 'Smart Requests',
-			description: 'Streamlined borrowing workflow with automated approval processes',
-			color: 'from-purple-500 to-indigo-500',
-			bgColor: 'bg-purple-50',
-			iconColor: 'text-purple-600'
-		},
-		{
-			icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z',
-			title: 'Advanced Analytics',
-			description: 'Data-driven insights with customizable reports and visualizations',
-			color: 'from-blue-500 to-cyan-500',
-			bgColor: 'bg-blue-50',
-			iconColor: 'text-blue-600'
-		},
-		{
-			icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z',
-			title: 'Role-Based Access',
-			description: 'Secure multi-tier authentication with granular permission controls',
-			color: 'from-emerald-500 to-teal-500',
-			bgColor: 'bg-emerald-50',
-			iconColor: 'text-emerald-600'
-		}
-	];
-
-	const stats = [
-		{ value: '99.9%', label: 'Uptime' },
-		{ value: '24/7', label: 'Support' },
-		{ value: '< 100ms', label: 'Response Time' },
-		{ value: 'SOC 2', label: 'Compliant' }
+	const requestSteps = [
+		{ step:1, title:'Browse Catalog',      desc:'Find cooking equipment with real-time stock info.',             icon:'🔍' },
+		{ step:2, title:'Add to Request',      desc:'Select items, quantities, and set your borrow schedule.',       icon:'🛒' },
+		{ step:3, title:'Submit for Review',   desc:'Your request is sent to your class instructor for approval.',   icon:'📤' },
+		{ step:4, title:'Instructor Approves', desc:'Instructor reviews, then custodian prepares your items.',       icon:'✅' },
+		{ step:5, title:'Pick Up Equipment',   desc:'Show your QR code at the custodian desk and collect items.',    icon:'📦' },
+		{ step:6, title:'Return On Time',      desc:'Return items on schedule to keep your Trust Score high.',       icon:'🔄' }
 	];
 </script>
 
 <svelte:head>
-	<title>CHTM Cooks - Modern Laboratory Management System</title>
-	<meta name="description" content="Industry-leading laboratory equipment management platform with real-time tracking, smart workflows, and advanced analytics." />
+	<title>CHTM Cooks · Student Guide</title>
+	<meta name="description" content="Your complete guide to using the CHTM Cooks laboratory equipment management system as a student." />
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
 </svelte:head>
 
-<!-- Loading Overlay (shown during auth check) -->
 {#if $isLoading}
-	<div class="fixed inset-0 z-100 flex items-center justify-center bg-white">
-		<div class="text-center">
-			<div class="relative mx-auto mb-6 h-20 w-20">
-				<div class="absolute inset-0 animate-pulse rounded-full bg-pink-400 opacity-20 blur-md"></div>
-				<img src={favicon} alt="CHTM Logo" class="relative h-20 w-20 animate-bounce" />
-			</div>
-			<div class="flex items-center justify-center gap-2">
-				<div class="h-2 w-2 animate-bounce rounded-full bg-pink-600" style="animation-delay: 0ms;"></div>
-				<div class="h-2 w-2 animate-bounce rounded-full bg-pink-600" style="animation-delay: 150ms;"></div>
-				<div class="h-2 w-2 animate-bounce rounded-full bg-pink-600" style="animation-delay: 300ms;"></div>
-			</div>
-			<p class="mt-4 text-sm font-medium text-gray-600">Loading...</p>
+<div class="loading-screen">
+	<div class="loading-inner">
+		<div class="loading-logo-wrap">
+			<div class="loading-glow"></div>
+			<img src={favicon} alt="CHTM Logo" class="loading-logo" />
+		</div>
+		<div class="loading-dots">
+			<span style="animation-delay:0ms"></span>
+			<span style="animation-delay:160ms"></span>
+			<span style="animation-delay:320ms"></span>
 		</div>
 	</div>
+</div>
 {/if}
 
-<div class="relative min-h-screen overflow-hidden bg-white" class:opacity-0={$isLoading} class:pointer-events-none={$isLoading}>
-	<!-- Animated Background -->
-	<div class="pointer-events-none fixed inset-0 z-0">
-		<div class="absolute -left-1/4 -top-1/4 h-96 w-96 animate-blob rounded-full bg-pink-200 opacity-30 mix-blend-multiply blur-3xl filter"></div>
-		<div class="animation-delay-2000 absolute -right-1/4 -top-1/4 h-96 w-96 animate-blob rounded-full bg-purple-200 opacity-30 mix-blend-multiply blur-3xl filter"></div>
-		<div class="animation-delay-4000 absolute -bottom-1/4 left-1/3 h-96 w-96 animate-blob rounded-full bg-rose-200 opacity-30 mix-blend-multiply blur-3xl filter"></div>
-	</div>
+<div class="page-root" class:hidden={$isLoading}>
+	<LandingNav />
+	<LandingHero />
 
-	<!-- Navigation -->
-	<nav class="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-xl transition-all duration-300"
-		class:shadow-lg={scrollY > 10}
-		class:border-gray-200={scrollY > 10}>
-		<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-			<div class="flex h-20 items-center justify-between">
-				<div class="flex items-center gap-3 transition-transform duration-300 hover:scale-105">
-					<div class="relative">
-						<div class="absolute inset-0 animate-pulse rounded-full bg-pink-400 opacity-20 blur-md"></div>
-						<img src={favicon} alt="CHTM Logo" class="relative h-12 w-12" />
-					</div>
-					<div>
-						<span class="text-2xl font-black tracking-tight text-gray-900">CHTM Cooks</span>
-						<div class="text-xs font-medium text-gray-500">Laboratory Management</div>
-					</div>
+	<!-- ══ DASHBOARD & TRUST ══════════════════════ -->
+	<section id="dashboard" class="guide-section">
+		<div class="section-wrap">
+			<span class="section-chip">📊 Dashboard</span>
+			<h2 class="section-heading">Your Personal Dashboard</h2>
+			<p class="section-sub">After signing in, your dashboard gives you a live overview of all your borrowing activity, metrics, and Trust Score.</p>
+			<div class="cards-4">
+				<div class="gcard pink">
+					<div class="gcard-icon">🎯</div>
+					<h3>Trust Score</h3>
+					<p>A 0–100 score based on your borrowing behavior. Return items on time and undamaged to maintain Excellent standing.</p>
 				</div>
-				<div class="flex items-center gap-3">
-					<button
-						onclick={() => goto('/auth/login')}
-						class="rounded-xl px-5 py-2.5 text-sm font-semibold text-gray-700 transition-all duration-200 hover:bg-gray-100 hover:text-gray-900"
-					>
-						Sign In
-					</button>
-					<button
-						onclick={() => goto('/auth/register')}
-						class="group relative overflow-hidden rounded-xl bg-linear-to-r from-pink-600 to-rose-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-500/30 transition-all duration-300 hover:shadow-xl hover:shadow-pink-500/40 hover:scale-105"
-					>
-						<span class="relative z-10">Get Started</span>
-						<div class="absolute inset-0 bg-linear-to-r from-pink-700 to-rose-700 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-					</button>
+				<div class="gcard purple">
+					<div class="gcard-icon">📈</div>
+					<h3>KPI Overview</h3>
+					<p>Active loans, completed returns, pending requests, and overdue items — all visible at a glance with color-coded cards.</p>
+				</div>
+				<div class="gcard blue">
+					<div class="gcard-icon">⏱️</div>
+					<h3>Return Performance</h3>
+					<p>Track on-time rate, late returns, and item health. Your history directly affects your Trust Score breakdown.</p>
+				</div>
+				<div class="gcard green">
+					<div class="gcard-icon">🔔</div>
+					<h3>Due Date Alerts</h3>
+					<p>Items due within 7 days are flagged with urgency badges so you never miss a return deadline.</p>
 				</div>
 			</div>
 		</div>
-	</nav>
+	</section>
 
-	<!-- Hero Section -->
-	<main class="relative z-10">
-		<section class="mx-auto max-w-7xl px-4 pt-20 pb-24 sm:px-6 lg:px-8">
-			<div class="grid items-center gap-12 lg:grid-cols-2">
-				<!-- Left Column: Content -->
-				<div class="text-center lg:text-left">
-					<!-- Badge -->
-					<div class="mb-8 inline-flex items-center gap-2 rounded-full border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700 transition-all duration-300 hover:border-pink-300 hover:bg-pink-100"
-						class:opacity-0={!isVisible}
-						class:translate-y-4={!isVisible}
-						style="transition: opacity 0.6s ease-out, transform 0.6s ease-out;">
-						<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-							<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
-						</svg>
-						<span>Industry-Leading Laboratory Management Platform</span>
-					</div>
-
-					<!-- Main Heading -->
-					<h1 class="mb-6 text-5xl font-black tracking-tight text-gray-900 sm:text-6xl lg:text-7xl"
-						class:opacity-0={!isVisible}
-						class:translate-y-4={!isVisible}
-						style="transition: opacity 0.8s ease-out 0.2s, transform 0.8s ease-out 0.2s;">
-						Elevate Your
-						<span class="relative inline-block">
-							<span class="bg-linear-to-r from-pink-600 via-rose-600 to-purple-600 bg-clip-text text-transparent">Laboratory</span>
-							<svg class="absolute -bottom-2 left-0 w-full" height="12" viewBox="0 0 300 12" fill="none" xmlns="http://www.w3.org/2000/svg">
-								<path d="M2 10C50 5 100 2 150 2C200 2 250 5 298 10" stroke="url(#gradient)" stroke-width="3" stroke-linecap="round"/>
-								<defs>
-									<linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-										<stop offset="0%" style="stop-color:#ec4899;stop-opacity:1" />
-										<stop offset="50%" style="stop-color:#f43f5e;stop-opacity:1" />
-										<stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
-									</linearGradient>
-								</defs>
-							</svg>
-						</span>
-						Management
-					</h1>
-
-					<p class="mb-8 max-w-2xl text-lg leading-relaxed text-gray-600 sm:text-xl lg:mx-0"
-						class:opacity-0={!isVisible}
-						class:translate-y-4={!isVisible}
-						style="transition: opacity 1s ease-out 0.4s, transform 1s ease-out 0.4s;">
-						Enterprise-grade platform for seamless equipment tracking, intelligent workflows, and data-driven decision making.
-					</p>
-
-					<!-- CTA Buttons -->
-					<div class="mb-12 flex flex-col items-center justify-center gap-4 sm:flex-row lg:justify-start"
-						class:opacity-0={!isVisible}
-						class:translate-y-4={!isVisible}
-						style="transition: opacity 1.2s ease-out 0.6s, transform 1.2s ease-out 0.6s;">
-						<button
-							onclick={handleGetStarted}
-							class="group relative overflow-hidden rounded-2xl bg-linear-to-r from-pink-600 to-rose-600 px-10 py-5 text-lg font-bold text-white shadow-2xl shadow-pink-500/40 transition-all duration-300 hover:shadow-3xl hover:shadow-pink-500/50 hover:scale-105"
-						>
-							<span class="relative z-10 flex items-center gap-2">
-								Start Free Trial
-								<svg class="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-								</svg>
-							</span>
-							<div class="absolute inset-0 bg-linear-to-r from-pink-700 to-rose-700 opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-						</button>
-						<button
-							onclick={() => goto('/auth/register')}
-							class="group rounded-2xl border-2 border-gray-300 bg-white px-10 py-5 text-lg font-bold text-gray-700 shadow-lg transition-all duration-300 hover:border-gray-400 hover:bg-gray-50 hover:shadow-xl"
-						>
-							<span class="flex items-center gap-2">
-								View Demo
-								<svg class="h-5 w-5 transition-transform duration-300 group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-								</svg>
-							</span>
-						</button>
-					</div>
-
-					<!-- Stats -->
-					<div class="grid grid-cols-2 gap-4 sm:gap-6"
-						class:opacity-0={!isVisible}
-						class:translate-y-4={!isVisible}
-						style="transition: opacity 1.4s ease-out 0.8s, transform 1.4s ease-out 0.8s;">
-						{#each stats as stat}
-							<div class="group rounded-2xl border border-gray-200 bg-white/50 p-4 backdrop-blur-sm transition-all duration-300 hover:border-pink-300 hover:bg-white hover:shadow-xl">
-								<div class="text-2xl font-black text-gray-900 transition-colors duration-300 group-hover:text-pink-600 sm:text-3xl">{stat.value}</div>
-								<div class="mt-1 text-xs font-medium text-gray-600 sm:text-sm">{stat.label}</div>
-							</div>
-						{/each}
-					</div>
+	<!-- ══ CATALOG ════════════════════════════════ -->
+	<section id="catalog" class="guide-section alt">
+		<div class="section-wrap">
+			<span class="section-chip">📦 Catalog</span>
+			<h2 class="section-heading">Browse Available Equipment</h2>
+			<p class="section-sub">The catalog shows all cooking equipment with real-time availability updated via live data sync.</p>
+			<div class="cards-4">
+				<div class="gcard pink">
+					<div class="gcard-icon">🔍</div>
+					<h3>Search & Filter</h3>
+					<p>Search by name or description. Filter by category, status, or sort by recently added items.</p>
 				</div>
-
-				<!-- Right Column: Animated Dashboard Preview -->
-				<div class="relative hidden lg:block"
-					class:opacity-0={!isVisible}
-					class:translate-x-8={!isVisible}
-					style="transition: opacity 1s ease-out 0.4s, transform 1s ease-out 0.4s;">
-					
-					<!-- Main Dashboard Card -->
-					<div class="relative z-10 overflow-hidden rounded-3xl border border-gray-200 bg-white p-6 shadow-2xl">
-						<!-- Dashboard Header -->
-						<div class="mb-6 flex items-center justify-between">
-							<div class="flex items-center gap-3">
-								<div class="h-10 w-10 rounded-xl bg-linear-to-br from-pink-500 to-rose-500 p-2">
-									<svg class="h-full w-full text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-									</svg>
-								</div>
-								<div>
-									<div class="text-sm font-bold text-gray-900">Inventory Overview</div>
-									<div class="text-xs text-gray-500">Real-time tracking</div>
-								</div>
-							</div>
-							<div class="flex gap-1">
-								<div class="h-2 w-2 animate-pulse rounded-full bg-green-500"></div>
-								<div class="h-2 w-2 animate-pulse rounded-full bg-green-500 animation-delay-200"></div>
-								<div class="h-2 w-2 animate-pulse rounded-full bg-green-500 animation-delay-400"></div>
-							</div>
-						</div>
-
-						<!-- Animated Chart -->
-						<div class="mb-6 h-32 rounded-xl bg-linear-to-br from-pink-50 to-purple-50 p-4">
-							<div class="flex h-full items-end justify-between gap-2">
-								{#each [65, 45, 80, 55, 70, 50, 85] as height}
-									<div class="flex-1 rounded-t-lg bg-linear-to-t from-pink-500 to-rose-400 animate-bar-grow" style="height: {height}%;"></div>
-								{/each}
-							</div>
-						</div>
-
-						<!-- Equipment Cards -->
-						<div class="space-y-3">
-							{#each [
-								{ name: 'Beakers (250ml)', qty: 45, status: 'available', color: 'green' },
-								{ name: 'Microscopes', qty: 12, status: 'low stock', color: 'yellow' },
-								{ name: 'Test Tubes', qty: 120, status: 'available', color: 'green' }
-							] as item, i}
-								<div class="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 p-3 animate-slide-in"
-									style="animation-delay: {i * 150}ms;">
-									<div class="flex items-center gap-3">
-										<div class="h-10 w-10 rounded-lg bg-white p-2 shadow-sm">
-											<svg class="h-full w-full text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-											</svg>
-										</div>
-										<div>
-											<div class="text-sm font-semibold text-gray-900">{item.name}</div>
-											<div class="text-xs text-gray-500">Qty: {item.qty}</div>
-										</div>
-									</div>
-									<div class="flex items-center gap-2">
-										<span class="rounded-full bg-{item.color}-100 px-2 py-1 text-xs font-medium text-{item.color}-700">
-											{item.status}
-										</span>
-									</div>
-								</div>
-							{/each}
-						</div>
-					</div>
-
-					<!-- Floating Request Card -->
-					<div class="absolute -right-6 top-12 z-20 w-64 animate-float rounded-2xl border border-pink-200 bg-white p-4 shadow-xl">
-						<div class="mb-3 flex items-center gap-2">
-							<div class="h-8 w-8 rounded-lg bg-pink-100 p-1.5">
-								<svg class="h-full w-full text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-								</svg>
-							</div>
-							<div>
-								<div class="text-xs font-bold text-gray-900">New Request</div>
-								<div class="text-xs text-gray-500">Just now</div>
-							</div>
-						</div>
-						<div class="text-xs text-gray-600">Student requested 3 beakers for Chemistry Lab</div>
-						<div class="mt-3 flex gap-2">
-							<button class="flex-1 rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-semibold text-white">Approve</button>
-							<button class="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700">Review</button>
-						</div>
-					</div>
-
-					<!-- Floating Analytics Card -->
-					<div class="absolute -left-6 bottom-12 z-20 w-56 animate-float-delayed rounded-2xl border border-purple-200 bg-white p-4 shadow-xl">
-						<div class="mb-2 flex items-center gap-2">
-							<div class="h-8 w-8 rounded-lg bg-purple-100 p-1.5">
-								<svg class="h-full w-full text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-								</svg>
-							</div>
-							<div class="text-xs font-bold text-gray-900">Usage Analytics</div>
-						</div>
-						<div class="space-y-2">
-							<div class="flex items-center justify-between text-xs">
-								<span class="text-gray-600">Active Borrows</span>
-								<span class="font-bold text-gray-900">24</span>
-							</div>
-							<div class="flex items-center justify-between text-xs">
-								<span class="text-gray-600">Pending Returns</span>
-								<span class="font-bold text-gray-900">8</span>
-							</div>
-							<div class="flex items-center justify-between text-xs">
-								<span class="text-gray-600">Overdue Items</span>
-								<span class="font-bold text-red-600">2</span>
-							</div>
-						</div>
-					</div>
-
-					<!-- Connection Lines Animation -->
-					<svg class="pointer-events-none absolute inset-0 h-full w-full" style="z-index: 5;">
-						<line x1="50%" y1="30%" x2="85%" y2="20%" stroke="url(#lineGradient)" stroke-width="2" stroke-dasharray="5,5" class="animate-dash" opacity="0.3" />
-						<line x1="50%" y1="70%" x2="15%" y2="80%" stroke="url(#lineGradient)" stroke-width="2" stroke-dasharray="5,5" class="animate-dash animation-delay-1000" opacity="0.3" />
-						<defs>
-							<linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-								<stop offset="0%" style="stop-color:#ec4899;stop-opacity:1" />
-								<stop offset="100%" style="stop-color:#a855f7;stop-opacity:1" />
-							</linearGradient>
-						</defs>
-					</svg>
+				<div class="gcard purple">
+					<div class="gcard-icon">🏷️</div>
+					<h3>Live Availability</h3>
+					<p>In Stock, Low Stock, Out of Stock, or In Maintenance — all updated in real time so you always see accurate data.</p>
+				</div>
+				<div class="gcard blue">
+					<div class="gcard-icon">📋</div>
+					<h3>Item Details</h3>
+					<p>Click any item for full details: specifications, description, high-res photos, and current quantity.</p>
+				</div>
+				<div class="gcard green">
+					<div class="gcard-icon">🛒</div>
+					<h3>Add to Request</h3>
+					<p>Click "Request" on any available item to add it to your cart, then finalize in the request form.</p>
 				</div>
 			</div>
-		</section>
+		</div>
+	</section>
 
-		<!-- Features Section -->
-		<section class="bg-linear-to-b from-gray-50 to-white py-24">
-			<div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-				<div class="mb-16 text-center">
-					<h2 class="mb-4 text-5xl font-black tracking-tight text-gray-900">
-						Powerful Features for Modern Labs
-					</h2>
-					<p class="mx-auto max-w-2xl text-lg text-gray-600">
-						Everything you need to manage your laboratory equipment efficiently and effectively
-					</p>
+	<!-- ══ REQUEST FLOW ══════════════════════════ -->
+	<section id="request-flow" class="guide-section">
+		<div class="section-wrap">
+			<span class="section-chip">📝 Request Flow</span>
+			<h2 class="section-heading">How Borrowing Works</h2>
+			<p class="section-sub">The entire borrowing process is 100% digital — from request to return in six clear steps.</p>
+			<div class="steps-grid">
+				{#each requestSteps as s}
+				<div class="step-card">
+					<div class="step-num">{s.step}</div>
+					<div class="step-icon">{s.icon}</div>
+					<h3>{s.title}</h3>
+					<p>{s.desc}</p>
 				</div>
+				{/each}
+			</div>
+		</div>
+	</section>
 
-				<div class="grid gap-8 md:grid-cols-2 lg:gap-12">
-					{#each features as feature, i}
-						<div class="group relative overflow-hidden rounded-3xl border border-gray-200 bg-white p-8 transition-all duration-500 hover:border-transparent hover:shadow-2xl hover:scale-105"
-							style="transition-delay: {i * 100}ms;">
-							<!-- Gradient overlay on hover -->
-							<div class="absolute inset-0 bg-linear-to-br {feature.color} opacity-0 transition-opacity duration-500 group-hover:opacity-5"></div>
-							
-							<div class="relative z-10">
-								<div class="mb-6 inline-flex h-16 w-16 items-center justify-center rounded-2xl {feature.bgColor} transition-all duration-500 group-hover:scale-110 group-hover:rotate-6">
-									<svg class="h-8 w-8 {feature.iconColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d={feature.icon} />
-									</svg>
-								</div>
-								
-								<h3 class="mb-3 text-2xl font-bold text-gray-900 transition-colors duration-300 group-hover:text-pink-600">
-									{feature.title}
-								</h3>
-								
-								<p class="text-base leading-relaxed text-gray-600">
-									{feature.description}
-								</p>
-
-								<div class="mt-6 flex items-center gap-2 text-sm font-semibold text-pink-600 opacity-0 transition-all duration-300 group-hover:opacity-100">
-									Learn more
-									<svg class="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-									</svg>
-								</div>
-							</div>
-						</div>
-					{/each}
+	<!-- ══ AI ASSISTANT ══════════════════════════ -->
+	<section id="ai-assistant" class="guide-section alt">
+		<div class="section-wrap">
+			<span class="section-chip">🤖 AI Assistant</span>
+			<h2 class="section-heading">Your Smart Helper</h2>
+			<p class="section-sub">A built-in AI chatbot is available on every page to help you navigate the system instantly.</p>
+			<div class="cards-3">
+				<div class="gcard pink">
+					<div class="gcard-icon">💬</div>
+					<h3>Ask Anything</h3>
+					<p>Get instant answers about features, equipment availability, or how to understand your Trust Score breakdown.</p>
+				</div>
+				<div class="gcard purple">
+					<div class="gcard-icon">📖</div>
+					<h3>Step-by-Step Guide</h3>
+					<p>The AI knows every system feature and can walk you through any process — including your very first request.</p>
+				</div>
+				<div class="gcard blue">
+					<div class="gcard-icon">⚡</div>
+					<h3>Always Available</h3>
+					<p>Look for the chat bubble in the bottom corner of any page. One click opens the AI assistant anytime.</p>
 				</div>
 			</div>
-		</section>
+		</div>
+	</section>
 
-		<!-- CTA Section -->
-		<section class="relative overflow-hidden bg-linear-to-br from-pink-600 via-rose-600 to-purple-600 py-24">
-			<div class="absolute inset-0 bg-grid-white/10"></div>
-			<div class="relative z-10 mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
-				<h2 class="mb-6 text-5xl font-black tracking-tight text-white">
-					Ready to Transform Your Lab?
-				</h2>
-				<p class="mb-10 text-xl text-pink-100">
-					Join hundreds of institutions already using CHTM Cooks to streamline their operations
-				</p>
-				<div class="flex flex-col items-center justify-center gap-4 sm:flex-row">
-					<button
-						onclick={handleGetStarted}
-						class="group rounded-2xl bg-white px-10 py-5 text-lg font-bold text-pink-600 shadow-2xl transition-all duration-300 hover:bg-gray-50 hover:shadow-3xl hover:scale-105"
-					>
-						<span class="flex items-center gap-2">
-							Get Started Now
-							<svg class="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-							</svg>
-						</span>
-					</button>
-					<button
-						onclick={() => goto('/auth/login')}
-						class="rounded-2xl border-2 border-white/30 bg-white/10 px-10 py-5 text-lg font-bold text-white backdrop-blur-sm transition-all duration-300 hover:border-white/50 hover:bg-white/20"
-					>
-						Sign In
-					</button>
+	<!-- ══ QR CODE ════════════════════════════════ -->
+	<section id="qr-code" class="guide-section">
+		<div class="section-wrap">
+			<span class="section-chip">📱 QR Code</span>
+			<h2 class="section-heading">Contactless Pickup & Return</h2>
+			<p class="section-sub">Each approved request generates a unique QR code for fast, verified equipment handoff.</p>
+			<div class="cards-3">
+				<div class="gcard pink">
+					<div class="gcard-icon">🔲</div>
+					<h3>Auto-Generated</h3>
+					<p>Once your request is approved and ready for pickup, a QR code appears automatically in your request details.</p>
+				</div>
+				<div class="gcard purple">
+					<div class="gcard-icon">📷</div>
+					<h3>Custodian Scans</h3>
+					<p>Show your QR code at the custodian desk. They scan it to instantly verify your identity and retrieve your request.</p>
+				</div>
+				<div class="gcard green">
+					<div class="gcard-icon">✅</div>
+					<h3>Instant Verification</h3>
+					<p>No paperwork needed. The QR system confirms pickup and return digitally with automatic record-keeping.</p>
 				</div>
 			</div>
-		</section>
-	</main>
+		</div>
+	</section>
 
-	<!-- Footer -->
-	<footer class="border-t border-gray-200 bg-white">
-		<div class="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-			<div class="flex flex-col items-center justify-between gap-4 sm:flex-row">
-				<div class="flex items-center gap-3">
-					<img src={favicon} alt="CHTM Logo" class="h-8 w-8" />
-					<span class="text-lg font-bold text-gray-900">CHTM Cooks</span>
-				</div>
-				<p class="text-sm text-gray-600">
-					© {new Date().getFullYear()} CHTM Cooks. All rights reserved.
-				</p>
+	<!-- ══ FOOTER ════════════════════════════════ -->
+	<footer class="site-footer">
+		<div class="footer-wrap">
+			<div class="footer-brand">
+				<img src={favicon} alt="CHTM" class="footer-logo" />
+				<span>CHTM Cooks</span>
 			</div>
+			<p class="footer-copy">© {new Date().getFullYear()} CHTM Cooks · College of Hospitality & Tourism Management</p>
 		</div>
 	</footer>
 </div>
 
 <style>
-	@keyframes blob {
-		0%, 100% {
-			transform: translate(0, 0) scale(1);
-		}
-		33% {
-			transform: translate(30px, -50px) scale(1.1);
-		}
-		66% {
-			transform: translate(-20px, 20px) scale(0.9);
-		}
-	}
+	:global(body) { margin: 0; font-family: 'Inter', system-ui, sans-serif; }
 
-	@keyframes float {
-		0%, 100% {
-			transform: translateY(0px);
-		}
-		50% {
-			transform: translateY(-20px);
-		}
-	}
+	/* Loading */
+	.loading-screen { position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;background:#fff; }
+	.loading-inner { text-align:center; }
+	.loading-logo-wrap { position:relative;width:80px;height:80px;margin:0 auto 1rem; }
+	.loading-glow { position:absolute;inset:-4px;border-radius:50%;background:rgba(233,30,99,0.18);filter:blur(12px);animation:glow 2s ease-in-out infinite; }
+	.loading-logo { width:80px;height:80px;position:relative;z-index:1;animation:bounce 1s ease-in-out infinite alternate; }
+	.loading-dots { display:flex;gap:0.5rem;justify-content:center; }
+	.loading-dots span { width:8px;height:8px;border-radius:50%;background:#e91e63;animation:dot 1s ease-in-out infinite; }
 
-	@keyframes float-delayed {
-		0%, 100% {
-			transform: translateY(0px);
-		}
-		50% {
-			transform: translateY(-15px);
-		}
-	}
+	/* Page root */
+	.page-root { background:#fff;min-height:100vh; }
+	.page-root.hidden { opacity:0;pointer-events:none; }
 
-	@keyframes slide-in {
-		from {
-			opacity: 0;
-			transform: translateX(-20px);
-		}
-		to {
-			opacity: 1;
-			transform: translateX(0);
-		}
-	}
+	/* Sections */
+	.guide-section { padding:5rem 1.5rem; }
+	.guide-section.alt { background:linear-gradient(180deg,#fdf2f8 0%,#fff 100%); }
+	.section-wrap { max-width:1100px;margin:0 auto; }
+	.section-chip { display:inline-block;font-size:0.75rem;font-weight:700;color:#e91e63;background:rgba(233,30,99,0.08);padding:0.35rem 0.9rem;border-radius:999px;margin-bottom:1rem;letter-spacing:0.03em; }
+	.section-heading { font-size:clamp(1.75rem,4vw,2.5rem);font-weight:900;color:#1a0a12;letter-spacing:-0.025em;margin:0 0 0.75rem; }
+	.section-sub { font-size:1.05rem;color:#78516a;line-height:1.7;max-width:600px;margin:0 0 2.5rem; }
 
-	@keyframes bar-grow {
-		from {
-			transform: scaleY(0);
-			transform-origin: bottom;
-		}
-		to {
-			transform: scaleY(1);
-			transform-origin: bottom;
-		}
-	}
+	/* 4-col cards */
+	.cards-4 { display:grid;grid-template-columns:repeat(4,1fr);gap:1.25rem; }
+	@media(max-width:900px){ .cards-4{ grid-template-columns:repeat(2,1fr); } }
+	@media(max-width:540px){ .cards-4{ grid-template-columns:1fr; } }
 
-	@keyframes dash {
-		to {
-			stroke-dashoffset: -20;
-		}
-	}
+	/* 3-col cards */
+	.cards-3 { display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem; }
+	@media(max-width:768px){ .cards-3{ grid-template-columns:1fr; } }
 
-	.animate-blob {
-		animation: blob 7s infinite;
-	}
+	/* Generic card */
+	.gcard { padding:1.75rem;border-radius:1.25rem;border:1px solid rgba(0,0,0,0.06);background:#fff;transition:transform 0.3s ease,box-shadow 0.3s ease; }
+	.gcard:hover { transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,0.08); }
+	.gcard-icon { font-size:2rem;margin-bottom:0.875rem; }
+	.gcard h3 { font-size:1rem;font-weight:700;color:#1a0a12;margin:0 0 0.5rem; }
+	.gcard p { font-size:0.875rem;color:#78516a;line-height:1.65;margin:0; }
+	.gcard.pink  { border-left:3px solid #e91e63; }
+	.gcard.purple{ border-left:3px solid #9c27b0; }
+	.gcard.blue  { border-left:3px solid #1e88e5; }
+	.gcard.green { border-left:3px solid #43a047; }
 
-	.animate-float {
-		animation: float 6s ease-in-out infinite;
-	}
+	/* Steps */
+	.steps-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem; }
+	@media(max-width:768px){ .steps-grid{ grid-template-columns:1fr; } }
+	.step-card { position:relative;padding:2rem 1.5rem 1.5rem;border-radius:1.25rem;background:#fff;border:1px solid rgba(233,30,99,0.1);text-align:center;transition:transform 0.3s ease,box-shadow 0.3s ease; }
+	.step-card:hover { transform:translateY(-4px);box-shadow:0 12px 40px rgba(233,30,99,0.1);border-color:rgba(233,30,99,0.25); }
+	.step-num { position:absolute;top:-13px;left:50%;transform:translateX(-50%);width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#e91e63,#f43f5e);color:#fff;font-size:0.75rem;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 10px rgba(233,30,99,0.3); }
+	.step-icon { font-size:2.25rem;margin-bottom:0.75rem; }
+	.step-card h3 { font-size:1rem;font-weight:700;color:#1a0a12;margin:0 0 0.375rem; }
+	.step-card p { font-size:0.8125rem;color:#78516a;line-height:1.6;margin:0; }
 
-	.animate-float-delayed {
-		animation: float-delayed 7s ease-in-out infinite;
-	}
+	/* Footer */
+	.site-footer { border-top:1px solid rgba(233,30,99,0.08);padding:2rem 1.5rem;background:#fff; }
+	.footer-wrap { max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem; }
+	.footer-brand { display:flex;align-items:center;gap:0.625rem;font-size:1rem;font-weight:800;color:#1a0a12; }
+	.footer-logo { width:30px;height:30px; }
+	.footer-copy { font-size:0.8125rem;color:#9ca3af;margin:0; }
 
-	.animate-slide-in {
-		animation: slide-in 0.6s ease-out forwards;
-		opacity: 0;
-	}
-
-	.animate-bar-grow {
-		animation: bar-grow 1.5s ease-out forwards;
-	}
-
-	.animate-dash {
-		animation: dash 20s linear infinite;
-	}
-
-	.animation-delay-200 {
-		animation-delay: 0.2s;
-	}
-
-	.animation-delay-400 {
-		animation-delay: 0.4s;
-	}
-
-	.animation-delay-1000 {
-		animation-delay: 1s;
-	}
-
-	.animation-delay-2000 {
-		animation-delay: 2s;
-	}
-
-	.animation-delay-4000 {
-		animation-delay: 4s;
-	}
-
-	.bg-grid-white\/10 {
-		background-image: linear-gradient(to right, rgba(255, 255, 255, 0.1) 1px, transparent 1px),
-			linear-gradient(to bottom, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
-		background-size: 40px 40px;
-	}
+	/* Keyframes */
+	@keyframes glow { 0%,100%{opacity:0.6} 50%{opacity:1} }
+	@keyframes bounce { from{transform:translateY(0)} to{transform:translateY(-8px)} }
+	@keyframes dot { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
 </style>
