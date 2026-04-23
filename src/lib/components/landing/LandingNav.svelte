@@ -55,7 +55,8 @@
 </script>
 
 <nav class="landing-nav" class:scrolled={scrollY > 20} class:at-top={scrollY <= 20}>
-	<div class="nav-container">
+	<div class="nav-wrapper">
+		<div class="nav-container">
 		<!-- Logo -->
 		<button class="nav-logo" onclick={() => scrollToSection('home')}>
 			<div class="logo-glow"></div>
@@ -98,6 +99,7 @@
 			</button>
 		</div>
 	</div>
+	</div>
 
 	<!-- Mobile Menu -->
 	{#if mobileMenuOpen}
@@ -127,9 +129,6 @@
 	{/if}
 </nav>
 
-<!-- Spacer to offset fixed nav -->
-<div class="nav-spacer"></div>
-
 <style>
 	/* ─── Nav Shell ───────────────────────────────────────── */
 	.landing-nav {
@@ -138,36 +137,47 @@
 		left: 0;
 		right: 0;
 		z-index: 100;
+		display: flex;
+		justify-content: center;
+		padding: 1rem 1.5rem 0;
 		transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 	}
 
-	.landing-nav.at-top {
-		background: transparent;
-		border-bottom: 1px solid transparent;
-		backdrop-filter: none;
-	}
-
-	.landing-nav.scrolled {
+	.nav-wrapper {
+		width: 100%;
+		max-width: 1280px;
 		background: rgba(255, 255, 255, 0.82);
-		border-bottom: 1px solid rgba(233, 30, 99, 0.08);
+		border: 1px solid rgba(233, 30, 99, 0.08);
+		border-radius: 9999px;
 		backdrop-filter: blur(20px) saturate(180%);
 		-webkit-backdrop-filter: blur(20px) saturate(180%);
 		box-shadow:
 			0 1px 3px rgba(233, 30, 99, 0.06),
 			0 8px 32px rgba(233, 30, 99, 0.04);
+		transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+	}
+
+	.landing-nav.at-top .nav-wrapper {
+		background: rgba(255, 255, 255, 0.65);
+		border-color: rgba(233, 30, 99, 0.05);
+		box-shadow:
+			0 1px 2px rgba(233, 30, 99, 0.04),
+			0 4px 16px rgba(233, 30, 99, 0.02);
+	}
+
+	.landing-nav.scrolled .nav-wrapper {
+		background: rgba(255, 255, 255, 0.92);
+		border-color: rgba(233, 30, 99, 0.12);
+		box-shadow:
+			0 2px 4px rgba(233, 30, 99, 0.08),
+			0 12px 40px rgba(233, 30, 99, 0.06);
 	}
 
 	.nav-container {
-		max-width: 1280px;
-		margin: 0 auto;
 		padding: 0 1.5rem;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		height: 72px;
-	}
-
-	.nav-spacer {
 		height: 72px;
 	}
 
