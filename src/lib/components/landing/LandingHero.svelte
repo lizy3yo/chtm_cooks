@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
-	import equipmentImg from '$lib/assets/equipment/v1/equipment.png';
+	import equipmentImg from '$lib/assets/Equipment/v1/equipment.png';
 
 	let visible = $state(false);
 	onMount(() => setTimeout(() => (visible = true), 80));
