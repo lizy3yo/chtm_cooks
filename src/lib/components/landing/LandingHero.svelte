@@ -4,6 +4,7 @@
 	// @ts-ignore - Package has incorrect type definitions but works at runtime
 	import { DotLottieSvelte } from '@lottiefiles/dotlottie-svelte';
 	import type { DotLottie } from '@lottiefiles/dotlottie-svelte';
+	import { School, LogIn, UserPlus } from 'lucide-svelte';
 	import equipmentImg from '$lib/assets/Equipment/v1/equipment.png';
 
 	let visible = $state(false);
@@ -32,43 +33,27 @@
 	<div class="hero-container">
 		<!-- Left: Content -->
 		<div class="hero-content" class:visible>
-			<span class="hero-chip">
-				<span class="chip-dot"></span>
-				For Students · CHTM Cooks
-			</span>
-
 			<h1 class="hero-h1">
-				Your Complete Guide to<br />
-				<span class="h1-gradient">CHTM Cooks</span>
+				CHTM <span class="h1-gradient">Cooks</span>
 			</h1>
 
 			<p class="hero-p">
-				Learn how to borrow cooking equipment, track your requests, manage your Trust Score, and
-				make every lab session count.
+				Culinary Operations and Organizational Kitchen System
 			</p>
+
+			<span class="hero-chip">
+				<School size={16} />
+				Gordon College
+			</span>
 
 			<div class="hero-btns">
 				<button class="btn-primary" onclick={() => goto('/auth/login')}>
-					Sign In to Portal
-					<svg
-						width="16"
-						height="16"
-						viewBox="0 0 24 24"
-						fill="none"
-						stroke="currentColor"
-						stroke-width="2.5"
-						stroke-linecap="round"
-						stroke-linejoin="round"
-					>
-						<path d="M13 7l5 5-5 5M6 12h12" />
-					</svg>
+					<LogIn size={18} />
+					Sign In
 				</button>
-				<button
-					class="btn-ghost"
-					onclick={() =>
-						document.getElementById('dashboard')?.scrollIntoView({ behavior: 'smooth' })}
-				>
-					Explore Features
+				<button class="btn-ghost" onclick={() => goto('/auth/register')}>
+					<UserPlus size={18} />
+					Create Account
 				</button>
 			</div>
 		</div>
@@ -204,14 +189,6 @@
 		.hero-chip {
 			justify-content: center;
 		}
-	}
-
-	.chip-dot {
-		width: 6px;
-		height: 6px;
-		border-radius: 50%;
-		background: #e91e63;
-		animation: pulse 2.2s ease-in-out infinite;
 	}
 
 	.hero-h1 {
@@ -368,6 +345,9 @@
 	}
 
 	.btn-ghost {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
 		padding: 0.875rem 2rem;
 		background: rgba(255, 255, 255, 0.75);
 		color: #c2185b;
