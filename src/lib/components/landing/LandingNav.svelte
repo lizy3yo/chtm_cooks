@@ -21,7 +21,7 @@
 		}
 		const el = document.getElementById(sectionId);
 		if (el) {
-			const offset = 90;
+			const offset = 0;
 			const top = el.getBoundingClientRect().top + window.scrollY - offset;
 			window.scrollTo({ top, behavior: 'smooth' });
 		}
