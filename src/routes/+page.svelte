@@ -62,70 +62,47 @@
 	<LandingNav />
 	<LandingHero />
 
-	<!-- ══ DASHBOARD & TRUST ══════════════════════ -->
-	<section id="dashboard" class="guide-section">
+	<!-- ══ CORE FEATURES ════════════════════════════════ -->
+	<section id="core-features" class="guide-section">
 		<div class="section-wrap">
-			<span class="section-chip">📊 Dashboard</span>
-			<h2 class="section-heading">Your Personal Dashboard</h2>
-			<p class="section-sub">After signing in, your dashboard gives you a live overview of all your borrowing activity, metrics, and Trust Score.</p>
-			<div class="cards-4">
-				<div class="gcard pink">
-					<div class="gcard-icon">🎯</div>
-					<h3>Trust Score</h3>
-					<p>A 0–100 score based on your borrowing behavior. Return items on time and undamaged to maintain Excellent standing.</p>
+			<span class="section-chip">✨ Platform Essentials</span>
+			<h2 class="section-heading">Everything You Need</h2>
+			<p class="section-sub">A complete suite of tools designed to make your laboratory experience seamless, professional, and efficient.</p>
+			
+			<div class="cards-2">
+				<!-- Dashboard -->
+				<div class="bento-card pink">
+					<div class="bento-header">
+						<span class="bento-icon">📊</span>
+						<h3>Dashboard & Trust Score</h3>
+					</div>
+					<p>Your personal hub. Track active loans, monitor due dates, and maintain your Trust Score with on-time returns and performance metrics.</p>
+					<ul class="bento-list">
+						<li>Trust Score tracking and metrics</li>
+						<li>KPIs for active and pending loans</li>
+						<li>Automated 7-day due date alerts</li>
+					</ul>
 				</div>
-				<div class="gcard purple">
-					<div class="gcard-icon">📈</div>
-					<h3>KPI Overview</h3>
-					<p>Active loans, completed returns, pending requests, and overdue items — all visible at a glance with color-coded cards.</p>
-				</div>
-				<div class="gcard blue">
-					<div class="gcard-icon">⏱️</div>
-					<h3>Return Performance</h3>
-					<p>Track on-time rate, late returns, and item health. Your history directly affects your Trust Score breakdown.</p>
-				</div>
-				<div class="gcard green">
-					<div class="gcard-icon">🔔</div>
-					<h3>Due Date Alerts</h3>
-					<p>Items due within 7 days are flagged with urgency badges so you never miss a return deadline.</p>
-				</div>
-			</div>
-		</div>
-	</section>
 
-	<!-- ══ CATALOG ════════════════════════════════ -->
-	<section id="catalog" class="guide-section alt">
-		<div class="section-wrap">
-			<span class="section-chip">📦 Catalog</span>
-			<h2 class="section-heading">Browse Available Equipment</h2>
-			<p class="section-sub">The catalog shows all cooking equipment with real-time availability updated via live data sync.</p>
-			<div class="cards-4">
-				<div class="gcard pink">
-					<div class="gcard-icon">🔍</div>
-					<h3>Search & Filter</h3>
-					<p>Search by name or description. Filter by category, status, or sort by recently added items.</p>
-				</div>
-				<div class="gcard purple">
-					<div class="gcard-icon">🏷️</div>
-					<h3>Live Availability</h3>
-					<p>In Stock, Low Stock, Out of Stock, or In Maintenance — all updated in real time so you always see accurate data.</p>
-				</div>
-				<div class="gcard blue">
-					<div class="gcard-icon">📋</div>
-					<h3>Item Details</h3>
-					<p>Click any item for full details: specifications, description, high-res photos, and current quantity.</p>
-				</div>
-				<div class="gcard green">
-					<div class="gcard-icon">🛒</div>
-					<h3>Add to Request</h3>
-					<p>Click "Request" on any available item to add it to your cart, then finalize in the request form.</p>
+				<!-- Catalog -->
+				<div class="bento-card purple">
+					<div class="bento-header">
+						<span class="bento-icon">📦</span>
+						<h3>Live Catalog</h3>
+					</div>
+					<p>Browse available equipment with real-time stock updates. Search, filter, and view detailed specifications before adding items to your request.</p>
+					<ul class="bento-list">
+						<li>Real-time availability sync</li>
+						<li>Advanced search and filtering</li>
+						<li>High-res photos and item details</li>
+					</ul>
 				</div>
 			</div>
 		</div>
 	</section>
 
 	<!-- ══ REQUEST FLOW ══════════════════════════ -->
-	<section id="request-flow" class="guide-section">
+	<section id="request-flow" class="guide-section alt">
 		<div class="section-wrap">
 			<span class="section-chip">📝 Request Flow</span>
 			<h2 class="section-heading">How Borrowing Works</h2>
@@ -143,58 +120,44 @@
 		</div>
 	</section>
 
-	<!-- ══ AI ASSISTANT ══════════════════════════ -->
-	<section id="ai-assistant" class="guide-section alt">
+	<!-- ══ SMART FEATURES ════════════════════════════════ -->
+	<section id="smart-features" class="guide-section">
 		<div class="section-wrap">
-			<span class="section-chip">🤖 AI Assistant</span>
-			<h2 class="section-heading">Your Smart Helper</h2>
-			<p class="section-sub">A built-in AI chatbot is available on every page to help you navigate the system instantly.</p>
-			<div class="cards-3">
-				<div class="gcard pink">
-					<div class="gcard-icon">💬</div>
-					<h3>Ask Anything</h3>
-					<p>Get instant answers about features, equipment availability, or how to understand your Trust Score breakdown.</p>
+			<span class="section-chip">🚀 Smart Technology</span>
+			<h2 class="section-heading">Next-Gen Capabilities</h2>
+			<p class="section-sub">Leverage cutting-edge AI and contactless features to streamline your entire borrowing process.</p>
+			
+			<div class="cards-2">
+				<!-- AI Assistant -->
+				<div class="bento-card blue">
+					<div class="bento-header">
+						<span class="bento-icon">🤖</span>
+						<h3>AI Assistant</h3>
+					</div>
+					<p>Your 24/7 smart helper. Ask questions about equipment, system features, or get step-by-step guidance on navigating the platform.</p>
+					<ul class="bento-list">
+						<li>Instant answers on any page</li>
+						<li>Step-by-step request guidance</li>
+						<li>Always available via chat bubble</li>
+					</ul>
 				</div>
-				<div class="gcard purple">
-					<div class="gcard-icon">📖</div>
-					<h3>Step-by-Step Guide</h3>
-					<p>The AI knows every system feature and can walk you through any process — including your very first request.</p>
-				</div>
-				<div class="gcard blue">
-					<div class="gcard-icon">⚡</div>
-					<h3>Always Available</h3>
-					<p>Look for the chat bubble in the bottom corner of any page. One click opens the AI assistant anytime.</p>
+
+				<!-- QR Code -->
+				<div class="bento-card green">
+					<div class="bento-header">
+						<span class="bento-icon">📱</span>
+						<h3>QR Code System</h3>
+					</div>
+					<p>Contactless handoffs. Generate a unique QR code for approved requests to verify identity and quickly retrieve or return items.</p>
+					<ul class="bento-list">
+						<li>Auto-generated for each request</li>
+						<li>Contactless custodian scanning</li>
+						<li>Digital verification and records</li>
+					</ul>
 				</div>
 			</div>
 		</div>
 	</section>
-
-	<!-- ══ QR CODE ════════════════════════════════ -->
-	<section id="qr-code" class="guide-section">
-		<div class="section-wrap">
-			<span class="section-chip">📱 QR Code</span>
-			<h2 class="section-heading">Contactless Pickup & Return</h2>
-			<p class="section-sub">Each approved request generates a unique QR code for fast, verified equipment handoff.</p>
-			<div class="cards-3">
-				<div class="gcard pink">
-					<div class="gcard-icon">🔲</div>
-					<h3>Auto-Generated</h3>
-					<p>Once your request is approved and ready for pickup, a QR code appears automatically in your request details.</p>
-				</div>
-				<div class="gcard purple">
-					<div class="gcard-icon">📷</div>
-					<h3>Custodian Scans</h3>
-					<p>Show your QR code at the custodian desk. They scan it to instantly verify your identity and retrieve your request.</p>
-				</div>
-				<div class="gcard green">
-					<div class="gcard-icon">✅</div>
-					<h3>Instant Verification</h3>
-					<p>No paperwork needed. The QR system confirms pickup and return digitally with automatic record-keeping.</p>
-				</div>
-			</div>
-		</div>
-	</section>
-
 	<!-- ══ FOOTER ════════════════════════════════ -->
 	<footer class="site-footer">
 		<div class="footer-wrap">
@@ -231,25 +194,25 @@
 	.section-heading { font-size:clamp(1.75rem,4vw,2.5rem);font-weight:900;color:#1a0a12;letter-spacing:-0.025em;margin:0 0 0.75rem; }
 	.section-sub { font-size:1.05rem;color:#78516a;line-height:1.7;max-width:600px;margin:0 0 2.5rem; }
 
-	/* 4-col cards */
-	.cards-4 { display:grid;grid-template-columns:repeat(4,1fr);gap:1.25rem; }
-	@media(max-width:900px){ .cards-4{ grid-template-columns:repeat(2,1fr); } }
-	@media(max-width:540px){ .cards-4{ grid-template-columns:1fr; } }
+	/* 2-col cards (Bento) */
+	.cards-2 { display:grid;grid-template-columns:repeat(2,1fr);gap:1.5rem; }
+	@media(max-width:768px){ .cards-2{ grid-template-columns:1fr; } }
 
-	/* 3-col cards */
-	.cards-3 { display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem; }
-	@media(max-width:768px){ .cards-3{ grid-template-columns:1fr; } }
-
-	/* Generic card */
-	.gcard { padding:1.75rem;border-radius:1.25rem;border:1px solid rgba(0,0,0,0.06);background:#fff;transition:transform 0.3s ease,box-shadow 0.3s ease; }
-	.gcard:hover { transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,0.08); }
-	.gcard-icon { font-size:2rem;margin-bottom:0.875rem; }
-	.gcard h3 { font-size:1rem;font-weight:700;color:#1a0a12;margin:0 0 0.5rem; }
-	.gcard p { font-size:0.875rem;color:#78516a;line-height:1.65;margin:0; }
-	.gcard.pink  { border-left:3px solid #e91e63; }
-	.gcard.purple{ border-left:3px solid #9c27b0; }
-	.gcard.blue  { border-left:3px solid #1e88e5; }
-	.gcard.green { border-left:3px solid #43a047; }
+	/* Bento Card */
+	.bento-card { padding:2rem;border-radius:1.25rem;border:1px solid rgba(0,0,0,0.06);background:#fff;transition:transform 0.3s ease,box-shadow 0.3s ease; display:flex; flex-direction:column; gap:1rem; }
+	.bento-card:hover { transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,0,0,0.08); }
+	.bento-header { display:flex;align-items:center;gap:0.875rem; }
+	.bento-icon { font-size:2rem; }
+	.bento-card h3 { font-size:1.25rem;font-weight:800;color:#1a0a12;margin:0; }
+	.bento-card p { font-size:0.9375rem;color:#78516a;line-height:1.6;margin:0; flex-grow:1; }
+	.bento-list { list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.5rem; border-top: 1px solid rgba(0,0,0,0.06); padding-top: 1.25rem; }
+	.bento-list li { font-size:0.875rem;color:#4a3341; display:flex;align-items:center;gap:0.625rem; }
+	.bento-list li::before { content:'✓'; color:#e91e63; font-weight:bold; font-size:1rem; }
+	
+	.bento-card.pink  { border-top:4px solid #e91e63; }
+	.bento-card.purple{ border-top:4px solid #9c27b0; }
+	.bento-card.blue  { border-top:4px solid #1e88e5; }
+	.bento-card.green { border-top:4px solid #43a047; }
 
 	/* Steps */
 	.steps-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:1.25rem; }

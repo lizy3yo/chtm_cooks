@@ -8,11 +8,9 @@
 
 	const navLinks = [
 		{ id: 'home', label: 'Home' },
-		{ id: 'dashboard', label: 'Dashboard' },
-		{ id: 'catalog', label: 'Catalog' },
+		{ id: 'core-features', label: 'Core Features' },
 		{ id: 'request-flow', label: 'Request Flow' },
-		{ id: 'ai-assistant', label: 'AI Assistant' },
-		{ id: 'qr-code', label: 'QR Code' }
+		{ id: 'smart-features', label: 'Smart Tech' }
 	];
 
 	function scrollToSection(sectionId: string) {
