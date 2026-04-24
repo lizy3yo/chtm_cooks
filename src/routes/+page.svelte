@@ -120,11 +120,12 @@
 		<div class="carousel-container">
 				<div class="carousel" bind:this={carouselEl}>
 					{#each requestSteps as s}
+					{@const Icon = s.icon}
 					<div class="carousel-item">
 						<div class="step-card">
 							<div class="step-num">{s.step}</div>
 							<div class="step-icon">
-								<svelte:component this={s.icon} size={36} strokeWidth={2.5} color="#e91e63" />
+								<Icon size={36} strokeWidth={2.5} color="#e91e63" />
 							</div>
 							<h3>{s.title}</h3>
 							<p>{s.desc}</p>
@@ -216,6 +217,9 @@
 					</div>
 				</div>
 
+				<!-- Invisible native range slider for interaction -->
+				<input type="range" min="0" max="100" bind:value={diffPosition} class="diff-range-input" aria-label="Slide to compare AI Assistant and QR Code features" />
+
 				<!-- Slider Handle Visual -->
 				<div class="diff-resizer-handle" style="left: {diffPosition}%;">
 					<div class="handle-line"></div>
@@ -224,9 +228,6 @@
 						<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
 					</div>
 				</div>
-
-				<!-- Invisible native range slider for interaction -->
-				<input type="range" min="0" max="100" bind:value={diffPosition} class="diff-range-input" aria-label="Slide to compare AI Assistant and QR Code features" />
 			</div>
 		</div>
 	</section>
@@ -287,8 +288,6 @@
 	
 	.bento-card.pink  { border-top:4px solid #e91e63; }
 	.bento-card.purple{ border-top:4px solid #9c27b0; }
-	.bento-card.blue  { border-top:4px solid #1e88e5; }
-	.bento-card.green { border-top:4px solid #43a047; }
 
 	/* Steps Carousel (DaisyUI Style Full Width) */
 	.carousel-container { position:relative; width:100%; margin:2rem 0 0; }
