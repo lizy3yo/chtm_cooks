@@ -3,12 +3,17 @@
 	import { CheckCircle2, AlertTriangle, XCircle, Package, Calendar } from 'lucide-svelte';
 
 	interface Props {
-		obligation: ReplacementObligation;
+		obligations?: ReplacementObligation[];
+		obligation?: ReplacementObligation;
 		onResolve: (id: string, quantityReplaced: number) => Promise<void>;
 		onCancel: () => void;
 	}
 
-	let { obligation, onResolve, onCancel }: Props = $props();
+	let { obligations, obligation, onResolve, onCancel }: Props = $props();
+
+	const activeObligations = $derived(obligations || (obligation ? [obligation] : []));
+	let currentIndex = $state(0);
+	const currentObligation = $derived(activeObligations[currentIndex] || null);
 
 	let quantityReplaced = $state(0);
 	let submitting = $state(false);
@@ -16,7 +21,9 @@
 
 	// Initialize quantityReplaced when obligation changes
 	$effect(() => {
-		quantityReplaced = obligation.balance;
+		if (currentObligation) {
+			quantityReplaced = currentObligation.balance;
+		}
 	});
 
 	function getTypeColor(type: 'missing' | 'damaged'): string {
@@ -55,16 +62,11 @@
 			return;
 		}
 
-		if (quantityReplaced > obligation.balance) {
-			error = `Quantity cannot exceed the remaining balance of ${obligation.balance}`;
-			return;
-		}
-
 		submitting = true;
 		error = null;
 
 		try {
-			await onResolve(obligation.id, quantityReplaced);
+			await onResolve(currentObligation.id, quantityReplaced);
 		} catch (err) {
 			console.error('[ReplacementObligationModal] Resolution failed:', err);
 			error = err instanceof Error ? err.message : 'Failed to resolve obligation';
@@ -107,8 +109,8 @@
 							
 							<!-- Status Badge -->
 							<div class="mt-2">
-								<span class={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${getStatusColor(obligation.status)}`}>
-									{obligation.status.charAt(0).toUpperCase() + obligation.status.slice(1)}
+								<span class={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${getStatusColor(currentObligation.status)}`}>
+									{currentObligation.status.charAt(0).toUpperCase() + currentObligation.status.slice(1)}
 								</span>
 							</div>
 						</div>
@@ -143,20 +145,20 @@
 					<div class="rounded-2xl border-2 border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6 shadow-sm">
 						<div class="mb-4 flex items-center gap-3">
 							<div class="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-sm font-semibold text-pink-700 ring-2 ring-pink-200">
-								{#if obligation.studentProfilePhotoUrl}
+								{#if currentObligation.studentProfilePhotoUrl}
 									<img
-										src={obligation.studentProfilePhotoUrl}
-										alt={obligation.studentName || 'Student'}
+										src={currentObligation.studentProfilePhotoUrl}
+										alt={currentObligation.studentName || 'Student'}
 										class="h-full w-full object-cover"
 										loading="lazy"
 									/>
 								{:else}
-									<span class="text-lg">{getInitials(obligation.studentName || 'Unknown Student')}</span>
+									<span class="text-lg">{getInitials(currentObligation.studentName || 'Unknown Student')}</span>
 								{/if}
 							</div>
 							<div class="flex-1 min-w-0">
-								<h3 class="text-lg font-bold text-gray-900 truncate">{obligation.studentName || 'Unknown Student'}</h3>
-								<p class="text-sm text-gray-600 truncate">{obligation.studentEmail || 'N/A'}</p>
+								<h3 class="text-lg font-bold text-gray-900 truncate">{currentObligation.studentName || 'Unknown Student'}</h3>
+								<p class="text-sm text-gray-600 truncate">{currentObligation.studentEmail || 'N/A'}</p>
 							</div>
 						</div>
 					</div>
@@ -169,14 +171,14 @@
 								<Package class="h-8 w-8 text-pink-400" aria-label="Item icon" />
 							</div>
 							<div class="flex-1 min-w-0">
-								<h3 class="text-lg font-bold text-gray-900 truncate">{obligation.itemName}</h3>
+								<h3 class="text-lg font-bold text-gray-900 truncate uppercase">{currentObligation.itemName}</h3>
 								<div class="mt-2 flex flex-wrap gap-2">
-									<span class={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${getTypeColor(obligation.type)}`}>
-										{#key obligation.type}
-											{@const Icon = getTypeIcon(obligation.type)}
+									<span class={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${getTypeColor(currentObligation.type)}`}>
+										{#key currentObligation.type}
+											{@const Icon = getTypeIcon(currentObligation.type)}
 											<Icon class="h-3 w-3" />
 										{/key}
-										{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
+										{currentObligation.type === 'missing' ? 'Missing' : 'Damaged'}
 									</span>
 								</div>
 							</div>
@@ -186,19 +188,19 @@
 						<div class="mb-5 grid grid-cols-2 gap-4 rounded-xl bg-white p-4 border border-gray-200">
 							<div class="text-center">
 								<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Original Qty</p>
-								<p class="text-xl font-bold text-gray-900 tabular-nums">{obligation.quantity}</p>
+								<p class="text-xl font-bold text-gray-900 tabular-nums">{currentObligation.quantity}</p>
 							</div>
 							<div class="text-center border-l border-gray-200">
 								<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Required</p>
-								<p class="text-xl font-bold text-gray-900 tabular-nums">{obligation.amount}</p>
+								<p class="text-xl font-bold text-gray-900 tabular-nums">{currentObligation.amount}</p>
 							</div>
 						</div>
 
-						{#if obligation.amountPaid > 0}
+						{#if currentObligation.amountPaid > 0}
 							<div class="mb-5 rounded-lg bg-emerald-50 border border-emerald-200 px-4 py-3">
 								<div class="flex items-center justify-between">
 									<span class="text-sm font-medium text-emerald-800">Previously Replaced</span>
-									<span class="text-base font-bold text-emerald-900 tabular-nums">{obligation.amountPaid} {obligation.amountPaid === 1 ? 'item' : 'items'}</span>
+									<span class="text-base font-bold text-emerald-900 tabular-nums">{currentObligation.amountPaid} items</span>
 								</div>
 							</div>
 						{/if}
@@ -210,50 +212,51 @@
 									<Calendar class="h-4 w-4 text-gray-400" />
 									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Due Date</p>
 								</div>
-								<p class="text-sm font-semibold text-gray-900">{new Date(obligation.dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+								<p class="text-sm font-semibold text-gray-900">{new Date(currentObligation.dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
 							</div>
 							<div>
 								<div class="flex items-center gap-2 mb-1">
 									<Package class="h-4 w-4 text-gray-400" />
 									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Request ID</p>
 								</div>
-								<p class="text-sm font-mono font-semibold text-gray-900">REQ-{obligation.borrowRequestId.slice(-6).toUpperCase()}</p>
+								<p class="text-sm font-mono font-semibold text-gray-900">REQ-{currentObligation.borrowRequestId.slice(-6).toUpperCase()}</p>
 							</div>
 						</div>
 
-						{#if obligation.incidentNotes}
+						{#if currentObligation.incidentNotes}
 							<div class="mt-4 pt-4 border-t border-gray-200">
 								<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Incident Notes</p>
-								<p class="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{obligation.incidentNotes}</p>
+								<p class="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{currentObligation.incidentNotes}</p>
 							</div>
 						{/if}
 					</div>
 
 					<!-- Quantity Being Replaced -->
-					<div>
-						<label for="quantity-replaced" class="mb-2 block text-sm font-bold text-gray-900">
-							Quantity Being Replaced <span class="text-pink-500">*</span>
-						</label>
-						<div class="relative">
-							<input
-								id="quantity-replaced"
-								type="number"
-								min="1"
-								max={obligation.balance}
-								step="1"
-								bind:value={quantityReplaced}
-								class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-base font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 pr-24"
-								placeholder="Enter quantity"
-								required
-							/>
-							<div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-								<span class="text-sm text-gray-500">of {obligation.balance}</span>
+					{#if currentObligation.status === 'pending'}
+						<div>
+							<label for="quantity-replaced" class="mb-2 block text-sm font-bold text-gray-900">
+								Quantity Being Replaced <span class="text-pink-500">*</span>
+							</label>
+							<div class="relative">
+								<input
+									id="quantity-replaced"
+									type="number"
+									min="1"
+									step="1"
+									bind:value={quantityReplaced}
+									class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-base font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 pr-24"
+									placeholder="Enter quantity"
+									required
+								/>
+								<div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+									<span class="text-sm text-gray-500">Required: {currentObligation.balance}</span>
+								</div>
 							</div>
+							<p class="mt-2 text-xs text-gray-500">
+								Enter the number of items the student is replacing in this transaction. Excess quantity will be recorded.
+							</p>
 						</div>
-						<p class="mt-2 text-xs text-gray-500">
-							Enter the number of items the student is replacing in this transaction. Maximum: {obligation.balance}
-						</p>
-					</div>
+					{/if}
 				</div>
 			</div>
 
@@ -270,25 +273,65 @@
 						Cancel
 					</button>
 
-					<!-- Submit Button -->
-					<button
-						type="button"
-						onclick={handleSubmit}
-						disabled={!Number.isInteger(quantityReplaced) || quantityReplaced <= 0 || quantityReplaced > obligation.balance || submitting}
-						class="order-1 sm:order-2 rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
-					>
-						{#if submitting}
-							<span class="flex items-center justify-center gap-2">
-								<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-									<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-									<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-								</svg>
-								Processing...
-							</span>
-						{:else}
-							Resolve Obligation
+					{#if activeObligations.length > 1}
+						<span class="order-3 sm:order-2 text-sm font-semibold text-gray-500 self-center">
+							Item {currentIndex + 1} of {activeObligations.length}
+						</span>
+					{/if}
+
+					<!-- Navigation/Submit Buttons -->
+					<div class="order-1 sm:order-3 flex gap-2 w-full sm:w-auto">
+						{#if currentIndex > 0}
+							<button
+								type="button"
+								onclick={() => currentIndex--}
+								disabled={submitting}
+								class="flex-1 sm:flex-none rounded-lg border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:opacity-50 active:scale-[0.98]"
+							>
+								&larr; Prev
+							</button>
 						{/if}
-					</button>
+
+						{#if currentObligation.status === 'pending'}
+							<button
+								type="button"
+								onclick={handleSubmit}
+								disabled={!Number.isInteger(quantityReplaced) || quantityReplaced <= 0 || submitting}
+								class="flex-1 sm:flex-none rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
+							>
+								{#if submitting}
+									<span class="flex items-center justify-center gap-2">
+										<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+										Processing...
+									</span>
+								{:else}
+									{activeObligations.length > 1 && currentIndex < activeObligations.length - 1 ? 'Resolve & Next' : 'Resolve Obligation'}
+								{/if}
+							</button>
+						{:else}
+							{#if currentIndex < activeObligations.length - 1}
+								<button
+									type="button"
+									onclick={() => currentIndex++}
+									disabled={submitting}
+									class="flex-1 sm:flex-none rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 active:scale-[0.98]"
+								>
+									Next &rarr;
+								</button>
+							{:else}
+								<button
+									type="button"
+									onclick={onCancel}
+									class="flex-1 sm:flex-none rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 active:scale-[0.98]"
+								>
+									Finish
+								</button>
+							{/if}
+						{/if}
+					</div>
 				</div>
 			</div>
 		</div>

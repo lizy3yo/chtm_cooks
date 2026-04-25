@@ -16,6 +16,8 @@
 	import { toastStore } from '$lib/stores/toast';
 	import ItemInspectionModal from '$lib/components/custodian/ItemInspectionModal.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+	import ReplacementObligationModal from '$lib/components/custodian/ReplacementObligationModal.svelte';
+	import type { ReplacementObligation } from '$lib/api/replacementObligations';
 	import RequestsSkeletonLoader from '$lib/components/ui/RequestsSkeletonLoader.svelte';
 	import { replacementObligationsAPI } from '$lib/api/replacementObligations';
 
@@ -28,6 +30,9 @@
 	let showDetailModal = $state(false);
 	let showInspectionModal = $state(false);
 	let selectedRequest = $state<any>(null);
+	let activeRequestObligations = $state<ReplacementObligation[]>([]);
+	let showObligationModal = $state(false);
+	let resolvingRequestId = $state<string | null>(null);
 
 	// Check for cached data before mounting to avoid unnecessary loading states
 	const cachedRequests = browser ? borrowRequestsAPI.peekCachedList({}) : null;
@@ -64,7 +69,7 @@
 	function toUiStatus(
 		status: BorrowRequestStatus,
 		rejectionReason?: string
-	): 'pending' | 'ready' | 'active' | 'missing' | 'history' {
+	): 'pending' | 'ready' | 'active' | 'unresolved' | 'history' {
 		switch (status) {
 			case 'approved_instructor':
 				return 'pending';
@@ -75,7 +80,7 @@
 			case 'pending_return':
 				return 'active';
 			case 'missing':
-				return 'missing';
+				return 'unresolved';
 			case 'resolved':
 				return 'history';
 			case 'cancelled':
@@ -254,6 +259,48 @@
 		} catch (error) {
 			console.error('Failed to confirm item pickup', error);
 			toastStore.error(getErrorMessage(error, 'Failed to confirm item pickup.'));
+		}
+	}
+
+	async function openResolveModal(rawId: string): Promise<void> {
+		closeActionMenu();
+		resolvingRequestId = rawId;
+		try {
+			const res = await replacementObligationsAPI.getObligations({ limit: 500 }, { forceRefresh: true });
+			const requestObligations = res.obligations.filter(o => o.borrowRequestId === rawId);
+			if (requestObligations.length === 0) {
+				toastStore.info('No obligations found for this request.');
+				return;
+			}
+			activeRequestObligations = requestObligations;
+			showObligationModal = true;
+		} catch (err) {
+			console.error('Failed to fetch obligations', err);
+			toastStore.error('Failed to retrieve obligations for resolution.');
+		} finally {
+			resolvingRequestId = null;
+		}
+	}
+
+	async function handleResolveObligation(id: string, quantityReplaced: number): Promise<void> {
+		try {
+			await replacementObligationsAPI.resolveObligation(id, {
+				resolutionType: 'replacement',
+				amountPaid: quantityReplaced
+			});
+			toastStore.success('Obligation resolved successfully.');
+			
+			// Refresh obligations to update UI status to 'replaced'
+			const rawId = activeRequestObligations[0]?.borrowRequestId;
+			if (rawId) {
+				const res = await replacementObligationsAPI.getObligations({ limit: 500 }, { forceRefresh: true });
+				activeRequestObligations = res.obligations.filter(o => o.borrowRequestId === rawId);
+			}
+			
+			await refreshRequests();
+		} catch (err) {
+			console.error('Failed to resolve obligation', err);
+			throw err;
 		}
 	}
 
@@ -1456,6 +1503,23 @@
 												>
 													View Details
 												</button>
+												{#if request.status === 'unresolved'}
+													<button
+														onclick={() => openResolveModal(request.rawId)}
+														disabled={resolvingRequestId === request.rawId}
+														class="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+													>
+														{#if resolvingRequestId === request.rawId}
+															<svg class="h-4 w-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+																<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+																<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+															</svg>
+															Loading...
+														{:else}
+															Resolve Obligation
+														{/if}
+													</button>
+												{/if}
 												{#if request.status === 'pending'}
 													<button
 														onclick={() => markReady(request.rawId)}
@@ -2526,11 +2590,40 @@
 								Inspect & Confirm Return
 							</button>
 						{/if}
+						{#if selectedRequest.status === 'unresolved'}
+							<button
+								onclick={() => openResolveModal(selectedRequest.rawId)}
+								disabled={resolvingRequestId === selectedRequest.rawId}
+								class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-linear-to-r from-amber-600 to-amber-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-amber-700 hover:to-amber-800 active:scale-[0.98] sm:px-6 sm:py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+							>
+								{#if resolvingRequestId === selectedRequest.rawId}
+									<svg class="h-4 w-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+									</svg>
+									Loading...
+								{:else}
+									Resolve Obligation
+								{/if}
+							</button>
+						{/if}
 					</div>
 				</div>
 			</div>
 		</div>
 	</div>
+{/if}
+
+<!-- Resolve Obligation Modal -->
+{#if showObligationModal}
+	<ReplacementObligationModal
+		obligations={activeRequestObligations}
+		onResolve={handleResolveObligation}
+		onCancel={() => {
+			showObligationModal = false;
+			activeRequestObligations = [];
+		}}
+	/>
 {/if}
 
 <!-- Item Inspection Modal -->
