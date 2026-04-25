@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { BorrowRequestItem } from '$lib/api/borrowRequests';
 	import { CheckCircle2, AlertTriangle, XCircle, Package, Search } from 'lucide-svelte';
+	import { untrack } from 'svelte';
 
 	interface Props {
 		items: BorrowRequestItem[];
@@ -23,23 +24,55 @@
 		picture?: string | null;
 		status: 'good' | 'damaged' | 'missing' | null;
 		notes: string;
+		reportedQuantity: number;
 		replacementQuantity: number;
 	}
 
 	// Initialize inspection data from items (stable reference)
 	let inspections = $state<ItemInspection[]>([]);
 
-	// Initialize inspections when items change
+	// Sync inspections when items change (e.g. from background polling) without resetting user state
 	$effect(() => {
-		inspections = items.map((item) => ({
-			itemId: item.itemId,
-			name: item.name,
-			quantity: item.quantity,
-			picture: item.picture ?? null,
-			status: null,
-			notes: '',
-			replacementQuantity: 0
-		}));
+		const currentItems = items;
+		
+		untrack(() => {
+			if (inspections.length === 0) {
+				// Initial load
+				inspections = currentItems.map((item) => ({
+					itemId: item.itemId,
+					name: item.name,
+					quantity: item.quantity,
+					picture: item.picture ?? null,
+					status: null,
+					notes: '',
+					reportedQuantity: item.quantity,
+					replacementQuantity: item.quantity
+				}));
+			} else {
+				// Prevent resetting local state on background refresh
+				const updatedInspections = [...inspections];
+				for (const item of currentItems) {
+					const existing = updatedInspections.find((i) => i.itemId === item.itemId);
+					if (!existing) {
+						updatedInspections.push({
+							itemId: item.itemId,
+							name: item.name,
+							quantity: item.quantity,
+							picture: item.picture ?? null,
+							status: null,
+							notes: '',
+							reportedQuantity: item.quantity,
+							replacementQuantity: item.quantity
+						});
+					} else {
+						// Only update non-editable data
+						existing.name = item.name;
+						if (item.picture) existing.picture = item.picture;
+					}
+				}
+				inspections = updatedInspections;
+			}
+		});
 	});
 
 	let submitting = $state(false);
@@ -56,11 +89,6 @@
 	function setInspectionStatus(itemId: string, status: 'good' | 'damaged' | 'missing') {
 		const inspection = getInspection(itemId);
 		inspection.status = status;
-		if (status === 'good') {
-			inspection.replacementQuantity = 0;
-		} else if (inspection.replacementQuantity === 0) {
-			inspection.replacementQuantity = inspection.quantity;
-		}
 	}
 
 	const allInspected = $derived(
@@ -135,13 +163,16 @@
 			return;
 		}
 
-		// Require a valid replacement quantity for non-good returns
+		// Require a valid quantity for all returns
 		for (const inspection of inspections) {
-			if (
-				(inspection.status === 'damaged' || inspection.status === 'missing') &&
-				(!Number.isInteger(inspection.replacementQuantity) || inspection.replacementQuantity <= 0)
-			) {
-				error = `Please enter a replacement quantity for ${inspection.name}`;
+			if (!Number.isInteger(inspection.reportedQuantity) || inspection.reportedQuantity <= 0) {
+				error = `Please enter a valid reported quantity for ${inspection.name}`;
+				return;
+			}
+			if (inspection.status === 'good') {
+				inspection.replacementQuantity = inspection.reportedQuantity;
+			} else if (!Number.isInteger(inspection.replacementQuantity) || inspection.replacementQuantity < 0) {
+				error = `Please enter a valid replacement quantity for ${inspection.name}`;
 				return;
 			}
 		}
@@ -150,17 +181,16 @@
 		error = null;
 
 		try {
-			// Only include replacementQuantity for damaged/missing items
 			const payload = inspections.map((i) => {
 				const baseInspection: any = {
 					itemId: i.itemId,
 					status: i.status!,
-					notes: i.notes || ''
+					notes: i.notes || '',
+					replacementQuantity: i.status === 'good' ? i.reportedQuantity : i.replacementQuantity
 				};
 
-				// Only include replacementQuantity for damaged/missing items
-				if (i.status === 'damaged' || i.status === 'missing') {
-					baseInspection.replacementQuantity = i.replacementQuantity;
+				if (i.status !== 'good' && i.reportedQuantity !== i.replacementQuantity) {
+					baseInspection.notes = `[System: Reported ${i.reportedQuantity} ${i.status}, but recorded ${i.replacementQuantity} for replacement] ` + baseInspection.notes;
 				}
 
 				return baseInspection;
@@ -300,8 +330,32 @@
 									</div>
 								{/if}
 								<div class="flex-1 min-w-0">
-									<h3 class="text-lg font-bold text-gray-900 truncate">{currentItem.name}</h3>
-									<p class="text-sm text-gray-600 mt-0.5">Quantity: <span class="font-semibold text-gray-900">{currentItem.quantity}</span></p>
+									<h3 class="text-lg font-bold text-gray-900 truncate" title={currentItem.name}>{currentItem.name}</h3>
+									<div class="mt-1.5 flex items-center gap-2">
+										<label for="expected-qty-{currentItem.itemId}" class="text-sm font-medium text-gray-600">Expected Return Qty:</label>
+										<input 
+											id="expected-qty-{currentItem.itemId}"
+											type="number" 
+											min="1" 
+											step="1" 
+											value={currentItem.quantity}
+											oninput={(e) => {
+												const newQty = parseInt(e.currentTarget.value);
+												if (!isNaN(newQty)) {
+													const oldQty = currentItem.quantity;
+													currentItem.quantity = newQty;
+													if (currentItem.reportedQuantity === oldQty) {
+														currentItem.reportedQuantity = newQty;
+													}
+													if (currentItem.replacementQuantity === oldQty) {
+														currentItem.replacementQuantity = newQty;
+													}
+												}
+											}}
+											class="w-20 rounded-lg border-2 border-gray-200 bg-white px-2.5 py-1 text-sm font-bold text-gray-900 shadow-sm transition-colors hover:border-pink-300 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+											title="Edit if the physical expected quantity differs from the recorded system quantity"
+										/>
+									</div>
 									<div class="mt-2">
 										<span class={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${getStatusColor(currentItem.status)}`}>
 											{#if currentItem.status === 'good'}
@@ -320,7 +374,8 @@
 							<!-- Status Selection -->
 							<div class="mb-5">
 								<div class="mb-3 text-sm font-bold text-gray-900" role="group" aria-label="Condition Status">
-									Condition Status <span class="text-pink-500">*</span>`n</div>
+									Condition Status <span class="text-pink-500">*</span>
+								</div>
 								<div class="grid grid-cols-3 gap-2 sm:gap-3">
 									<button
 										type="button"
@@ -399,26 +454,91 @@
 								</div>
 							</div>
 
-							<!-- Replacement Quantity (for damaged/missing) -->
-							{#if currentItem.status === 'damaged' || currentItem.status === 'missing'}
-								<div class="mb-5 rounded-xl border-2 border-amber-200 bg-amber-50 p-4">
-									<label for="replacement-quantity" class="mb-2 block text-sm font-bold text-amber-900">
-										Replacement Quantity <span class="text-rose-500">*</span>
+							<!-- Inspected Quantity -->
+							{#if currentItem.status}
+								<div class="mb-5 rounded-xl border-2 p-4 transition-colors {
+									currentItem.status === 'good' ? 'border-emerald-200 bg-emerald-50' :
+									currentItem.status === 'damaged' ? 'border-amber-200 bg-amber-50' :
+									'border-rose-200 bg-rose-50'
+								}">
+									<label for="inspected-quantity" class="mb-1.5 block text-sm font-bold {
+										currentItem.status === 'good' ? 'text-emerald-900' :
+										currentItem.status === 'damaged' ? 'text-amber-900' :
+										'text-rose-900'
+									}">
+										{#if currentItem.status === 'good'}
+											Items in Good Condition <span class="text-emerald-500">*</span>
+										{:else if currentItem.status === 'damaged'}
+											Reported Damaged Quantity <span class="text-rose-500">*</span>
+										{:else}
+											Reported Missing Quantity <span class="text-rose-500">*</span>
+										{/if}
 									</label>
+									
+									<p class="mb-3 text-xs leading-relaxed {
+										currentItem.status === 'good' ? 'text-emerald-700' :
+										currentItem.status === 'damaged' ? 'text-amber-700' :
+										'text-rose-700'
+									}">
+										{#if currentItem.status === 'good'}
+											Number of items returned meeting standard operational condition.
+										{:else if currentItem.status === 'damaged'}
+											Number of items returned with physical damage or operational defects. <span class="font-semibold">The student is liable for providing an exact replacement.</span>
+										{:else}
+											Number of items not returned. <span class="font-semibold">The student is liable for providing an exact replacement to clear this discrepancy.</span>
+										{/if}
+									</p>
+
 									<input
-										id="replacement-quantity"
+										id="inspected-quantity"
 										type="number"
 										min="1"
 										step="1"
-										bind:value={currentItem.replacementQuantity}
-										class="block w-full rounded-lg border-2 border-amber-300 bg-white px-4 py-2.5 text-sm font-medium shadow-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
-										placeholder="Enter quantity to replace"
+										bind:value={currentItem.reportedQuantity}
+										class="block w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm font-medium shadow-sm focus:outline-none focus:ring-2 {
+											currentItem.status === 'good' ? 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20' :
+											currentItem.status === 'damaged' ? 'border-amber-300 focus:border-amber-500 focus:ring-amber-500/20' :
+											'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20'
+										}"
+										placeholder="Enter quantity"
 										required
 									/>
-									<p class="mt-2 text-xs text-amber-800">
-										<span class="font-semibold">Borrowed quantity:</span> {currentItem.quantity}
-										<span class="text-amber-600 ml-2">• Enter the quantity that needs replacement</span>
-									</p>
+									
+									<div class="mt-3 flex items-center justify-between border-t {
+										currentItem.status === 'good' ? 'border-emerald-200/60' :
+										currentItem.status === 'damaged' ? 'border-amber-200/60' :
+										'border-rose-200/60'
+									} pt-3 text-xs">
+										{#if currentItem.status === 'good'}
+											<span class="text-emerald-800">
+												<span class="font-semibold">Total Borrowed:</span> {currentItem.quantity}
+											</span>
+											{#if currentItem.reportedQuantity !== currentItem.quantity}
+												<span class="font-bold {(currentItem.reportedQuantity - currentItem.quantity) > 0 ? 'text-blue-600' : 'text-orange-600'}">
+													Variance: {(currentItem.reportedQuantity - currentItem.quantity) > 0 ? '+' : ''}{currentItem.reportedQuantity - currentItem.quantity}
+												</span>
+											{/if}
+										{:else}
+											<span class="{currentItem.status === 'damaged' ? 'text-amber-800' : 'text-rose-800'}">
+												<span class="font-semibold">Total Borrowed:</span> {currentItem.quantity}
+											</span>
+											<div class="flex items-center gap-2 {currentItem.status === 'damaged' ? 'text-amber-900' : 'text-rose-900'}">
+												<label for="replacement-qty-{currentItem.itemId}" class="font-bold">Required Replacement:</label>
+												<input
+													id="replacement-qty-{currentItem.itemId}"
+													type="number"
+													min="0"
+													step="1"
+													bind:value={currentItem.replacementQuantity}
+													class="w-16 rounded border border-gray-300 bg-white px-1.5 py-0.5 text-xs font-bold shadow-sm focus:outline-none focus:ring-2 {
+														currentItem.status === 'damaged' ? 'focus:border-amber-500 focus:ring-amber-500/20' :
+														'focus:border-rose-500 focus:ring-rose-500/20'
+													}"
+													title="Edit to waive or modify the chargeable replacement amount"
+												/>
+											</div>
+										{/if}
+									</div>
 								</div>
 							{/if}
 
