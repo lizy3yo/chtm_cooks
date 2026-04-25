@@ -20,6 +20,7 @@
 	import type { ReplacementObligation } from '$lib/api/replacementObligations';
 	import RequestsSkeletonLoader from '$lib/components/ui/RequestsSkeletonLoader.svelte';
 	import { replacementObligationsAPI } from '$lib/api/replacementObligations';
+	import { Package } from 'lucide-svelte';
 
 	type Tab = 'pending' | 'ready' | 'active' | 'unresolved' | 'history';
 	type HistorySubTab = 'all' | 'completed' | 'resolved' | 'cancelled';
@@ -41,7 +42,7 @@
 	let requests = $state<any[]>([]);
 	let searchQuery = $state('');
 	let sortBy = $state<'date' | 'student' | 'status'>('date');
-	let viewMode = $state<ViewMode>('card');
+	let viewMode = $state<ViewMode>('list');
 	let loading = $state(!hasCachedData); // Only show skeleton if no cached data
 	let initialLoadComplete = $state(hasCachedData); // Mark as complete if we have cached data
 	const PAGE_SIZE_CARD = 5; // Card view - max 5 cards
@@ -266,8 +267,11 @@
 		closeActionMenu();
 		resolvingRequestId = rawId;
 		try {
-			const res = await replacementObligationsAPI.getObligations({ limit: 500 }, { forceRefresh: true });
-			const requestObligations = res.obligations.filter(o => o.borrowRequestId === rawId);
+			const res = await replacementObligationsAPI.getObligations(
+				{ limit: 500 },
+				{ forceRefresh: true }
+			);
+			const requestObligations = res.obligations.filter((o) => o.borrowRequestId === rawId);
 			if (requestObligations.length === 0) {
 				toastStore.info('No obligations found for this request.');
 				return;
@@ -289,14 +293,17 @@
 				amountPaid: quantityReplaced
 			});
 			toastStore.success('Obligation resolved successfully.');
-			
+
 			// Refresh obligations to update UI status to 'replaced'
 			const rawId = activeRequestObligations[0]?.borrowRequestId;
 			if (rawId) {
-				const res = await replacementObligationsAPI.getObligations({ limit: 500 }, { forceRefresh: true });
-				activeRequestObligations = res.obligations.filter(o => o.borrowRequestId === rawId);
+				const res = await replacementObligationsAPI.getObligations(
+					{ limit: 500 },
+					{ forceRefresh: true }
+				);
+				activeRequestObligations = res.obligations.filter((o) => o.borrowRequestId === rawId);
 			}
-			
+
 			await refreshRequests();
 		} catch (err) {
 			console.error('Failed to resolve obligation', err);
@@ -1212,26 +1219,9 @@
 						<div class="flex flex-wrap items-center justify-end gap-2">
 							<div class="flex overflow-hidden rounded-lg border border-gray-300">
 								<button
-									onclick={() => (viewMode = 'card')}
-									aria-label="Card view"
-									class="flex h-10 w-10 items-center justify-center text-sm transition-colors {viewMode ===
-									'card'
-										? 'bg-pink-100 text-pink-700'
-										: 'bg-white text-gray-600 hover:bg-gray-50'}"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
-										/>
-									</svg>
-								</button>
-								<button
 									onclick={() => (viewMode = 'list')}
 									aria-label="Table view"
-									class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {viewMode ===
+									class="flex h-10 w-10 items-center justify-center text-sm transition-colors {viewMode ===
 									'list'
 										? 'bg-pink-100 text-pink-700'
 										: 'bg-white text-gray-600 hover:bg-gray-50'}"
@@ -1242,6 +1232,23 @@
 											stroke-linejoin="round"
 											stroke-width="2"
 											d="M4 6h16M4 12h16M4 18h16"
+										/>
+									</svg>
+								</button>
+								<button
+									onclick={() => (viewMode = 'card')}
+									aria-label="Card view"
+									class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {viewMode ===
+									'card'
+										? 'bg-pink-100 text-pink-700'
+										: 'bg-white text-gray-600 hover:bg-gray-50'}"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
 										/>
 									</svg>
 								</button>
@@ -1263,9 +1270,10 @@
 					</div>
 
 					{#if viewMode === 'card'}
-						<div class="space-y-4" style="min-height: 600px;">
+						<div style="min-height: 600px;">
 							{#if paginatedRequests.length > 0}
-								{#each paginatedRequests as request}
+								<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">
+									{#each paginatedRequests as request}
 									<div
 										class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(
 											request.status,
@@ -1274,240 +1282,75 @@
 										)}"
 									>
 										<div class="p-4 sm:p-5">
-											<!-- Header: ID, Status, Student Info -->
+											<!-- Header: Student, Request ID, Status -->
 											<div class="mb-3 flex items-start justify-between gap-3">
-												<div class="flex min-w-0 flex-1 flex-col gap-1">
-													<div class="flex flex-wrap items-center gap-2">
-														<span class="font-mono text-sm font-bold tracking-widest text-gray-900"
-															>{request.id}</span
-														>
-														<span
-															class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusBadge(
-																request.status,
-																request.rawStatus,
-																request.rejectionReason
-															).color}"
-														>
-															<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-															{getStatusBadge(
-																request.status,
-																request.rawStatus,
-																request.rejectionReason
-															).text}
-														</span>
-														{#if request.status === 'unresolved'}
-															{#if request.missingItemCount > 0}
-																<span
-																	class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 ring-1 ring-red-200"
-																>
-																	<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-																	{request.missingItemCount} Missing
-																</span>
-															{/if}
-															{#if request.damagedItemCount > 0}
-																<span
-																	class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800 ring-1 ring-rose-200"
-																>
-																	<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-																	{request.damagedItemCount} Damaged
-																</span>
-															{/if}
+												<div class="flex min-w-0 flex-1 items-center gap-3">
+													<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+														{#if request.student.avatarUrl}
+															<img src={request.student.avatarUrl} alt={request.student.name} class="h-full w-full object-cover" loading="lazy" />
+														{:else}
+															{request.student.avatar}
 														{/if}
 													</div>
-													<div class="mt-1 flex items-center gap-2">
-														<div
-															class="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700"
-														>
-															{#if request.student.avatarUrl}
-																<img
-																	src={request.student.avatarUrl}
-																	alt={request.student.name}
-																	class="h-full w-full object-cover"
-																	loading="lazy"
-																/>
-															{:else}
-																{request.student.avatar}
-															{/if}
-														</div>
-														<span class="text-sm font-medium text-gray-900"
-															>{request.student.name}</span
-														>
-														<span class="text-xs text-gray-400"
-															>{request.student.yearLevel} • Block {request.student.block}</span
-														>
+													<div class="flex min-w-0 flex-col gap-1">
+														<span class="font-semibold text-gray-900 truncate">{request.student.name}</span>
+														<span class="text-xs font-mono text-gray-500 truncate">{request.id}</span>
 													</div>
 												</div>
-												<time class="shrink-0 text-[11px] whitespace-nowrap text-gray-400">
-													{new Date(request.requestDate).toLocaleDateString('en-US', {
-														month: 'short',
-														day: 'numeric',
-														year: 'numeric'
-													})}
-												</time>
-											</div>
-
-											<!-- Equipment Chips -->
-											<div class="mt-4">
-												<p
-													class="mb-2 text-xs font-semibold tracking-wider text-gray-400 uppercase"
-												>
-													Equipment Requested
-												</p>
-												<div class="flex flex-wrap gap-1.5">
-													{#each request.items as item}
-														{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-														<span
-															class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700"
-														>
-															{#if pic}
-																<img
-																	src={pic}
-																	alt={item.name}
-																	class="h-4 w-4 shrink-0 rounded object-cover"
-																	loading="lazy"
-																/>
-															{:else}
-																<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"
-																	><ItemImagePlaceholder size="xs" /></span
-																>
-															{/if}
-															<span class="truncate">{item.name}</span>
-															<span class="text-gray-400">x{item.quantity}</span>
-														</span>
-													{/each}
-												</div>
-											</div>
-
-											<!-- Metadata Row -->
-											<div
-												class="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1.5"
-											>
-												<div class="flex items-center gap-1.5 text-xs text-gray-500">
-													<svg
-														class="h-3.5 w-3.5 shrink-0 text-gray-400"
-														fill="none"
-														stroke="currentColor"
-														viewBox="0 0 24 24"
-													>
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															stroke-width="2"
-															d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-														/>
-													</svg>
-													<span>
-														{new Date(request.borrowDate).toLocaleDateString('en-US', {
-															month: 'short',
-															day: 'numeric'
-														})}
-														–
-														{new Date(request.returnDate).toLocaleDateString('en-US', {
-															month: 'short',
-															day: 'numeric',
-															year: 'numeric'
-														})}
-													</span>
-												</div>
-												<div class="flex min-w-0 items-center gap-1.5 text-xs text-gray-500">
-													<svg
-														class="h-3.5 w-3.5 shrink-0 text-gray-400"
-														fill="none"
-														stroke="currentColor"
-														viewBox="0 0 24 24"
-													>
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															stroke-width="2"
-															d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-														/>
-													</svg>
-													<span class="truncate">{request.purpose}</span>
-												</div>
-												<div class="flex items-center gap-1.5 text-xs text-gray-500">
-													<svg
-														class="h-3.5 w-3.5 shrink-0 text-gray-400"
-														fill="none"
-														stroke="currentColor"
-														viewBox="0 0 24 24"
-													>
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															stroke-width="2"
-															d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-														/>
-													</svg>
-													<span class="truncate">{request.approvedBy}</span>
-												</div>
-											</div>
-
-											<!-- Overdue Warning -->
-											{#if request.isOverdue}
-												<div
-													class="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5"
-												>
-													<svg
-														class="mt-0.5 h-4 w-4 shrink-0 text-red-500"
-														fill="none"
-														stroke="currentColor"
-														viewBox="0 0 24 24"
-													>
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															stroke-width="2"
-															d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-														/>
-													</svg>
-													<div class="min-w-0">
-														<p class="text-xs font-semibold text-red-800">
-															{request.daysOverdue}
-															{request.daysOverdue === 1 ? 'day' : 'days'} overdue
-														</p>
-														<p class="mt-0.5 text-xs text-red-700">
-															Due {formatDateTimeShort(request.returnDate)}
-														</p>
-													</div>
-												</div>
-											{/if}
-										</div>
-
-										<!-- Card Footer -->
-										<div
-											class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5"
-										>
-											<!-- Status hint -->
-											<div class="min-w-0 text-xs">
-												<p
-													class="font-medium {getRequestHint(
+												<span
+													class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getStatusBadge(
 														request.status,
 														request.rawStatus,
 														request.rejectionReason
 													).color}"
 												>
-													{getRequestHint(
+													{getStatusBadge(
 														request.status,
 														request.rawStatus,
 														request.rejectionReason
 													).text}
-												</p>
+												</span>
 											</div>
 
-											<!-- Action buttons -->
-											<div class="relative flex flex-wrap items-center gap-2 lg:justify-end">
-												<button
-													onclick={() => openDetailModal(request)}
-													class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-												>
-													View Details
-												</button>
+											<!-- Qty & Date -->
+											<div class="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+												<div class="flex items-center gap-1.5">
+													<Package class="h-4 w-4" />
+													<span class="font-medium text-gray-900">Qty: {request.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</span>
+												</div>
+												<div class="flex items-center gap-1.5">
+													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+													<span>{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+												</div>
+											</div>
+
+											<!-- Missing / Damaged Badges -->
+											{#if request.status === 'unresolved' && (request.missingItemCount > 0 || request.damagedItemCount > 0)}
+												<div class="mt-3 flex gap-2 border-t border-gray-100 pt-3 text-xs text-gray-500">
+													{#if request.missingItemCount > 0}
+														<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-800">
+															<span class="h-1 w-1 rounded-full bg-red-500"></span>
+															{request.missingItemCount} Missing
+														</span>
+													{/if}
+													{#if request.damagedItemCount > 0}
+														<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-800">
+															<span class="h-1 w-1 rounded-full bg-rose-500"></span>
+															{request.damagedItemCount} Damaged
+														</span>
+													{/if}
+												</div>
+											{/if}
+										</div>
+
+										<!-- Card Footer -->
+										<div class="flex justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:px-5">
+											<div class="relative flex flex-wrap items-center gap-2">
 												{#if request.status === 'unresolved'}
 													<button
 														onclick={() => openResolveModal(request.rawId)}
 														disabled={resolvingRequestId === request.rawId}
-														class="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+														class="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
 													>
 														{#if resolvingRequestId === request.rawId}
 															<svg class="h-4 w-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
@@ -1547,58 +1390,20 @@
 														Confirm Return
 													</button>
 												{/if}
-												{#if request.status === 'active'}
-													<button
-														onclick={() => toggleActionMenu(request.rawId)}
-														class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
-														aria-label="More actions"
-													>
-														<svg
-															class="h-4 w-4"
-															fill="none"
-															stroke="currentColor"
-															viewBox="0 0 24 24"
-														>
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M12 5h.01M12 12h.01M12 19h.01"
-															/>
-														</svg>
-													</button>
-												{/if}
 
-												{#if request.status === 'active' && openActionMenuFor === request.rawId}
-													<div
-														class="absolute top-full right-0 z-10 mt-2 w-48 rounded-lg border border-gray-200 bg-white p-1 shadow-lg"
-													>
-														<button
-															onclick={() => {
-																closeActionMenu();
-																markMissing(request.rawId);
-															}}
-															class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-rose-700 hover:bg-rose-50"
-														>
-															Mark Missing
-														</button>
-														{#if request.isOverdue}
-															<button
-																onclick={() => {
-																	closeActionMenu();
-																	sendReminder(request.rawId);
-																}}
-																class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50"
-															>
-																Send Reminder
-															</button>
-														{/if}
-													</div>
-												{/if}
+
+												<button
+													onclick={() => openDetailModal(request)}
+													class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1"
+												>
+													View Details
+													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+												</button>
 											</div>
 										</div>
 									</div>
 								{/each}
+								</div>
 							{:else}
 								<!-- Completely empty state -->
 								<div
@@ -1656,8 +1461,9 @@
 						</div>
 					{:else}
 						<!-- List View -->
-						{#if paginatedRequests.length > 0}
-							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+						<div style="min-height: 600px;">
+							{#if paginatedRequests.length > 0}
+								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 								<div
 									class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3"
 								>
@@ -1691,13 +1497,22 @@
 												{/if}
 											</div>
 
-											<div class="min-w-0">
-												<p class="truncate text-sm font-semibold text-gray-900">
-													{request.student.name}
-												</p>
-												<p class="truncate text-xs text-gray-500">
-													{request.student.yearLevel} • Block {request.student.block}
-												</p>
+											<div class="flex min-w-0 items-center gap-3">
+												<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+													{#if request.student.avatarUrl}
+														<img src={request.student.avatarUrl} alt={request.student.name} class="h-full w-full object-cover" loading="lazy" />
+													{:else}
+														{request.student.avatar}
+													{/if}
+												</div>
+												<div class="min-w-0">
+													<p class="truncate text-sm font-semibold text-gray-900">
+														{request.student.name}
+													</p>
+													<p class="truncate text-xs text-gray-500">
+														{request.student.yearLevel} • Block {request.student.block}
+													</p>
+												</div>
 											</div>
 
 											<div class="min-w-0">
@@ -1774,54 +1589,7 @@
 														Confirm Return
 													</button>
 												{/if}
-												{#if request.status === 'active'}
-													<button
-														onclick={() => toggleActionMenu(request.rawId)}
-														class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-sm transition-colors hover:bg-gray-50"
-														aria-label="More actions"
-													>
-														<svg
-															class="h-4 w-4"
-															fill="none"
-															stroke="currentColor"
-															viewBox="0 0 24 24"
-														>
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M12 5h.01M12 12h.01M12 19h.01"
-															/>
-														</svg>
-													</button>
-												{/if}
 
-												{#if request.status === 'active' && openActionMenuFor === request.rawId}
-													<div
-														class="absolute top-full right-0 z-10 mt-2 w-48 rounded-lg border border-gray-200 bg-white p-1 shadow-lg"
-													>
-														<button
-															onclick={() => {
-																closeActionMenu();
-																markMissing(request.rawId);
-															}}
-															class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-rose-700 hover:bg-rose-50"
-														>
-															Mark Missing
-														</button>
-														{#if request.isOverdue}
-															<button
-																onclick={() => {
-																	closeActionMenu();
-																	sendReminder(request.rawId);
-																}}
-																class="flex w-full items-center rounded-md px-3 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50"
-															>
-																Send Reminder
-															</button>
-														{/if}
-													</div>
-												{/if}
 											</div>
 										</div>
 									{/each}
@@ -1881,6 +1649,7 @@
 								</div>
 							</div>
 						{/if}
+						</div>
 					{/if}
 
 					{#if filteredRequests.length > 0 && totalPages > 1}
@@ -2594,12 +2363,23 @@
 							<button
 								onclick={() => openResolveModal(selectedRequest.rawId)}
 								disabled={resolvingRequestId === selectedRequest.rawId}
-								class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-linear-to-r from-amber-600 to-amber-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-amber-700 hover:to-amber-800 active:scale-[0.98] sm:px-6 sm:py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+								class="inline-flex items-center justify-center gap-1.5 rounded-xl bg-linear-to-r from-amber-600 to-amber-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-amber-700 hover:to-amber-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-6 sm:py-3"
 							>
 								{#if resolvingRequestId === selectedRequest.rawId}
 									<svg class="h-4 w-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
-										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										<circle
+											class="opacity-25"
+											cx="12"
+											cy="12"
+											r="10"
+											stroke="currentColor"
+											stroke-width="4"
+										></circle>
+										<path
+											class="opacity-75"
+											fill="currentColor"
+											d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+										></path>
 									</svg>
 									Loading...
 								{:else}
