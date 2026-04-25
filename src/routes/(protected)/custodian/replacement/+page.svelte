@@ -1396,146 +1396,54 @@
 						</div>
 					{:else if viewMode === 'card'}
 						<div class="space-y-4">
-							<!-- Mobile card list - hidden on sm+ -->
-							<div class="space-y-3 sm:hidden" style="min-height: 600px;">
+							<!-- Card view -->
+							<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="min-height: 600px; align-content: start;">
 								{#each requestSummaries as summary}
-									<button
-										onclick={() => { selectedSummary = summary; selectedSummaryItemIndex = 0; }}
-										class="w-full rounded-xl border-l-4 {getRequestSummaryStatusClass(summary.statuses).includes('amber') ? 'border-amber-400' : getRequestSummaryStatusClass(summary.statuses).includes('slate') ? 'border-slate-400' : 'border-gray-300'} bg-white p-4 text-left shadow-sm ring-1 ring-gray-200 transition-all active:bg-gray-50"
-									>
-										<div class="space-y-3">
-											<!-- Header -->
-											<div class="flex items-start justify-between gap-2">
+									<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getRequestSummaryStatusClass(summary.statuses).includes('amber') ? 'border-amber-400' : getRequestSummaryStatusClass(summary.statuses).includes('slate') ? 'border-slate-400' : 'border-gray-300'}">
+										<div class="p-4 sm:p-5">
+											<div class="flex items-start justify-between gap-3 mb-3">
 												<div class="flex flex-col gap-1 flex-1 min-w-0">
-													<span class="font-mono text-xs font-bold tracking-widest text-gray-900">{summary.requestCode}</span>
-													<span class="inline-flex w-fit items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getRequestSummaryStatusClass(summary.statuses)}">
-														{getRequestSummaryStatusLabel(summary.statuses)}
-													</span>
+													<span class="font-semibold text-gray-900 truncate">{summary.studentName}</span>
+													<span class="text-xs font-mono text-gray-500 truncate">{summary.requestCode}</span>
 												</div>
-												<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-												</svg>
+												<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getRequestSummaryStatusClass(summary.statuses)}">
+													{getRequestSummaryStatusLabel(summary.statuses)}
+												</span>
 											</div>
-
-											<!-- Student -->
-											<div class="flex flex-col gap-3 sm:flex-row sm:items-center">
-												<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-[10px] font-semibold text-pink-700">
-													{#if summary.studentProfilePhotoUrl}
-														<img src={summary.studentProfilePhotoUrl} alt={summary.studentName} class="h-full w-full object-cover" loading="lazy" />
-													{:else}
-														{getInitials(summary.studentName)}
+											<div class="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+												<div class="flex items-center gap-1.5">
+													<Package class="h-4 w-4" />
+													<span class="font-medium text-gray-900">Qty: {summary.items}</span>
+												</div>
+												<div class="flex items-center gap-1.5">
+													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+													<span>{new Date(summary.latestDueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+												</div>
+											</div>
+											{#if summary.missingCount > 0 || summary.damagedCount > 0}
+												<div class="mt-3 text-xs text-gray-500 border-t border-gray-100 pt-3 flex gap-2">
+													{#if summary.missingCount > 0}
+														<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-800">
+															<span class="h-1 w-1 rounded-full bg-red-500"></span>
+															{summary.missingCount} Missing
+														</span>
+													{/if}
+													{#if summary.damagedCount > 0}
+														<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-800">
+															<span class="h-1 w-1 rounded-full bg-rose-500"></span>
+															{summary.damagedCount} Damaged
+														</span>
 													{/if}
 												</div>
-												<div class="sm:ml-auto">
-													<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 {getRequestSummaryStatusClass(summary.statuses)}">
-														{getRequestSummaryStatusLabel(summary.statuses)}
-													</span>
-												</div>
-												<div class="min-w-0 flex-1">
-													<div class="truncate text-xs font-medium text-gray-900">{summary.studentName}</div>
-													<div class="truncate text-[10px] text-gray-500">{summary.studentEmail}</div>
-												</div>
-											</div>
-
-											<!-- Incidents & Meta -->
-											<div class="flex flex-wrap items-center gap-1.5 text-[10px]">
-												{#if summary.missingCount > 0}
-													<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-800">
-														<span class="h-1 w-1 rounded-full bg-red-500"></span>
-														{summary.missingCount} Missing
-													</span>
-												{/if}
-												{#if summary.damagedCount > 0}
-													<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-800">
-														<span class="h-1 w-1 rounded-full bg-rose-500"></span>
-														{summary.damagedCount} Damaged
-													</span>
-												{/if}
-												<span class="text-gray-400">· {summary.items} item{summary.items !== 1 ? 's' : ''}</span>
-												<span class="text-gray-400">· Due: {new Date(summary.latestDueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
-											</div>
+											{/if}
 										</div>
-									</button>
-								{/each}
-							</div>
-
-							<!-- Desktop card list - hidden on mobile -->
-							<div class="hidden space-y-4 sm:block" style="min-height: 600px;">
-								{#each requestSummaries as summary}
-										<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md border-l-4 {getRequestSummaryStatusClass(summary.statuses).includes('amber') ? 'border-amber-400' : getRequestSummaryStatusClass(summary.statuses).includes('slate') ? 'border-slate-400' : 'border-gray-300'}">
-											<!-- Card Body -->
-											<div class="p-4 sm:p-5">
-												<!-- Header: Request Code + Status + Date -->
-												<div class="flex items-start justify-between gap-3 mb-3">
-													<div class="flex flex-col gap-1 flex-1 min-w-0">
-														<div class="flex flex-wrap items-center gap-2">
-															<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{summary.requestCode}</span>
-															<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold {getRequestSummaryStatusClass(summary.statuses)}">
-																{getRequestSummaryStatusLabel(summary.statuses)}
-															</span>
-														</div>
-														<time class="text-[11px] text-gray-400">
-															Due: {new Date(summary.latestDueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-														</time>
-													</div>
-												</div>
-
-												<!-- Student Info -->
-												<div class="mt-4 flex items-center gap-3">
-													<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
-														{#if summary.studentProfilePhotoUrl}
-															<img src={summary.studentProfilePhotoUrl} alt={summary.studentName} class="h-full w-full object-cover" loading="lazy" />
-														{:else}
-															{getInitials(summary.studentName)}
-														{/if}
-													</div>
-													<div class="min-w-0 flex-1">
-														<div class="truncate text-sm font-medium text-gray-900">{summary.studentName}</div>
-														<div class="truncate text-xs text-gray-500">{summary.studentEmail}</div>
-													</div>
-												</div>
-
-												<!-- Incident Badges -->
-												<div class="mt-4">
-													<p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Incidents</p>
-													<div class="flex flex-wrap gap-1.5">
-														{#if summary.missingCount > 0}
-															<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-800">
-																<span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
-																{summary.missingCount} Missing
-															</span>
-														{/if}
-														{#if summary.damagedCount > 0}
-															<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-800">
-																<span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
-																{summary.damagedCount} Damaged
-															</span>
-														{/if}
-													</div>
-												</div>
-
-												<!-- Metadata -->
-												<div class="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
-													<svg class="h-3.5 w-3.5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-													</svg>
-													<span>{summary.items} item{summary.items !== 1 ? 's' : ''}</span>
-												</div>
-											</div>
-
-											<!-- Card Footer -->
-											<div class="flex justify-end border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:px-5">
-												<button
-													onclick={() => { selectedSummary = summary; selectedSummaryItemIndex = 0; }}
-													class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1"
-												>
-													View Details
-													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-													</svg>
-												</button>
-											</div>
+										<div class="flex justify-end border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:px-5">
+											<button onclick={() => { selectedSummary = summary; selectedSummaryItemIndex = 0; }} class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1">
+												View Details
+												<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+											</button>
 										</div>
+									</div>
 								{/each}
 							</div>
 
