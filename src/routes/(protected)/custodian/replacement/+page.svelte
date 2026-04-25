@@ -12,10 +12,10 @@
 	import ReplacementObligationModal from '$lib/components/custodian/ReplacementObligationModal.svelte';
 	import { Package, AlertCircle, CheckCircle2, TrendingUp } from 'lucide-svelte';
 
-	let activeTab = $state<'donations' | 'replacements' | 'history'>('replacements');
-	let replacementsFilter = $state<'all' | 'pending' | 'replaced'>('all');
+	let activeTab = $state<'donations' | 'replacements' | 'history'>('donations');
+	let replacementsFilter = $state<'pending' | 'replaced' | 'all'>('pending');
 	let historyFilter = $state<'all' | 'resolved'>('all');
-	let replacementsView = $state<'by-request' | 'by-item'>('by-item');
+	let viewMode = $state<'card' | 'list'>('card');
 	let obligations = $state<ReplacementObligation[]>([]);
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);
@@ -893,7 +893,7 @@
 			maxPages = totalDonationsPages;
 		} else if (activeTab === 'history') {
 			maxPages = totalHistoryPages;
-		} else if (replacementsView === 'by-request') {
+		} else if (activeTab === 'replacements' && viewMode === 'card') {
 			maxPages = totalRequestPages;
 		}
 		
@@ -904,7 +904,7 @@
 
 	// Reset to page 1 when filters or view changes
 	$effect(() => {
-		if (replacementsFilter || replacementsView || activeTab || historyFilter) {
+		if (replacementsFilter || viewMode || activeTab || historyFilter) {
 			currentPage = 1;
 		}
 	});
@@ -994,6 +994,14 @@
 	<div class="border-b border-gray-200">
 		<nav class="-mb-px flex" aria-label="Tabs">
 			<button
+				onclick={() => (activeTab = 'donations')}
+				class="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:flex-none sm:px-6 sm:text-sm {activeTab === 'donations'
+					? 'border-pink-500 text-pink-600'
+					: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
+			>
+				Donations
+			</button>
+			<button
 				onclick={() => (activeTab = 'replacements')}
 				class="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:flex-none sm:px-6 sm:text-sm {activeTab === 'replacements'
 					? 'border-pink-500 text-pink-600'
@@ -1004,14 +1012,6 @@
 				{#if obligationCounts.pending > 0}
 					<span class="rounded-full px-1.5 py-0.5 text-[10px] font-semibold {activeTab === 'replacements' ? 'bg-amber-100 text-amber-700' : 'bg-amber-50 text-amber-600'}">{obligationCounts.pending}</span>
 				{/if}
-			</button>
-			<button
-				onclick={() => (activeTab = 'donations')}
-				class="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:flex-none sm:px-6 sm:text-sm {activeTab === 'donations'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}"
-			>
-				Donations
 			</button>
 			<button
 				onclick={() => (activeTab = 'history')}
@@ -1097,18 +1097,42 @@
 						</button>
 					</div>
 
-					<!-- Search -->
-					<div class="relative max-w-sm">
-						<svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
-						</svg>
-						<input
-							type="search"
-							bind:value={donationsSearch}
-							oninput={() => loadDonations()}
-							placeholder="Search by item, donor, or purpose…"
-							class="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-						/>
+					<!-- Search and Toggle -->
+					<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+						<div class="relative w-full sm:max-w-sm">
+							<svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/>
+							</svg>
+							<input
+								type="search"
+								bind:value={donationsSearch}
+								oninput={() => loadDonations()}
+								placeholder="Search by item, donor, or purpose…"
+								class="block h-10 w-full rounded-xl border border-gray-300 bg-white py-2 pr-3 pl-9 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-100"
+							/>
+						</div>
+						<div class="flex items-center gap-2 justify-end">
+							<div class="flex overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm">
+								<button
+									onclick={() => (viewMode = 'card')}
+									aria-label="Card view"
+									class="flex h-10 w-10 items-center justify-center text-sm transition-colors {viewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'text-gray-600 hover:bg-gray-50'}"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+									</svg>
+								</button>
+								<button
+									onclick={() => (viewMode = 'list')}
+									aria-label="Table view"
+									class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {viewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'text-gray-600 hover:bg-gray-50'}"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+									</svg>
+								</button>
+							</div>
+						</div>
 					</div>
 
 					<!-- Donations List -->
@@ -1137,39 +1161,103 @@
 								</div>
 							</div>
 						{:else}
-							<!-- Clean list view -->
-							<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100" style="min-height: 600px;">
-								{#each paginatedDonations as donation}
-									<button
-										onclick={() => selectedDonation = donation}
-										class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
-									>
-										<!-- Icon -->
-										<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 sm:h-14 sm:w-14">
-											<svg class="h-6 w-6 sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
-											</svg>
-										</div>
-
-										<!-- Info -->
-										<div class="min-w-0 flex-1">
-											<p class="truncate text-sm font-semibold text-gray-900">{donation.itemName}</p>
-											<p class="truncate text-xs text-gray-500">{donation.donorName}</p>
-											<div class="mt-1 flex flex-wrap items-center gap-1">
-												<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {donation.inventoryAction === 'new_item' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">
-													{donation.inventoryAction === 'new_item' ? 'New Item' : 'Added'}
-												</span>
-												<span class="text-[10px] text-gray-400">Qty: {donation.quantity.toLocaleString()}</span>
+							{#if viewMode === 'card'}
+								<!-- Card view -->
+								<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="min-height: 600px; align-content: start;">
+									{#each paginatedDonations as donation}
+										<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {donation.inventoryAction === 'new_item' ? 'border-emerald-400' : 'border-blue-400'}">
+											<div class="p-4 sm:p-5">
+												<div class="flex items-start justify-between gap-3 mb-3">
+													<div class="flex flex-col gap-1 flex-1 min-w-0">
+														<span class="font-semibold text-gray-900 truncate">{donation.itemName}</span>
+														<span class="text-xs text-gray-500 truncate">{donation.donorName}</span>
+													</div>
+													<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {donation.inventoryAction === 'new_item' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">
+														{donation.inventoryAction === 'new_item' ? 'New Item' : 'Added'}
+													</span>
+												</div>
+												<div class="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+													<div class="flex items-center gap-1.5">
+														<Package class="h-4 w-4" />
+														<span class="font-medium text-gray-900">Qty: {donation.quantity.toLocaleString()}</span>
+													</div>
+													<div class="flex items-center gap-1.5">
+														<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+														<span>{new Date(donation.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+													</div>
+												</div>
+												{#if donation.purpose}
+													<div class="mt-3 text-xs text-gray-500 border-t border-gray-100 pt-3 line-clamp-2">
+														<span class="font-medium text-gray-700">Purpose:</span> {donation.purpose}
+													</div>
+												{/if}
+											</div>
+											<div class="flex justify-end border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:px-5">
+												<button onclick={() => selectedDonation = donation} class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1">
+													View Details
+													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+												</button>
 											</div>
 										</div>
+									{/each}
+								</div>
+							{:else}
+								<!-- Table list view -->
+								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" style="min-height: 600px;">
+									<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[1.5fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+										<span>Item</span>
+										<span>Donor</span>
+										<span>Date</span>
+										<span class="text-right">Actions</span>
+									</div>
+									<div class="divide-y divide-gray-100">
+										{#each paginatedDonations as donation}
+											<div class="grid gap-3 p-4 md:grid-cols-[1.5fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+												<!-- Item -->
+												<div class="flex items-center gap-3 min-w-0">
+													<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+														<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/>
+														</svg>
+													</div>
+													<div class="min-w-0">
+														<p class="truncate text-sm font-semibold text-gray-900">{donation.itemName}</p>
+														<div class="mt-1 flex flex-wrap items-center gap-1">
+															<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {donation.inventoryAction === 'new_item' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}">
+																{donation.inventoryAction === 'new_item' ? 'New Item' : 'Added'}
+															</span>
+															<span class="text-[10px] font-medium text-gray-500">Qty: {donation.quantity.toLocaleString()}</span>
+														</div>
+													</div>
+												</div>
 
-										<!-- Arrow -->
-										<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-										</svg>
-									</button>
-								{/each}
-							</div>
+												<!-- Donor -->
+												<div class="min-w-0">
+													<p class="truncate text-sm font-medium text-gray-900">{donation.donorName}</p>
+													{#if donation.purpose}
+														<p class="mt-1 truncate text-xs text-gray-500">{donation.purpose}</p>
+													{/if}
+												</div>
+
+												<!-- Date -->
+												<div class="min-w-0">
+													<p class="text-sm font-medium text-gray-900">{new Date(donation.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+												</div>
+
+												<!-- Actions -->
+												<div class="flex md:justify-end">
+													<button
+														onclick={() => selectedDonation = donation}
+														class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+													>
+														Details
+													</button>
+												</div>
+											</div>
+										{/each}
+									</div>
+								</div>
+							{/if}
 
 							<!-- Pagination -->
 							{#if totalDonationsPages > 1}
@@ -1236,9 +1324,9 @@
 					<div class="border-b border-gray-200 bg-white">
 						<nav class="-mb-px flex overflow-x-auto" aria-label="Accountability filter" style="scrollbar-width: none; -ms-overflow-style: none;">
 							{#each [
-								{ key: 'all', label: 'All', count: obligationCounts.all },
 								{ key: 'pending', label: 'Pending', count: obligationCounts.pending },
-								{ key: 'replaced', label: 'Replaced', count: obligationCounts.replaced }
+								{ key: 'replaced', label: 'Replaced', count: obligationCounts.replaced },
+								{ key: 'all', label: 'All', count: obligationCounts.all }
 							] as tab}
 								<button
 									onclick={() => (replacementsFilter = tab.key as typeof replacementsFilter)}
@@ -1253,19 +1341,32 @@
 						</nav>
 					</div>
 
-					<div class="inline-flex w-fit items-center rounded-lg border border-gray-200 bg-gray-50 p-1">
-						<button
-							onclick={() => (replacementsView = 'by-request')}
-							class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:py-2 sm:text-sm {replacementsView === 'by-request' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
-						>
-							By Request
-						</button>
-						<button
-							onclick={() => (replacementsView = 'by-item')}
-							class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors sm:px-4 sm:py-2 sm:text-sm {replacementsView === 'by-item' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
-						>
-							By Item
-						</button>
+					<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+						<div class="text-sm font-semibold text-gray-700">
+							{filteredObligations.length} {filteredObligations.length === 1 ? 'obligation' : 'obligations'} found
+						</div>
+						<div class="flex items-center gap-2">
+							<div class="flex overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm">
+								<button
+									onclick={() => (viewMode = 'card')}
+									aria-label="Card view"
+									class="flex h-10 w-10 items-center justify-center text-sm transition-colors {viewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'text-gray-600 hover:bg-gray-50'}"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+									</svg>
+								</button>
+								<button
+									onclick={() => (viewMode = 'list')}
+									aria-label="Table view"
+									class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {viewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'text-gray-600 hover:bg-gray-50'}"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+									</svg>
+								</button>
+							</div>
+						</div>
 					</div>
 
 					{#if isLoading}
@@ -1293,7 +1394,7 @@
 								<p class="mt-1 text-xs text-gray-500">Obligations from damage and missing incidents will appear here.</p>
 							</div>
 						</div>
-					{:else if replacementsView === 'by-request'}
+					{:else if viewMode === 'card'}
 						<div class="space-y-4">
 							<!-- Mobile card list - hidden on sm+ -->
 							<div class="space-y-3 sm:hidden" style="min-height: 600px;">
@@ -1488,42 +1589,66 @@
 						</div>
 					{:else}
 						<div class="space-y-4">
-							<!-- Mobile/All screens list -->
-							<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100" style="min-height: 600px;">
-								{#each paginatedObligations as obligation}
-									<button
-										onclick={() => selectedObligation = obligation}
-										class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
-									>
-										<!-- Student Avatar -->
-										<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 sm:h-14 sm:w-14">
-											{#if obligation.studentProfilePhotoUrl}
-												<img src={obligation.studentProfilePhotoUrl} alt={obligation.studentName || 'Student'} class="h-full w-full object-cover" loading="lazy" />
-											{:else}
-												{getInitials(obligation.studentName || 'Unknown Student')}
-											{/if}
-										</div>
+							<!-- Table list view -->
+							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" style="min-height: 600px;">
+								<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[1.5fr_1fr_1fr_auto] md:items-center md:gap-3">
+									<span>Student & Request</span>
+									<span>Item</span>
+									<span>Status</span>
+									<span class="text-right">Actions</span>
+								</div>
+								<div class="divide-y divide-gray-100">
+									{#each paginatedObligations as obligation}
+										<div class="grid gap-3 p-4 md:grid-cols-[1.5fr_1fr_1fr_auto] md:items-center md:gap-3">
+											<!-- Student & Request -->
+											<div class="flex items-center gap-3 min-w-0">
+												<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
+													{#if obligation.studentProfilePhotoUrl}
+														<img src={obligation.studentProfilePhotoUrl} alt={obligation.studentName || 'Student'} class="h-full w-full object-cover" loading="lazy" />
+													{:else}
+														{getInitials(obligation.studentName || 'Unknown Student')}
+													{/if}
+												</div>
+												<div class="min-w-0">
+													<p class="truncate text-sm font-semibold text-gray-900">{obligation.studentName || 'Unknown Student'}</p>
+													<p class="mt-1 truncate text-xs font-mono text-gray-500">REQ-{obligation.borrowRequestId.slice(-6).toUpperCase()}</p>
+												</div>
+											</div>
 
-										<!-- Info -->
-										<div class="min-w-0 flex-1">
-											<p class="truncate text-sm font-semibold text-gray-900">{obligation.studentName || 'Unknown Student'}</p>
-											<p class="truncate text-xs text-gray-500">{obligation.itemName}</p>
-											<div class="mt-1 flex flex-wrap items-center gap-1">
-												<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {obligation.type === 'missing' ? 'bg-red-100 text-red-800' : 'bg-rose-100 text-rose-800'}">
-													{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
-												</span>
-												<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getObligationStatusClass(obligation.status)}">
-													{obligation.status.charAt(0).toUpperCase() + obligation.status.slice(1)}
+											<!-- Item -->
+											<div class="min-w-0">
+												<p class="truncate text-sm font-medium text-gray-900">{obligation.itemName}</p>
+												<span class="mt-1 inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[10px] font-medium text-gray-700">
+													Qty: {obligation.amount}
 												</span>
 											</div>
-										</div>
 
-										<!-- Arrow -->
-										<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-										</svg>
-									</button>
-								{/each}
+											<!-- Status -->
+											<div class="min-w-0">
+												<div class="flex flex-wrap items-center gap-1.5">
+													<span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold {obligation.type === 'missing' ? 'bg-red-100 text-red-800' : 'bg-rose-100 text-rose-800'}">
+														{obligation.type === 'missing' ? 'Missing' : 'Damaged'}
+													</span>
+													<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getObligationStatusClass(obligation.status)}">
+														<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+														{obligation.status.charAt(0).toUpperCase() + obligation.status.slice(1)}
+													</span>
+												</div>
+												<p class="mt-1 text-xs text-gray-500">Due {new Date(obligation.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+											</div>
+
+											<!-- Actions -->
+											<div class="flex md:justify-end">
+												<button
+													onclick={() => selectedObligation = obligation}
+													class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+												>
+													Details
+												</button>
+											</div>
+										</div>
+									{/each}
+								</div>
 							</div>
 
 							<!-- Pagination -->
@@ -1596,24 +1721,34 @@
 						</button>
 					</div>
 
-					<!-- History sub-filter tabs -->
-					<div class="border-b border-gray-200 bg-white">
-						<nav class="-mb-px flex overflow-x-auto" aria-label="History filter" style="scrollbar-width: none; -ms-overflow-style: none;">
-							{#each [
-								{ key: 'all', label: 'All', count: historyCounts.all },
-								{ key: 'resolved', label: 'Resolved', count: historyCounts.resolved }
-							] as tab}
+
+
+					<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+						<div class="text-sm font-semibold text-gray-700">
+							{filteredPaymentHistory.length} {filteredPaymentHistory.length === 1 ? 'record' : 'records'} found
+						</div>
+						<div class="flex items-center gap-2">
+							<div class="flex overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm">
 								<button
-									onclick={() => (historyFilter = tab.key as typeof historyFilter)}
-									class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-2 py-3 text-[11px] font-medium transition-colors sm:flex-none sm:px-4 sm:text-sm {historyFilter === tab.key ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+									onclick={() => (viewMode = 'card')}
+									aria-label="Card view"
+									class="flex h-10 w-10 items-center justify-center text-sm transition-colors {viewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'text-gray-600 hover:bg-gray-50'}"
 								>
-									<span class="truncate">{tab.label}</span>
-									<span class="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] {historyFilter === tab.key ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
-										{tab.count}
-									</span>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+									</svg>
 								</button>
-							{/each}
-						</nav>
+								<button
+									onclick={() => (viewMode = 'list')}
+									aria-label="Table view"
+									class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {viewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'text-gray-600 hover:bg-gray-50'}"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+									</svg>
+								</button>
+							</div>
+						</div>
 					</div>
 
 					{#if filteredPaymentHistory.length === 0}
@@ -1627,42 +1762,92 @@
 							</div>
 						</div>
 					{:else}
-						<!-- Clean list view -->
-						<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100" style="min-height: 600px;">
-							{#each paginatedHistory as transaction}
-								<button
-									onclick={() => printReceipt(transaction.receiptNumber)}
-									class="flex w-full items-center gap-3 px-3 py-3 text-left hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5"
-								>
-									<!-- Icon -->
-									<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full {transaction.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'} sm:h-14 sm:w-14">
-										<svg class="h-6 w-6 sm:h-7 sm:w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											{#if transaction.status === 'resolved'}
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-											{:else}
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-											{/if}
-										</svg>
-									</div>
-
-									<!-- Info -->
-									<div class="min-w-0 flex-1">
-										<p class="truncate text-sm font-semibold text-gray-900">{transaction.name}</p>
-										<p class="truncate text-xs text-gray-500">{transaction.receiptNumber}</p>
-										<div class="mt-1 flex flex-wrap items-center gap-1">
-											<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-cyan-100 text-cyan-800">
-												Replaced
-											</span>
+						{#if viewMode === 'card'}
+							<!-- Card view -->
+							<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="min-height: 600px; align-content: start;">
+								{#each paginatedHistory as transaction}
+									<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {transaction.status === 'resolved' ? 'border-emerald-400' : 'border-slate-400'}">
+										<div class="p-4 sm:p-5">
+											<div class="flex items-start justify-between gap-3 mb-3">
+												<div class="flex flex-col gap-1 flex-1 min-w-0">
+													<span class="font-semibold text-gray-900 truncate">{transaction.name}</span>
+													<span class="text-xs font-mono text-gray-500 truncate">{transaction.receiptNumber}</span>
+												</div>
+												<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-cyan-100 text-cyan-800">
+													Replaced
+												</span>
+											</div>
+											<div class="mt-4 flex items-center gap-4 text-xs text-gray-500">
+												<div class="flex items-center gap-1.5">
+													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+													<span>{new Date(transaction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+												</div>
+											</div>
+										</div>
+										<div class="flex justify-end border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:px-5">
+											<button onclick={() => printReceipt(transaction.receiptNumber)} class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1">
+												Print Record
+												<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+											</button>
 										</div>
 									</div>
+								{/each}
+							</div>
+						{:else}
+							<!-- Table list view -->
+							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" style="min-height: 600px;">
+								<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+									<span>Receipt</span>
+									<span>Resolution</span>
+									<span>Date</span>
+									<span class="text-right">Actions</span>
+								</div>
+								<div class="divide-y divide-gray-100">
+									{#each paginatedHistory as transaction}
+										<div class="grid gap-3 p-4 md:grid-cols-[1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+											<!-- Receipt -->
+											<div class="min-w-0">
+												<p class="font-mono text-xs font-bold tracking-wider text-gray-900">{transaction.receiptNumber}</p>
+												<span class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold bg-cyan-100 text-cyan-800">
+													Replaced
+												</span>
+											</div>
 
-									<!-- Arrow -->
-									<svg class="h-5 w-5 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-									</svg>
-								</button>
-							{/each}
-						</div>
+											<!-- Resolution -->
+											<div class="flex items-center gap-3 min-w-0">
+												<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full {transaction.status === 'resolved' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}">
+													<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														{#if transaction.status === 'resolved'}
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+														{:else}
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+														{/if}
+													</svg>
+												</div>
+												<div class="min-w-0">
+													<p class="truncate text-sm font-semibold text-gray-900">{transaction.name}</p>
+												</div>
+											</div>
+
+											<!-- Date -->
+											<div class="min-w-0">
+												<p class="text-sm font-medium text-gray-900">{new Date(transaction.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+											</div>
+
+											<!-- Actions -->
+											<div class="flex md:justify-end">
+												<button
+													onclick={() => printReceipt(transaction.receiptNumber)}
+													class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+												>
+													Print Record
+												</button>
+											</div>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
 
 						<!-- Pagination -->
 						{#if totalHistoryPages > 1}
