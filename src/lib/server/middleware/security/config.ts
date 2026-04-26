@@ -28,7 +28,10 @@ const cspDirectives: CSPDirectives = {
 	'script-src': [
 		"'self'",
 		"'unsafe-inline'", // Required for SvelteKit hydration (use nonce in production)
-		"'unsafe-eval'" // Required for SvelteKit dev mode (remove in production)
+		"'unsafe-eval'", // Required for SvelteKit dev mode (remove in production)
+		"'wasm-unsafe-eval'", // Required for Lottie WASM player
+		'https://cdn.jsdelivr.net',
+		'https://unpkg.com'
 	],
 
 	// Styles: allow inline styles for frameworks
@@ -47,7 +50,10 @@ const cspDirectives: CSPDirectives = {
 	'connect-src': [
 		"'self'",
 		'https://res.cloudinary.com',
-		'https://api.cloudinary.com'
+		'https://api.cloudinary.com',
+		'https://cdn.jsdelivr.net',
+		'https://unpkg.com',
+		'https://lottie.host'
 	],
 
 	// Media: audio and video sources
@@ -69,7 +75,7 @@ const cspDirectives: CSPDirectives = {
 	'form-action': ["'self'"],
 
 	// Web workers
-	'worker-src': ["'self'", 'blob:'],
+	'worker-src': ["'self'", 'blob:', 'https://cdn.jsdelivr.net', 'https://unpkg.com'],
 
 	// Web app manifests
 	'manifest-src': ["'self'"],
@@ -168,7 +174,7 @@ const developmentConfig: Partial<SecurityHeadersConfig> = {
 			'127.0.0.1:*'
 		],
 		'connect-src': [
-			"'self'",
+			...(cspDirectives['connect-src'] || []),
 			'ws://localhost:*', // WebSocket for HMR
 			'ws://127.0.0.1:*',
 			'http://localhost:*',

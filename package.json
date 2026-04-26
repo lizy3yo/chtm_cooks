@@ -22,6 +22,8 @@
 	},
 	"dependencies": {
 		"@google/genai": "^1.48.0",
+		"@lottiefiles/dotlottie-svelte": "^0.9.12",
+		"@lottiefiles/dotlottie-wc": "^0.9.12",
 		"@tabler/icons-svelte": "^3.41.1",
 		"@types/qrcode": "^1.5.6",
 		"@upstash/redis": "^1.36.2",
@@ -36,6 +38,7 @@
 		"jsonwebtoken": "^9.0.3",
 		"jsqr": "^1.4.0",
 		"jszip": "^3.10.1",
+		"lottie-web": "^5.13.0",
 		"lucide-svelte": "^0.577.0",
 		"mongodb": "^6.21.0",
 		"mongoose": "^9.2.1",

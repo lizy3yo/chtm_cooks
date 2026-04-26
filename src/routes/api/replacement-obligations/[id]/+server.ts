@@ -172,9 +172,6 @@ export const PATCH: RequestHandler = async (event) => {
 
 		if (sanitizedBody.resolutionType === ResolutionType.REPLACEMENT) {
 			totalAmountPaid += sanitizedBody.amountPaid || 0;
-			if (totalAmountPaid > obligation.amount) {
-				return json({ error: 'Replacement quantity exceeds outstanding balance' }, { status: 400 });
-			}
 			newStatus = totalAmountPaid >= obligation.amount ? ObligationStatus.REPLACED : ObligationStatus.PENDING;
 		}
 
