@@ -8,7 +8,7 @@ import Skeleton from '$lib/components/ui/Skeleton.svelte';
 import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 import QRCode from 'qrcode';
 import {
-	ClipboardList, Clock, Activity, PackageOpen,
+	ClipboardList, Clock, Activity, PackageOpen, Package,
 	CheckCircle2, X, Search, RotateCcw,
 	Plus, ClipboardX, CalendarDays, FileText,
 	UserCircle, Info, CornerDownLeft,
@@ -694,21 +694,21 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 			<div class="flex flex-wrap items-center justify-end gap-2">
 				<div class="flex overflow-hidden rounded-lg border border-gray-300">
 					<button
-						onclick={() => (requestViewMode = 'card')}
-						aria-label="Card view"
-						class="flex h-10 w-10 items-center justify-center text-sm transition-colors {requestViewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
-					>
-						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-						</svg>
-					</button>
-					<button
 						onclick={() => (requestViewMode = 'list')}
 						aria-label="Table view"
-						class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {requestViewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+						class="flex h-10 w-10 items-center justify-center text-sm transition-colors {requestViewMode === 'list' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
 					>
 						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+						</svg>
+					</button>
+					<button
+						onclick={() => (requestViewMode = 'card')}
+						aria-label="Card view"
+						class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {requestViewMode === 'card' ? 'bg-pink-100 text-pink-700' : 'bg-white text-gray-600 hover:bg-gray-50'}"
+					>
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
 						</svg>
 					</button>
 				</div>
@@ -766,318 +766,254 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 			{/each}
 			</div>
 		{:else}
-		{#if requestViewMode === 'card'}
-		<div style="min-height: 600px;">
+		<!-- Request Views -->
 		{#if paginatedRequests.length > 0}
-		<div class="space-y-4">
-		{#each paginatedRequests as request}
-			{@const StatusIcon = getStatusIconComponent(request.status)}
-			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md border-l-4 {getStatusBorderColor(request.status)}">
+			{#if requestViewMode === 'card'}
+				<div style="min-height: 600px;">
+					<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">
+						{#each paginatedRequests as request}
+							{@const StatusIcon = getStatusIconComponent(request.status)}
+							<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getStatusBorderColor(request.status)}">
+								<div class="p-4 sm:p-5">
+									<!-- Header: Request ID, Status -->
+									<div class="mb-3 flex items-start justify-between gap-3">
+										<div class="flex min-w-0 flex-1 flex-col gap-1">
+											<span class="font-mono text-sm font-bold text-gray-900 truncate">{request.id}</span>
+											<span class="text-[11px] text-gray-500 truncate">{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+										</div>
+										<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getStatusColor(request.status)}">
+											<StatusIcon size={10} />
+											{getStatusLabel(request.status)}
+										</span>
+									</div>
 
-				<!-- Card Body -->
-				<div class="p-4 sm:p-5">
+									<!-- Qty & Dates -->
+									<div class="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+										<div class="flex items-center gap-1.5">
+											<Package class="h-4 w-4" />
+											<span class="font-medium text-gray-900">Qty: {request.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</span>
+										</div>
+										<div class="flex items-center gap-1.5">
+											<CalendarDays class="h-4 w-4" />
+											<span>{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+										</div>
+									</div>
 
-					<!-- Header: ID · Status · Date + QR Icon -->
-					<div class="flex items-start justify-between gap-3 mb-3">
-						<div class="flex flex-col gap-1 flex-1 min-w-0">
-						<div class="flex flex-wrap items-center gap-2">
-							<span class="font-mono text-sm font-bold tracking-widest text-gray-900">{request.id}</span>
-							<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusColor(request.status)}">
-								<StatusIcon size={11} />
-								{getStatusLabel(request.status)}
-							</span>
-						</div>
-						<time class="text-[11px] text-gray-400">
-							{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-						</time>
-						</div>
-						{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(request.status)}
-							<button
-								onclick={() => {
-									selectedRequest = request;
-									qrDataUrl = null;
-									QRCode.toDataURL(request.rawId, {
-										width: 240,
-										margin: 2,
-										color: { dark: '#111827', light: '#ffffff' },
-										errorCorrectionLevel: 'H'
-									}).then(url => { qrDataUrl = url; }).catch(() => {});
-									showQrModal = true;
-								}}
-								class="shrink-0 rounded-lg p-2 text-pink-500 transition-colors hover:bg-pink-50 hover:text-pink-600 active:bg-pink-100"
-								title="View QR Code"
-							>
-								<QrCode size={20} strokeWidth={2} />
-							</button>
-						{/if}
-					</div>
+									<!-- Equipment Chips -->
+									<div class="mt-3">
+										<div class="flex flex-wrap gap-1.5">
+											{#each request.items.slice(0, 3) as item}
+												{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+												<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-700">
+													{#if pic}
+														<img src={pic} alt={item.name} class="h-3.5 w-3.5 rounded object-cover shrink-0" />
+													{:else}
+														<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
+													{/if}
+													<span class="truncate max-w-[80px]">{item.name}</span>
+												</span>
+											{/each}
+											{#if request.items.length > 3}
+												<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600">+{request.items.length - 3}</span>
+											{/if}
+										</div>
+									</div>
 
-					<!-- Equipment Chips -->
-					<div class="mt-4">
-						<p class="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-400">Equipment Requested</p>
-						<div class="flex flex-wrap gap-1.5">
-							{#each request.items as item}
-								{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-								<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700">
-									{#if pic}
-										<img src={pic} alt={item.name} class="h-4 w-4 rounded object-cover shrink-0" />
-									{:else}
-										<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
+									<!-- Instructor -->
+									<div class="mt-3 flex items-center gap-1.5 text-xs text-gray-500">
+										<UserCircle class="h-4 w-4 shrink-0 text-gray-400" />
+										<span class="truncate">Reviewer: {request.instructor}</span>
+									</div>
+
+									<!-- Rejection Reason -->
+									{#if request.status === 'rejected' && request.rejectionReason}
+										<div class="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-2.5">
+											<svg class="h-3.5 w-3.5 shrink-0 mt-0.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+											<div class="min-w-0">
+												<p class="text-[10px] font-semibold text-red-800">Rejection Reason</p>
+												<p class="text-xs text-red-700 truncate">{request.rejectionReason}</p>
+											</div>
+										</div>
 									{/if}
-									{item.name}
-								</span>
+								</div>
+
+								<!-- Card Footer -->
+								<div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+									<!-- Status hint -->
+									<div class="text-[11px] font-medium">
+										{#if request.status === 'ready'}
+											<span class="flex items-center gap-1 text-emerald-700"><Info size={12} /> Ready for pickup</span>
+										{:else if request.status === 'pending-return'}
+											<span class="flex items-center gap-1 text-orange-600"><Clock size={12} /> Awaiting return scan</span>
+										{:else}
+											<span class="hidden sm:block text-gray-400">—</span>
+										{/if}
+									</div>
+
+									<!-- Action buttons -->
+									<div class="flex items-center gap-1.5 self-end sm:self-auto">
+										{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(request.status)}
+											<button
+												onclick={() => {
+													selectedRequest = request;
+													qrDataUrl = null;
+													QRCode.toDataURL(request.rawId, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' }, errorCorrectionLevel: 'H' }).then(url => { qrDataUrl = url; }).catch(() => {});
+													showQrModal = true;
+												}}
+												class="shrink-0 rounded-lg border border-pink-200 bg-white p-1.5 text-pink-600 shadow-sm transition-colors hover:bg-pink-50"
+												title="View QR Code"
+											>
+												<QrCode size={14} strokeWidth={2} />
+											</button>
+										{/if}
+										<button
+											onclick={() => openDetailModal(request)}
+											class="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+										>
+											Details
+										</button>
+										{#if request.status === 'pending'}
+											<button
+												onclick={() => requestCancelConfirmation(request)}
+												disabled={loadingCancel === request.rawId}
+												class="rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												{loadingCancel === request.rawId ? 'Cancelling...' : 'Cancel'}
+											</button>
+										{/if}
+										{#if request.status === 'picked-up'}
+											<button
+												onclick={() => requestReturnConfirmation(request)}
+												disabled={loadingReturn === request.rawId}
+												class="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												{loadingReturn === request.rawId ? 'Processing...' : 'Return'}
+											</button>
+										{/if}
+										{#if request.status === 'rejected'}
+											<button class="rounded-lg border border-pink-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-pink-700 shadow-sm transition-colors hover:bg-pink-50">
+												Appeal
+											</button>
+										{/if}
+									</div>
+								</div>
+							</div>
+						{/each}
+					</div>
+				</div>
+			{:else}
+				<!-- List View -->
+				<div style="min-height: 600px;">
+					<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+						<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.2fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+							<span>Request</span>
+							<span>Items & Purpose</span>
+							<span>Status</span>
+							<span class="text-right">Actions</span>
+						</div>
+						<div class="divide-y divide-gray-100">
+							{#each paginatedRequests as request}
+								{@const StatusIcon = getStatusIconComponent(request.status)}
+								<div class="grid gap-3 p-4 md:grid-cols-[1.2fr_1.5fr_1fr_auto] md:items-center md:gap-3 hover:bg-gray-50 transition-colors">
+									<div class="min-w-0">
+										<p class="font-mono text-xs font-bold tracking-wider text-gray-900 truncate">{request.id}</p>
+										<p class="mt-1 text-[11px] text-gray-500 truncate">
+											{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+										</p>
+									</div>
+
+									<div class="min-w-0">
+										<div class="flex flex-wrap gap-1.5 mb-2">
+											{#each request.items.slice(0, 3) as item}
+												{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+												<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700">
+													{#if pic}
+														<img src={pic} alt={item.name} class="h-3.5 w-3.5 rounded object-cover shrink-0" />
+													{:else}
+														<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
+													{/if}
+													<span class="truncate max-w-[100px]">{item.name}</span>
+												</span>
+											{/each}
+											{#if request.items.length > 3}
+												<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600">+{request.items.length - 3}</span>
+											{/if}
+										</div>
+										<p class="truncate text-xs text-gray-500"><span class="font-medium text-gray-700">Purpose:</span> {request.purpose}</p>
+										<p class="mt-0.5 truncate text-[11px] text-gray-400">Reviewer: {request.instructor}</p>
+									</div>
+
+									<div class="min-w-0">
+										<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold {getStatusColor(request.status)}">
+											<StatusIcon size={11} />
+											{getStatusLabel(request.status)}
+										</span>
+										{#if request.status === 'ready'}
+											<p class="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700">
+												<Info size={12} /> Ready for pickup
+											</p>
+										{:else if request.status === 'pending-return'}
+											<p class="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-orange-600">
+												<Clock size={12} /> Awaiting confirmation
+											</p>
+										{:else if request.status === 'rejected' && request.rejectionReason}
+											<p class="mt-1.5 text-[11px] text-red-600 line-clamp-1" title={request.rejectionReason}>
+												{request.rejectionReason}
+											</p>
+										{/if}
+									</div>
+
+									<div class="flex flex-wrap items-center gap-1.5 md:justify-end">
+										{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(request.status)}
+											<button
+												onclick={() => {
+													selectedRequest = request;
+													qrDataUrl = null;
+													QRCode.toDataURL(request.rawId, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' }, errorCorrectionLevel: 'H' }).then(url => { qrDataUrl = url; }).catch(() => {});
+													showQrModal = true;
+												}}
+												class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-pink-200 bg-white text-pink-600 shadow-sm transition-colors hover:bg-pink-50"
+												title="View QR Code"
+											>
+												<QrCode size={14} strokeWidth={2} />
+											</button>
+										{/if}
+										<button
+											onclick={() => openDetailModal(request)}
+											class="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
+										>
+											Details
+										</button>
+										{#if request.status === 'pending'}
+											<button
+												onclick={() => requestCancelConfirmation(request)}
+												disabled={loadingCancel === request.rawId}
+												class="rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												{loadingCancel === request.rawId ? 'Cancelling...' : 'Cancel'}
+											</button>
+										{/if}
+										{#if request.status === 'picked-up'}
+											<button
+												onclick={() => requestReturnConfirmation(request)}
+												disabled={loadingReturn === request.rawId}
+												class="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
+											>
+												{loadingReturn === request.rawId ? 'Processing...' : 'Return'}
+											</button>
+										{/if}
+										{#if request.status === 'rejected'}
+											<button class="rounded-lg border border-pink-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-pink-700 shadow-sm transition-colors hover:bg-pink-50">
+												Appeal
+											</button>
+										{/if}
+									</div>
+								</div>
 							{/each}
 						</div>
 					</div>
-
-					<!-- Metadata Row -->
-					<div class="mt-3 flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1.5">
-						<div class="flex items-center gap-1.5 text-xs text-gray-500">
-							<CalendarDays size={13} class="shrink-0 text-gray-400" />
-							<span>
-								{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-								–
-								{new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-							</span>
-						</div>
-						<div class="flex items-center gap-1.5 text-xs text-gray-500 min-w-0">
-							<FileText size={13} class="shrink-0 text-gray-400" />
-							<span class="truncate">{request.purpose}</span>
-						</div>
-						<div class="flex items-center gap-1.5 text-xs text-gray-500">
-							<UserCircle size={13} class="shrink-0 text-gray-400" />
-							<span class="truncate">{request.instructor}</span>
-						</div>
-					</div>
-
-					<!-- Rejection Reason -->
-					{#if request.status === 'rejected' && request.rejectionReason}
-						<div class="mt-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5">
-							<svg class="h-4 w-4 shrink-0 mt-0.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-							</svg>
-							<div class="min-w-0">
-								<p class="text-xs font-semibold text-red-800">Rejection Reason</p>
-								<p class="mt-0.5 text-xs text-red-700">{request.rejectionReason}</p>
-							</div>
-						</div>
-					{/if}
-
 				</div>
-
-				<!-- Card Footer: contextual hint + actions -->
-				<div class="flex flex-col gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-
-					<!-- Status hint -->
-					<div class="text-xs">
-						{#if request.status === 'ready'}
-							<span class="flex items-center gap-1.5 font-medium text-emerald-700">
-								<Info size={13} />
-								Proceed to the custodian desk to collect your items
-							</span>
-						{:else if request.status === 'pending-return'}
-							<span class="flex items-center gap-1.5 font-medium text-orange-600">
-								<Clock size={13} />
-								Awaiting custodian confirmation
-							</span>
-						{:else}
-							<span class="hidden sm:block text-gray-300">—</span>
-						{/if}
-					</div>
-
-					<!-- Action buttons -->
-					<div class="flex items-center gap-2 self-end sm:self-auto">
-						<button
-							onclick={() => openDetailModal(request)}
-							class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
-						>
-							View Details
-						</button>
-						{#if request.status === 'pending'}
-							<button
-								onclick={() => requestCancelConfirmation(request)}
-								disabled={loadingCancel === request.rawId}
-								class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-							>
-								{#if loadingCancel === request.rawId}
-									<svg class="h-3.5 w-3.5 inline-block animate-spin mr-1" fill="none" viewBox="0 0 24 24">
-										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-									</svg>
-									Cancelling…
-								{:else}
-									Cancel
-								{/if}
-							</button>
-						{/if}
-						{#if request.status === 'picked-up'}
-							<button
-								onclick={() => requestReturnConfirmation(request)}
-								disabled={loadingReturn === request.rawId}
-								class="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-							>
-								{#if loadingReturn === request.rawId}
-									<svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-										<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-										<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-									</svg>
-									Processing…
-								{:else}
-									<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 17l-4 4m0 0l-4-4m4 4V3"/>
-									</svg>
-									Return Items
-								{/if}
-							</button>
-						{/if}
-						{#if request.status === 'rejected'}
-							<button class="rounded-lg border border-pink-200 bg-white px-3 py-1.5 text-xs font-medium text-pink-700 shadow-sm hover:bg-pink-50 transition-colors">
-								Appeal
-							</button>
-						{/if}
-					</div>
-
-				</div>
-			</div>
-		{/each}
-		</div>
-		{:else}
-			<div style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
-				<div class="text-center">
-					<ClipboardX size={40} class="mx-auto text-pink-600" />
-					<h3 class="mt-2 text-sm font-medium text-gray-900">No requests found</h3>
-					<p class="mt-1 text-sm text-gray-500">Get started by creating a new request.</p>
-					<div class="mt-4">
-						<a href="/student/request" class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-medium text-white hover:bg-pink-700">
-							<Plus size={16} />
-							New Request
-						</a>
-					</div>
-				</div>
-			</div>
-		{/if}
-		</div>
-		{:else}
-		<div style="min-height: 600px;">
-		{#if paginatedRequests.length > 0}
-			<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-				<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
-					<span>Request</span>
-					<span>Items & Purpose</span>
-					<span>Status</span>
-					<span class="text-right">Actions</span>
-				</div>
-				<div class="divide-y divide-gray-100">
-					{#each paginatedRequests as request}
-						{@const StatusIcon = getStatusIconComponent(request.status)}
-						<div class="grid gap-3 p-4 md:grid-cols-[1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
-							<div class="min-w-0">
-								<p class="font-mono text-xs font-bold tracking-wider text-gray-900">{request.id}</p>
-								<p class="mt-1 text-xs text-gray-500">{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-								<p class="mt-1 text-xs text-gray-500 truncate">
-									{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-									-
-									{new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-								</p>
-							</div>
-
-							<div class="min-w-0">
-								<div class="flex flex-wrap gap-1.5 mb-2">
-									{#each request.items.slice(0, 3) as item}
-										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-										<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700">
-											{#if pic}
-												<img src={pic} alt={item.name} class="h-4 w-4 rounded object-cover shrink-0" />
-											{:else}
-												<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
-											{/if}
-											<span class="truncate max-w-25">{item.name}</span>
-										</span>
-									{/each}
-									{#if request.items.length > 3}
-										<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">+{request.items.length - 3}</span>
-									{/if}
-								</div>
-								<p class="truncate text-sm font-medium text-gray-900">{request.purpose}</p>
-								<p class="mt-0.5 truncate text-xs text-gray-500">{request.instructor}</p>
-							</div>
-
-							<div class="min-w-0">
-								<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold {getStatusColor(request.status)}">
-									<StatusIcon size={11} />
-									{getStatusLabel(request.status)}
-								</span>
-								{#if request.status === 'ready'}
-									<p class="mt-1.5 flex items-center gap-1 text-xs font-medium text-emerald-700">
-										<Info size={12} />
-										Ready for pickup
-									</p>
-								{:else if request.status === 'pending-return'}
-									<p class="mt-1.5 flex items-center gap-1 text-xs font-medium text-orange-600">
-										<Clock size={12} />
-										Awaiting confirmation
-									</p>
-								{:else if request.status === 'rejected' && request.rejectionReason}
-									<p class="mt-1.5 text-xs text-red-600 line-clamp-1" title={request.rejectionReason}>
-										{request.rejectionReason}
-									</p>
-								{/if}
-							</div>
-
-							<div class="flex flex-wrap items-center gap-2 md:justify-end">
-								{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(request.status)}
-									<button
-										onclick={() => {
-											selectedRequest = request;
-											qrDataUrl = null;
-											QRCode.toDataURL(request.rawId, {
-												width: 240,
-												margin: 2,
-												color: { dark: '#111827', light: '#ffffff' },
-												errorCorrectionLevel: 'H'
-											}).then(url => { qrDataUrl = url; }).catch(() => {});
-											showQrModal = true;
-										}}
-										class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-pink-200 bg-white text-pink-600 shadow-sm transition-colors hover:bg-pink-50"
-										title="View QR Code"
-									>
-										<QrCode size={15} strokeWidth={2} />
-									</button>
-								{/if}
-								<button
-									onclick={() => openDetailModal(request)}
-									class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
-								>
-									Details
-								</button>
-								{#if request.status === 'pending'}
-									<button
-										onclick={() => requestCancelConfirmation(request)}
-										disabled={loadingCancel === request.rawId}
-										class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-									>
-										{loadingCancel === request.rawId ? 'Cancelling...' : 'Cancel'}
-									</button>
-								{/if}
-								{#if request.status === 'picked-up'}
-									<button
-										onclick={() => requestReturnConfirmation(request)}
-										disabled={loadingReturn === request.rawId}
-										class="inline-flex items-center gap-1.5 rounded-lg bg-orange-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-									>
-										{loadingReturn === request.rawId ? 'Processing...' : 'Return'}
-									</button>
-								{/if}
-								{#if request.status === 'rejected'}
-									<button class="rounded-lg border border-pink-200 bg-white px-3 py-1.5 text-xs font-medium text-pink-700 shadow-sm hover:bg-pink-50 transition-colors">
-										Appeal
-									</button>
-								{/if}
-							</div>
-						</div>
-					{/each}
-				</div>
-			</div>
+			{/if}
 		{:else}
 			<div style="min-height: 600px; display: flex; align-items: center; justify-content: center;">
 				<div class="text-center">
@@ -1114,8 +1050,6 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 					{/if}
 				</div>
 			</div>
-		{/if}
-		</div>
 		{/if}
 		{/if}
 		
