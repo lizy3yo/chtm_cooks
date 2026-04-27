@@ -26,6 +26,7 @@
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
 	import QRCode from 'qrcode';
+	import RequestsSkeletonLoader from '$lib/components/ui/RequestsSkeletonLoader.svelte';
 
 	let activeTab = $state<'all' | 'pending' | 'active' | 'overdue' | 'history'>('all');
 	let searchQuery = $state('');
@@ -308,7 +309,10 @@
 		</div>
 	</div>
 
-	<!-- Stats -->
+	{#if loading && requests.length === 0}
+		<RequestsSkeletonLoader viewMode="list" />
+	{:else}
+		<!-- Stats -->
 	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
 		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
 			<p class="text-sm font-medium text-gray-500">Total Requests</p>
@@ -504,6 +508,7 @@
 			</div>
 		{/if}
 	</div>
+	{/if}
 </div>
 
 <!-- Details Modal -->

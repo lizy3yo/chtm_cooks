@@ -718,6 +718,17 @@
 			<!-- Stats -->
 			{#if activeTab === 'all'}
 				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+					{#if loading && stats.total === 0}
+						{#each Array(4) as _}
+							<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+								<div class="animate-pulse space-y-3">
+									<div class="h-4 w-24 rounded bg-gray-200"></div>
+									<div class="h-9 w-16 rounded bg-gray-200"></div>
+									<div class="h-3 w-32 rounded bg-gray-200"></div>
+								</div>
+							</div>
+						{/each}
+					{:else}
 					<div
 						class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
 					>
@@ -750,6 +761,7 @@
 						</p>
 						<p class="mt-1 text-xs text-gray-400">Registered this month</p>
 					</div>
+					{/if}
 				</div>
 			{/if}
 
@@ -841,11 +853,47 @@
 
 			<!-- Table -->
 			<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-				{#if loading}
-					<div class="flex items-center justify-center py-16">
-						<div class="flex items-center gap-3 text-gray-500">
-							<RefreshCw size={20} class="animate-spin text-pink-500" aria-hidden="true" />
-							<span class="text-sm font-medium">Loading users…</span>
+				{#if loading && users.length === 0}
+					<div class="p-6">
+						<div class="animate-pulse space-y-4">
+							<!-- Table Header Skeleton -->
+							<div class="hidden gap-4 border-b border-gray-200 pb-4 md:flex">
+								<div class="h-4 w-1/4 rounded bg-gray-200"></div>
+								<div class="h-4 w-1/6 rounded bg-gray-200"></div>
+								<div class="h-4 w-1/6 rounded bg-gray-200"></div>
+								<div class="h-4 w-1/6 rounded bg-gray-200"></div>
+								<div class="h-4 w-1/6 rounded bg-gray-200"></div>
+								<div class="h-4 w-1/12 rounded bg-gray-200"></div>
+							</div>
+							<!-- Rows Skeleton -->
+							{#each Array(6) as _}
+								<div
+									class="flex flex-col gap-4 border-b border-gray-100 py-3 last:border-0 md:flex-row md:items-center"
+								>
+									<div class="flex items-center gap-3 md:w-1/4">
+										<div class="h-10 w-10 shrink-0 rounded-full bg-gray-200"></div>
+										<div class="space-y-2">
+											<div class="h-4 w-24 rounded bg-gray-200"></div>
+											<div class="h-3 w-32 rounded bg-gray-200"></div>
+										</div>
+									</div>
+									<div class="hidden md:block md:w-1/6">
+										<div class="h-6 w-20 rounded-full bg-gray-200"></div>
+									</div>
+									<div class="hidden md:block md:w-1/6">
+										<div class="h-6 w-16 rounded-full bg-gray-200"></div>
+									</div>
+									<div class="hidden md:block md:w-1/6">
+										<div class="h-4 w-28 rounded bg-gray-200"></div>
+									</div>
+									<div class="hidden md:block md:w-1/6">
+										<div class="h-4 w-20 rounded bg-gray-200"></div>
+									</div>
+									<div class="hidden justify-end md:flex md:w-1/12">
+										<div class="h-8 w-8 rounded-lg bg-gray-200"></div>
+									</div>
+								</div>
+							{/each}
 						</div>
 					</div>
 				{:else if users.length === 0}

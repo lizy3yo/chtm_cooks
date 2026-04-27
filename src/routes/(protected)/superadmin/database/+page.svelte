@@ -145,9 +145,64 @@
 	</div>
 
 	{#if loading && !stats}
-		<div class="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-white p-20 shadow-sm">
-			<RefreshCw class="h-8 w-8 animate-spin text-pink-500 mb-4" />
-			<p class="text-gray-500">Analyzing database indexes and storage...</p>
+		<div class="animate-pulse space-y-6">
+			<!-- High Level Metrics Skeleton -->
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+				{#each Array(5) as _}
+					<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-2">
+						<div class="h-4 w-24 rounded bg-gray-200"></div>
+						<div class="h-8 w-16 rounded bg-gray-200"></div>
+					</div>
+				{/each}
+			</div>
+
+			<!-- Quick Actions Skeleton -->
+			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				{#each Array(3) as _}
+					<div class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+						<div class="h-10 w-10 shrink-0 rounded-lg bg-gray-200"></div>
+						<div class="space-y-2">
+							<div class="h-4 w-24 rounded bg-gray-200"></div>
+							<div class="h-3 w-32 rounded bg-gray-200"></div>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<!-- Collections Breakdown Skeleton -->
+			<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+				<div class="border-b border-gray-200 px-6 py-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-gray-50/50">
+					<div class="space-y-2">
+						<div class="h-5 w-40 rounded bg-gray-200"></div>
+						<div class="h-4 w-64 rounded bg-gray-200"></div>
+					</div>
+					<div class="h-10 w-full sm:w-64 rounded-lg bg-gray-200"></div>
+				</div>
+				<div class="p-6">
+					<div class="hidden md:flex gap-4 border-b border-gray-200 pb-4">
+						<div class="h-4 w-1/4 rounded bg-gray-200"></div>
+						<div class="h-4 w-1/5 rounded bg-gray-200"></div>
+						<div class="h-4 w-1/5 rounded bg-gray-200"></div>
+						<div class="h-4 w-1/5 rounded bg-gray-200"></div>
+						<div class="h-4 w-1/5 rounded bg-gray-200"></div>
+					</div>
+					{#each Array(4) as _}
+						<div class="flex items-center gap-4 py-4 border-b border-gray-100 last:border-0">
+							<div class="md:w-1/4 flex items-center gap-3">
+								<div class="h-8 w-8 rounded-lg bg-gray-200"></div>
+								<div class="h-4 w-24 rounded bg-gray-200"></div>
+							</div>
+							<div class="md:w-1/5"><div class="h-4 w-16 rounded bg-gray-200"></div></div>
+							<div class="md:w-1/5"><div class="h-4 w-16 rounded bg-gray-200"></div></div>
+							<div class="md:w-1/5 space-y-2">
+								<div class="h-4 w-8 rounded bg-gray-200"></div>
+								<div class="h-3 w-16 rounded bg-gray-200"></div>
+							</div>
+							<div class="md:w-1/5"><div class="h-6 w-20 rounded-md bg-gray-200"></div></div>
+						</div>
+					{/each}
+				</div>
+			</div>
 		</div>
 	{:else if stats}
 		<!-- High Level Metrics -->

@@ -142,10 +142,48 @@
 
 	<!-- Log Table Area -->
 	<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden min-h-[500px]">
-		{#if loading}
-			<div class="flex flex-col items-center justify-center p-20 text-gray-500">
-				<RefreshCw class="h-8 w-8 animate-spin text-pink-500 mb-4" />
-				<p>Retrieving secure audit trails...</p>
+		{#if loading && filteredLogs.length === 0}
+			<div class="animate-pulse p-6">
+				<!-- Table Header Skeleton -->
+				<div class="hidden md:flex gap-4 border-b border-gray-200 pb-4">
+					<div class="h-4 w-1/5 rounded bg-gray-200"></div>
+					<div class="h-4 w-1/4 rounded bg-gray-200"></div>
+					<div class="h-4 w-1/6 rounded bg-gray-200"></div>
+					<div class="h-4 w-1/4 rounded bg-gray-200"></div>
+					<div class="h-4 w-1/6 rounded bg-gray-200"></div>
+				</div>
+				<!-- Rows Skeleton -->
+				{#each Array(6) as _}
+					<div class="flex flex-col md:flex-row md:items-center gap-4 py-4 border-b border-gray-100 last:border-0">
+						<!-- Timestamp -->
+						<div class="md:w-1/5 space-y-2">
+							<div class="h-4 w-24 rounded bg-gray-200"></div>
+							<div class="h-3 w-16 rounded bg-gray-200"></div>
+						</div>
+						<!-- Actor -->
+						<div class="flex items-center gap-3 md:w-1/4">
+							<div class="h-8 w-8 shrink-0 rounded-full bg-gray-200"></div>
+							<div class="space-y-2">
+								<div class="h-4 w-20 rounded bg-gray-200"></div>
+								<div class="h-3 w-16 rounded bg-gray-200"></div>
+							</div>
+						</div>
+						<!-- Action -->
+						<div class="hidden md:block md:w-1/6">
+							<div class="h-6 w-24 rounded bg-gray-200"></div>
+						</div>
+						<!-- Target Resource -->
+						<div class="hidden md:block md:w-1/4 space-y-2">
+							<div class="h-4 w-32 rounded bg-gray-200"></div>
+							<div class="h-3 w-20 rounded bg-gray-200"></div>
+						</div>
+						<!-- Metadata -->
+						<div class="hidden md:block md:w-1/6 space-y-2">
+							<div class="h-3 w-24 rounded bg-gray-200"></div>
+							<div class="h-3 w-16 rounded bg-gray-200"></div>
+						</div>
+					</div>
+				{/each}
 			</div>
 		{:else if filteredLogs.length === 0}
 			<div class="flex flex-col items-center justify-center p-20 text-gray-500 text-center">

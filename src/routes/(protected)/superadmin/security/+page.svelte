@@ -116,7 +116,11 @@
 				<p class="text-sm font-medium text-gray-500">Active Sessions (24h)</p>
 				<Globe size={16} class="text-emerald-500" />
 			</div>
-			<p class="mt-2 text-3xl font-bold text-emerald-600">{loading ? '...' : stats.activeSessions}</p>
+			{#if loading}
+				<div class="mt-2 h-9 w-16 rounded bg-gray-200 animate-pulse"></div>
+			{:else}
+				<p class="mt-2 text-3xl font-bold text-emerald-600">{stats.activeSessions}</p>
+			{/if}
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
 			<div class="flex justify-between items-start">
@@ -180,7 +184,37 @@
 					</thead>
 					<tbody class="divide-y divide-gray-100 bg-white">
 						{#if loading}
-							<tr><td colspan="5" class="px-6 py-10 text-center text-sm text-gray-500">Loading sessions...</td></tr>
+							{#each Array(5) as _}
+								<tr class="animate-pulse hover:bg-gray-50 transition-colors">
+									<td class="whitespace-nowrap px-6 py-4">
+										<div class="flex items-center gap-3">
+											<div class="h-8 w-8 rounded-full bg-gray-200 shrink-0"></div>
+											<div class="space-y-2">
+												<div class="h-4 w-24 rounded bg-gray-200"></div>
+												<div class="h-3 w-32 rounded bg-gray-200"></div>
+											</div>
+										</div>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4">
+										<div class="flex items-center gap-2">
+											<div class="h-4 w-4 rounded bg-gray-200"></div>
+											<div class="space-y-2">
+												<div class="h-4 w-20 rounded bg-gray-200"></div>
+												<div class="h-3 w-16 rounded bg-gray-200"></div>
+											</div>
+										</div>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4">
+										<div class="h-4 w-32 rounded bg-gray-200"></div>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4">
+										<div class="h-4 w-24 rounded bg-gray-200"></div>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4 text-right">
+										<div class="h-6 w-20 rounded bg-gray-200 inline-block"></div>
+									</td>
+								</tr>
+							{/each}
 						{:else if filteredSessions.length === 0}
 							<tr><td colspan="5" class="px-6 py-10 text-center text-sm text-gray-500">No active sessions found.</td></tr>
 						{:else}

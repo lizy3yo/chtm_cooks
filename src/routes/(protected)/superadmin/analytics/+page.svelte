@@ -8,6 +8,7 @@
 	import { fetchAnalytics, subscribeToAnalyticsChanges, type AnalyticsReport } from '$lib/api/analyticsReports';
 	import { classCodesAPI, type ClassCodeStats, type ClassCodeResponse } from '$lib/api/classCodes';
 	import { toastStore } from '$lib/stores/toast';
+	import ReportsSkeletonLoader from '$lib/components/ui/ReportsSkeletonLoader.svelte';
 
 	let activeTab = $state<'system' | 'users' | 'requests' | 'classes' | 'custom'>('system');
 	let sseConnected = $state(false);
@@ -85,8 +86,10 @@
 		</div>
 	</div>
 
-	<!-- System Overview High-Level Stats -->
-	{#if analytics}
+	{#if loading && !analytics}
+		<ReportsSkeletonLoader view="overview" />
+	{:else if analytics}
+		<!-- System Overview High-Level Stats -->
 		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
 				<div class="flex items-center justify-between">
@@ -123,7 +126,6 @@
 				<p class="mt-1 text-xs text-gray-500">Currently facilitating requests</p>
 			</div>
 		</div>
-	{/if}
 
 	<!-- Tabs Navigation -->
 	<div class="border-b border-gray-200">
@@ -148,13 +150,6 @@
 
 	<!-- Main Tab Content Area -->
 	<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden min-h-[400px]">
-		{#if loading}
-			<div class="flex flex-col items-center justify-center p-16 text-gray-500">
-				<RefreshCw class="h-8 w-8 animate-spin text-pink-500 mb-4" />
-				<p>Aggregating analytics data...</p>
-			</div>
-		{:else if analytics}
-
 			<!-- System Overview -->
 			{#if activeTab === 'system'}
 				<div class="p-6">
@@ -435,6 +430,6 @@
 				</div>
 			{/if}
 
-		{/if}
 	</div>
+	{/if}
 </div>

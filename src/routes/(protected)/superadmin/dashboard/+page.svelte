@@ -9,6 +9,7 @@
 	import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
 	import { inventoryItemsAPI, type InventoryItem } from '$lib/api/inventory';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
+	import DashboardSkeletonLoader from '$lib/components/ui/DashboardSkeletonLoader.svelte';
 	import {
 		Users, GraduationCap, ClipboardList, Package,
 		TrendingUp, TrendingDown, Activity, AlertTriangle,
@@ -202,28 +203,7 @@
 
 	{#if loading}
 		<!-- ── Skeleton ──────────────────────────────────────────────────── -->
-		<div class="space-y-6" aria-busy="true">
-			<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-				{#each Array(4) as _}
-					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-3">
-						<Skeleton class="h-3 w-24" /><Skeleton class="h-8 w-14" /><Skeleton class="h-3 w-20" />
-					</div>
-				{/each}
-			</div>
-			<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-				{#each Array(2) as _}
-					<div class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-5 space-y-4">
-						<Skeleton class="h-5 w-40" />
-						{#each Array(3) as _}
-							<div class="flex items-center gap-3">
-								<Skeleton variant="circle" class="h-9 w-9" />
-								<div class="flex-1 space-y-1.5"><Skeleton class="h-4 w-48" /><Skeleton class="h-3 w-32" /></div>
-							</div>
-						{/each}
-					</div>
-				{/each}
-			</div>
-		</div>
+		<DashboardSkeletonLoader />
 	{:else}
 
 		<!-- ── KPI Strip ───────────────────────────────────────────────────── -->

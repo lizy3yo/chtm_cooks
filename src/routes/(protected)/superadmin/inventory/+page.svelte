@@ -9,6 +9,7 @@
 	import { fetchAnalytics, subscribeToAnalyticsChanges, type AnalyticsReport } from '$lib/api/analyticsReports';
 	import { replacementObligationsAPI, type ReplacementObligation } from '$lib/api/replacementObligations';
 	import { toastStore } from '$lib/stores/toast';
+	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
 
 	let activeTab = $state<'stock' | 'usage' | 'obligations'>('stock');
 	let sseConnected = $state(false);
@@ -148,7 +149,10 @@
 		</div>
 	</div>
 
-	<!-- High Level Stats -->
+	{#if loading && allItems.length === 0}
+		<InventorySkeletonLoader view="all-items" />
+	{:else}
+		<!-- High Level Stats -->
 	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
 			<div class="flex items-center justify-between">
@@ -205,13 +209,6 @@
 
 	<!-- Tab Content -->
 	<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-		{#if loading}
-			<div class="flex flex-col items-center justify-center p-12 text-gray-500">
-				<RefreshCw class="h-8 w-8 animate-spin text-pink-500 mb-4" />
-				<p>Loading inventory data...</p>
-			</div>
-		{:else}
-
 			{#if activeTab === 'stock'}
 				<div class="p-4 border-b border-gray-200 bg-gray-50/50 flex flex-col sm:flex-row gap-4 items-center justify-between">
 					<div class="relative flex-1 w-full">
@@ -510,7 +507,6 @@
 					</table>
 				</div>
 			{/if}
-
-		{/if}
 	</div>
+	{/if}
 </div>
