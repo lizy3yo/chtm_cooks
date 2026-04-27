@@ -1,40 +1,416 @@
 <script lang="ts">
-	import { Package, TrendingUp, AlertCircle, Info } from 'lucide-svelte';
+	import { onMount, onDestroy } from 'svelte';
+	import { 
+		Package, TrendingUp, AlertCircle, Info, Search, Download, 
+		RefreshCw, CheckCircle, Wifi, WifiOff, XCircle, AlertTriangle, 
+		BarChart3, Activity, Clock
+	} from 'lucide-svelte';
+	import { inventoryItemsAPI, type InventoryItem } from '$lib/api/inventory';
+	import { fetchAnalytics, subscribeToAnalyticsChanges, type AnalyticsReport } from '$lib/api/analyticsReports';
+	import { replacementObligationsAPI, type ReplacementObligation } from '$lib/api/replacementObligations';
+	import { toastStore } from '$lib/stores/toast';
 
 	let activeTab = $state<'stock' | 'usage' | 'obligations'>('stock');
+	let sseConnected = $state(false);
+	let loading = $state(true);
+
+	// Data
+	let items = $state<InventoryItem[]>([]);
+	let analytics = $state<AnalyticsReport | null>(null);
+	let obligations = $state<ReplacementObligation[]>([]);
+	let searchQuery = $state('');
+
+	// Stats
+	let lowStockCount = $derived(items.filter(i => (i.quantity - (i.currentCount || 0)) < 5).length);
+
+	let unsubscribe: (() => void) | null = null;
+
+	onMount(async () => {
+		await loadAllData();
+		
+		unsubscribe = subscribeToAnalyticsChanges(async () => {
+			sseConnected = true;
+			await loadAllData(false);
+			toastStore.info('Inventory data updated', 'Live Sync');
+		});
+
+		setTimeout(() => sseConnected = true, 1500);
+	});
+
+	onDestroy(() => {
+		unsubscribe?.();
+	});
+
+	async function loadAllData(showLoader = true) {
+		if (showLoader) loading = true;
+		try {
+			const [itemsRes, analyticsRes, obsRes] = await Promise.all([
+				inventoryItemsAPI.getAll({ limit: 500, forceRefresh: true }),
+				fetchAnalytics({ period: 'month', forceRefresh: true }),
+				replacementObligationsAPI.getObligations({ limit: 100 }, { forceRefresh: true })
+			]);
+			items = itemsRes.items;
+			analytics = analyticsRes;
+			obligations = obsRes.obligations;
+		} catch (e: any) {
+			toastStore.error(e.message || 'Failed to load inventory data');
+		} finally {
+			loading = false;
+		}
+	}
+
+	const filteredItems = $derived(
+		items.filter(i => !searchQuery || i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.category.toLowerCase().includes(searchQuery.toLowerCase()))
+	);
+
+	function formatDate(d: string | Date | undefined) {
+		if (!d) return '—';
+		return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+	}
+
+	function exportData() {
+		toastStore.info('Preparing export...', 'Export');
+		const headers = ['ID', 'Name', 'Category', 'Total Stock', 'Current Variance', 'Status'];
+		const rows = items.map(i => [
+			i.id.slice(-6).toUpperCase(),
+			`"${i.name}"`,
+			`"${i.category}"`,
+			i.currentCount ?? i.quantity,
+			i.variance,
+			i.status
+		]);
+		const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+		const blob = new Blob([csv], { type: 'text/csv' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = `inventory-export-${new Date().toISOString().split('T')[0]}.csv`;
+		a.click();
+		URL.revokeObjectURL(url);
+	}
 </script>
 
+<svelte:head>
+	<title>Inventory Overview | CHTM Cooks Superadmin</title>
+</svelte:head>
+
 <div class="space-y-6">
-	<div class="flex flex-col gap-4">
-		<div class="flex-1">
-			<h1 class="text-2xl font-bold text-gray-900">Inventory Overview</h1>
-			<p class="mt-1 text-sm text-gray-500">Read-only view of equipment inventory and usage statistics</p>
-			
-			<div class="mt-4 flex items-start gap-3 rounded-lg border border-pink-200 bg-pink-50 p-4">
-				<Info size={20} class="mt-0.5 shrink-0 text-pink-600" />
-				<div class="flex-1 text-sm">
-					<p class="font-medium text-pink-900">Inventory Monitoring Features</p>
-					<ul class="mt-2 space-y-1 text-pink-800">
-						<li>• Monitor stock levels and low inventory alerts across all equipment</li>
-						<li>• View usage statistics and most borrowed items by category</li>
-						<li>• Track replacement obligations for damaged or missing equipment</li>
-						<li>• Analyze inventory turnover and utilization rates</li>
-						<li>• Generate reports on equipment lifecycle and maintenance needs</li>
-					</ul>
-				</div>
+	<!-- Header -->
+	<div>
+		<div class="flex items-start justify-between gap-4">
+			<div class="flex-1">
+				<h1 class="text-2xl font-bold text-gray-900">Inventory Overview</h1>
+				<p class="mt-1 text-sm text-gray-500">Comprehensive view of equipment inventory, usage, and replacement needs</p>
+			</div>
+			<div class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium {sseConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'}">
+				{#if sseConnected}<Wifi size={13} class="text-emerald-500" />Live{:else}<WifiOff size={13} />Connecting...{/if}
+			</div>
+		</div>
+		
+		<div class="mt-4 flex items-start gap-3 rounded-xl border border-pink-200 bg-pink-50 p-4">
+			<Info size={20} class="mt-0.5 shrink-0 text-pink-600" />
+			<div class="flex-1 text-sm">
+				<p class="font-semibold text-pink-900">Inventory Monitoring Features</p>
+				<ul class="mt-2 space-y-1 text-pink-800">
+					<li>• Monitor stock levels and low inventory alerts across all equipment</li>
+					<li>• View usage statistics and most borrowed items by category</li>
+					<li>• Track replacement obligations for damaged or missing equipment</li>
+					<li>• Analyze inventory turnover and utilization rates</li>
+				</ul>
 			</div>
 		</div>
 	</div>
 
+	<!-- High Level Stats -->
+	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+			<div class="flex items-center justify-between">
+				<p class="text-sm font-medium text-gray-500">Total Unique Items</p>
+				<Package size={18} class="text-gray-400" />
+			</div>
+			<p class="mt-2 text-3xl font-bold text-gray-900">{items.length}</p>
+			<p class="mt-1 text-xs text-gray-500">Across {new Set(items.map(i => i.category)).size} categories</p>
+		</div>
+		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+			<div class="flex items-center justify-between">
+				<p class="text-sm font-medium text-gray-500">Total Physical Stock</p>
+				<BarChart3 size={18} class="text-gray-400" />
+			</div>
+			<p class="mt-2 text-3xl font-bold text-emerald-600">{items.reduce((acc, curr) => acc + (curr.currentCount ?? curr.quantity), 0).toLocaleString()}</p>
+			<p class="mt-1 text-xs text-gray-500">Total tracked units</p>
+		</div>
+		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+			<div class="flex items-center justify-between">
+				<p class="text-sm font-medium text-gray-500">Low Stock Alerts</p>
+				<AlertTriangle size={18} class="text-amber-500" />
+			</div>
+			<p class="mt-2 text-3xl font-bold {lowStockCount > 0 ? 'text-amber-600' : 'text-gray-900'}">{lowStockCount}</p>
+			<p class="mt-1 text-xs text-gray-500">Items nearing depletion</p>
+		</div>
+		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
+			<div class="flex items-center justify-between">
+				<p class="text-sm font-medium text-gray-500">Pending Obligations</p>
+				<RefreshCw size={18} class="text-pink-500" />
+			</div>
+			<p class="mt-2 text-3xl font-bold text-pink-600">{obligations.filter(o => o.status === 'pending').length}</p>
+			<p class="mt-1 text-xs text-gray-500">Awaiting replacement</p>
+		</div>
+	</div>
+
+	<!-- Tabs -->
 	<div class="border-b border-gray-200">
-		<nav class="-mb-px flex space-x-6">
-			<button onclick={() => activeTab = 'stock'} class="border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === 'stock' ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}">Stock Levels</button>
-			<button onclick={() => activeTab = 'usage'} class="border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === 'usage' ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}">Usage Statistics</button>
-			<button onclick={() => activeTab = 'obligations'} class="border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === 'obligations' ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}">Replacement Obligations</button>
+		<nav class="-mb-px flex space-x-6 overflow-x-auto">
+			{#each [
+				{ id: 'stock', label: 'Stock Levels', icon: Package },
+				{ id: 'usage', label: 'Usage Statistics', icon: Activity },
+				{ id: 'obligations', label: 'Replacement Obligations', icon: AlertCircle }
+			] as tab}
+				<button 
+					onclick={() => activeTab = tab.id as any} 
+					class="flex items-center gap-2 whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === tab.id ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				>
+					<tab.icon size={16} />
+					{tab.label}
+				</button>
+			{/each}
 		</nav>
 	</div>
 
-	<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-		<p class="text-center text-gray-500">Inventory data will be displayed here</p>
+	<!-- Tab Content -->
+	<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+		{#if loading}
+			<div class="flex flex-col items-center justify-center p-12 text-gray-500">
+				<RefreshCw class="h-8 w-8 animate-spin text-pink-500 mb-4" />
+				<p>Loading inventory data...</p>
+			</div>
+		{:else}
+
+			{#if activeTab === 'stock'}
+				<div class="p-4 border-b border-gray-200 bg-gray-50/50 flex flex-col sm:flex-row gap-4 items-center justify-between">
+					<div class="relative flex-1 w-full">
+						<Search size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+						<input 
+							type="text" 
+							bind:value={searchQuery} 
+							placeholder="Search inventory by name or category..." 
+							class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20" 
+						/>
+					</div>
+					<button onclick={exportData} class="inline-flex w-full sm:w-auto justify-center items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50">
+						<Download size={18} />
+						Export CSV
+					</button>
+				</div>
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-gray-200">
+						<thead class="bg-gray-50">
+							<tr>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item Details</th>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+								<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Total Stock</th>
+								<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Variance</th>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-200 bg-white">
+							{#each filteredItems as item}
+								<tr class="hover:bg-gray-50 transition-colors">
+									<td class="whitespace-nowrap px-6 py-4">
+										<div class="flex items-center gap-3">
+											<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 border border-gray-200">
+												{#if item.picture}
+													<img src={item.picture} alt={item.name} class="h-10 w-10 rounded-lg object-cover" />
+												{:else}
+													<Package size={20} class="text-gray-400" />
+												{/if}
+											</div>
+											<div>
+												<p class="font-medium text-gray-900">{item.name}</p>
+												<p class="text-xs text-gray-500">ID: {item.id.slice(-6).toUpperCase()}</p>
+											</div>
+										</div>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{item.category}</td>
+									<td class="whitespace-nowrap px-6 py-4 text-center">
+										<span class="inline-flex items-center justify-center rounded-full bg-blue-50 px-3 py-1 text-sm font-bold text-blue-700 ring-1 ring-blue-200 ring-inset">
+											{item.currentCount ?? item.quantity}
+										</span>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4 text-center">
+										{#if item.variance < 0}
+											<span class="inline-flex items-center justify-center rounded-full bg-red-50 px-3 py-1 text-sm font-bold text-red-700 ring-1 ring-red-200 ring-inset">
+												{item.variance}
+											</span>
+										{:else if item.variance > 0}
+											<span class="inline-flex items-center justify-center rounded-full bg-emerald-50 px-3 py-1 text-sm font-bold text-emerald-700 ring-1 ring-emerald-200 ring-inset">
+												+{item.variance}
+											</span>
+										{:else}
+											<span class="inline-flex items-center justify-center rounded-full bg-gray-50 px-3 py-1 text-sm font-medium text-gray-600 ring-1 ring-gray-200 ring-inset">
+												0
+											</span>
+										{/if}
+									</td>
+									<td class="whitespace-nowrap px-6 py-4">
+										{#if item.status === 'active'}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+												<CheckCircle size={12} /> Active
+											</span>
+										{:else}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800">
+												<Clock size={12} /> {item.status}
+											</span>
+										{/if}
+									</td>
+								</tr>
+							{:else}
+								<tr>
+									<td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">
+										<Package class="mx-auto h-8 w-8 text-gray-400 mb-2" />
+										No items found matching "{searchQuery}"
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{/if}
+
+			{#if activeTab === 'usage' && analytics}
+				<div class="p-6">
+					<div class="mb-6 flex items-center justify-between">
+						<h3 class="text-lg font-bold text-gray-900">Most Borrowed Items</h3>
+						<span class="text-sm text-gray-500">Past 30 Days</span>
+					</div>
+					<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+						{#each analytics.inventory.mostBorrowedItems.slice(0, 6) as item, i}
+							<div class="relative flex items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4 transition hover:bg-gray-100 hover:shadow-sm">
+								<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-700 font-bold text-lg">
+									#{i + 1}
+								</div>
+								<div>
+									<h4 class="font-bold text-gray-900">{item.name}</h4>
+									<p class="text-xs text-gray-500 mb-1">{item.category}</p>
+									<span class="inline-flex items-center gap-1 rounded bg-white px-2 py-0.5 text-xs font-semibold text-gray-700 border border-gray-200 shadow-sm">
+										<TrendingUp size={12} class="text-emerald-500" /> {item.totalBorrows} borrows
+									</span>
+								</div>
+							</div>
+						{:else}
+							<p class="text-sm text-gray-500 col-span-full py-8 text-center border-2 border-dashed border-gray-200 rounded-xl">No usage statistics available for this period.</p>
+						{/each}
+					</div>
+
+					<div class="mt-8 grid gap-6 lg:grid-cols-2">
+						<!-- Utilization by Category -->
+						<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+							<h3 class="mb-4 font-bold text-gray-900">Request Turnaround Averages</h3>
+							<div class="space-y-4">
+								<div class="flex items-center justify-between">
+									<span class="text-sm text-gray-600">Approval Time</span>
+									<span class="font-bold text-gray-900">{analytics.borrowRequests.turnaround.avgApprovalHours.toFixed(1)} hrs</span>
+								</div>
+								<div class="w-full bg-gray-200 rounded-full h-2">
+									<div class="bg-blue-500 h-2 rounded-full" style="width: {Math.min(100, (analytics.borrowRequests.turnaround.avgApprovalHours / 24) * 100)}%"></div>
+								</div>
+
+								<div class="flex items-center justify-between mt-4">
+									<span class="text-sm text-gray-600">Release Time</span>
+									<span class="font-bold text-gray-900">{analytics.borrowRequests.turnaround.avgReleaseHours.toFixed(1)} hrs</span>
+								</div>
+								<div class="w-full bg-gray-200 rounded-full h-2">
+									<div class="bg-emerald-500 h-2 rounded-full" style="width: {Math.min(100, (analytics.borrowRequests.turnaround.avgReleaseHours / 24) * 100)}%"></div>
+								</div>
+							</div>
+						</div>
+
+						<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm flex flex-col justify-center">
+							<div class="text-center">
+								<h3 class="font-bold text-gray-900 mb-2">Overall Inventory Status</h3>
+								<div class="inline-flex items-center justify-center w-32 h-32 rounded-full border-8 border-pink-100 mb-4">
+									<div class="text-center">
+										<p class="text-2xl font-bold text-pink-600">{analytics.borrowRequests.statusBreakdown.find(s => s.status === 'borrowed')?.count || 0}</p>
+										<p class="text-[10px] uppercase tracking-wider text-gray-500 font-bold">Active<br>Loans</p>
+									</div>
+								</div>
+								<div class="grid grid-cols-2 gap-4 mt-2">
+									<div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+										<p class="text-xl font-bold text-gray-900">{analytics.borrowRequests.statusBreakdown.find(s => s.status === 'pending_instructor')?.count || 0}</p>
+										<p class="text-xs text-gray-500">Pending</p>
+									</div>
+									<div class="bg-gray-50 p-3 rounded-lg border border-gray-100">
+										<p class="text-xl font-bold text-gray-900">{analytics.borrowRequests.overdueCount || 0}</p>
+										<p class="text-xs text-red-500">Overdue</p>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			{/if}
+
+			{#if activeTab === 'obligations'}
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-gray-200">
+						<thead class="bg-gray-50">
+							<tr>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+								<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-200 bg-white">
+							{#each obligations as ob}
+								<tr class="hover:bg-gray-50 transition-colors">
+									<td class="whitespace-nowrap px-6 py-4">
+										<p class="font-medium text-gray-900">{ob.itemName}</p>
+										<p class="text-xs text-gray-500">Req: REQ-{ob.borrowRequestId.slice(-6).toUpperCase()}</p>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4">
+										<p class="font-medium text-gray-900">{ob.studentName || 'Unknown Student'}</p>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4">
+										<span class="inline-flex items-center gap-1.5 rounded bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800 capitalize">
+											{ob.type}
+										</span>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4 text-center">
+										<span class="font-bold text-gray-900">{ob.amount}</span>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
+										{formatDate(ob.incidentDate)}
+									</td>
+									<td class="whitespace-nowrap px-6 py-4">
+										{#if ob.status === 'pending'}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-2.5 py-1 text-xs font-medium text-pink-800">
+												<Clock size={12} /> Pending
+											</span>
+										{:else}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+												<CheckCircle size={12} /> Resolved
+											</span>
+										{/if}
+									</td>
+								</tr>
+							{:else}
+								<tr>
+									<td colspan="6" class="px-6 py-12 text-center">
+										<div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 mb-4">
+											<CheckCircle class="h-6 w-6 text-gray-400" />
+										</div>
+										<h3 class="text-sm font-medium text-gray-900">No Replacement Obligations</h3>
+										<p class="mt-1 text-sm text-gray-500">All equipment replacements have been resolved.</p>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{/if}
+
+		{/if}
 	</div>
 </div>
