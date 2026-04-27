@@ -689,19 +689,6 @@
 		<div class="min-w-0">
 			<div class="flex items-center gap-3">
 				<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Class Code Management</h1>
-				<!-- SSE indicator -->
-				<div
-					class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium
-					{sseConnected
-						? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-						: 'border-gray-200 bg-gray-50 text-gray-500'}"
-				>
-					{#if sseConnected}
-						<Wifi size={12} class="text-emerald-500" />Live
-					{:else}
-						<WifiOff size={12} />Connecting...
-					{/if}
-				</div>
 			</div>
 			<p class="mt-0.5 text-sm text-gray-500">
 				Organize students and instructors by academic classes and sections

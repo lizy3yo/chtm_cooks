@@ -722,17 +722,6 @@
 				Manage all users across the system with role-based access control
 			</p>
 		</div>
-			<div
-				class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium {sseConnected
-					? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-					: 'border-gray-200 bg-gray-50 text-gray-500'}"
-			>
-				{#if sseConnected}<Wifi
-						size={13}
-						class="text-emerald-500"
-						aria-hidden="true"
-					/>Live{:else}<WifiOff size={13} aria-hidden="true" />Connecting...{/if}
-			</div>
 		</div>
 
 	<!-- Tabs -->

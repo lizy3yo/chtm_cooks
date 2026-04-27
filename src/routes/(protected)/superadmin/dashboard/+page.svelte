@@ -243,9 +243,6 @@
 			<p class="mt-0.5 text-sm text-gray-500">Superadmin Control Center — System-Wide Overview</p>
 		</div>
 		<div class="hidden shrink-0 items-center gap-2 sm:flex">
-			<div class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium {sseConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'}">
-				{#if sseConnected}<Wifi size={13} class="text-emerald-500" />Live{:else}<WifiOff size={13} />Connecting...{/if}
-			</div>
 			<a
 				href="/superadmin/analytics"
 				class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
