@@ -154,7 +154,7 @@
 					<DotLottieSvelte
 						src={ANIMATION_URL}
 						autoplay
-						loop
+						loop={false}
 						speed={1}
 						dotLottieRefCallback={handleDotLottieRef}
 					/>
