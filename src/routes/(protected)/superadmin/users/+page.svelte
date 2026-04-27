@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import {
 		Search,
 		Plus,
@@ -27,11 +27,15 @@
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
 
-	type Tab = 'all' | 'create' | 'bulk-import' | 'inactive';
+	type Tab = 'all' | 'inactive';
 
 	// ─── Tab & UI state ─────────────────────────────────────────────────────────
 	let activeTab = $state<Tab>('all');
 	let sseConnected = $state(false);
+
+	// ─── Modal state ─────────────────────────────────────────────────────────────
+	let showCreateModal = $state(false);
+	let showBulkImportModal = $state(false);
 
 	// ─── Users list state ────────────────────────────────────────────────────────
 	let users = $state<UserResponse[]>([]);
@@ -98,16 +102,48 @@
 	// whole page — a pattern used by platforms like Twitter and LinkedIn.
 	let photoOverrides = $state<Map<string, string | null>>(new Map());
 
+	let _pollInterval: ReturnType<typeof setInterval> | null = null;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function hydrateFromCache(): boolean {
+		const role = selectedRole !== 'all' ? selectedRole : undefined;
+		const cached = usersAPI.peekCachedUsers({
+			role,
+			search: searchQuery || undefined,
+			page: pagination.page,
+			limit: pagination.limit
+		});
+		if (!cached) return false;
+
+		let list = cached.users;
+		if (selectedStatus === 'active') list = list.filter((u) => u.isActive);
+		if (selectedStatus === 'inactive') list = list.filter((u) => !u.isActive);
+		users = list;
+		pagination = cached.pagination;
+		loading = false;
+		return true;
+	}
+
+	function scheduleRefresh(forceRefresh = false): void {
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			void loadUsers(false, forceRefresh);
+			void loadStats(forceRefresh);
+		}, 250);
+	}
+
 	// ─── Lifecycle ───────────────────────────────────────────────────────────────
-	onMount(async () => {
-		await loadUsers();
-		await loadStats();
+	onMount(() => {
+		hydrateFromCache();
+		void loadUsers(users.length === 0, false);
+		void loadStats(false);
+
 		unsubscribeSSE = usersAPI.subscribeToChanges(
 			// ── CRUD events (create / update / delete) ─────────────────────────
-			async (event) => {
+			(event) => {
 				sseConnected = true;
-				await loadUsers(false);
-				await loadStats();
+				scheduleRefresh(true);
 				const msgs: Record<string, string> = {
 					user_created: 'A new user was added',
 					user_updated: 'A user was updated',
@@ -123,15 +159,39 @@
 		setTimeout(() => {
 			sseConnected = true;
 		}, 1500);
-	});
 
-	onDestroy(() => {
-		unsubscribeSSE?.();
+		// --- 30-second polling fallback ---
+		_pollInterval = setInterval(() => {
+			void loadUsers(false, true);
+			void loadStats(true);
+		}, 30_000);
+
+		// --- Refresh on tab/window focus ---
+		const onFocus = () => {
+			void loadUsers(false, true);
+			void loadStats(true);
+		};
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') {
+				void loadUsers(false, true);
+				void loadStats(true);
+			}
+		};
+		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			unsubscribeSSE?.();
+			if (_pollInterval !== null) clearInterval(_pollInterval);
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 
 	// ─── Data loading ─────────────────────────────────────────────────────────────
-	async function loadUsers(showLoader = true) {
-		if (showLoader) loading = true;
+	async function loadUsers(showLoader = true, forceRefresh = true) {
+		if (showLoader && users.length === 0) loading = true;
 		try {
 			const role = selectedRole !== 'all' ? selectedRole : undefined;
 			const res = await usersAPI.getAll({
@@ -139,7 +199,7 @@
 				search: searchQuery || undefined,
 				page: pagination.page,
 				limit: pagination.limit,
-				forceRefresh: true
+				forceRefresh
 			});
 			let list = res.users;
 			if (selectedStatus === 'active') list = list.filter((u) => u.isActive);
@@ -181,15 +241,15 @@
 		return u.profilePhotoUrl ?? null;
 	}
 
-	async function loadStats() {
+	async function loadStats(forceRefresh = true) {
 		try {
 			const [all, students, instructors, custodians] = await Promise.all([
-				usersAPI.getAll({ limit: 1, forceRefresh: true }),
-				usersAPI.getAll({ role: 'student', limit: 1, forceRefresh: true }),
-				usersAPI.getAll({ role: 'instructor', limit: 1, forceRefresh: true }),
-				usersAPI.getAll({ role: 'custodian', limit: 1, forceRefresh: true })
+				usersAPI.getAll({ limit: 1, forceRefresh }),
+				usersAPI.getAll({ role: 'student', limit: 1, forceRefresh }),
+				usersAPI.getAll({ role: 'instructor', limit: 1, forceRefresh }),
+				usersAPI.getAll({ role: 'custodian', limit: 1, forceRefresh })
 			]);
-			const allRes = await usersAPI.getAll({ limit: 1000, forceRefresh: true });
+			const allRes = await usersAPI.getAll({ limit: 1000, forceRefresh });
 			const now = new Date();
 			const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 			stats = {
@@ -264,7 +324,7 @@
 				block: ''
 			};
 			createErrors = {};
-			activeTab = 'all';
+			showCreateModal = false;
 			await loadUsers();
 			await loadStats();
 		} catch (e: any) {
@@ -476,6 +536,8 @@
 		}
 		bulkFile = null;
 		bulkPreview = [];
+		bulkProgress = 0;
+		showBulkImportModal = false;
 		await loadUsers();
 		await loadStats();
 	}
@@ -535,6 +597,378 @@
 		'mt-1 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 transition';
 	const errorCls = 'mt-1 text-xs text-red-600';
 </script>
+
+<!-- ─── Create User Modal ────────────────────────────────────────────────────── -->
+{#if showCreateModal}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showCreateModal = false;
+		}}
+		role="presentation"
+	>
+		<div
+			class="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="create-user-modal-title"
+			tabindex="-1"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+				<div>
+					<h2 id="create-user-modal-title" class="text-xl font-semibold text-gray-900">Create New User</h2>
+					<p class="mt-0.5 text-sm text-gray-500">Add a new user account with role-based permissions</p>
+				</div>
+				<button
+					type="button"
+					onclick={() => (showCreateModal = false)}
+					class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+					aria-label="Close create user dialog"
+				>
+					<X size={20} />
+				</button>
+			</div>
+			<form
+				onsubmit={(e) => {
+					e.preventDefault();
+					handleCreateUser();
+				}}
+				class="p-6 space-y-4"
+			>
+				<div class="grid gap-4 sm:grid-cols-2">
+					<div>
+						<label for="create-first-name" class="block text-sm font-medium text-gray-700"
+							>First Name <span class="text-red-500">*</span></label
+						>
+						<input
+							id="create-first-name"
+							type="text"
+							bind:value={createForm.firstName}
+							class={inputCls}
+							placeholder="Juan"
+						/>
+						{#if createErrors.firstName}<p class={errorCls}>{createErrors.firstName}</p>{/if}
+					</div>
+					<div>
+						<label for="create-last-name" class="block text-sm font-medium text-gray-700"
+							>Last Name <span class="text-red-500">*</span></label
+						>
+						<input
+							id="create-last-name"
+							type="text"
+							bind:value={createForm.lastName}
+							class={inputCls}
+							placeholder="dela Cruz"
+						/>
+						{#if createErrors.lastName}<p class={errorCls}>{createErrors.lastName}</p>{/if}
+					</div>
+				</div>
+				<div>
+					<label for="create-email" class="block text-sm font-medium text-gray-700"
+						>Email Address <span class="text-red-500">*</span></label
+					>
+					<input
+						id="create-email"
+						type="email"
+						bind:value={createForm.email}
+						class={inputCls}
+						placeholder="juan@example.com"
+					/>
+					{#if createErrors.email}<p class={errorCls}>{createErrors.email}</p>{/if}
+				</div>
+				<div>
+					<label for="create-password" class="block text-sm font-medium text-gray-700"
+						>Password <span class="text-red-500">*</span></label
+					>
+					<input
+						id="create-password"
+						type="password"
+						bind:value={createForm.password}
+						class={inputCls}
+						placeholder="Min. 8 characters"
+					/>
+					{#if createErrors.password}<p class={errorCls}>{createErrors.password}</p>{/if}
+				</div>
+				<div>
+					<label for="create-role" class="block text-sm font-medium text-gray-700"
+						>Role <span class="text-red-500">*</span></label
+					>
+					<select id="create-role" bind:value={createForm.role} class={inputCls}>
+						<option value="">Select a role…</option>
+						<option value="student">Student</option>
+						<option value="instructor">Instructor</option>
+						<option value="custodian">Custodian</option>
+						<option value="superadmin">Superadmin</option>
+					</select>
+					{#if createErrors.role}<p class={errorCls}>{createErrors.role}</p>{/if}
+				</div>
+
+				{#if createForm.role === 'student'}
+					<div class="space-y-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
+						<p class="text-sm font-semibold text-blue-900">Student Details</p>
+						<div class="grid gap-4 sm:grid-cols-2">
+							<div>
+								<label for="create-year-level" class="block text-sm font-medium text-blue-800"
+									>Year Level <span class="text-red-500">*</span></label
+								>
+								<select id="create-year-level" bind:value={createForm.yearLevel} class={inputCls}>
+									<option value="">Select year…</option>
+									<option>1st Year</option><option>2nd Year</option><option>3rd Year</option
+									><option>4th Year</option>
+								</select>
+								{#if createErrors.yearLevel}<p class={errorCls}>{createErrors.yearLevel}</p>{/if}
+							</div>
+							<div>
+								<label for="create-block" class="block text-sm font-medium text-blue-800"
+									>Block <span class="text-red-500">*</span></label
+								>
+								<select id="create-block" bind:value={createForm.block} class={inputCls}>
+									<option value="">Select block…</option>
+									<option>A</option><option>B</option><option>C</option><option>D</option>
+								</select>
+								{#if createErrors.block}<p class={errorCls}>{createErrors.block}</p>{/if}
+							</div>
+						</div>
+					</div>
+				{/if}
+
+				<div class="flex justify-end gap-3 border-t border-gray-200 pt-5">
+					<button
+						type="button"
+						onclick={() => (showCreateModal = false)}
+						class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+						>Cancel</button
+					>
+					<button
+						type="submit"
+						disabled={createLoading}
+						class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700 disabled:opacity-60"
+					>
+						{#if createLoading}<RefreshCw
+								size={15}
+								class="animate-spin"
+								aria-hidden="true"
+							/>{:else}<Plus size={15} aria-hidden="true" />{/if}
+						Create User
+					</button>
+				</div>
+			</form>
+		</div>
+	</div>
+{/if}
+
+<!-- ─── Bulk Import Modal ────────────────────────────────────────────────────── -->
+{#if showBulkImportModal}
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<div
+		class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+		onclick={(e) => {
+			if (e.target === e.currentTarget) showBulkImportModal = false;
+		}}
+		role="presentation"
+	>
+		<div
+			class="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="bulk-import-modal-title"
+			tabindex="-1"
+			onclick={(e) => e.stopPropagation()}
+		>
+			<div class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
+				<div>
+					<h2 id="bulk-import-modal-title" class="text-xl font-semibold text-gray-900">Bulk Import Users</h2>
+					<p class="mt-0.5 text-sm text-gray-500">Import multiple users at once using a CSV file</p>
+				</div>
+				<button
+					type="button"
+					onclick={() => (showBulkImportModal = false)}
+					class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+					aria-label="Close bulk import dialog"
+				>
+					<X size={20} />
+				</button>
+			</div>
+			<div class="p-6 space-y-6">
+				<!-- Drop zone -->
+				<div>
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="rounded-xl border-2 border-dashed p-10 text-center transition-colors {isDragging
+							? 'border-pink-400 bg-pink-50'
+							: 'border-gray-300 bg-gray-50 hover:border-pink-300 hover:bg-pink-50/50'}"
+						ondragover={(e) => {
+							e.preventDefault();
+							isDragging = true;
+						}}
+						ondragleave={() => (isDragging = false)}
+						ondrop={handleDrop}
+						role="region"
+						aria-label="File drop zone for CSV upload"
+					>
+						<Upload
+							size={40}
+							class="mx-auto {isDragging ? 'text-pink-500' : 'text-gray-400'}"
+							aria-hidden="true"
+						/>
+						<p class="mt-3 text-sm font-semibold text-gray-800">Drop your CSV file here, or</p>
+						<label
+							for="bulk-file-input"
+							class="mt-3 inline-block cursor-pointer rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700"
+						>
+							Browse File
+							<input
+								id="bulk-file-input"
+								type="file"
+								accept=".csv,.xlsx"
+								class="sr-only"
+								onchange={(e) => {
+									const f = (e.target as HTMLInputElement).files?.[0];
+									if (f) handleFileSelect(f);
+								}}
+							/>
+						</label>
+						<p class="mt-2 text-xs text-gray-400">Supports .csv files · max 10 MB</p>
+						{#if bulkFile}<p class="mt-2 text-sm font-medium text-pink-700">
+								Selected: {bulkFile.name}
+							</p>{/if}
+					</div>
+
+					<!-- Template -->
+					<div class="mt-4 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+						<Download size={18} class="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
+						<div class="flex-1">
+							<p class="text-sm font-semibold text-blue-900">CSV Template</p>
+							<p class="mt-0.5 text-xs text-blue-700">
+								Download the template to ensure correct column formatting
+							</p>
+							<p class="mt-1 font-mono text-xs text-blue-600">
+								first_name, last_name, email, password, role, year_level, block
+							</p>
+						</div>
+						<button
+							type="button"
+							onclick={downloadTemplate}
+							class="shrink-0 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+							aria-label="Download CSV template"
+						>
+							Download
+						</button>
+					</div>
+				</div>
+
+				<!-- Parse errors -->
+				{#if bulkErrors.length}
+					<div class="rounded-xl border border-red-200 bg-red-50 p-4" role="alert" aria-live="polite">
+						<p class="text-sm font-semibold text-red-900">Validation Errors ({bulkErrors.length})</p>
+						<ul class="mt-2 space-y-1">
+							{#each bulkErrors as err}<li class="text-xs text-red-700">• {err}</li>{/each}
+						</ul>
+					</div>
+				{/if}
+
+				<!-- Preview -->
+				{#if bulkPreview.length}
+					<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+						<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+							<div>
+								<h3 class="font-semibold text-gray-900">
+									Preview — {bulkPreview.length} user{bulkPreview.length !== 1 ? 's' : ''} ready
+								</h3>
+								<p class="mt-0.5 text-xs text-gray-500">Review before importing</p>
+							</div>
+							<div class="flex gap-2">
+								<button
+									type="button"
+									onclick={() => {
+										bulkFile = null;
+										bulkPreview = [];
+									}}
+									class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+									aria-label="Clear preview"
+								>
+									Clear
+								</button>
+								<button
+									type="button"
+									onclick={handleBulkImport}
+									disabled={bulkImporting}
+									class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700 disabled:opacity-60"
+									aria-label="Import all users"
+								>
+									{#if bulkImporting}
+										<RefreshCw size={15} class="animate-spin" aria-hidden="true" />Importing {bulkProgress}%
+									{:else}
+										<Upload size={15} aria-hidden="true" />Import All
+									{/if}
+								</button>
+							</div>
+						</div>
+
+						{#if bulkImporting}
+							<div
+								class="border-b border-pink-100 bg-pink-50 px-6 py-3"
+								role="status"
+								aria-live="polite"
+								aria-label="Import progress"
+							>
+								<div class="mb-1.5 flex items-center justify-between text-xs text-pink-700">
+									<span>Importing users…</span><span>{bulkProgress}%</span>
+								</div>
+								<div class="h-1.5 w-full overflow-hidden rounded-full bg-pink-100">
+									<div
+										class="h-full rounded-full bg-pink-500 transition-all duration-300"
+										style="width: {bulkProgress}%"
+										role="progressbar"
+										aria-valuenow={bulkProgress}
+										aria-valuemin="0"
+										aria-valuemax="100"
+									></div>
+								</div>
+							</div>
+						{/if}
+
+						<div class="overflow-x-auto">
+							<table class="w-full text-sm">
+								<thead class="bg-gray-50">
+									<tr>
+										{#each Object.keys(bulkPreview[0]) as key}
+											<th
+												scope="col"
+												class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase"
+												>{key.replace(/_/g, ' ')}</th
+											>
+										{/each}
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-100">
+									{#each bulkPreview.slice(0, 10) as row}
+										<tr class="hover:bg-gray-50">
+											{#each Object.values(row) as val}
+												<td class="max-w-[150px] truncate px-4 py-3 text-gray-700">{val || '—'}</td>
+											{/each}
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+						{#if bulkPreview.length > 10}
+							<div
+								class="border-t border-gray-200 bg-gray-50 px-6 py-3 text-center text-xs text-gray-500"
+							>
+								… and {bulkPreview.length - 10} more rows
+							</div>
+						{/if}
+					</div>
+				{/if}
+			</div>
+		</div>
+	</div>
+{/if}
 
 <!-- ─── Edit User Slide-Over ─────────────────────────────────────────────────── -->
 {#if editUser}
@@ -667,48 +1101,19 @@
 <!-- ─── Main Page ─────────────────────────────────────────────────────────────── -->
 <div class="space-y-6">
 	<!-- Header -->
-	<div>
-		<div class="flex items-start justify-between gap-4">
-			<div class="flex-1">
-				<h1 class="text-2xl font-bold text-gray-900">User Management</h1>
-				<p class="mt-1 text-sm text-gray-500">
-					Manage all users across the system with role-based access control
-				</p>
-			</div>
-			<div
-				class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium {sseConnected
-					? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-					: 'border-gray-200 bg-gray-50 text-gray-500'}"
-			>
-				{#if sseConnected}<Wifi
-						size={13}
-						class="text-emerald-500"
-						aria-hidden="true"
-					/>Live{:else}<WifiOff size={13} aria-hidden="true" />Connecting...{/if}
-			</div>
-		</div>
-
-		<div class="flex items-start gap-3 rounded-xl border border-pink-200 bg-pink-50 p-4">
-			<Info size={18} class="mt-0.5 shrink-0 text-pink-600" aria-hidden="true" />
-			<div class="text-sm">
-				<p class="font-semibold text-pink-900">User Management Features</p>
-				<ul class="mt-1.5 space-y-0.5 text-pink-800">
-					<li>
-						• Create, edit, and deactivate users across all roles (Student, Instructor, Custodian)
-					</li>
-					<li>• Bulk import users via CSV/Excel for efficient onboarding</li>
-					<li>• Assign users to class codes for organized academic structure</li>
-					<li>• Track user activity, login history, and account status</li>
-					<li>• Reset passwords and manage account lockouts</li>
-				</ul>
-			</div>
+	<div class="flex items-start justify-between gap-3">
+		<div class="min-w-0">
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">User Management</h1>
+			<p class="mt-0.5 text-sm text-gray-500">
+				Manage all users across the system with role-based access control
+			</p>
 		</div>
 	</div>
 
 	<!-- Tabs -->
 	<div class="border-b border-gray-200">
 		<div class="-mb-px flex gap-1" role="tablist" aria-label="User management tabs">
-			{#each [['all', 'All Users'], ['create', 'Create User'], ['bulk-import', 'Bulk Import'], ['inactive', 'Inactive Users']] as [tab, label]}
+			{#each [['all', 'All Users'], ['inactive', 'Inactive Users']] as [tab, label]}
 				<button
 					type="button"
 					role="tab"
@@ -716,7 +1121,7 @@
 					aria-controls="{tab}-panel"
 					onclick={() => {
 						activeTab = tab as Tab;
-						if (tab === 'all' || tab === 'inactive') loadUsers();
+						loadUsers();
 					}}
 					class="border-b-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors {activeTab ===
 					tab
@@ -734,38 +1139,52 @@
 			<!-- Stats -->
 			{#if activeTab === 'all'}
 				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-					<div
-						class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-					>
-						<p class="text-sm font-medium text-gray-500">Total Users</p>
-						<p class="mt-2 text-3xl font-bold text-gray-900">{stats.total.toLocaleString()}</p>
-						<p class="mt-1 text-xs text-gray-400">All roles combined</p>
-					</div>
-					<div
-						class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-					>
-						<p class="text-sm font-medium text-gray-500">Active Users</p>
-						<p class="mt-2 text-3xl font-bold text-emerald-600">{stats.active.toLocaleString()}</p>
-						<p class="mt-1 text-xs text-gray-400">
-							{stats.total ? ((stats.active / stats.total) * 100).toFixed(1) : 0}% of total
-						</p>
-					</div>
-					<div
-						class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-					>
-						<p class="text-sm font-medium text-gray-500">Inactive Users</p>
-						<p class="mt-2 text-3xl font-bold text-gray-600">{stats.inactive.toLocaleString()}</p>
-						<p class="mt-1 text-xs text-amber-600">Require attention</p>
-					</div>
-					<div
-						class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-					>
-						<p class="text-sm font-medium text-gray-500">New This Month</p>
-						<p class="mt-2 text-3xl font-bold text-pink-600">
-							{stats.newThisMonth.toLocaleString()}
-						</p>
-						<p class="mt-1 text-xs text-gray-400">Registered this month</p>
-					</div>
+					{#if loading && stats.total === 0}
+						{#each Array(4) as _}
+							<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+								<div class="animate-pulse space-y-3">
+									<div class="h-4 w-24 rounded bg-gray-200"></div>
+									<div class="h-9 w-16 rounded bg-gray-200"></div>
+									<div class="h-3 w-32 rounded bg-gray-200"></div>
+								</div>
+							</div>
+						{/each}
+					{:else}
+						<div
+							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+						>
+							<p class="text-sm font-medium text-gray-500">Total Users</p>
+							<p class="mt-2 text-3xl font-bold text-gray-900">{stats.total.toLocaleString()}</p>
+							<p class="mt-1 text-xs text-gray-400">All roles combined</p>
+						</div>
+						<div
+							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+						>
+							<p class="text-sm font-medium text-gray-500">Active Users</p>
+							<p class="mt-2 text-3xl font-bold text-emerald-600">
+								{stats.active.toLocaleString()}
+							</p>
+							<p class="mt-1 text-xs text-gray-400">
+								{stats.total ? ((stats.active / stats.total) * 100).toFixed(1) : 0}% of total
+							</p>
+						</div>
+						<div
+							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+						>
+							<p class="text-sm font-medium text-gray-500">Inactive Users</p>
+							<p class="mt-2 text-3xl font-bold text-gray-600">{stats.inactive.toLocaleString()}</p>
+							<p class="mt-1 text-xs text-amber-600">Require attention</p>
+						</div>
+						<div
+							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+						>
+							<p class="text-sm font-medium text-gray-500">New This Month</p>
+							<p class="mt-2 text-3xl font-bold text-pink-600">
+								{stats.newThisMonth.toLocaleString()}
+							</p>
+							<p class="mt-1 text-xs text-gray-400">Registered this month</p>
+						</div>
+					{/if}
 				</div>
 			{/if}
 
@@ -836,7 +1255,7 @@
 								bulkFile = null;
 								bulkPreview = [];
 								bulkErrors = [];
-								activeTab = 'bulk-import';
+								showBulkImportModal = true;
 							}}
 							class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
 							aria-label="Import users"
@@ -845,7 +1264,7 @@
 						</button>
 						<button
 							type="button"
-							onclick={() => (activeTab = 'create')}
+							onclick={() => (showCreateModal = true)}
 							class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700"
 							aria-label="Add new user"
 						>
@@ -857,11 +1276,47 @@
 
 			<!-- Table -->
 			<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-				{#if loading}
-					<div class="flex items-center justify-center py-16">
-						<div class="flex items-center gap-3 text-gray-500">
-							<RefreshCw size={20} class="animate-spin text-pink-500" aria-hidden="true" />
-							<span class="text-sm font-medium">Loading users…</span>
+				{#if loading && users.length === 0}
+					<div class="p-6">
+						<div class="animate-pulse space-y-4">
+							<!-- Table Header Skeleton -->
+							<div class="hidden gap-4 border-b border-gray-200 pb-4 md:flex">
+								<div class="h-4 w-1/4 rounded bg-gray-200"></div>
+								<div class="h-4 w-1/6 rounded bg-gray-200"></div>
+								<div class="h-4 w-1/6 rounded bg-gray-200"></div>
+								<div class="h-4 w-1/6 rounded bg-gray-200"></div>
+								<div class="h-4 w-1/6 rounded bg-gray-200"></div>
+								<div class="h-4 w-1/12 rounded bg-gray-200"></div>
+							</div>
+							<!-- Rows Skeleton -->
+							{#each Array(6) as _}
+								<div
+									class="flex flex-col gap-4 border-b border-gray-100 py-3 last:border-0 md:flex-row md:items-center"
+								>
+									<div class="flex items-center gap-3 md:w-1/4">
+										<div class="h-10 w-10 shrink-0 rounded-full bg-gray-200"></div>
+										<div class="space-y-2">
+											<div class="h-4 w-24 rounded bg-gray-200"></div>
+											<div class="h-3 w-32 rounded bg-gray-200"></div>
+										</div>
+									</div>
+									<div class="hidden md:block md:w-1/6">
+										<div class="h-6 w-20 rounded-full bg-gray-200"></div>
+									</div>
+									<div class="hidden md:block md:w-1/6">
+										<div class="h-6 w-16 rounded-full bg-gray-200"></div>
+									</div>
+									<div class="hidden md:block md:w-1/6">
+										<div class="h-4 w-28 rounded bg-gray-200"></div>
+									</div>
+									<div class="hidden md:block md:w-1/6">
+										<div class="h-4 w-20 rounded bg-gray-200"></div>
+									</div>
+									<div class="hidden justify-end md:flex md:w-1/12">
+										<div class="h-8 w-8 rounded-lg bg-gray-200"></div>
+									</div>
+								</div>
+							{/each}
 						</div>
 					</div>
 				{:else if users.length === 0}
@@ -1156,325 +1611,6 @@
 			</div>
 		</div>
 		<!-- End tabpanel -->
-
-		<!-- ── CREATE USER TAB ───────────────────────────────────────────────── -->
-	{:else if activeTab === 'create'}
-		<div class="mx-auto max-w-2xl" role="tabpanel" id="create-panel" aria-labelledby="create-tab">
-			<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-				<h2 class="text-lg font-semibold text-gray-900">Create New User</h2>
-				<p class="mt-1 text-sm text-gray-500">Add a new user account with role-based permissions</p>
-
-				<form
-					onsubmit={(e) => {
-						e.preventDefault();
-						handleCreateUser();
-					}}
-					class="mt-6 space-y-4"
-				>
-					<div class="grid gap-4 sm:grid-cols-2">
-						<div>
-							<label for="create-first-name" class="block text-sm font-medium text-gray-700"
-								>First Name <span class="text-red-500">*</span></label
-							>
-							<input
-								id="create-first-name"
-								type="text"
-								bind:value={createForm.firstName}
-								class={inputCls}
-								placeholder="Juan"
-							/>
-							{#if createErrors.firstName}<p class={errorCls}>{createErrors.firstName}</p>{/if}
-						</div>
-						<div>
-							<label for="create-last-name" class="block text-sm font-medium text-gray-700"
-								>Last Name <span class="text-red-500">*</span></label
-							>
-							<input
-								id="create-last-name"
-								type="text"
-								bind:value={createForm.lastName}
-								class={inputCls}
-								placeholder="dela Cruz"
-							/>
-							{#if createErrors.lastName}<p class={errorCls}>{createErrors.lastName}</p>{/if}
-						</div>
-					</div>
-					<div>
-						<label for="create-email" class="block text-sm font-medium text-gray-700"
-							>Email Address <span class="text-red-500">*</span></label
-						>
-						<input
-							id="create-email"
-							type="email"
-							bind:value={createForm.email}
-							class={inputCls}
-							placeholder="juan@example.com"
-						/>
-						{#if createErrors.email}<p class={errorCls}>{createErrors.email}</p>{/if}
-					</div>
-					<div>
-						<label for="create-password" class="block text-sm font-medium text-gray-700"
-							>Password <span class="text-red-500">*</span></label
-						>
-						<input
-							id="create-password"
-							type="password"
-							bind:value={createForm.password}
-							class={inputCls}
-							placeholder="Min. 8 characters"
-						/>
-						{#if createErrors.password}<p class={errorCls}>{createErrors.password}</p>{/if}
-					</div>
-					<div>
-						<label for="create-role" class="block text-sm font-medium text-gray-700"
-							>Role <span class="text-red-500">*</span></label
-						>
-						<select id="create-role" bind:value={createForm.role} class={inputCls}>
-							<option value="">Select a role…</option>
-							<option value="student">Student</option>
-							<option value="instructor">Instructor</option>
-							<option value="custodian">Custodian</option>
-							<option value="superadmin">Superadmin</option>
-						</select>
-						{#if createErrors.role}<p class={errorCls}>{createErrors.role}</p>{/if}
-					</div>
-
-					{#if createForm.role === 'student'}
-						<div class="space-y-4 rounded-xl border border-blue-100 bg-blue-50 p-4">
-							<p class="text-sm font-semibold text-blue-900">Student Details</p>
-							<div class="grid gap-4 sm:grid-cols-2">
-								<div>
-									<label for="create-year-level" class="block text-sm font-medium text-blue-800"
-										>Year Level <span class="text-red-500">*</span></label
-									>
-									<select id="create-year-level" bind:value={createForm.yearLevel} class={inputCls}>
-										<option value="">Select year…</option>
-										<option>1st Year</option><option>2nd Year</option><option>3rd Year</option
-										><option>4th Year</option>
-									</select>
-									{#if createErrors.yearLevel}<p class={errorCls}>{createErrors.yearLevel}</p>{/if}
-								</div>
-								<div>
-									<label for="create-block" class="block text-sm font-medium text-blue-800"
-										>Block <span class="text-red-500">*</span></label
-									>
-									<select id="create-block" bind:value={createForm.block} class={inputCls}>
-										<option value="">Select block…</option>
-										<option>A</option><option>B</option><option>C</option><option>D</option>
-									</select>
-									{#if createErrors.block}<p class={errorCls}>{createErrors.block}</p>{/if}
-								</div>
-							</div>
-						</div>
-					{/if}
-
-					<div class="flex justify-end gap-3 border-t border-gray-200 pt-5">
-						<button
-							type="button"
-							onclick={() => (activeTab = 'all')}
-							class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-							>Cancel</button
-						>
-						<button
-							type="submit"
-							disabled={createLoading}
-							class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700 disabled:opacity-60"
-						>
-							{#if createLoading}<RefreshCw
-									size={15}
-									class="animate-spin"
-									aria-hidden="true"
-								/>{:else}<Plus size={15} aria-hidden="true" />{/if}
-							Create User
-						</button>
-					</div>
-				</form>
-			</div>
-		</div>
-
-		<!-- ── BULK IMPORT TAB ───────────────────────────────────────────────── -->
-	{:else if activeTab === 'bulk-import'}
-		<div
-			class="mx-auto max-w-3xl space-y-6"
-			role="tabpanel"
-			id="bulk-import-panel"
-			aria-labelledby="bulk-import-tab"
-		>
-			<!-- Drop zone -->
-			<div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-				<h2 class="text-lg font-semibold text-gray-900">Bulk Import Users</h2>
-				<p class="mt-1 text-sm text-gray-500">Import multiple users at once using a CSV file</p>
-
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div
-					class="mt-6 rounded-xl border-2 border-dashed p-10 text-center transition-colors {isDragging
-						? 'border-pink-400 bg-pink-50'
-						: 'border-gray-300 bg-gray-50 hover:border-pink-300 hover:bg-pink-50/50'}"
-					ondragover={(e) => {
-						e.preventDefault();
-						isDragging = true;
-					}}
-					ondragleave={() => (isDragging = false)}
-					ondrop={handleDrop}
-					role="region"
-					aria-label="File drop zone for CSV upload"
-				>
-					<Upload
-						size={40}
-						class="mx-auto {isDragging ? 'text-pink-500' : 'text-gray-400'}"
-						aria-hidden="true"
-					/>
-					<p class="mt-3 text-sm font-semibold text-gray-800">Drop your CSV file here, or</p>
-					<label
-						for="bulk-file-input"
-						class="mt-3 inline-block cursor-pointer rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700"
-					>
-						Browse File
-						<input
-							id="bulk-file-input"
-							type="file"
-							accept=".csv,.xlsx"
-							class="sr-only"
-							onchange={(e) => {
-								const f = (e.target as HTMLInputElement).files?.[0];
-								if (f) handleFileSelect(f);
-							}}
-						/>
-					</label>
-					<p class="mt-2 text-xs text-gray-400">Supports .csv files · max 10 MB</p>
-					{#if bulkFile}<p class="mt-2 text-sm font-medium text-pink-700">
-							Selected: {bulkFile.name}
-						</p>{/if}
-				</div>
-
-				<!-- Template -->
-				<div class="mt-4 flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
-					<Download size={18} class="mt-0.5 shrink-0 text-blue-600" aria-hidden="true" />
-					<div class="flex-1">
-						<p class="text-sm font-semibold text-blue-900">CSV Template</p>
-						<p class="mt-0.5 text-xs text-blue-700">
-							Download the template to ensure correct column formatting
-						</p>
-						<p class="mt-1 font-mono text-xs text-blue-600">
-							first_name, last_name, email, password, role, year_level, block
-						</p>
-					</div>
-					<button
-						type="button"
-						onclick={downloadTemplate}
-						class="shrink-0 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
-						aria-label="Download CSV template"
-					>
-						Download
-					</button>
-				</div>
-			</div>
-
-			<!-- Parse errors -->
-			{#if bulkErrors.length}
-				<div class="rounded-xl border border-red-200 bg-red-50 p-4" role="alert" aria-live="polite">
-					<p class="text-sm font-semibold text-red-900">Validation Errors ({bulkErrors.length})</p>
-					<ul class="mt-2 space-y-1">
-						{#each bulkErrors as err}<li class="text-xs text-red-700">• {err}</li>{/each}
-					</ul>
-				</div>
-			{/if}
-
-			<!-- Preview -->
-			{#if bulkPreview.length}
-				<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-					<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-						<div>
-							<h3 class="font-semibold text-gray-900">
-								Preview — {bulkPreview.length} user{bulkPreview.length !== 1 ? 's' : ''} ready
-							</h3>
-							<p class="mt-0.5 text-xs text-gray-500">Review before importing</p>
-						</div>
-						<div class="flex gap-2">
-							<button
-								type="button"
-								onclick={() => {
-									bulkFile = null;
-									bulkPreview = [];
-								}}
-								class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-								aria-label="Clear preview"
-							>
-								Clear
-							</button>
-							<button
-								type="button"
-								onclick={handleBulkImport}
-								disabled={bulkImporting}
-								class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700 disabled:opacity-60"
-								aria-label="Import all users"
-							>
-								{#if bulkImporting}
-									<RefreshCw size={15} class="animate-spin" aria-hidden="true" />Importing {bulkProgress}%
-								{:else}
-									<Upload size={15} aria-hidden="true" />Import All
-								{/if}
-							</button>
-						</div>
-					</div>
-
-					{#if bulkImporting}
-						<div
-							class="border-b border-pink-100 bg-pink-50 px-6 py-3"
-							role="status"
-							aria-live="polite"
-							aria-label="Import progress"
-						>
-							<div class="mb-1.5 flex items-center justify-between text-xs text-pink-700">
-								<span>Importing users…</span><span>{bulkProgress}%</span>
-							</div>
-							<div class="h-1.5 w-full overflow-hidden rounded-full bg-pink-100">
-								<div
-									class="h-full rounded-full bg-pink-500 transition-all duration-300"
-									style="width: {bulkProgress}%"
-									role="progressbar"
-									aria-valuenow={bulkProgress}
-									aria-valuemin="0"
-									aria-valuemax="100"
-								></div>
-							</div>
-						</div>
-					{/if}
-
-					<div class="overflow-x-auto">
-						<table class="w-full text-sm">
-							<thead class="bg-gray-50">
-								<tr>
-									{#each Object.keys(bulkPreview[0]) as key}
-										<th
-											scope="col"
-											class="px-4 py-3 text-left text-xs font-semibold tracking-wider text-gray-500 uppercase"
-											>{key.replace(/_/g, ' ')}</th
-										>
-									{/each}
-								</tr>
-							</thead>
-							<tbody class="divide-y divide-gray-100">
-								{#each bulkPreview.slice(0, 10) as row}
-									<tr class="hover:bg-gray-50">
-										{#each Object.values(row) as val}
-											<td class="max-w-[150px] truncate px-4 py-3 text-gray-700">{val || '—'}</td>
-										{/each}
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-					{#if bulkPreview.length > 10}
-						<div
-							class="border-t border-gray-200 bg-gray-50 px-6 py-3 text-center text-xs text-gray-500"
-						>
-							… and {bulkPreview.length - 10} more rows
-						</div>
-					{/if}
-				</div>
-			{/if}
-		</div>
 	{/if}
 
 	<!-- Close dropdown on outside click -->

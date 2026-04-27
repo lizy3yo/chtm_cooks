@@ -163,7 +163,7 @@ let {
 								{#if request.classCodeId}
 									{@const classCode = classCodeCache.get(request.classCodeId)}
 									{#if classCode}
-										<p class="text-sm sm:text-base font-bold text-gray-900">{classCode.code}</p>
+										<p class="text-sm sm:text-base font-bold text-gray-900">{classCode.courseCode}</p>
 										<p class="text-xs text-gray-600 mt-1">{classCode.courseName}</p>
 										<p class="text-xs text-gray-500 mt-0.5">{classCode.semester} {classCode.academicYear}</p>
 									{:else}

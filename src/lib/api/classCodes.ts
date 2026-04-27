@@ -402,5 +402,20 @@ export const classCodesAPI = {
 
 	invalidateCache(): void {
 		invalidateAllCaches();
+	},
+
+	peekCachedList(params: {
+		search?: string;
+		semester?: string;
+		academicYear?: string;
+		archived?: boolean;
+		page?: number;
+		limit?: number;
+	} = {}): ClassCodesListResponse | null {
+		return getFreshCache(listCache, buildListCacheKey(params));
+	},
+
+	peekCachedStats(): ClassCodeStats | null {
+		return getFreshCache(statsCache, 'stats');
 	}
 };

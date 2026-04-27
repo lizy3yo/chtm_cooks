@@ -1849,7 +1849,7 @@
 								<option value="" disabled>-- Select a class --</option>
 								{#each availableClassCodes as classCode}
 									<option value={classCode.id}>
-										{classCode.code} - {classCode.courseName} ({classCode.semester}
+										{classCode.courseCode} - {classCode.courseName} ({classCode.semester}
 										{classCode.academicYear})
 									</option>
 								{/each}
@@ -1874,7 +1874,7 @@
 											/>
 										</svg>
 										<div class="min-w-0 flex-1">
-											<p class="text-xs font-semibold text-emerald-900">{selected.code}</p>
+											<p class="text-xs font-semibold text-emerald-900">{selected.courseCode}</p>
 											<p class="text-xs text-emerald-700">{selected.courseName}</p>
 										</div>
 										<span

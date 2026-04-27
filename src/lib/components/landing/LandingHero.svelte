@@ -60,18 +60,18 @@
 
 		<!-- Right: Lottie Animations -->
 		<div class="hero-animations" class:visible>
-			<div class="lottie-primary">
+			<!-- Temporarily commented out phone animation -->
+			<!-- <div class="lottie-primary">
 				<DotLottieSvelte
 					src="https://lottie.host/b8c5e970-94c2-4db4-8b57-a38458f1f6bf/38GstfX0Uc.lottie"
 					loop
 					autoplay
 					dotLottieRefCallback={(ref) => dotLottie = ref}
 				/>
-			</div>
+			</div> -->
 			<div class="lottie-secondary">
 				<DotLottieSvelte
 					src="https://lottie.host/3f8f045f-a7f9-467c-b90e-5d8fec25020d/2QVqFu04nF.lottie"
-					loop
 					autoplay
 				/>
 			</div>
@@ -270,12 +270,13 @@
 		}
 	}
 
-	.lottie-primary {
+	/* Temporarily commented out phone animation styles */
+	/* .lottie-primary {
 		width: 100%;
 		height: 100%;
 		position: relative;
 		z-index: 2;
-	}
+	} */
 
 	.lottie-secondary {
 		position: absolute;
