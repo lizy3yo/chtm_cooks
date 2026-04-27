@@ -13,7 +13,7 @@ import {
 	Plus, ClipboardX, CalendarDays, FileText,
 	UserCircle, Info, CornerDownLeft,
 	Check, CircleX, PackageCheck, CircleAlert,
-	FileCheck, CheckCheck, Truck, Home, QrCode
+	FileCheck, CheckCheck, Truck, Home, QrCode, BookOpen
 } from 'lucide-svelte';
 
 type StudentTab = 'my-request' | 'instructor-approved' | 'active' | 'history';
@@ -91,7 +91,7 @@ return `REQ-${id.slice(-6).toUpperCase()}`;
 
 function mapRequest(request: BorrowRequestRecord): any {
 const uiStatus = toUiStatus(request.status, request.rejectReason);
-return {
+const mapped = {
 rawId: request.id,
 id: formatRequestCode(request.id),
 items: request.items.map((item) => ({
@@ -105,17 +105,30 @@ borrowDate: request.borrowDate,
 returnDate: request.returnDate,
 purpose: request.purpose,
 instructor: request.instructor?.fullName || 'Pending Assignment',
+classCodeId: request.classCodeId,
+classCode: (request as any).classCode, // Populated class code data from API
 approvedDate: request.approvedAt,
 releasedDate: request.releasedAt,
 pickedUpDate: request.pickedUpAt,
-returnedDate: request.returnedAt,
+returnedAt: request.returnedAt,
 rejectionReason: request.rejectReason
 };
+
+console.log('[REQUEST-MAP] Mapped request:', {
+	id: mapped.id,
+	classCodeId: mapped.classCodeId,
+	hasClassCode: !!mapped.classCode,
+	classCodeData: mapped.classCode,
+	fullRequest: request
+});
+
+return mapped;
 }
 
 async function loadRequests(forceRefresh = false): Promise<void> {
 	try {
-		const response = await borrowRequestsAPI.list({}, { forceRefresh });
+		// Force refresh to get the latest data with classCode populated
+		const response = await borrowRequestsAPI.list({}, { forceRefresh: true });
 		requests = response.requests.map(mapRequest);
 	} catch (error) {
 		console.error('Failed to load student requests', error);
@@ -127,6 +140,7 @@ async function loadRequests(forceRefresh = false): Promise<void> {
 	// Backfill pictures in background after loading state is cleared (non-blocking)
 	await backfillItemPictures();
 }
+
 
 function hydrateRequestsFromClientCache(): boolean {
 	const cached = borrowRequestsAPI.peekCachedList({});
@@ -392,6 +406,7 @@ function openDetailModal(request: any) {
 selectedRequest = request;
 showDetailModal = true;
 qrDataUrl = null;
+
 // Generate QR code containing the raw request ID for custodian scanning
 QRCode.toDataURL(request.rawId, {
 	width: 240,
@@ -399,6 +414,7 @@ QRCode.toDataURL(request.rawId, {
 	color: { dark: '#111827', light: '#ffffff' },
 	errorCorrectionLevel: 'H'
 }).then(url => { qrDataUrl = url; }).catch(() => {});
+
 }
 
 function closeDetailModal() {
@@ -1367,11 +1383,19 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 								</div>
 								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
-										<FileText size={14} class="text-pink-500 sm:hidden" />
-										<FileText size={16} class="text-pink-500 hidden sm:block" />
-										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Purpose</p>
+										<BookOpen size={14} class="text-pink-500 sm:hidden" />
+										<BookOpen size={16} class="text-pink-500 hidden sm:block" />
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Class Code</p>
 									</div>
-									<p class="text-sm sm:text-base font-bold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
+									{#if selectedRequest.classCode}
+										<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.classCode.courseCode}</p>
+										<p class="text-[10px] sm:text-xs text-gray-500 mt-0.5 truncate">{selectedRequest.classCode.courseName}</p>
+									{:else if selectedRequest.classCodeId}
+										<p class="text-sm sm:text-base font-bold text-gray-400">Loading...</p>
+										<p class="text-[10px] sm:text-xs text-gray-400 mt-0.5">ID: {selectedRequest.classCodeId.slice(0, 8)}</p>
+									{:else}
+										<p class="text-sm sm:text-base font-bold text-gray-400">—</p>
+									{/if}
 								</div>
 								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
@@ -1380,6 +1404,14 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Instructor</p>
 									</div>
 									<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.instructor}</p>
+								</div>
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<FileText size={14} class="text-pink-500 sm:hidden" />
+										<FileText size={16} class="text-pink-500 hidden sm:block" />
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Purpose</p>
+									</div>
+									<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.purpose}</p>
 								</div>
 							</div>
 						</div>

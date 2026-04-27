@@ -2157,7 +2157,7 @@
 									{#if selectedRequest.classCodeId}
 										{@const classCode = classCodeCache.get(selectedRequest.classCodeId)}
 										{#if classCode}
-											<p class="text-sm font-bold text-gray-900 sm:text-base">{classCode.code}</p>
+											<p class="text-sm font-bold text-gray-900 sm:text-base">{classCode.courseCode}</p>
 											<p class="mt-1 text-xs text-gray-600">{classCode.courseName}</p>
 											<p class="mt-0.5 text-xs text-gray-500">
 												{classCode.semester}

@@ -159,15 +159,34 @@ export const GET: RequestHandler = async (event) => {
 
 		const userMap = new Map(userDocs.map((userDoc) => [userDoc._id!.toString(), userDoc]));
 
+		// Fetch class codes for all requests
+		const classCodeIds = [...new Set(
+			requests.map((request) => request.classCodeId.toString())
+		)];
+
+		const classCodesCollection = db.collection('class_codes');
+		const classCodeDocs = classCodeIds.length > 0
+			? await classCodesCollection
+				.find(
+					{ _id: { $in: classCodeIds.map((id) => new ObjectId(id)) } },
+					{ projection: { code: 1, courseCode: 1, courseName: 1, section: 1, semester: 1, academicYear: 1 } }
+				)
+				.toArray()
+			: [];
+
+		const classCodeMap = new Map(classCodeDocs.map((doc) => [doc._id!.toString(), doc]));
+
 		const enrichedRequests = requests.map((requestDoc) => {
 			const base = toBorrowRequestResponse(requestDoc) as BorrowRequestResponse & {
 				student?: Record<string, unknown>;
 				instructor?: Record<string, unknown>;
 				custodian?: Record<string, unknown>;
+				classCode?: Record<string, unknown>;
 			};
 			const student = userMap.get(base.studentId);
 			const instructor = base.instructorId ? userMap.get(base.instructorId) : undefined;
 			const custodian = base.custodianId ? userMap.get(base.custodianId) : undefined;
+			const classCode = classCodeMap.get(base.classCodeId);
 
 			return {
 				...base,
@@ -194,6 +213,15 @@ export const GET: RequestHandler = async (event) => {
 					firstName: custodian.firstName,
 					lastName: custodian.lastName,
 					fullName: `${custodian.firstName} ${custodian.lastName}`.trim()
+				} : undefined,
+				classCode: classCode ? {
+					id: classCode._id!.toString(),
+					code: classCode.code,
+					courseCode: classCode.courseCode,
+					courseName: classCode.courseName,
+					section: classCode.section,
+					semester: classCode.semester,
+					academicYear: classCode.academicYear
 				} : undefined
 			};
 		});
