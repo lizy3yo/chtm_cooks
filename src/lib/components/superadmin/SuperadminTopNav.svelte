@@ -129,7 +129,7 @@
 	<div class="flex items-center gap-2">
 		<!-- Branding — mobile/tablet only -->
 		<div class="flex items-center gap-2 lg:hidden">
-			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-purple-500 to-indigo-600 shadow-md">
+			<div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white shadow-md">
 				<img src={logo} alt="CHTM Logo" class="h-5 w-5 object-contain" />
 			</div>
 			<div class="leading-tight">
@@ -158,7 +158,7 @@
 		<!-- Dark mode toggle -->
 		<button
 			onclick={() => themeStore.toggle()}
-			class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all duration-200 hover:bg-purple-50 hover:text-purple-600"
+			class="flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all duration-200 hover:bg-pink-50 hover:text-pink-600"
 			aria-label={$themeStore === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
 			title={$themeStore === 'dark' ? 'Light mode' : 'Dark mode'}
 		>
@@ -175,14 +175,14 @@
 		<div class="relative" data-topnav-dropdown>
 			<button
 				onclick={toggleNotifications}
-				class="relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all duration-200 hover:bg-purple-50 hover:text-purple-600"
+				class="relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all duration-200 hover:bg-pink-50 hover:text-pink-600"
 				aria-label="Notifications"
 				aria-expanded={notifOpen}
 				title="Notifications"
 			>
 				<Bell size={18} strokeWidth={1.75} />
 				{#if unreadCount > 0}
-					<span class="absolute -right-1 -top-1 inline-flex min-h-4.5 min-w-4.5 items-center justify-center rounded-full bg-purple-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+					<span class="absolute -right-1 -top-1 inline-flex min-h-4.5 min-w-4.5 items-center justify-center rounded-full bg-pink-600 px-1 text-[10px] font-bold text-white ring-2 ring-white">
 						{Math.min(unreadCount, 99)}
 					</span>
 				{/if}
@@ -196,13 +196,13 @@
 				>
 					<div class="flex items-center justify-between border-b border-gray-100 px-4 py-3">
 						<p class="text-sm font-semibold text-gray-900">Notifications</p>
-						<a href="/superadmin/notifications" onclick={() => notifOpen = false} class="text-xs font-medium text-purple-600 hover:text-purple-700">View all</a>
+						<a href="/superadmin/notifications" onclick={() => notifOpen = false} class="text-xs font-medium text-pink-600 hover:text-pink-700">View all</a>
 					</div>
 					{#if loadingNotifications}
 						<div class="py-8 text-center text-sm text-gray-500">Loading notifications...</div>
 					{:else if recentNotifications.length === 0}
 						<div class="py-8 text-center">
-							<Bell size={28} class="mx-auto mb-2 text-purple-600" />
+							<Bell size={28} class="mx-auto mb-2 text-pink-600" />
 							<p class="text-sm text-gray-500">No new notifications</p>
 						</div>
 					{:else}
@@ -211,7 +211,7 @@
 								<button
 									type="button"
 									onclick={() => openNotification(notification)}
-									class="w-full border-l-2 px-4 py-2 text-left transition-colors hover:bg-gray-50 {notification.isRead ? 'border-transparent' : 'border-purple-500 bg-purple-50/40'}"
+									class="w-full border-l-2 px-4 py-2 text-left transition-colors hover:bg-gray-50 {notification.isRead ? 'border-transparent' : 'border-pink-500 bg-pink-50/40'}"
 								>
 									<p class="text-sm font-medium text-gray-900">{notification.title}</p>
 									<p class="mt-0.5 line-clamp-2 text-xs text-gray-600">{notification.message}</p>
@@ -231,11 +231,11 @@
 			<div class="relative" data-topnav-dropdown>
 				<button
 					onclick={(e) => { e.stopPropagation(); profileOpen = !profileOpen; notifOpen = false; }}
-					class="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-all duration-200 hover:bg-purple-50"
+					class="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-all duration-200 hover:bg-pink-50"
 					aria-label="Account menu"
 					aria-expanded={profileOpen}
 				>
-					<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-purple-100 to-indigo-50 border-2 border-purple-200 text-purple-700 text-xs font-semibold shadow-sm">
+					<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-pink-100 to-pink-50 border-2 border-pink-200 text-pink-700 text-xs font-semibold shadow-sm">
 						{#if $user.profilePhotoUrl}
 							<img src={$user.profilePhotoUrl} alt="{$user.firstName} {$user.lastName}" class="h-full w-full object-cover" />
 						{:else}
@@ -256,14 +256,14 @@
 						<div class="border-b border-gray-100 px-4 py-3">
 							<p class="truncate text-sm font-semibold text-gray-900">{$user.firstName} {$user.lastName}</p>
 							<p class="truncate text-xs text-gray-500">{$user.email}</p>
-							<span class="mt-1 inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-700">
+							<span class="mt-1 inline-flex items-center rounded-full bg-pink-100 px-2 py-0.5 text-[10px] font-semibold text-pink-700">
 								SUPERADMIN
 							</span>
 						</div>
-						<a href="/superadmin/account/profile" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-purple-50 hover:text-purple-600">
+						<a href="/superadmin/account/profile" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
 							<User size={15} class="text-gray-400" /> Profile
 						</a>
-						<a href="/superadmin/settings" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-purple-50 hover:text-purple-600">
+						<a href="/superadmin/settings" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-pink-50 hover:text-pink-600">
 							<Settings size={15} class="text-gray-400" /> Settings
 						</a>
 						<div class="my-1 border-t border-gray-100"></div>
