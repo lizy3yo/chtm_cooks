@@ -287,13 +287,26 @@
 		z-index: 3;
 		filter: drop-shadow(0 15px 25px rgba(233, 30, 99, 0.15));
 		animation: float-lottie 6s ease-in-out infinite;
+		/* Ensure crisp rendering */
+		image-rendering: -webkit-optimize-contrast;
+		image-rendering: crisp-edges;
+		-webkit-font-smoothing: antialiased;
+		-moz-osx-font-smoothing: grayscale;
+		backface-visibility: hidden;
+		transform: translateZ(0);
+		will-change: transform;
 	}
 
 	.hero-animations :global(div),
-	.hero-animations :global(canvas) {
+	.hero-animations :global(canvas),
+	.hero-animations :global(svg) {
 		width: 100% !important;
 		height: 100% !important;
 		display: block !important;
+		/* Ensure sharp rendering for SVG and canvas */
+		image-rendering: -webkit-optimize-contrast !important;
+		image-rendering: crisp-edges !important;
+		shape-rendering: geometricPrecision !important;
 	}
 
 	@media (max-width: 768px) {
