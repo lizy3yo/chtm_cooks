@@ -98,15 +98,18 @@
 </svelte:head>
 
 <div class="space-y-6">
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-		<div class="flex-1">
-			<h1 class="text-2xl font-bold text-gray-900">Security Management</h1>
-			<p class="mt-1 text-sm text-gray-500">Monitor security events, active sessions, and access policies.</p>
+	<!-- Header -->
+	<div class="flex items-start justify-between gap-3">
+		<div class="min-w-0">
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Security Management</h1>
+			<p class="mt-0.5 text-sm text-gray-500">Monitor security events, active sessions, and access policies.</p>
 		</div>
-		<button onclick={() => toastStore.info('Security audit report generation initiated.')} class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2">
-			<ShieldCheck size={16} class="text-emerald-600" />
-			Run Security Audit
-		</button>
+		<div class="hidden shrink-0 items-center gap-2 sm:flex">
+			<button onclick={() => toastStore.info('Security audit report generation initiated.')} class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2">
+				<ShieldCheck size={15} class="text-emerald-600" />
+				Run Security Audit
+			</button>
+		</div>
 	</div>
 
 	<!-- Stats -->

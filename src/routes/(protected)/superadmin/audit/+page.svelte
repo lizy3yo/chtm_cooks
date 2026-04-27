@@ -91,10 +91,10 @@
 
 <div class="space-y-6">
 	<!-- Header -->
-	<div class="flex flex-col gap-4">
-		<div class="flex-1">
-			<h1 class="text-2xl font-bold text-gray-900">System Audit Logs</h1>
-			<p class="mt-1 text-sm text-gray-500">Immutable activity trail for compliance, security monitoring, and system integrity.</p>
+	<div class="flex items-start justify-between gap-3">
+		<div class="min-w-0">
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">System Audit Logs</h1>
+			<p class="mt-0.5 text-sm text-gray-500">Immutable activity trail for compliance, security monitoring, and system integrity.</p>
 		</div>
 	</div>
 

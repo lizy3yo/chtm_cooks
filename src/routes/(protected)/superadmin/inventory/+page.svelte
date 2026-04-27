@@ -137,15 +137,13 @@
 
 <div class="space-y-6">
 	<!-- Header -->
-	<div>
-		<div class="flex items-start justify-between gap-4">
-			<div class="flex-1">
-				<h1 class="text-2xl font-bold text-gray-900">Inventory Overview</h1>
-				<p class="mt-1 text-sm text-gray-500">Comprehensive view of equipment inventory, usage, and replacement needs</p>
-			</div>
-			<div class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium {sseConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'}">
-				{#if sseConnected}<Wifi size={13} class="text-emerald-500" />Live{:else}<WifiOff size={13} />Connecting...{/if}
-			</div>
+	<div class="flex items-start justify-between gap-3">
+		<div class="min-w-0">
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Inventory Overview</h1>
+			<p class="mt-0.5 text-sm text-gray-500">Comprehensive view of equipment inventory, usage, and replacement needs</p>
+		</div>
+		<div class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium {sseConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'}">
+			{#if sseConnected}<Wifi size={13} class="text-emerald-500" />Live{:else}<WifiOff size={13} />Connecting...{/if}
 		</div>
 	</div>
 

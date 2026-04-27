@@ -129,19 +129,21 @@
 
 <div class="space-y-6">
 	<!-- Header -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-		<div class="flex-1">
-			<h1 class="text-2xl font-bold text-gray-900">Database Management</h1>
-			<p class="mt-1 text-sm text-gray-500">Monitor database health, indexes, and collection allocations</p>
+	<div class="flex items-start justify-between gap-3">
+		<div class="min-w-0">
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Database Management</h1>
+			<p class="mt-0.5 text-sm text-gray-500">Monitor database health, indexes, and collection allocations</p>
 		</div>
-		<button 
-			onclick={loadStats} 
-			disabled={loading}
-			class="inline-flex items-center gap-2 rounded-lg bg-white border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:opacity-50"
-		>
-			<RefreshCw size={16} class={loading ? "animate-spin" : ""} />
-			Refresh Stats
-		</button>
+		<div class="hidden shrink-0 items-center gap-2 sm:flex">
+			<button 
+				onclick={loadStats} 
+				disabled={loading}
+				class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
+			>
+				<RefreshCw size={15} class={loading ? "animate-spin" : ""} />
+				Refresh Stats
+			</button>
+		</div>
 	</div>
 
 	{#if loading && !stats}

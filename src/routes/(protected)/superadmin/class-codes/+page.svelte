@@ -638,10 +638,10 @@
 <!-- ─── Main Page ─────────────────────────────────────────────────────────── -->
 <div class="space-y-6">
 	<!-- Header -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-		<div class="flex-1">
+	<div class="flex items-start justify-between gap-3">
+		<div class="min-w-0">
 			<div class="flex items-center gap-3">
-				<h1 class="text-2xl font-bold text-gray-900">Class Code Management</h1>
+				<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Class Code Management</h1>
 				<!-- SSE indicator -->
 				<div
 					class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium
@@ -656,7 +656,7 @@
 					{/if}
 				</div>
 			</div>
-			<p class="mt-1 text-sm text-gray-500">
+			<p class="mt-0.5 text-sm text-gray-500">
 				Organize students and instructors by academic classes and sections
 			</p>
 		</div>
