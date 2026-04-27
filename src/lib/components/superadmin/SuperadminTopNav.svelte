@@ -169,15 +169,7 @@
 			{/if}
 		</button>
 
-		<!-- System Health Indicator -->
-		<button
-			onclick={() => goto('/superadmin/health')}
-			class="hidden h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all duration-200 hover:bg-purple-50 hover:text-purple-600 lg:flex"
-			aria-label="System health"
-			title="System Health"
-		>
-			<Shield size={18} strokeWidth={1.75} />
-		</button>
+
 
 		<!-- Notifications -->
 		<div class="relative" data-topnav-dropdown>
