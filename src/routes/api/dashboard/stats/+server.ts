@@ -19,12 +19,16 @@ export const GET: RequestHandler = async (event) => {
 
 	try {
 		// Verify authentication
-		const authHeader = request.headers.get('Authorization');
-		if (!authHeader || !authHeader.startsWith('Bearer ')) {
+		let token = request.headers.get('Authorization')?.substring(7);
+		
+		if (!token) {
+			token = event.cookies.get('access_token');
+		}
+
+		if (!token) {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		const token = authHeader.substring(7);
 		const decoded = verifyAccessToken(token);
 		
 		if (!decoded) {
@@ -34,24 +38,32 @@ export const GET: RequestHandler = async (event) => {
 		// Connect to database
 		const db = await getDatabase();
 		const usersCollection = db.collection('users');
-		const shortcutKeysCollection = db.collection('shortcut_keys');
+		const classCodesCollection = db.collection('class_codes');
+		const borrowRequestsCollection = db.collection('borrow_requests');
+		const inventoryCollection = db.collection('inventory_items');
 
 		// Get stats based on role
 		if (decoded.role === 'superadmin') {
 			// Superadmin gets full stats
-			const [totalUsers, studentCount, instructorCount, custodianCount, superadminCount, activeShortcutKeys, recentUsers] = await Promise.all([
+			const [
+				totalUsers, 
+				studentCount, 
+				instructorCount, 
+				custodianCount, 
+				superadminCount, 
+				totalClassCodes, 
+				totalRequests,
+				totalInventoryItems,
+				recentUsers
+			] = await Promise.all([
 				usersCollection.countDocuments(),
 				usersCollection.countDocuments({ role: 'student' }),
 				usersCollection.countDocuments({ role: 'instructor' }),
 				usersCollection.countDocuments({ role: 'custodian' }),
 				usersCollection.countDocuments({ role: 'superadmin' }),
-				shortcutKeysCollection.countDocuments({ 
-					isActive: true,
-					$or: [
-						{ expiresAt: { $exists: false } },
-						{ expiresAt: { $gt: new Date() } }
-					]
-				}),
+				classCodesCollection.countDocuments(),
+				borrowRequestsCollection.countDocuments(),
+				inventoryCollection.countDocuments(),
 				usersCollection
 					.find({}, { projection: { password: 0 } })
 					.sort({ createdAt: -1 })
@@ -77,7 +89,9 @@ export const GET: RequestHandler = async (event) => {
 				instructors: instructorCount,
 				custodians: custodianCount,
 				superadmins: superadminCount,
-				activeShortcutKeys,
+				totalClassCodes,
+				totalRequests,
+				totalInventoryItems,
 				newUsersThisWeek,
 				activeUsersThisWeek,
 				staffMembers: instructorCount + custodianCount,
