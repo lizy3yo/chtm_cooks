@@ -1,12 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Shield, Users, AlertTriangle, Lock, Info, Search, Laptop, Smartphone, Globe, LogOut, ShieldAlert, CheckCircle, XCircle, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Plus, Clock } from 'lucide-svelte';
+	import { Shield, Users, AlertTriangle, Lock, Info, Search, Laptop, Smartphone, Globe, LogOut, ShieldAlert, CheckCircle, XCircle, ShieldCheck, ToggleLeft, ToggleRight, Trash2, Plus, Clock, Wifi, WifiOff } from 'lucide-svelte';
 	import { usersAPI, type UserResponse } from '$lib/api/users';
 	import { toastStore } from '$lib/stores/toast';
 
 	let activeTab = $state<'sessions' | 'failed-logins' | 'access-control'>('sessions');
 	let searchQuery = $state('');
 	let loading = $state(true);
+	let sseConnected = $state(false);
+
+	let unsubscribeUsers: (() => void) | null = null;
+	let _pollInterval: ReturnType<typeof setInterval> | null = null;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 	// Data
 	let allUsers = $state<UserResponse[]>([]);
@@ -20,17 +25,63 @@
 	let require2FA = $state(false);
 	let sessionTimeout = $state('30');
 
-	onMount(async () => {
+	function hydrateFromCache(): boolean {
+		const cached = usersAPI.peekCachedUsers({ limit: 100 });
+		if (!cached) return false;
+
+		allUsers = cached.users;
+		loading = false;
+		return true;
+	}
+
+	function scheduleRefresh(forceRefresh = false): void {
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			void loadData(false, forceRefresh);
+		}, 250);
+	}
+
+	onMount(() => {
+		hydrateFromCache();
+		void loadData(!allUsers.length, false);
+
+		unsubscribeUsers = usersAPI.subscribeToChanges(() => {
+			sseConnected = true;
+			scheduleRefresh(true);
+		});
+
+		setTimeout(() => sseConnected = true, 1500);
+
+		_pollInterval = setInterval(() => {
+			void loadData(false, true);
+		}, 30_000);
+
+		const onFocus = () => { void loadData(false, true); };
+		const onVisible = () => { if (document.visibilityState === 'visible') void loadData(false, true); };
+		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			unsubscribeUsers?.();
+			if (_pollInterval !== null) clearInterval(_pollInterval);
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
+	});
+
+	async function loadData(showLoader = true, forceRefresh = true) {
+		if (showLoader && !allUsers.length) loading = true;
 		try {
-			loading = true;
-			const res = await usersAPI.getAll({ limit: 100 });
+			const res = await usersAPI.getAll({ limit: 100, forceRefresh });
 			allUsers = res.users;
 		} catch (e: any) {
 			toastStore.error('Failed to load user sessions.');
 		} finally {
 			loading = false;
 		}
-	});
+	}
 
 	// Derived metrics
 	let stats = $derived({
@@ -105,6 +156,9 @@
 			<p class="mt-0.5 text-sm text-gray-500">Monitor security events, active sessions, and access policies.</p>
 		</div>
 		<div class="hidden shrink-0 items-center gap-2 sm:flex">
+			<div class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium {sseConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'}">
+				{#if sseConnected}<Wifi size={13} class="text-emerald-500" />Live{:else}<WifiOff size={13} />Connecting...{/if}
+			</div>
 			<button onclick={() => toastStore.info('Security audit report generation initiated.')} class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2">
 				<ShieldCheck size={15} class="text-emerald-600" />
 				Run Security Audit

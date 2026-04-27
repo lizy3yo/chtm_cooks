@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import {
 		Search,
 		Plus,
@@ -129,27 +129,49 @@
 
 	let enrolledStudentIds = $derived(() => new Set(assignedClassDetail?.studentIds ?? []));
 
-	// ─── SSE Cleanup ─────────────────────────────────────────────────────────────
-	let unsubscribeSSE: (() => void) | null = null;
+	let _pollInterval: ReturnType<typeof setInterval> | null = null;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-	// ─── Academic Year Options ────────────────────────────────────────────────────
-	const currentYear = new Date().getFullYear();
-	const academicYearOptions = [
-		`${currentYear - 1}-${currentYear}`,
-		`${currentYear}-${currentYear + 1}`,
-		`${currentYear + 1}-${currentYear + 2}`
-	];
+	function hydrateFromCache(): boolean {
+		const cached = classCodesAPI.peekCachedList({
+			search: searchQuery || undefined,
+			semester: selectedSemester || undefined,
+			academicYear: selectedYear || undefined,
+			archived: false,
+			page: pagination.page,
+			limit: pagination.limit
+		});
+		if (!cached) return false;
+
+		classCodes = cached.classCodes;
+		pagination = cached.pagination;
+		loading = false;
+		return true;
+	}
+
+	function scheduleRefresh(forceRefresh = false): void {
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			void loadClasses(false, forceRefresh);
+			void loadStats(forceRefresh);
+			if (activeTab === 'archived') void loadArchived(false, forceRefresh);
+			if (assignedClassDetail) void refreshAssignedClass();
+		}, 250);
+	}
 
 	// ─── Lifecycle ────────────────────────────────────────────────────────────────
-	onMount(async () => {
-		await Promise.all([loadClasses(), loadStats(), loadInstructors(), loadStudents()]);
-		unsubscribeSSE = classCodesAPI.subscribeToChanges(async (event: ClassCodeRealtimeEvent) => {
+	let unsubscribeSSE: (() => void) | null = null;
+	onMount(() => {
+		hydrateFromCache();
+		void loadClasses(classCodes.length === 0, false);
+		void loadStats(false);
+		void loadInstructors();
+		void loadStudents();
+
+		unsubscribeSSE = classCodesAPI.subscribeToChanges((event: ClassCodeRealtimeEvent) => {
 			sseConnected = true;
-			await Promise.all([loadClasses(false), loadStats(true)]);
-			if (activeTab === 'archived') await loadArchived(false);
-			if (assignedClassDetail && event.classCodeId === assignedClassDetail.id) {
-				await refreshAssignedClass();
-			}
+			scheduleRefresh(true);
 			const msgs: Record<string, string> = {
 				class_created: 'A new class was created',
 				class_updated: 'A class was updated',
@@ -162,15 +184,40 @@
 		setTimeout(() => {
 			sseConnected = true;
 		}, 1500);
+
+		// --- 30-second polling fallback ---
+		_pollInterval = setInterval(() => {
+			void loadClasses(false, true);
+			void loadStats(true);
+			if (activeTab === 'archived') void loadArchived(false, true);
+			if (assignedClassDetail) void refreshAssignedClass();
+		}, 30_000);
+
+		// --- Refresh on tab/window focus ---
+		const onFocus = () => { void loadClasses(false, true); void loadStats(true); };
+		const onVisible = () => { if (document.visibilityState === 'visible') { void loadClasses(false, true); void loadStats(true); } };
+		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			unsubscribeSSE?.();
+			if (_pollInterval !== null) clearInterval(_pollInterval);
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 
-	onDestroy(() => {
-		unsubscribeSSE?.();
-	});
+	const currentYear = new Date().getFullYear();
+	const academicYearOptions = [
+		`${currentYear - 1}-${currentYear}`,
+		`${currentYear}-${currentYear + 1}`,
+		`${currentYear + 1}-${currentYear + 2}`
+	];
 
 	// ─── Data Loading ─────────────────────────────────────────────────────────────
-	async function loadClasses(showLoader = true) {
-		if (showLoader) loading = true;
+	async function loadClasses(showLoader = true, forceRefresh = true) {
+		if (showLoader && classCodes.length === 0) loading = true;
 		try {
 			const res = await classCodesAPI.getAll({
 				search: searchQuery || undefined,
@@ -179,7 +226,7 @@
 				archived: false,
 				page: pagination.page,
 				limit: pagination.limit,
-				forceRefresh: true
+				forceRefresh
 			});
 			classCodes = res.classCodes;
 			pagination = res.pagination;
@@ -190,14 +237,14 @@
 		}
 	}
 
-	async function loadArchived(showLoader = true) {
+	async function loadArchived(showLoader = true, forceRefresh = true) {
 		if (showLoader) archivedLoading = true;
 		try {
 			const res = await classCodesAPI.getAll({
 				archived: true,
 				page: archivedPagination.page,
 				limit: archivedPagination.limit,
-				forceRefresh: true
+				forceRefresh
 			});
 			archivedCodes = res.classCodes;
 			archivedPagination = res.pagination;
@@ -208,7 +255,7 @@
 		}
 	}
 
-	async function loadStats(forceRefresh = false) {
+	async function loadStats(forceRefresh = true) {
 		try {
 			stats = await classCodesAPI.getStats(forceRefresh);
 		} catch {

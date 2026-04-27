@@ -1,48 +1,91 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import { 
 		BarChart3, Users, ClipboardList, GraduationCap, FileText, Info, 
 		Download, Wifi, WifiOff, RefreshCw, TrendingUp, Clock, AlertTriangle, 
 		CheckCircle, Search, ShieldAlert, Activity
 	} from 'lucide-svelte';
-	import { fetchAnalytics, subscribeToAnalyticsChanges, type AnalyticsReport } from '$lib/api/analyticsReports';
+	import { fetchAnalytics, peekCachedAnalytics, subscribeToAnalyticsChanges, type AnalyticsReport } from '$lib/api/analyticsReports';
 	import { classCodesAPI, type ClassCodeStats, type ClassCodeResponse } from '$lib/api/classCodes';
 	import { toastStore } from '$lib/stores/toast';
 	import ReportsSkeletonLoader from '$lib/components/ui/ReportsSkeletonLoader.svelte';
+	import { browser } from '$app/environment';
 
 	let activeTab = $state<'system' | 'users' | 'requests' | 'classes' | 'custom'>('system');
 	let sseConnected = $state(false);
 	let loading = $state(true);
 
-	let analytics = $state<AnalyticsReport | null>(null);
+	let analytics = $state<AnalyticsReport | null>(browser ? peekCachedAnalytics({ period: 'month' }) : null);
 	let classStats = $state<ClassCodeStats | null>(null);
 	let classes = $state<ClassCodeResponse[]>([]);
 
 	let unsubscribeAnalytics: (() => void) | null = null;
+	let unsubscribeClassCodes: (() => void) | null = null;
+	let _pollInterval: ReturnType<typeof setInterval> | null = null;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-	onMount(async () => {
-		await loadData();
+	function hydrateFromCache(): boolean {
+		const cachedAnalytics = peekCachedAnalytics({ period: 'month' });
+		if (cachedAnalytics) {
+			analytics = cachedAnalytics;
+			loading = false;
+			return true;
+		}
+		return false;
+	}
+
+	function scheduleRefresh(forceRefresh = false): void {
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			void loadData(false, forceRefresh);
+		}, 250);
+	}
+
+	onMount(() => {
+		hydrateFromCache();
+		void loadData(!analytics, false);
 		
-		unsubscribeAnalytics = subscribeToAnalyticsChanges(async () => {
+		unsubscribeAnalytics = subscribeToAnalyticsChanges(() => {
 			sseConnected = true;
-			await loadData(false);
-			toastStore.info('Analytics dashboard updated with live data', 'Live Sync');
+			scheduleRefresh(true);
+		});
+
+		unsubscribeClassCodes = classCodesAPI.subscribeToChanges(() => {
+			sseConnected = true;
+			scheduleRefresh(true);
 		});
 
 		setTimeout(() => sseConnected = true, 1500);
+
+		// --- 30-second polling fallback ---
+		_pollInterval = setInterval(() => {
+			void loadData(false, true);
+		}, 30_000);
+
+		// --- Refresh on tab/window focus ---
+		const onFocus = () => { void loadData(false, true); };
+		const onVisible = () => { if (document.visibilityState === 'visible') void loadData(false, true); };
+		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			unsubscribeAnalytics?.();
+			unsubscribeClassCodes?.();
+			if (_pollInterval !== null) clearInterval(_pollInterval);
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 
-	onDestroy(() => {
-		unsubscribeAnalytics?.();
-	});
-
-	async function loadData(showLoader = true) {
-		if (showLoader) loading = true;
+	async function loadData(showLoader = true, forceRefresh = true) {
+		if (showLoader && !analytics) loading = true;
 		try {
 			const [analyticsRes, statsRes, classRes] = await Promise.all([
-				fetchAnalytics({ period: 'month', forceRefresh: true }),
-				classCodesAPI.getStats(true),
-				classCodesAPI.getAll({ limit: 10, forceRefresh: true })
+				fetchAnalytics({ period: 'month', forceRefresh }),
+				classCodesAPI.getStats(forceRefresh),
+				classCodesAPI.getAll({ limit: 10, forceRefresh })
 			]);
 			
 			analytics = analyticsRes;

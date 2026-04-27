@@ -73,10 +73,49 @@ async function handleResponse<T>(response: Response): Promise<T> {
 	return response.json();
 }
 
+const CLIENT_CACHE_TTL_MS = 2 * 60 * 1000;
+const historyCache = new Map<string, { data: any, expiresAt: number }>();
+const inFlight = new Map<string, Promise<any>>();
+
+function getFreshCache<T>(cache: Map<string, { data: T, expiresAt: number }>, key: string): T | null {
+	if (!browser) return null;
+	const entry = cache.get(key);
+	if (!entry) return null;
+	if (Date.now() > entry.expiresAt) {
+		cache.delete(key);
+		return null;
+	}
+	return entry.data;
+}
+
+function setCache<T>(cache: Map<string, { data: T, expiresAt: number }>, key: string, data: T): void {
+	if (!browser) return;
+	cache.set(key, { data, expiresAt: Date.now() + CLIENT_CACHE_TTL_MS });
+}
+
 /**
  * Inventory History API
  */
 export const inventoryHistoryAPI = {
+	peekCachedHistory(params?: {
+		action?: string;
+		entityType?: 'item' | 'category';
+		entityId?: string;
+		userId?: string;
+		startDate?: string;
+		endDate?: string;
+		page?: number;
+		limit?: number;
+	}): { history: InventoryHistoryEntry[]; total: number; page: number; limit: number; pages: number } | null {
+		const key = JSON.stringify(params || {});
+		return getFreshCache(historyCache, key);
+	},
+
+	invalidateCache() {
+		historyCache.clear();
+		inFlight.clear();
+	},
+
 	/**
 	 * Get activity logs (audit trail)
 	 */
@@ -89,6 +128,7 @@ export const inventoryHistoryAPI = {
 		endDate?: string;
 		page?: number;
 		limit?: number;
+		forceRefresh?: boolean;
 	}): Promise<{ history: InventoryHistoryEntry[]; total: number; page: number; limit: number; pages: number }> {
 		const queryParams = new URLSearchParams();
 		if (params?.action) queryParams.set('action', params.action);
@@ -99,12 +139,42 @@ export const inventoryHistoryAPI = {
 		if (params?.endDate) queryParams.set('endDate', params.endDate);
 		if (params?.page) queryParams.set('page', params.page.toString());
 		if (params?.limit) queryParams.set('limit', params.limit.toString());
+		if (params?.forceRefresh) queryParams.set('_t', Date.now().toString());
 
 		const query = queryParams.toString();
 		const url = `/api/inventory/history${query ? `?${query}` : ''}`;
 
-		const response = await fetch(url, getFetchOptions('GET'));
-		return handleResponse(response);
+		const cacheKey = JSON.stringify({
+			action: params?.action,
+			entityType: params?.entityType,
+			entityId: params?.entityId,
+			userId: params?.userId,
+			startDate: params?.startDate,
+			endDate: params?.endDate,
+			page: params?.page,
+			limit: params?.limit
+		});
+
+		if (!params?.forceRefresh) {
+			const cached = getFreshCache<{ history: InventoryHistoryEntry[]; total: number; page: number; limit: number; pages: number }>(historyCache, cacheKey);
+			if (cached) return cached;
+			const existing = inFlight.get(cacheKey);
+			if (existing) return existing;
+		}
+
+		const req = (async () => {
+			const response = await fetch(url, getFetchOptions('GET'));
+			const result = await handleResponse<{ history: InventoryHistoryEntry[]; total: number; page: number; limit: number; pages: number }>(response);
+			setCache(historyCache, cacheKey, result);
+			return result;
+		})();
+
+		inFlight.set(cacheKey, req);
+		try {
+			return await req;
+		} finally {
+			inFlight.delete(cacheKey);
+		}
 	}
 };
 

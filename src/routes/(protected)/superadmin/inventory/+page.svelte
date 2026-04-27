@@ -1,12 +1,13 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { 
 		Package, TrendingUp, AlertCircle, Info, Search, Download, 
 		RefreshCw, CheckCircle, Wifi, WifiOff, XCircle, AlertTriangle, 
 		BarChart3, Activity, Clock
 	} from 'lucide-svelte';
-	import { inventoryItemsAPI, type InventoryItem } from '$lib/api/inventory';
-	import { fetchAnalytics, subscribeToAnalyticsChanges, type AnalyticsReport } from '$lib/api/analyticsReports';
+	import { inventoryItemsAPI, type InventoryItem, subscribeToInventoryChanges } from '$lib/api/inventory';
+	import { fetchAnalytics, peekCachedAnalytics, subscribeToAnalyticsChanges, type AnalyticsReport } from '$lib/api/analyticsReports';
 	import { replacementObligationsAPI, type ReplacementObligation } from '$lib/api/replacementObligations';
 	import { toastStore } from '$lib/stores/toast';
 	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
@@ -17,9 +18,29 @@
 
 	// Data
 	let allItems = $state<InventoryItem[]>([]);
-	let analytics = $state<AnalyticsReport | null>(null);
+	let analytics = $state<AnalyticsReport | null>(browser ? peekCachedAnalytics({ period: 'month' }) : null);
 	let obligations = $state<ReplacementObligation[]>([]);
 	let searchQuery = $state('');
+
+	let _pollInterval: ReturnType<typeof setInterval> | null = null;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function hydrateFromCache(): boolean {
+		const cachedItems = inventoryItemsAPI.peekCachedList({ limit: 1000 });
+		if (!cachedItems) return false;
+
+		allItems = cachedItems.items;
+		loading = false;
+		return true;
+	}
+
+	function scheduleRefresh(forceRefresh = false): void {
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			void loadAllData(false, forceRefresh);
+		}, 250);
+	}
 
 	// Pagination
 	let currentPage = $state(1);
@@ -39,31 +60,59 @@
 	// Stats
 	let lowStockCount = $derived(allItems.filter(i => (i.quantity - (i.currentCount || 0)) < 5).length);
 
-	let unsubscribe: (() => void) | null = null;
+	let unsubscribeAnalytics: (() => void) | null = null;
+	let unsubscribeInventory: (() => void) | null = null;
 
-	onMount(async () => {
-		await loadAllData();
+	onMount(() => {
+		hydrateFromCache();
+		void loadAllData(allItems.length === 0, false);
 		
-		unsubscribe = subscribeToAnalyticsChanges(async () => {
+		unsubscribeAnalytics = subscribeToAnalyticsChanges(() => {
 			sseConnected = true;
-			await loadAllData(false);
-			toastStore.info('Inventory data updated', 'Live Sync');
+			scheduleRefresh(true);
+		});
+
+		unsubscribeInventory = subscribeToInventoryChanges((event) => {
+			sseConnected = true;
+			scheduleRefresh(true);
+			const msgs: Record<string, string> = {
+				item_created: 'A new item was added',
+				item_updated: 'An item was updated',
+				item_deleted: 'An item was removed'
+			};
+			toastStore.info(msgs[event.action] || 'Inventory updated', 'Live Sync');
 		});
 
 		setTimeout(() => sseConnected = true, 1500);
+
+		// --- 30-second polling fallback ---
+		_pollInterval = setInterval(() => {
+			void loadAllData(false, true);
+		}, 30_000);
+
+		// --- Refresh on tab/window focus ---
+		const onFocus = () => { void loadAllData(false, true); };
+		const onVisible = () => { if (document.visibilityState === 'visible') void loadAllData(false, true); };
+		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			unsubscribeAnalytics?.();
+			unsubscribeInventory?.();
+			if (_pollInterval !== null) clearInterval(_pollInterval);
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 
-	onDestroy(() => {
-		unsubscribe?.();
-	});
-
-	async function loadAllData(showLoader = true) {
-		if (showLoader) loading = true;
+	async function loadAllData(showLoader = true, forceRefresh = true) {
+		if (showLoader && allItems.length === 0) loading = true;
 		try {
 			const [itemsRes, analyticsRes, obsRes] = await Promise.all([
-				inventoryItemsAPI.getAll({ limit: 1000, forceRefresh: true }),
-				fetchAnalytics({ period: 'month', forceRefresh: true }),
-				replacementObligationsAPI.getObligations({ limit: 100 }, { forceRefresh: true })
+				inventoryItemsAPI.getAll({ limit: 1000, forceRefresh }),
+				fetchAnalytics({ period: 'month', forceRefresh }),
+				replacementObligationsAPI.getObligations({ limit: 100 }, { forceRefresh })
 			]);
 			allItems = itemsRes.items;
 			analytics = analyticsRes;
@@ -125,10 +174,7 @@
 		URL.revokeObjectURL(url);
 	}
 
-	onDestroy(() => {
-		unsubscribe?.();
-		clearTimeout(searchTimeout);
-	});
+
 </script>
 
 <svelte:head>

@@ -14,14 +14,29 @@
 		Users, GraduationCap, ClipboardList, Package,
 		TrendingUp, TrendingDown, Activity, AlertTriangle,
 		CheckCircle2, Clock, ArrowRight, BarChart3,
-		ShieldAlert, PackageOpen, Database, Eye
+		ShieldAlert, PackageOpen, Database, Eye, Wifi, WifiOff
 	} from 'lucide-svelte';
 
 	// ── State ─────────────────────────────────────────────────────────────────
 	const initialReport = browser ? peekCachedAnalytics({ period: 'month' }) : null;
 	let loading = $state(!initialReport);
+	let sseConnected = $state(false);
 	let report = $state<AnalyticsReport | null>(initialReport);
 	let currentTime = $state(new Date());
+
+	let _pollInterval: ReturnType<typeof setInterval> | null = null;
+	let _unsubscribeUsers: (() => void) | null = null;
+	let _unsubscribeClass: (() => void) | null = null;
+	let _unsubscribeBorrow: (() => void) | null = null;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function scheduleRefresh(forceRefresh = false): void {
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			void loadDashboardData(false, forceRefresh);
+		}, 250);
+	}
 
 	// Dashboard data
 	let totalUsers = $state(0);
@@ -94,25 +109,26 @@
 	}
 
 	// ── Data Loading ──────────────────────────────────────────────────────────
-	async function loadDashboardData() {
+	async function loadDashboardData(showLoader = true, forceRefresh = true) {
+		if (showLoader) loading = true;
 		try {
 			// Load analytics report
-			const analyticsPromise = fetchAnalytics({ period: 'month', forceRefresh: true });
+			const analyticsPromise = fetchAnalytics({ period: 'month', forceRefresh });
 
 			// Load users data
-			const usersPromise = usersAPI.getAll({ limit: 5, forceRefresh: true });
+			const usersPromise = usersAPI.getAll({ limit: 5, forceRefresh });
 
 			// Load class codes stats
-			const classStatsPromise = classCodesAPI.getStats(true);
+			const classStatsPromise = classCodesAPI.getStats(forceRefresh);
 
 			// Load requests data
 			const requestsPromise = borrowRequestsAPI.list(
 				{ limit: 10, sortBy: 'createdAt' },
-				{ forceRefresh: true }
+				{ forceRefresh }
 			);
 
 			// Load inventory data
-			const inventoryPromise = inventoryItemsAPI.getAll({ forceRefresh: true });
+			const inventoryPromise = inventoryItemsAPI.getAll({ forceRefresh });
 
 			// Execute all promises
 			const [analyticsRes, usersRes, classStatsRes, requestsRes, inventoryRes] = await Promise.all([
@@ -171,13 +187,48 @@
 			authStore.clearJustLoggedIn();
 		}
 
-		void loadDashboardData();
+		void loadDashboardData(loading, false);
 
-		const id = setInterval(() => {
+		_unsubscribeUsers = usersAPI.subscribeToChanges(() => {
+			sseConnected = true;
+			scheduleRefresh(true);
+		});
+		_unsubscribeClass = classCodesAPI.subscribeToChanges(() => {
+			sseConnected = true;
+			scheduleRefresh(true);
+		});
+		_unsubscribeBorrow = borrowRequestsAPI.subscribeToChanges(() => {
+			sseConnected = true;
+			scheduleRefresh(true);
+		});
+
+		setTimeout(() => {
+			sseConnected = true;
+		}, 1500);
+
+		const clockId = setInterval(() => {
 			currentTime = new Date();
 		}, 60_000);
 
-		return () => clearInterval(id);
+		_pollInterval = setInterval(() => {
+			void loadDashboardData(false, true);
+		}, 30_000);
+
+		const onFocus = () => { void loadDashboardData(false, true); };
+		const onVisible = () => { if (document.visibilityState === 'visible') void loadDashboardData(false, true); };
+		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			clearInterval(clockId);
+			_unsubscribeUsers?.();
+			_unsubscribeClass?.();
+			_unsubscribeBorrow?.();
+			if (_pollInterval !== null) clearInterval(_pollInterval);
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 </script>
 
@@ -192,6 +243,9 @@
 			<p class="mt-0.5 text-sm text-gray-500">Superadmin Control Center — System-Wide Overview</p>
 		</div>
 		<div class="hidden shrink-0 items-center gap-2 sm:flex">
+			<div class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium {sseConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'}">
+				{#if sseConnected}<Wifi size={13} class="text-emerald-500" />Live{:else}<WifiOff size={13} />Connecting...{/if}
+			</div>
 			<a
 				href="/superadmin/analytics"
 				class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"

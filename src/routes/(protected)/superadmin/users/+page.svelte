@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount } from 'svelte';
 	import {
 		Search,
 		Plus,
@@ -98,16 +98,48 @@
 	// whole page — a pattern used by platforms like Twitter and LinkedIn.
 	let photoOverrides = $state<Map<string, string | null>>(new Map());
 
+	let _pollInterval: ReturnType<typeof setInterval> | null = null;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function hydrateFromCache(): boolean {
+		const role = selectedRole !== 'all' ? selectedRole : undefined;
+		const cached = usersAPI.peekCachedUsers({
+			role,
+			search: searchQuery || undefined,
+			page: pagination.page,
+			limit: pagination.limit
+		});
+		if (!cached) return false;
+
+		let list = cached.users;
+		if (selectedStatus === 'active') list = list.filter((u) => u.isActive);
+		if (selectedStatus === 'inactive') list = list.filter((u) => !u.isActive);
+		users = list;
+		pagination = cached.pagination;
+		loading = false;
+		return true;
+	}
+
+	function scheduleRefresh(forceRefresh = false): void {
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			void loadUsers(false, forceRefresh);
+			void loadStats(forceRefresh);
+		}, 250);
+	}
+
 	// ─── Lifecycle ───────────────────────────────────────────────────────────────
-	onMount(async () => {
-		await loadUsers();
-		await loadStats();
+	onMount(() => {
+		hydrateFromCache();
+		void loadUsers(users.length === 0, false);
+		void loadStats(false);
+
 		unsubscribeSSE = usersAPI.subscribeToChanges(
 			// ── CRUD events (create / update / delete) ─────────────────────────
-			async (event) => {
+			(event) => {
 				sseConnected = true;
-				await loadUsers(false);
-				await loadStats();
+				scheduleRefresh(true);
 				const msgs: Record<string, string> = {
 					user_created: 'A new user was added',
 					user_updated: 'A user was updated',
@@ -123,15 +155,31 @@
 		setTimeout(() => {
 			sseConnected = true;
 		}, 1500);
-	});
 
-	onDestroy(() => {
-		unsubscribeSSE?.();
+		// --- 30-second polling fallback ---
+		_pollInterval = setInterval(() => {
+			void loadUsers(false, true);
+			void loadStats(true);
+		}, 30_000);
+
+		// --- Refresh on tab/window focus ---
+		const onFocus = () => { void loadUsers(false, true); void loadStats(true); };
+		const onVisible = () => { if (document.visibilityState === 'visible') { void loadUsers(false, true); void loadStats(true); } };
+		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			unsubscribeSSE?.();
+			if (_pollInterval !== null) clearInterval(_pollInterval);
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 
 	// ─── Data loading ─────────────────────────────────────────────────────────────
-	async function loadUsers(showLoader = true) {
-		if (showLoader) loading = true;
+	async function loadUsers(showLoader = true, forceRefresh = true) {
+		if (showLoader && users.length === 0) loading = true;
 		try {
 			const role = selectedRole !== 'all' ? selectedRole : undefined;
 			const res = await usersAPI.getAll({
@@ -139,7 +187,7 @@
 				search: searchQuery || undefined,
 				page: pagination.page,
 				limit: pagination.limit,
-				forceRefresh: true
+				forceRefresh
 			});
 			let list = res.users;
 			if (selectedStatus === 'active') list = list.filter((u) => u.isActive);
@@ -181,15 +229,15 @@
 		return u.profilePhotoUrl ?? null;
 	}
 
-	async function loadStats() {
+	async function loadStats(forceRefresh = true) {
 		try {
 			const [all, students, instructors, custodians] = await Promise.all([
-				usersAPI.getAll({ limit: 1, forceRefresh: true }),
-				usersAPI.getAll({ role: 'student', limit: 1, forceRefresh: true }),
-				usersAPI.getAll({ role: 'instructor', limit: 1, forceRefresh: true }),
-				usersAPI.getAll({ role: 'custodian', limit: 1, forceRefresh: true })
+				usersAPI.getAll({ limit: 1, forceRefresh }),
+				usersAPI.getAll({ role: 'student', limit: 1, forceRefresh }),
+				usersAPI.getAll({ role: 'instructor', limit: 1, forceRefresh }),
+				usersAPI.getAll({ role: 'custodian', limit: 1, forceRefresh })
 			]);
-			const allRes = await usersAPI.getAll({ limit: 1000, forceRefresh: true });
+			const allRes = await usersAPI.getAll({ limit: 1000, forceRefresh });
 			const now = new Date();
 			const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 			stats = {

@@ -2,9 +2,10 @@
 	import { onMount } from 'svelte';
 	import { 
 		FileText, User, Shield, Settings, Info, Search, Download, 
-		RefreshCw, Database, LogIn, FileEdit, Trash2, ArrowRight
+		RefreshCw, Database, LogIn, FileEdit, Trash2, ArrowRight, Wifi, WifiOff
 	} from 'lucide-svelte';
 	import { inventoryHistoryAPI, type InventoryHistoryEntry } from '$lib/api/inventoryHistory';
+	import { subscribeToInventoryChanges } from '$lib/api/inventory';
 	import { toastStore } from '$lib/stores/toast';
 
 	let activeTab = $state<'all' | 'user-actions' | 'security' | 'system'>('all');
@@ -13,16 +14,65 @@
 	let loading = $state(true);
 	
 	let logs = $state<InventoryHistoryEntry[]>([]);
+	let sseConnected = $state(false);
 
-	onMount(async () => {
-		await loadLogs();
+	let _pollInterval: ReturnType<typeof setInterval> | null = null;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+	let unsubscribeInventory: (() => void) | null = null;
+
+	function scheduleRefresh(forceRefresh = false): void {
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			void loadLogs(false); // inventoryHistoryAPI doesn't have forceRefresh yet, we'll add it
+		}, 250);
+	}
+
+	function hydrateFromCache(): boolean {
+		const cached = inventoryHistoryAPI.peekCachedHistory({ limit: 200 });
+		if (!cached) return false;
+
+		logs = cached.history;
+		loading = false;
+		return true;
+	}
+
+	onMount(() => {
+		hydrateFromCache();
+		void loadLogs(logs.length === 0, false);
+		
+		unsubscribeInventory = subscribeToInventoryChanges(() => {
+			sseConnected = true;
+			scheduleRefresh(true);
+		});
+
+		setTimeout(() => sseConnected = true, 1500);
+
+		// --- 30-second polling fallback ---
+		_pollInterval = setInterval(() => {
+			void loadLogs(false, true);
+		}, 30_000);
+
+		// --- Refresh on tab/window focus ---
+		const onFocus = () => { void loadLogs(false, true); };
+		const onVisible = () => { if (document.visibilityState === 'visible') void loadLogs(false, true); };
+		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			unsubscribeInventory?.();
+			if (_pollInterval !== null) clearInterval(_pollInterval);
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 
-	async function loadLogs() {
-		loading = true;
+	async function loadLogs(showLoader = true, forceRefresh = true) {
+		if (showLoader && logs.length === 0) loading = true;
 		try {
 			// Fetch up to 200 recent logs for the audit trail
-			const res = await inventoryHistoryAPI.getHistory({ limit: 200 });
+			const res = await inventoryHistoryAPI.getHistory({ limit: 200, forceRefresh });
 			logs = res.history;
 		} catch (error: any) {
 			toastStore.error(error.message || 'Failed to load audit logs');
@@ -95,6 +145,9 @@
 		<div class="min-w-0">
 			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">System Audit Logs</h1>
 			<p class="mt-0.5 text-sm text-gray-500">Immutable activity trail for compliance, security monitoring, and system integrity.</p>
+		</div>
+		<div class="flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium {sseConnected ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-gray-200 bg-gray-50 text-gray-500'}">
+			{#if sseConnected}<Wifi size={13} class="text-emerald-500" />Live{:else}<WifiOff size={13} />Connecting...{/if}
 		</div>
 	</div>
 

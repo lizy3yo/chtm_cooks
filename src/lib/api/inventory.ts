@@ -155,7 +155,43 @@ async function handleResponse<T>(response: Response): Promise<T> {
 /**
  * Inventory Items API
  */
+const CLIENT_CACHE_TTL_MS = 2 * 60 * 1000;
+const listCache = new Map<string, { data: any, expiresAt: number }>();
+const inFlight = new Map<string, Promise<any>>();
+
+function getFreshCache<T>(cache: Map<string, { data: T, expiresAt: number }>, key: string): T | null {
+	if (!browser) return null;
+	const entry = cache.get(key);
+	if (!entry) return null;
+	if (Date.now() > entry.expiresAt) {
+		cache.delete(key);
+		return null;
+	}
+	return entry.data;
+}
+
+function setCache<T>(cache: Map<string, { data: T, expiresAt: number }>, key: string, data: T): void {
+	if (!browser) return;
+	cache.set(key, { data, expiresAt: Date.now() + CLIENT_CACHE_TTL_MS });
+}
+
 export const inventoryItemsAPI = {
+	peekCachedList(params?: {
+		includeArchived?: boolean;
+		category?: string;
+		status?: string;
+		search?: string;
+		page?: number;
+		limit?: number;
+	}): { items: InventoryItem[]; total: number; page: number; limit: number; pages: number } | null {
+		const key = JSON.stringify(params || {});
+		return getFreshCache(listCache, key);
+	},
+	
+	invalidateCache() {
+		listCache.clear();
+		inFlight.clear();
+	},
 	/**
 	 * Get all inventory items
 	 */
@@ -188,11 +224,36 @@ export const inventoryItemsAPI = {
 		const url = `/api/inventory/items${query ? `?${query}` : ''}`;
 		console.log('[INVENTORY-API] 📡 Fetching from URL:', url);
 
-		const response = await fetchWithAuthRetry(url, getFetchOptions('GET'));
+		const cacheKey = JSON.stringify({
+			includeArchived: params?.includeArchived,
+			category: params?.category,
+			status: params?.status,
+			search: params?.search,
+			page: params?.page,
+			limit: params?.limit
+		});
+		
+		if (!params?.forceRefresh) {
+			const cached = getFreshCache<{ items: InventoryItem[]; total: number; page: number; limit: number; pages: number }>(listCache, cacheKey);
+			if (cached) return cached;
+			const existing = inFlight.get(cacheKey);
+			if (existing) return existing;
+		}
 
-		const result = await handleResponse(response);
-		console.log('[INVENTORY-API] ✅ Received', result.items?.length || 0, 'items');
-		return result;
+		const req = (async () => {
+			const response = await fetchWithAuthRetry(url, getFetchOptions('GET'));
+			const result = await handleResponse<{ items: InventoryItem[]; total: number; page: number; limit: number; pages: number }>(response);
+			console.log('[INVENTORY-API] ✅ Received', result.items?.length || 0, 'items');
+			setCache(listCache, cacheKey, result);
+			return result;
+		})();
+
+		inFlight.set(cacheKey, req);
+		try {
+			return await req;
+		} finally {
+			inFlight.delete(cacheKey);
+		}
 	},
 
 	/**

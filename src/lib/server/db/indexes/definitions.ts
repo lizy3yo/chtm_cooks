@@ -15,6 +15,11 @@ import { analyticsIndexes } from './analyticsIndexes';
 import { notificationIndexes } from './notificationIndexes';
 import { cartIndexes } from './cartIndexes';
 
+export { borrowRequestIndexes } from './borrowRequestsIndexes';
+export { replacementObligationIndexes } from './replacementObligationsIndexes';
+export { statisticsIndexes } from './statisticsIndexes';
+export { donationIndexes } from './donationIndexes';
+export { analyticsIndexes } from './analyticsIndexes';
 export { notificationIndexes } from './notificationIndexes';
 export { cartIndexes } from './cartIndexes';
 

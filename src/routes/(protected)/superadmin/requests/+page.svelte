@@ -53,14 +53,68 @@
 	let unsubscribeSSE: (() => void) | null = null;
 	let openDropdown = $state<string | null>(null);
 	let processingId = $state<string | null>(null);
+	let _pollInterval: ReturnType<typeof setInterval> | null = null;
+	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
-	onMount(async () => {
-		await Promise.all([loadRequests(), loadStats()]);
+	function getListParams() {
+		const statusesMap: Record<string, string[]> = {
+			'all': [],
+			'pending': ['pending_instructor'],
+			'active': ['approved_instructor', 'ready_for_pickup', 'borrowed', 'pending_return', 'missing'],
+			'overdue': ['borrowed'],
+			'history': ['returned', 'resolved', 'cancelled', 'rejected']
+		};
+		let statuses = statusesMap[activeTab] || [];
+		if (selectedStatus !== 'all') {
+			statuses = [selectedStatus];
+		}
+		return {
+			statuses: statuses.length > 0 ? statuses as any : undefined,
+			search: searchQuery || undefined,
+			page: pagination.page,
+			limit: pagination.limit,
+			sortBy: 'createdAt' as const
+		};
+	}
+
+	function hydrateFromCache(): boolean {
+		const cached = borrowRequestsAPI.peekCachedList(getListParams());
+		if (!cached) return false;
+
+		let list = cached.requests;
+		if (activeTab === 'overdue') {
+			const now = new Date();
+			list = list.filter(r => r.status === 'borrowed' && new Date(r.returnDate) < now);
+		}
+
+		requests = list;
+		pagination = {
+			page: cached.page,
+			limit: cached.limit,
+			total: cached.total,
+			totalPages: cached.pages
+		};
+		loading = false;
+		return true;
+	}
+
+	function scheduleRefresh(forceRefresh = false): void {
+		if (refreshTimer !== null) clearTimeout(refreshTimer);
+		refreshTimer = setTimeout(() => {
+			refreshTimer = null;
+			void loadRequests(false, forceRefresh);
+			void loadStats(forceRefresh);
+		}, 250);
+	}
+
+	onMount(() => {
+		hydrateFromCache();
+		void loadRequests(requests.length === 0, false);
+		void loadStats(false);
 		
-		unsubscribeSSE = borrowRequestsAPI.subscribeToChanges(async (event) => {
+		unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((event) => {
 			sseConnected = true;
-			await loadRequests(false);
-			await loadStats();
+			scheduleRefresh(true);
 			const msgs: Record<string, string> = {
 				created: 'New borrow request submitted',
 				approved: 'Request approved',
@@ -86,35 +140,31 @@
 		setTimeout(() => {
 			sseConnected = true;
 		}, 1500);
+		// --- 30-second polling fallback ---
+		_pollInterval = setInterval(() => {
+			void loadRequests(false, true);
+			void loadStats(true);
+		}, 30_000);
+
+		// --- Refresh on tab/window focus ---
+		const onFocus = () => { void loadRequests(false, true); void loadStats(true); };
+		const onVisible = () => { if (document.visibilityState === 'visible') { void loadRequests(false, true); void loadStats(true); } };
+		window.addEventListener('focus', onFocus);
+		document.addEventListener('visibilitychange', onVisible);
+
+		return () => {
+			unsubscribeSSE?.();
+			if (_pollInterval !== null) clearInterval(_pollInterval);
+			if (refreshTimer !== null) clearTimeout(refreshTimer);
+			window.removeEventListener('focus', onFocus);
+			document.removeEventListener('visibilitychange', onVisible);
+		};
 	});
 
-	onDestroy(() => {
-		unsubscribeSSE?.();
-	});
-
-	async function loadRequests(showLoader = true) {
-		if (showLoader) loading = true;
+	async function loadRequests(showLoader = true, forceRefresh = true) {
+		if (showLoader && requests.length === 0) loading = true;
 		try {
-			const statusesMap: Record<string, string[]> = {
-				'all': [],
-				'pending': ['pending_instructor'],
-				'active': ['approved_instructor', 'ready_for_pickup', 'borrowed', 'pending_return', 'missing'],
-				'overdue': ['borrowed'], // In real app, overdue is filtered by date
-				'history': ['returned', 'resolved', 'cancelled', 'rejected']
-			};
-			
-			let statuses = statusesMap[activeTab] || [];
-			if (selectedStatus !== 'all') {
-				statuses = [selectedStatus];
-			}
-
-			const res = await borrowRequestsAPI.list({
-				statuses: statuses.length > 0 ? statuses as any : undefined,
-				search: searchQuery || undefined,
-				page: pagination.page,
-				limit: pagination.limit,
-				sortBy: 'createdAt'
-			}, { forceRefresh: true });
+			const res = await borrowRequestsAPI.list(getListParams(), { forceRefresh });
 
 			let list = res.requests;
 			if (activeTab === 'overdue') {
@@ -136,9 +186,9 @@
 		}
 	}
 
-	async function loadStats() {
+	async function loadStats(forceRefresh = true) {
 		try {
-			const res = await borrowRequestsAPI.list({ limit: 1000 }, { forceRefresh: true });
+			const res = await borrowRequestsAPI.list({ limit: 1000 }, { forceRefresh });
 			const all = res.requests;
 			const now = new Date();
 
