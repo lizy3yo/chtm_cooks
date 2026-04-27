@@ -424,6 +424,19 @@
 			rgba(251, 182, 205, 0.45) 100%
 		);
 	}
+
+	@media (max-width: 768px) {
+		.guide-section {
+			padding: 4rem 1.25rem;
+			min-height: auto;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.guide-section {
+			padding: 3rem 1rem;
+		}
+	}
 	.section-wrap {
 		max-width: 1100px;
 		width: 100%;
@@ -449,12 +462,26 @@
 		letter-spacing: -0.025em;
 		margin: 0 0 0.75rem;
 	}
+
+	@media (max-width: 480px) {
+		.section-heading {
+			font-size: clamp(1.5rem, 6vw, 2rem);
+		}
+	}
 	.section-sub {
 		font-size: 1.05rem;
 		color: #78516a;
 		line-height: 1.7;
 		max-width: 600px;
 		margin: 0 0 2.5rem;
+	}
+
+	@media (max-width: 480px) {
+		.section-sub {
+			font-size: 0.9375rem;
+			line-height: 1.6;
+			margin: 0 0 2rem;
+		}
 	}
 
 	/* Request Flow Full Screen Override */
@@ -495,6 +522,12 @@
 	.bento-card:hover {
 		transform: translateY(-4px);
 		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+	}
+
+	@media (max-width: 480px) {
+		.bento-card {
+			padding: 1.5rem;
+		}
 	}
 	.bento-header {
 		display: flex;
@@ -643,6 +676,18 @@
 		box-shadow: 0 12px 40px rgba(233, 30, 99, 0.1);
 		border-color: rgba(233, 30, 99, 0.25);
 	}
+
+	@media (max-width: 768px) {
+		.step-card {
+			padding: 2.5rem 1.5rem;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.step-card {
+			padding: 2rem 1.25rem;
+		}
+	}
 	.step-num {
 		position: absolute;
 		top: -16px;
@@ -678,12 +723,24 @@
 		color: #1a0a12;
 		margin: 0 0 0.75rem;
 	}
+
+	@media (max-width: 480px) {
+		.step-card h3 {
+			font-size: 1.25rem;
+		}
+	}
 	.step-card p {
 		font-size: 1.0625rem;
 		color: #78516a;
 		line-height: 1.6;
 		margin: 0;
 		max-width: 500px;
+	}
+
+	@media (max-width: 480px) {
+		.step-card p {
+			font-size: 0.9375rem;
+		}
 	}
 
 	/* Footer */
@@ -1115,6 +1172,37 @@
 		}
 		.diff-range-input {
 			cursor: ns-resize;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.diff-showcase {
+			min-height: 700px;
+		}
+		.diff-content {
+			padding: 1.5rem;
+		}
+		.diff-content-left,
+		.diff-content-right {
+			padding: 1.5rem;
+		}
+		.diff-visual {
+			padding: 1.5rem;
+		}
+		.diff-text-block h3 {
+			font-size: 1.5rem;
+		}
+		.diff-text-block p {
+			font-size: 0.9375rem;
+		}
+		.mockup-chat {
+			max-width: 280px;
+			padding: 1.25rem;
+		}
+		.mockup-qr {
+			width: 220px;
+			height: 220px;
+			padding: 1.5rem;
 		}
 	}
 
