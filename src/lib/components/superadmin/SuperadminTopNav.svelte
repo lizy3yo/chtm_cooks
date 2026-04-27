@@ -274,12 +274,6 @@
 						<a href="/superadmin/settings" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-purple-50 hover:text-purple-600">
 							<Settings size={15} class="text-gray-400" /> Settings
 						</a>
-						<a href="/superadmin/history" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-purple-50 hover:text-purple-600">
-							<History size={15} class="text-gray-400" /> Activity Log
-						</a>
-						<a href="/superadmin/help" onclick={() => profileOpen = false} role="menuitem" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-purple-50 hover:text-purple-600">
-							<HelpCircle size={15} class="text-gray-400" /> Support & Assistance
-						</a>
 						<div class="my-1 border-t border-gray-100"></div>
 						<button onclick={() => { profileOpen = false; signOutOpen = true; }} role="menuitem" class="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-red-600 transition-colors hover:bg-red-50">
 							<LogOut size={15} /> Sign out
