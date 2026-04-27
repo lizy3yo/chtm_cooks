@@ -92,11 +92,28 @@
 		name="description"
 		content="Your complete guide to using the CHTM Cooks laboratory equipment management system as a student."
 	/>
+	<!-- Preconnect to external resources -->
 	<link rel="preconnect" href="https://fonts.googleapis.com" />
 	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous" />
+	<link rel="preconnect" href="https://lottie.host" crossorigin="anonymous" />
+	<!-- DNS prefetch for faster resolution -->
+	<link rel="dns-prefetch" href="https://lottie.host" />
+	<!-- Preload critical fonts -->
+	<link
+		rel="preload"
+		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+		as="style"
+	/>
 	<link
 		href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
 		rel="stylesheet"
+	/>
+	<!-- Preload Lottie animation -->
+	<link
+		rel="preload"
+		href="https://lottie.host/3f8f045f-a7f9-467c-b90e-5d8fec25020d/2QVqFu04nF.lottie"
+		as="fetch"
+		crossorigin="anonymous"
 	/>
 </svelte:head>
 
