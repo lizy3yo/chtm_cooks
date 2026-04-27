@@ -150,8 +150,8 @@
 				new Date(r.returnDate) < new Date()
 			).length;
 
-			// Set inventory data
-			totalInventory = inventoryRes.items.length;
+			// Set inventory data - use total from API response, not items.length
+			totalInventory = inventoryRes.total;
 			totalCategories = new Set(inventoryRes.items.map((i: InventoryItem) => i.categoryId)).size;
 			lowStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity > 0 && i.quantity <= 5).length;
 			outOfStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity === 0).length;
