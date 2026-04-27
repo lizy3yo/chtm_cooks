@@ -15,13 +15,28 @@
 	let loading = $state(true);
 
 	// Data
-	let items = $state<InventoryItem[]>([]);
+	let allItems = $state<InventoryItem[]>([]);
 	let analytics = $state<AnalyticsReport | null>(null);
 	let obligations = $state<ReplacementObligation[]>([]);
 	let searchQuery = $state('');
 
+	// Pagination
+	let currentPage = $state(1);
+	const itemsPerPage = 20;
+
+	// Filtered and paginated items
+	const filteredAllItems = $derived(
+		allItems.filter(i => !searchQuery || 
+			i.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+			i.category.toLowerCase().includes(searchQuery.toLowerCase())
+		)
+	);
+	
+	const totalPages = $derived(Math.max(1, Math.ceil(filteredAllItems.length / itemsPerPage)));
+	const items = $derived(filteredAllItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
+
 	// Stats
-	let lowStockCount = $derived(items.filter(i => (i.quantity - (i.currentCount || 0)) < 5).length);
+	let lowStockCount = $derived(allItems.filter(i => (i.quantity - (i.currentCount || 0)) < 5).length);
 
 	let unsubscribe: (() => void) | null = null;
 
@@ -45,11 +60,11 @@
 		if (showLoader) loading = true;
 		try {
 			const [itemsRes, analyticsRes, obsRes] = await Promise.all([
-				inventoryItemsAPI.getAll({ limit: 500, forceRefresh: true }),
+				inventoryItemsAPI.getAll({ limit: 1000, forceRefresh: true }),
 				fetchAnalytics({ period: 'month', forceRefresh: true }),
 				replacementObligationsAPI.getObligations({ limit: 100 }, { forceRefresh: true })
 			]);
-			items = itemsRes.items;
+			allItems = itemsRes.items;
 			analytics = analyticsRes;
 			obligations = obsRes.obligations;
 		} catch (e: any) {
@@ -59,9 +74,29 @@
 		}
 	}
 
-	const filteredItems = $derived(
-		items.filter(i => !searchQuery || i.name.toLowerCase().includes(searchQuery.toLowerCase()) || i.category.toLowerCase().includes(searchQuery.toLowerCase()))
-	);
+	/**
+	 * Handle page navigation
+	 */
+	function goToPage(pageNum: number): void {
+		if (pageNum >= 1 && pageNum <= totalPages) {
+			currentPage = pageNum;
+			// Scroll to top of table
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		}
+	}
+
+	/**
+	 * Handle search input (debounced)
+	 */
+	let searchTimeout: ReturnType<typeof setTimeout>;
+	function handleSearch(query: string): void {
+		searchQuery = query;
+		currentPage = 1; // Reset to first page on search
+		clearTimeout(searchTimeout);
+		searchTimeout = setTimeout(() => {
+			// Search is client-side, no need to refetch
+		}, 300);
+	}
 
 	function formatDate(d: string | Date | undefined) {
 		if (!d) return '—';
@@ -71,7 +106,7 @@
 	function exportData() {
 		toastStore.info('Preparing export...', 'Export');
 		const headers = ['ID', 'Name', 'Category', 'Total Stock', 'Current Variance', 'Status'];
-		const rows = items.map(i => [
+		const rows = allItems.map(i => [
 			i.id.slice(-6).toUpperCase(),
 			`"${i.name}"`,
 			`"${i.category}"`,
@@ -88,6 +123,11 @@
 		a.click();
 		URL.revokeObjectURL(url);
 	}
+
+	onDestroy(() => {
+		unsubscribe?.();
+		clearTimeout(searchTimeout);
+	});
 </script>
 
 <svelte:head>
@@ -128,15 +168,15 @@
 				<p class="text-sm font-medium text-gray-500">Total Unique Items</p>
 				<Package size={18} class="text-gray-400" />
 			</div>
-			<p class="mt-2 text-3xl font-bold text-gray-900">{items.length}</p>
-			<p class="mt-1 text-xs text-gray-500">Across {new Set(items.map(i => i.category)).size} categories</p>
+			<p class="mt-2 text-3xl font-bold text-gray-900">{allItems.length}</p>
+			<p class="mt-1 text-xs text-gray-500">Across {new Set(allItems.map(i => i.category)).size} categories</p>
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
 			<div class="flex items-center justify-between">
 				<p class="text-sm font-medium text-gray-500">Total Physical Stock</p>
 				<BarChart3 size={18} class="text-gray-400" />
 			</div>
-			<p class="mt-2 text-3xl font-bold text-emerald-600">{items.reduce((acc, curr) => acc + (curr.currentCount ?? curr.quantity), 0).toLocaleString()}</p>
+			<p class="mt-2 text-3xl font-bold text-emerald-600">{allItems.reduce((acc, curr) => acc + (curr.currentCount ?? curr.quantity), 0).toLocaleString()}</p>
 			<p class="mt-1 text-xs text-gray-500">Total tracked units</p>
 		</div>
 		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
@@ -191,7 +231,8 @@
 						<Search size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
 						<input 
 							type="text" 
-							bind:value={searchQuery} 
+							value={searchQuery}
+							oninput={(e) => handleSearch((e.target as HTMLInputElement).value)}
 							placeholder="Search inventory by name or category..." 
 							class="w-full rounded-lg border border-gray-300 py-2 pl-10 pr-4 text-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20" 
 						/>
@@ -201,6 +242,21 @@
 						Export CSV
 					</button>
 				</div>
+
+				<!-- Results Info -->
+				{#if !loading}
+					<div class="px-6 py-3 border-b border-gray-100 bg-gray-50/30">
+						<p class="text-sm text-gray-700">
+							Showing <span class="font-semibold">{(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, filteredAllItems.length)}</span> of <span class="font-semibold">{filteredAllItems.length}</span> {filteredAllItems.length === 1 ? 'item' : 'items'}
+							{#if searchQuery}
+								<button onclick={() => { searchQuery = ''; currentPage = 1; }} class="ml-2 text-pink-600 hover:text-pink-700 font-medium">
+									Clear search
+								</button>
+							{/if}
+						</p>
+					</div>
+				{/if}
+
 				<div class="overflow-x-auto">
 					<table class="min-w-full divide-y divide-gray-200">
 						<thead class="bg-gray-50">
@@ -213,7 +269,7 @@
 							</tr>
 						</thead>
 						<tbody class="divide-y divide-gray-200 bg-white">
-							{#each filteredItems as item}
+							{#each items as item}
 								<tr class="hover:bg-gray-50 transition-colors">
 									<td class="whitespace-nowrap px-6 py-4">
 										<div class="flex items-center gap-3">
@@ -265,15 +321,72 @@
 								</tr>
 							{:else}
 								<tr>
-									<td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">
-										<Package class="mx-auto h-8 w-8 text-gray-400 mb-2" />
-										No items found matching "{searchQuery}"
+									<td colspan="5" class="px-6 py-12 text-center">
+										<Package class="mx-auto h-10 w-10 text-gray-400 mb-3" />
+										<p class="text-sm font-medium text-gray-900">No items found</p>
+										<p class="text-sm text-gray-500 mt-1">
+											{#if searchQuery}
+												No items match "{searchQuery}"
+											{:else}
+												No inventory items available
+											{/if}
+										</p>
 									</td>
 								</tr>
 							{/each}
 						</tbody>
 					</table>
 				</div>
+
+				<!-- Pagination -->
+				{#if !loading && filteredAllItems.length > itemsPerPage}
+					<div class="flex items-center justify-between border-t border-gray-200 bg-gray-50/50 px-4 py-3 sm:px-6">
+						<div class="hidden sm:block text-sm text-gray-500">
+							Page {currentPage} of {totalPages}
+						</div>
+						<nav class="flex items-center gap-1 mx-auto sm:mx-0" aria-label="Pagination">
+							<button
+								onclick={() => goToPage(currentPage - 1)}
+								disabled={currentPage === 1}
+								class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+								aria-label="Previous page"
+							>
+								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+								</svg>
+							</button>
+
+							{#each Array.from({ length: totalPages }, (_, i) => i + 1) as page}
+								{#if totalPages <= 7 || page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1}
+									<button
+										onclick={() => goToPage(page)}
+										class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-colors {currentPage === page ? 'bg-pink-600 text-white shadow-sm' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
+										aria-label="Page {page}"
+										aria-current={currentPage === page ? 'page' : undefined}
+									>
+										{page}
+									</button>
+								{:else if (page === currentPage - 2 || page === currentPage + 2) && totalPages > 7}
+									<span class="inline-flex h-9 w-9 items-center justify-center text-sm text-gray-400">…</span>
+								{/if}
+							{/each}
+
+							<button
+								onclick={() => goToPage(currentPage + 1)}
+								disabled={currentPage === totalPages}
+								class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+								aria-label="Next page"
+							>
+								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+								</svg>
+							</button>
+						</nav>
+						<div class="hidden sm:block text-sm text-gray-500">
+							{filteredAllItems.length} total items
+						</div>
+					</div>
+				{/if}
 			{/if}
 
 			{#if activeTab === 'usage' && analytics}

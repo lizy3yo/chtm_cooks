@@ -335,7 +335,7 @@
 					<div class="divide-y divide-gray-50">
 						{#each recentUsers as user}
 							<div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
-								<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-purple-500 to-pink-500 text-sm font-semibold text-white">
+								<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-purple-500 to-pink-500 text-sm font-semibold text-white">
 									{#if user.profilePhotoUrl}
 										<img src={user.profilePhotoUrl} alt="{user.firstName} {user.lastName}" class="h-full w-full object-cover" />
 									{:else}
@@ -377,7 +377,7 @@
 					<div class="divide-y divide-gray-50">
 						{#each recentRequests.slice(0, 5) as request}
 							<div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
-								<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 text-sm font-semibold text-white">
+								<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-blue-500 to-cyan-500 text-sm font-semibold text-white">
 									{#if request.student?.profilePhotoUrl}
 										<img src={request.student.profilePhotoUrl} alt={request.student.fullName} class="h-full w-full object-cover" />
 									{:else}
@@ -469,7 +469,7 @@
 
 		<!-- ── Analytics Summary (if available) ───────────────────────────────── -->
 		{#if report}
-			<div class="overflow-hidden rounded-xl bg-gradient-to-br from-pink-50 to-purple-50 shadow-sm ring-1 ring-pink-100">
+			<div class="overflow-hidden rounded-xl bg-linear-to-br from-pink-50 to-purple-50 shadow-sm ring-1 ring-pink-100">
 				<div class="flex items-center justify-between border-b border-pink-100 bg-white/50 px-5 py-4">
 					<div class="flex items-center gap-2">
 						<Activity size={16} class="text-pink-500" />
