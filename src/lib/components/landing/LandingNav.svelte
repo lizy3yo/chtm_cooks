@@ -141,6 +141,12 @@
 		transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 	}
 
+	@media (max-width: 480px) {
+		.landing-nav {
+			padding: 0.75rem 0.75rem 0;
+		}
+	}
+
 	.nav-wrapper {
 		width: 100%;
 		max-width: 1280px;
@@ -177,6 +183,13 @@
 		align-items: center;
 		justify-content: space-between;
 		height: 72px;
+	}
+
+	@media (max-width: 480px) {
+		.nav-container {
+			padding: 0 1rem;
+			height: 64px;
+		}
 	}
 
 	/* ─── Logo ────────────────────────────────────────────── */
@@ -218,6 +231,13 @@
 		filter: drop-shadow(0 2px 8px rgba(233, 30, 99, 0.2));
 	}
 
+	@media (max-width: 480px) {
+		.logo-img {
+			width: 36px;
+			height: 36px;
+		}
+	}
+
 	.logo-text {
 		display: flex;
 		flex-direction: column;
@@ -233,12 +253,24 @@
 		line-height: 1.2;
 	}
 
+	@media (max-width: 480px) {
+		.logo-title {
+			font-size: 1.0625rem;
+		}
+	}
+
 	.logo-subtitle {
 		font-size: 0.65rem;
 		font-weight: 600;
 		color: #e91e63;
 		letter-spacing: 0.12em;
 		text-transform: uppercase;
+	}
+
+	@media (max-width: 480px) {
+		.logo-subtitle {
+			font-size: 0.5625rem;
+		}
 	}
 
 	/* ─── Desktop Links ───────────────────────────────────── */

@@ -3,19 +3,10 @@
 	import { onMount } from 'svelte';
 	// @ts-ignore - Package has incorrect type definitions but works at runtime
 	import { DotLottieSvelte } from '@lottiefiles/dotlottie-svelte';
-	import type { DotLottie } from '@lottiefiles/dotlottie-svelte';
 	import { School, LogIn, UserPlus } from 'lucide-svelte';
 	import equipmentImg from '$lib/assets/Equipment/v1/equipment.png';
 
 	let visible = $state(false);
-	let dotLottie: DotLottie | null = $state(null); // Svelte 5 rune
-
-	function play() {
-		dotLottie?.play();
-	}
-	function pause() {
-		dotLottie?.pause();
-	}
 
 	onMount(() => {
 		setTimeout(() => (visible = true), 80);
@@ -146,6 +137,13 @@
 		}
 	}
 
+	@media (max-width: 480px) {
+		.hero-container {
+			padding: 5rem 1rem 3rem;
+			gap: 2rem;
+		}
+	}
+
 	.hero-content {
 		opacity: 0;
 		transform: translateX(-30px);
@@ -191,6 +189,15 @@
 		}
 	}
 
+	@media (max-width: 480px) {
+		.hero-chip {
+			font-size: 0.625rem;
+			padding: 0.3rem 0.75rem;
+			gap: 0.375rem;
+			margin-bottom: 1.25rem;
+		}
+	}
+
 	.hero-h1 {
 		font-family: 'Inter', system-ui, sans-serif;
 		font-size: clamp(2.25rem, 5.5vw, 3.75rem);
@@ -204,6 +211,13 @@
 	@media (max-width: 1024px) {
 		.hero-h1 {
 			text-align: center;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.hero-h1 {
+			font-size: clamp(1.875rem, 8vw, 2.5rem);
+			margin: 0 0 1rem;
 		}
 	}
 
@@ -229,6 +243,15 @@
 		}
 	}
 
+	@media (max-width: 480px) {
+		.hero-p {
+			font-size: 0.875rem;
+			line-height: 1.6;
+			margin: 0 0 1.75rem;
+			padding: 0 0.5rem;
+		}
+	}
+
 	.hero-btns {
 		display: flex;
 		gap: 0.875rem;
@@ -238,6 +261,16 @@
 	@media (max-width: 1024px) {
 		.hero-btns {
 			justify-content: center;
+		}
+	}
+
+	@media (max-width: 480px) {
+		.hero-btns {
+			flex-direction: column;
+			gap: 0.75rem;
+			width: 100%;
+			max-width: 320px;
+			margin: 0 auto;
 		}
 	}
 
@@ -321,8 +354,14 @@
 
 	@media (max-width: 480px) {
 		.hero-animations {
-			max-width: 300px;
-			height: 300px;
+			max-width: 280px;
+			height: 280px;
+		}
+		.lottie-secondary {
+			width: 50%;
+			height: 50%;
+			bottom: 0%;
+			right: -5%;
 		}
 	}
 
@@ -338,6 +377,7 @@
 	.btn-primary {
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 0.5rem;
 		padding: 0.875rem 2rem;
 		background: linear-gradient(135deg, #e91e63, #c2185b);
@@ -358,9 +398,18 @@
 		box-shadow: 0 8px 32px rgba(233, 30, 99, 0.45);
 	}
 
+	@media (max-width: 480px) {
+		.btn-primary {
+			width: 100%;
+			padding: 0.875rem 1.5rem;
+			font-size: 0.875rem;
+		}
+	}
+
 	.btn-ghost {
 		display: inline-flex;
 		align-items: center;
+		justify-content: center;
 		gap: 0.5rem;
 		padding: 0.875rem 2rem;
 		background: rgba(255, 255, 255, 0.75);
@@ -379,6 +428,14 @@
 	.btn-ghost:hover {
 		background: rgba(255, 255, 255, 0.95);
 		border-color: #e91e63;
+	}
+
+	@media (max-width: 480px) {
+		.btn-ghost {
+			width: 100%;
+			padding: 0.875rem 1.5rem;
+			font-size: 0.875rem;
+		}
 	}
 
 	@keyframes pulse {
