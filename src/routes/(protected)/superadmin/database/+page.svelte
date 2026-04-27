@@ -133,16 +133,6 @@
 		<div class="flex-1">
 			<h1 class="text-2xl font-bold text-gray-900">Database Management</h1>
 			<p class="mt-1 text-sm text-gray-500">Monitor database health, indexes, and collection allocations</p>
-			
-			<div class="mt-4 flex items-start gap-3 rounded-lg border border-pink-200 bg-pink-50 p-4">
-				<Info size={20} class="mt-0.5 shrink-0 text-pink-600" />
-				<div class="flex-1 text-sm">
-					<p class="font-medium text-pink-900">System Information</p>
-					<p class="mt-1 text-pink-800">
-						This module interfaces directly with MongoDB. You can monitor collection sizes, view index-to-data ratios, and analyze recommendations for slow query optimization. Keep backups regularly.
-					</p>
-				</div>
-			</div>
 		</div>
 		<button 
 			onclick={loadStats} 

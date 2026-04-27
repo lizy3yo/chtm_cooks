@@ -306,19 +306,6 @@
 				{#if sseConnected}<Wifi size={13} class="text-emerald-500" />Live{:else}<WifiOff size={13} />Connecting...{/if}
 			</div>
 		</div>
-		
-		<div class="mt-4 flex items-start gap-3 rounded-xl border border-pink-200 bg-pink-50 p-4">
-			<Info size={20} class="mt-0.5 shrink-0 text-pink-600" />
-			<div class="flex-1 text-sm">
-				<p class="font-semibold text-pink-900">Request Oversight Features</p>
-				<ul class="mt-2 space-y-1 text-pink-800">
-					<li>• View all borrow requests across all students, instructors, and classes</li>
-					<li>• Override request status for emergency interventions</li>
-					<li>• Track overdue requests and send automated reminders</li>
-					<li>• Export request data for reporting and compliance</li>
-				</ul>
-			</div>
-		</div>
 	</div>
 
 	<!-- Stats -->

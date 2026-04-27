@@ -536,7 +536,7 @@
 								onchange={() => toggleInstructorEdit(instructor.id)}
 								class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
 							/>
-							<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br {avatarColor(i)} text-xs font-bold text-white">
+							<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br {avatarColor(i)} text-xs font-bold text-white">
 								{avatar(instructor.firstName, instructor.lastName)}
 							</div>
 							<div class="min-w-0">
@@ -582,22 +582,6 @@
 				</div>
 			</div>
 			<p class="mt-1 text-sm text-gray-500">Organize students and instructors by academic classes and sections</p>
-
-			<!-- Info Banner -->
-			<div class="mt-4 flex items-start gap-3 rounded-xl border border-pink-200 bg-pink-50 p-4">
-				<Info size={18} class="mt-0.5 shrink-0 text-pink-600" />
-				<div class="text-sm">
-					<p class="font-semibold text-pink-900">Class Code System Features</p>
-					<ul class="mt-1.5 space-y-0.5 text-pink-800">
-						<li>• Create and manage class codes with format: [YEAR]-[COURSE]-[SECTION] (e.g., 2026-CHTM101-A)</li>
-						<li>• Assign multiple instructors to teach the same class section</li>
-						<li>• Enroll students in classes for organized request routing and analytics</li>
-						<li>• Track enrollment capacity and class roster in real-time</li>
-						<li>• Archive classes at semester end while preserving historical data</li>
-						<li>• Generate class performance reports and equipment usage by class</li>
-					</ul>
-				</div>
-			</div>
 		</div>
 	</div>
 
@@ -791,7 +775,7 @@
 								<div class="flex -space-x-2 overflow-hidden">
 									{#each (cc.instructorIds ?? []).slice(0, 5) as iid, i}
 										<div
-											class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-gradient-to-br {avatarColor(i)} text-xs font-bold text-white shadow-sm"
+											class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-linear-to-br {avatarColor(i)} text-xs font-bold text-white shadow-sm"
 											title="Instructor"
 										>
 											{iid.slice(0, 1).toUpperCase()}
@@ -998,7 +982,7 @@
 										onchange={() => toggleInstructorCreate(instructor.id)}
 										class="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
 									/>
-									<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br {avatarColor(i)} text-xs font-bold text-white">
+									<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-linear-to-br {avatarColor(i)} text-xs font-bold text-white">
 										{avatar(instructor.firstName, instructor.lastName)}
 									</div>
 									<div class="min-w-0">
@@ -1119,7 +1103,7 @@
 							{@const isEnrolled = enrolledStudentIds().has(student.id)}
 							<div class="flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition">
 								<!-- Avatar -->
-								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br {avatarColor(i)} text-sm font-bold text-white">
+								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-linear-to-br {avatarColor(i)} text-sm font-bold text-white">
 									{avatar(student.firstName, student.lastName)}
 								</div>
 								<!-- Info -->

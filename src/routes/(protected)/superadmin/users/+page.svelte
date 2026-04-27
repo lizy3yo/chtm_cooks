@@ -687,22 +687,6 @@
 					/>Live{:else}<WifiOff size={13} aria-hidden="true" />Connecting...{/if}
 			</div>
 		</div>
-
-		<div class="flex items-start gap-3 rounded-xl border border-pink-200 bg-pink-50 p-4">
-			<Info size={18} class="mt-0.5 shrink-0 text-pink-600" aria-hidden="true" />
-			<div class="text-sm">
-				<p class="font-semibold text-pink-900">User Management Features</p>
-				<ul class="mt-1.5 space-y-0.5 text-pink-800">
-					<li>
-						• Create, edit, and deactivate users across all roles (Student, Instructor, Custodian)
-					</li>
-					<li>• Bulk import users via CSV/Excel for efficient onboarding</li>
-					<li>• Assign users to class codes for organized academic structure</li>
-					<li>• Track user activity, login history, and account status</li>
-					<li>• Reset passwords and manage account lockouts</li>
-				</ul>
-			</div>
-		</div>
 	</div>
 
 	<!-- Tabs -->

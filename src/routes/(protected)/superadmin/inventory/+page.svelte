@@ -146,19 +146,6 @@
 				{#if sseConnected}<Wifi size={13} class="text-emerald-500" />Live{:else}<WifiOff size={13} />Connecting...{/if}
 			</div>
 		</div>
-		
-		<div class="mt-4 flex items-start gap-3 rounded-xl border border-pink-200 bg-pink-50 p-4">
-			<Info size={20} class="mt-0.5 shrink-0 text-pink-600" />
-			<div class="flex-1 text-sm">
-				<p class="font-semibold text-pink-900">Inventory Monitoring Features</p>
-				<ul class="mt-2 space-y-1 text-pink-800">
-					<li>• Monitor stock levels and low inventory alerts across all equipment</li>
-					<li>• View usage statistics and most borrowed items by category</li>
-					<li>• Track replacement obligations for damaged or missing equipment</li>
-					<li>• Analyze inventory turnover and utilization rates</li>
-				</ul>
-			</div>
-		</div>
 	</div>
 
 	<!-- High Level Stats -->

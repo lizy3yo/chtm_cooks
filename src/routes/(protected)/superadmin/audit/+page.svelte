@@ -95,18 +95,6 @@
 		<div class="flex-1">
 			<h1 class="text-2xl font-bold text-gray-900">System Audit Logs</h1>
 			<p class="mt-1 text-sm text-gray-500">Immutable activity trail for compliance, security monitoring, and system integrity.</p>
-			
-			<div class="mt-4 flex items-start gap-3 rounded-lg border border-pink-200 bg-pink-50 p-4">
-				<Info size={20} class="mt-0.5 shrink-0 text-pink-600" />
-				<div class="flex-1 text-sm">
-					<p class="font-medium text-pink-900">Active Logging Policies</p>
-					<ul class="mt-2 space-y-1 text-pink-800">
-						<li>• <span class="font-bold">Inventory & Requests:</span> All modifications, creations, and deletions are permanently tracked.</li>
-						<li>• <span class="font-bold">Accountability:</span> Every action captures the actor's ID, Role, IP address, and precise timestamp.</li>
-						<li>• <span class="font-bold">Retention:</span> Logs are preserved according to institution data compliance standards.</li>
-					</ul>
-				</div>
-			</div>
 		</div>
 	</div>
 
