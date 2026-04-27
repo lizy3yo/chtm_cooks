@@ -181,17 +181,7 @@
 			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Database Management</h1>
 			<p class="mt-0.5 text-sm text-gray-500">Monitor database health, indexes, and collection allocations</p>
 		</div>
-		<div class="hidden shrink-0 items-center gap-2 sm:flex">
 
-			<button 
-				onclick={() => loadStats(true)} 
-				disabled={loading}
-				class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
-			>
-				<RefreshCw size={15} class={loading ? "animate-spin" : ""} />
-				Refresh Stats
-			</button>
-		</div>
 	</div>
 
 	{#if loading && !stats}

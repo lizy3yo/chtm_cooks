@@ -242,14 +242,7 @@
 			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">{greeting}, {$user?.firstName}</h1>
 			<p class="mt-0.5 text-sm text-gray-500">Superadmin Control Center — System-Wide Overview</p>
 		</div>
-		<div class="hidden shrink-0 items-center gap-2 sm:flex">
-			<a
-				href="/superadmin/analytics"
-				class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
-			>
-				<BarChart3 size={15} /> Analytics
-			</a>
-		</div>
+
 	</div>
 
 	{#if loading}
