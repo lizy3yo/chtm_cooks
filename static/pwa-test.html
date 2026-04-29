@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWA Test - CHTM Cooks</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #1a202c;
+            margin-bottom: 1rem;
+        }
+        .status {
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+        }
+        .success { background: #c6f6d5; color: #22543d; }
+        .error { background: #fed7d7; color: #742a2a; }
+        .warning { background: #feebc8; color: #7c2d12; }
+        .info { background: #bee3f8; color: #2c5282; }
+        button {
+            background: #e91e63;
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 0.5rem 0.5rem 0.5rem 0;
+        }
+        button:hover {
+            background: #c2185b;
+        }
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+        .check-item {
+            padding: 0.75rem;
+            margin: 0.5rem 0;
+            border-left: 4px solid #cbd5e0;
+            background: #f7fafc;
+        }
+        .check-item.pass {
+            border-left-color: #48bb78;
+            background: #f0fff4;
+        }
+        .check-item.fail {
+            border-left-color: #f56565;
+            background: #fff5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 PWA Installation Test</h1>
+        <p>This page tests if your PWA is properly configured and installable.</p>
+
+        <div id="results"></div>
+
+        <h2 style="margin-top: 2rem;">Actions</h2>
+        <button onclick="runTests()">🔄 Run Tests</button>
+        <button onclick="clearStorage()">🗑️ Clear Storage</button>
+        <button onclick="installPWA()">📥 Install PWA</button>
+        <button onclick="window.location.href='/'">🏠 Go to App</button>
+    </div>
+
+    <script>
+        let deferredPrompt;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            console.log('✅ beforeinstallprompt event fired!');
+            addResult('beforeinstallprompt event captured!', 'success');
+        });
+
+        async function runTests() {
+            const results = document.getElementById('results');
+            results.innerHTML = '<h2>Test Results:</h2>';
+
+            // Test 1: HTTPS
+            const isHTTPS = window.location.protocol === 'https:' || window.location.hostname === 'localhost';
+            addCheck('HTTPS or localhost', isHTTPS, isHTTPS ? 'Running on HTTPS or localhost' : 'Must use HTTPS');
+
+            // Test 2: Service Worker Support
+            const swSupport = 'serviceWorker' in navigator;
+            addCheck('Service Worker Support', swSupport, swSupport ? 'Browser supports service workers' : 'Browser does not support service workers');
+
+            // Test 3: Service Worker Registration
+            if (swSupport) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    const hasReg = registrations.length > 0;
+                    addCheck('Service Worker Registered', hasReg, hasReg ? `${registrations.length} service worker(s) registered` : 'No service workers registered');
+                    
+                    if (hasReg) {
+                        registrations.forEach((reg, i) => {
+                            addResult(`SW ${i + 1}: ${reg.active ? '✅ Active' : '⏳ Installing'}`, 'info');
+                        });
+                    }
+                } catch (e) {
+                    addCheck('Service Worker Registration', false, e.message);
+                }
+            }
+
+            // Test 4: Manifest
+            try {
+                const response = await fetch('/manifest.webmanifest');
+                const manifest = await response.json();
+                addCheck('Manifest Found', true, `Name: ${manifest.name}`);
+                addCheck('Manifest Icons', manifest.icons && manifest.icons.length > 0, `${manifest.icons?.length || 0} icons defined`);
+                
+                // Check if icons exist
+                if (manifest.icons) {
+                    for (const icon of manifest.icons) {
+                        try {
+                            const iconResponse = await fetch(icon.src);
+                            addCheck(`Icon ${icon.sizes}`, iconResponse.ok, icon.src);
+                        } catch (e) {
+                            addCheck(`Icon ${icon.sizes}`, false, `Failed to load: ${icon.src}`);
+                        }
+                    }
+                }
+            } catch (e) {
+                addCheck('Manifest Found', false, e.message);
+            }
+
+            // Test 5: Install Prompt
+            addCheck('Install Prompt Available', !!deferredPrompt, deferredPrompt ? 'beforeinstallprompt event captured' : 'Event not fired yet (may already be installed)');
+
+            // Test 6: Already Installed
+            const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+            addCheck('Installation Status', !isStandalone, isStandalone ? '✅ Already installed as PWA' : 'Not installed yet');
+
+            // Test 7: localStorage
+            try {
+                const dismissed = localStorage.getItem('pwa-install-dismissed');
+                const count = localStorage.getItem('pwa-dismiss-count');
+                if (dismissed || count) {
+                    addResult(`Dismissal Info: Dismissed ${count || 0} time(s), Last: ${dismissed ? new Date(parseInt(dismissed)).toLocaleString() : 'Never'}`, 'warning');
+                }
+            } catch (e) {
+                addResult('localStorage check failed', 'error');
+            }
+        }
+
+        function addCheck(name, pass, message) {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `check-item ${pass ? 'pass' : 'fail'}`;
+            div.innerHTML = `<strong>${pass ? '✅' : '❌'} ${name}</strong><br><small>${message}</small>`;
+            results.appendChild(div);
+        }
+
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const div = document.createElement('div');
+            div.className = `status ${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+        }
+
+        function clearStorage() {
+            localStorage.removeItem('pwa-install-dismissed');
+            localStorage.removeItem('pwa-dismiss-count');
+            addResult('✅ Storage cleared! Refresh the page to see install prompt again.', 'success');
+        }
+
+        async function installPWA() {
+            if (!deferredPrompt) {
+                addResult('❌ Install prompt not available. Check if already installed or if PWA requirements are met.', 'error');
+                return;
+            }
+
+            deferredPrompt.prompt();
+            const { outcome } = await deferredPrompt.userChoice;
+            
+            if (outcome === 'accepted') {
+                addResult('✅ PWA installed successfully!', 'success');
+            } else {
+                addResult('❌ Installation cancelled by user', 'warning');
+            }
+            
+            deferredPrompt = null;
+        }
+
+        // Auto-run tests on load
+        window.addEventListener('load', () => {
+            setTimeout(runTests, 500);
+        });
+    </script>
+</body>
+</html>
