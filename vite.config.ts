@@ -15,7 +15,7 @@ export default defineConfig(({ mode }) => ({
 			base: '/',
 			selfDestroying: false,
 			registerType: 'autoUpdate',
-			injectRegister: 'auto',
+			injectRegister: 'script',
 			manifest: {
 				short_name: 'CHTM Cooks',
 				name: 'CHTM Cooks - Laboratory Equipment Management',

@@ -26,6 +26,23 @@
 		<!-- PWA Manifest -->
 		<link rel="manifest" href="/manifest.webmanifest" />
 
+		<!-- PWA Service Worker Registration -->
+		<script>
+			if ('serviceWorker' in navigator) {
+				window.addEventListener('load', function() {
+					navigator.serviceWorker.register('/sw.js', { scope: '/' })
+						.then(function(registration) {
+							console.log('✅ PWA: Service Worker registered successfully', registration.scope);
+						})
+						.catch(function(error) {
+							console.error('❌ PWA: Service Worker registration failed:', error);
+						});
+				});
+			} else {
+				console.warn('⚠️ PWA: Service Workers not supported in this browser');
+			}
+		</script>
+
 		<!-- Theme init: apply 'dark' class early to avoid flash -->
 		<script>
 			(function(){
