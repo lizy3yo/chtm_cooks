@@ -3,7 +3,7 @@
 	import { Download, X } from 'lucide-svelte';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
 
-	let deferredPrompt: any = null;
+	let deferredPrompt: any = $state(null);
 	let showBanner = $state(false);
 	let showButton = $state(false);
 	let isIOS = $state(false);
@@ -182,18 +182,13 @@
 
 		if (isIOS) {
 			// For iOS, just keep the banner open with instructions
-			console.log('PWA: iOS - showing instructions');
+			console.log('PWA: iOS - showing instructions in banner');
 			return;
 		}
 
 		if (!deferredPrompt) {
-			console.log('PWA: No deferred prompt available');
-			// Fallback: show instructions
-			alert(
-				'To install this app:\n\n' +
-					'Chrome/Edge: Look for the install icon (⊕) in the address bar\n' +
-					'Safari: Tap Share → Add to Home Screen'
-			);
+			console.log('PWA: No deferred prompt available - user should use browser install');
+			// Don't show alert - just log it. The banner/button already has instructions.
 			return;
 		}
 
@@ -214,6 +209,7 @@
 				showBanner = false;
 				showButton = false;
 				localStorage.removeItem('pwa-install-dismissed');
+				localStorage.removeItem('pwa-dismiss-count');
 			}
 
 			deferredPrompt = null;
@@ -286,15 +282,29 @@
 						>
 							<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
 							<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-						</svg> then "Add to Home Screen"
+						</svg> Share, then "Add to Home Screen"
+					</p>
+				{:else if !deferredPrompt}
+					<p class="toast-description">
+						Look for the install icon <svg
+							width="12"
+							height="12"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							stroke-width="2.5"
+							style="display: inline; vertical-align: middle; margin: 0 2px;"
+						>
+							<path d="M12 5v14M5 12l7 7 7-7" />
+						</svg> in your browser
 					</p>
 				{:else}
-					<p class="toast-description">Get quick access and work offline</p>
+					<p class="toast-description">Quick access & offline mode</p>
 				{/if}
 			</div>
 
-			<!-- Install Button -->
-			{#if !isIOS}
+			<!-- Install Button (only if native prompt available) -->
+			{#if !isIOS && deferredPrompt}
 				<button
 					class="toast-install-btn"
 					onclick={handleInstall}
