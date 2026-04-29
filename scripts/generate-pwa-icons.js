@@ -16,7 +16,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const SOURCE_LOGO = join(__dirname, '../src/lib/assets/CHTM_LOGO.png');
+const SOURCE_LOGO = join(__dirname, '../src/lib/assets/CHTM_LOGO02.png');
 const STATIC_DIR = join(__dirname, '../static');
 
 // Ensure static directory exists
