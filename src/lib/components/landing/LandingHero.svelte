@@ -385,13 +385,9 @@
 		}
 	}
 
-	@media (max-width: 480px) {
+	@media (max-width: 640px) {
 		.hero-btns {
-			flex-direction: column;
-			gap: 0.75rem;
-			width: 100%;
-			max-width: 320px;
-			margin: 0 auto;
+			gap: 0.625rem;
 		}
 	}
 
@@ -613,11 +609,12 @@
 		box-shadow: 0 8px 32px rgba(233, 30, 99, 0.45);
 	}
 
-	@media (max-width: 480px) {
+	@media (max-width: 640px) {
 		.btn-primary {
-			width: 100%;
-			padding: 0.875rem 1.5rem;
+			padding: 0.75rem 1.5rem;
 			font-size: 0.875rem;
+			flex: 1;
+			min-width: 0;
 		}
 	}
 
@@ -645,11 +642,12 @@
 		border-color: #e91e63;
 	}
 
-	@media (max-width: 480px) {
+	@media (max-width: 640px) {
 		.btn-ghost {
-			width: 100%;
-			padding: 0.875rem 1.5rem;
+			padding: 0.75rem 1.5rem;
 			font-size: 0.875rem;
+			flex: 1;
+			min-width: 0;
 		}
 	}
 
