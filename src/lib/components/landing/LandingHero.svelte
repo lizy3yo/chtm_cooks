@@ -247,6 +247,14 @@
 		.hero-container {
 			grid-template-columns: 1fr;
 			gap: 3rem;
+			padding: 6rem 1.5rem 4rem;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.hero-container {
+			padding: 5.5rem 1.25rem 3.5rem;
+			gap: 2.5rem;
 		}
 	}
 
@@ -377,13 +385,9 @@
 		}
 	}
 
-	@media (max-width: 480px) {
+	@media (max-width: 640px) {
 		.hero-btns {
-			flex-direction: column;
-			gap: 0.75rem;
-			width: 100%;
-			max-width: 320px;
-			margin: 0 auto;
+			gap: 0.625rem;
 		}
 	}
 
@@ -401,6 +405,7 @@
 		width: 100%;
 		max-width: 500px;
 		height: 500px;
+		margin: 0 auto;
 		/* Performance optimizations */
 		will-change: opacity, transform;
 		contain: layout style paint;
@@ -448,6 +453,8 @@
 	@media (max-width: 1024px) {
 		.hero-animations {
 			transform: translateY(30px);
+			max-width: 450px;
+			height: 450px;
 		}
 		.hero-animations.visible {
 			transform: translateY(0);
@@ -466,7 +473,9 @@
 		position: absolute;
 		width: 100%;
 		height: 100%;
-		inset: 0;
+		top: 50%;
+		left: 50%;
+		transform: translate(-50%, -50%);
 		z-index: 3;
 		opacity: 0;
 		transition: opacity 0.4s ease-in-out;
@@ -479,7 +488,6 @@
 		-webkit-font-smoothing: antialiased;
 		-moz-osx-font-smoothing: grayscale;
 		backface-visibility: hidden;
-		transform: translateZ(0);
 	}
 
 	.lottie-secondary.loaded {
@@ -539,18 +547,18 @@
 
 	@media (max-width: 768px) {
 		.hero-animations {
-			max-width: 400px;
-			height: 400px;
+			max-width: 380px;
+			height: 380px;
 		}
 		.lottie-secondary {
-			right: -2%;
+			right: 0;
 		}
 	}
 
 	@media (max-width: 480px) {
 		.hero-animations {
-			max-width: 280px;
-			height: 280px;
+			max-width: 300px;
+			height: 300px;
 		}
 		.animation-skeleton {
 			border-radius: 1.5rem;
@@ -561,12 +569,19 @@
 		}
 	}
 
+	@media (max-width: 375px) {
+		.hero-animations {
+			max-width: 260px;
+			height: 260px;
+		}
+	}
+
 	@keyframes float-lottie {
 		0%, 100% {
-			transform: translateY(0);
+			transform: translate(-50%, -50%) translateY(0);
 		}
 		50% {
-			transform: translateY(-12px);
+			transform: translate(-50%, -50%) translateY(-12px);
 		}
 	}
 
@@ -594,11 +609,12 @@
 		box-shadow: 0 8px 32px rgba(233, 30, 99, 0.45);
 	}
 
-	@media (max-width: 480px) {
+	@media (max-width: 640px) {
 		.btn-primary {
-			width: 100%;
-			padding: 0.875rem 1.5rem;
+			padding: 0.75rem 1.5rem;
 			font-size: 0.875rem;
+			flex: 1;
+			min-width: 0;
 		}
 	}
 
@@ -626,11 +642,12 @@
 		border-color: #e91e63;
 	}
 
-	@media (max-width: 480px) {
+	@media (max-width: 640px) {
 		.btn-ghost {
-			width: 100%;
-			padding: 0.875rem 1.5rem;
+			padding: 0.75rem 1.5rem;
 			font-size: 0.875rem;
+			flex: 1;
+			min-width: 0;
 		}
 	}
 

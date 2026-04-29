@@ -6,7 +6,7 @@
 <!-- Toast Container - Fixed position at top-right -->
 <div
 	aria-live="assertive"
-	class="pointer-events-none fixed inset-0 z-9999 flex items-start justify-end px-4 py-6 sm:items-start sm:p-6"
+	class="pointer-events-none fixed inset-0 z-9999 flex items-start justify-end px-4 pt-20 pb-6 sm:pt-24 sm:px-6 sm:pb-6"
 	style="position: fixed !important;"
 >
 	<div class="flex w-full flex-col items-end space-y-4">
