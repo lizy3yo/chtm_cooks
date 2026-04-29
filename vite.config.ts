@@ -134,7 +134,7 @@ export default defineConfig({
 				]
 			},
 			devOptions: {
-				enabled: false,
+				enabled: true, // Enable in development for testing
 				suppressWarnings: true,
 				type: 'module',
 				navigateFallback: '/'
