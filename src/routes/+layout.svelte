@@ -7,6 +7,7 @@
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
 	import LoadingBar from '$lib/components/ui/LoadingBar.svelte';
+	import PWAInstallPrompt from '$lib/components/pwa/PWAInstallPrompt.svelte';
 	import './layout.css';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
 
@@ -140,6 +141,9 @@
 
 <!-- Global Confirm/Alert Dialogs -->
 <ConfirmDialogContainer />
+
+<!-- PWA Install Prompt -->
+<PWAInstallPrompt />
 
 <!-- Global AI Chatbot -->
 {#if AIChatbotComponent}

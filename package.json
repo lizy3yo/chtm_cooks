@@ -12,6 +12,7 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
+		"pwa:generate-icons": "node scripts/generate-pwa-icons.js",
 		"db:purge-catalog-requests": "node scripts/purge-catalog-and-requests.cjs",
 		"db:purge-catalog-requests:yes": "node scripts/purge-catalog-and-requests.cjs --yes",
 		"db:seed-demo-analytics": "node scripts/seed-demo-analytics-data.cjs",
@@ -62,6 +63,7 @@
 		"@types/node": "^22.19.11",
 		"@types/nodemailer": "^7.0.11",
 		"@types/uuid": "^10.0.0",
+		"@vite-pwa/sveltekit": "^1.1.0",
 		"eslint": "^9.39.2",
 		"eslint-config-prettier": "^10.1.8",
 		"eslint-plugin-svelte": "^3.14.0",
@@ -74,6 +76,8 @@
 		"tailwindcss": "^4.1.18",
 		"typescript": "^5.9.3",
 		"typescript-eslint": "^8.54.0",
-		"vite": "^7.3.1"
+		"vite": "^7.3.1",
+		"vite-plugin-pwa": "^1.2.0",
+		"workbox-window": "^7.4.0"
 	}
 }
