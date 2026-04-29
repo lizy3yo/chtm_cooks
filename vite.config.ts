@@ -3,16 +3,19 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
 	plugins: [
 		tailwindcss(),
 		sveltekit(),
 		SvelteKitPWA({
 			srcDir: './src',
-			mode: 'production',
+			mode: mode === 'production' ? 'production' : 'development',
+			strategies: 'generateSW',
 			scope: '/',
 			base: '/',
 			selfDestroying: false,
+			registerType: 'autoUpdate',
+			injectRegister: 'auto',
 			manifest: {
 				short_name: 'CHTM Cooks',
 				name: 'CHTM Cooks - Laboratory Equipment Management',
@@ -48,31 +51,13 @@ export default defineConfig({
 						type: 'image/png',
 						purpose: 'maskable'
 					}
-				],
-				screenshots: [
-					{
-						src: '/screenshot-wide.png',
-						sizes: '1280x720',
-						type: 'image/png',
-						form_factor: 'wide',
-						label: 'CHTM Cooks Dashboard'
-					},
-					{
-						src: '/screenshot-mobile.png',
-						sizes: '750x1334',
-						type: 'image/png',
-						form_factor: 'narrow',
-						label: 'CHTM Cooks Mobile View'
-					}
 				]
 			},
-			injectManifest: {
-				globPatterns: ['client/**/*.{js,css,ico,png,svg,webp,woff,woff2}']
-			},
 			workbox: {
-				globPatterns: ['client/**/*.{js,css,ico,png,svg,webp,woff,woff2}'],
+				globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff,woff2}'],
 				cleanupOutdatedCaches: true,
 				clientsClaim: true,
+				skipWaiting: true,
 				runtimeCaching: [
 					{
 						urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -81,7 +66,7 @@ export default defineConfig({
 							cacheName: 'google-fonts-cache',
 							expiration: {
 								maxEntries: 10,
-								maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
+								maxAgeSeconds: 60 * 60 * 24 * 365
 							},
 							cacheableResponse: {
 								statuses: [0, 200]
@@ -95,36 +80,7 @@ export default defineConfig({
 							cacheName: 'gstatic-fonts-cache',
 							expiration: {
 								maxEntries: 10,
-								maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-							},
-							cacheableResponse: {
-								statuses: [0, 200]
-							}
-						}
-					},
-					{
-						urlPattern: /^https:\/\/lottie\.host\/.*/i,
-						handler: 'CacheFirst',
-						options: {
-							cacheName: 'lottie-animations-cache',
-							expiration: {
-								maxEntries: 20,
-								maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-							},
-							cacheableResponse: {
-								statuses: [0, 200]
-							}
-						}
-					},
-					{
-						urlPattern: /\/api\/.*/i,
-						handler: 'NetworkFirst',
-						options: {
-							cacheName: 'api-cache',
-							networkTimeoutSeconds: 10,
-							expiration: {
-								maxEntries: 50,
-								maxAgeSeconds: 60 * 5 // 5 minutes
+								maxAgeSeconds: 60 * 60 * 24 * 365
 							},
 							cacheableResponse: {
 								statuses: [0, 200]
@@ -134,20 +90,15 @@ export default defineConfig({
 				]
 			},
 			devOptions: {
-				enabled: true, // Enable in development for testing
+				enabled: true,
 				suppressWarnings: true,
 				type: 'module',
 				navigateFallback: '/'
-			},
-			kit: {
-				includeVersionFile: true
 			}
 		})
 	],
 	server: {
 		port: 3000,
-		// Pre-transform critical app files so dev cold-start cost happens
-		// at server boot, not on the first user request.
 		warmup: {
 			clientFiles: [
 				'./src/routes/+layout.svelte',
@@ -163,4 +114,4 @@ export default defineConfig({
 			]
 		}
 	}
-});
+}));
