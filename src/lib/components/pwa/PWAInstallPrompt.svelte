@@ -132,18 +132,25 @@
 
 		// TESTING MODE: Show immediately if no prompt event (for local development)
 		// This ensures the UI shows up for testing even without HTTPS
+		// However, only show if we have a real prompt or are on a supported platform
 		if (!isStandalone && shouldShow) {
 			setTimeout(() => {
-				if (!canInstall && !deferredPrompt) {
-					console.log('PWA: Testing mode - showing UI immediately');
-					canInstall = true; // Enable for testing
-					if (deviceType === 'desktop') {
-						showButton = true;
-					} else {
-						showBanner = true;
-					}
+				// Only show in testing mode if we actually have the prompt event
+				// or if we're on a platform that might support it
+				const isLikelySupported = 
+					!isIOS && // iOS needs manual instructions
+					('BeforeInstallPromptEvent' in window || // Chrome/Edge support
+					 navigator.userAgent.includes('Chrome') ||
+					 navigator.userAgent.includes('Edge'));
+				
+				if (!canInstall && !deferredPrompt && isLikelySupported) {
+					console.log('PWA: Testing mode - showing UI for supported browser');
+					console.warn('PWA: Note - Install button may not work without beforeinstallprompt event');
+					canInstall = false; // Don't set to true in testing mode without prompt
+					// Don't show the button in testing mode without a real prompt
+					// This prevents the "nothing happens" issue
 				}
-			}, 1500); // Show after 1.5 seconds for testing
+			}, 1500);
 		}
 
 		// Handle window resize
@@ -179,6 +186,9 @@
 
 	async function handleInstall() {
 		console.log('PWA: Install clicked');
+		console.log('PWA: deferredPrompt available:', !!deferredPrompt);
+		console.log('PWA: isIOS:', isIOS);
+		console.log('PWA: canInstall:', canInstall);
 
 		if (isIOS) {
 			// For iOS, just keep the banner open with instructions
@@ -187,8 +197,20 @@
 		}
 
 		if (!deferredPrompt) {
-			console.log('PWA: No deferred prompt available - user should use browser install');
-			// Don't show alert - just log it. The banner/button already has instructions.
+			console.warn('PWA: No deferred prompt available');
+			console.log('PWA: This means either:');
+			console.log('  1. The beforeinstallprompt event has not fired yet');
+			console.log('  2. The app is already installed');
+			console.log('  3. The browser does not support PWA installation');
+			console.log('  4. PWA requirements are not met (HTTPS, manifest, service worker)');
+			
+			// Show helpful message to user
+			alert(
+				'Unable to install automatically.\n\n' +
+				'Please use your browser\'s install option:\n' +
+				'• Chrome/Edge: Look for the install icon (⊕) in the address bar\n' +
+				'• Or check the browser menu for "Install app" or "Add to Home Screen"'
+			);
 			return;
 		}
 
@@ -210,11 +232,14 @@
 				showButton = false;
 				localStorage.removeItem('pwa-install-dismissed');
 				localStorage.removeItem('pwa-dismiss-count');
+			} else {
+				console.log('PWA: User declined installation');
 			}
 
 			deferredPrompt = null;
 		} catch (error) {
 			console.error('PWA: Install error:', error);
+			alert('Installation failed. Please try using your browser\'s install option from the menu.');
 		} finally {
 			isInstalling = false;
 		}
