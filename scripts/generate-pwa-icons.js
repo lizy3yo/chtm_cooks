@@ -41,16 +41,53 @@ async function generateIcons() {
 		process.exit(1);
 	}
 
+	// Process source logo to remove black background and ensure transparency
+	const processedLogo = await sharp(SOURCE_LOGO)
+		.removeAlpha() // Remove existing alpha channel
+		.negate({ alpha: false }) // Prepare for threshold
+		.threshold(10, { grayscale: false }) // Remove near-black pixels
+		.negate({ alpha: false }) // Restore original colors
+		.toBuffer();
+
+	// Create a version with transparent background by removing black/dark pixels
+	const transparentLogo = await sharp(processedLogo)
+		.ensureAlpha()
+		.raw()
+		.toBuffer({ resolveWithObject: true });
+
+	// Convert black pixels to transparent
+	const { data, info } = transparentLogo;
+	for (let i = 0; i < data.length; i += 4) {
+		const r = data[i];
+		const g = data[i + 1];
+		const b = data[i + 2];
+		// If pixel is dark (near black), make it transparent
+		if (r < 30 && g < 30 && b < 30) {
+			data[i + 3] = 0; // Set alpha to 0 (transparent)
+		}
+	}
+
+	const finalLogo = await sharp(data, {
+		raw: {
+			width: info.width,
+			height: info.height,
+			channels: 4
+		}
+	})
+		.png()
+		.toBuffer();
+
 	for (const icon of ICON_SIZES) {
 		try {
 			const outputPath = join(STATIC_DIR, icon.name);
 
 			if (icon.maskable) {
-				// For maskable icons, add padding (safe zone)
-				const padding = Math.floor(icon.size * 0.1); // 10% padding
+				// For maskable icons, add padding (safe zone) with white background
+				// Industry standard: 10% safe zone for maskable icons
+				const padding = Math.floor(icon.size * 0.1);
 				const innerSize = icon.size - padding * 2;
 
-				await sharp(SOURCE_LOGO)
+				await sharp(finalLogo)
 					.resize(innerSize, innerSize, {
 						fit: 'contain',
 						background: { r: 255, g: 255, b: 255, alpha: 1 }
@@ -65,11 +102,11 @@ async function generateIcons() {
 					.png()
 					.toFile(outputPath);
 			} else {
-				// Standard icons
-				await sharp(SOURCE_LOGO)
+				// Standard icons with transparent background
+				await sharp(finalLogo)
 					.resize(icon.size, icon.size, {
 						fit: 'contain',
-						background: { r: 255, g: 255, b: 255, alpha: 0 }
+						background: { r: 0, g: 0, b: 0, alpha: 0 }
 					})
 					.png()
 					.toFile(outputPath);

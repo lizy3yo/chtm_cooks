@@ -28,14 +28,22 @@ Then generate all PWA icons from the CHTM_LOGO.png:
 npm run pwa:generate-icons
 ```
 
+**What this does:**
+- Automatically removes black/dark backgrounds from the source logo
+- Creates transparent PNG icons (prevents black boxes on mobile splash screens)
+- Generates maskable icons with proper safe zones for Android
+- Follows PWA industry standards for optimal display
+
 This creates:
 - `favicon-16x16.png` & `favicon-32x32.png` - Browser favicons
-- `pwa-64x64.png` - Small app icon
-- `pwa-192x192.png` - Standard app icon
-- `pwa-512x512.png` - Large app icon
-- `maskable-icon-512x512.png` - Adaptive icon for Android
+- `pwa-64x64.png` - Small app icon (transparent background)
+- `pwa-192x192.png` - Standard app icon (transparent background)
+- `pwa-512x512.png` - Large app icon (transparent background)
+- `maskable-icon-512x512.png` - Adaptive icon for Android (white background with 10% safe zone)
 - `screenshot-wide.png` - Desktop screenshot (placeholder)
 - `screenshot-mobile.png` - Mobile screenshot (placeholder)
+
+**Note:** The script intelligently removes black backgrounds from your logo to ensure proper splash screen display on mobile devices.
 
 ### 2. Replace Placeholder Screenshots
 
@@ -230,6 +238,22 @@ Force update:
 1. Verify icons exist in `/static` folder
 2. Check manifest in DevTools → Application → Manifest
 3. Clear cache and hard reload (Ctrl+Shift+R)
+
+### Black Background on Mobile Splash Screen
+
+**Problem:** Logo appears with black box on mobile splash screen
+
+**Solution:**
+1. Run `npm run pwa:generate-icons` to regenerate icons with transparent backgrounds
+2. The script automatically removes black/dark backgrounds from the source logo
+3. Clear browser cache and reinstall the PWA
+4. Verify `background_color` in manifest is set to `#ffffff` (white)
+
+**Technical Details:**
+- Mobile splash screens combine the icon with the manifest's `background_color`
+- Icons must have transparent backgrounds (not black)
+- The generation script removes dark pixels (RGB < 30) and makes them transparent
+- Maskable icons use white backgrounds with 10% safe zones (Android standard)
 
 ### iOS Push Notifications Not Working
 
