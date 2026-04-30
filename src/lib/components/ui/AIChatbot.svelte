@@ -5,6 +5,7 @@
 	import { quintOut, cubicOut } from 'svelte/easing';
 	import { chatStore } from '$lib/stores/chat';
 	import { user } from '$lib/stores/auth';
+	import { userSettingsStore } from '$lib/stores/userSettings';
 	import {
 		X,
 		Send,
@@ -17,6 +18,9 @@
 		MessageSquarePlus,
 		History
 	} from 'lucide-svelte';
+
+	// Subscribe to user settings - use direct store subscription for better reactivity
+	const isChatbotEnabled = $derived($userSettingsStore.aiChatbotEnabled);
 
 	let inputValue = $state('');
 	let messagesEl = $state<HTMLDivElement | null>(null);
@@ -306,7 +310,7 @@
 	const suggestions = ['How do I borrow equipment?', 'Check my request status', 'Equipment return process'];
 </script>
 
-{#if !isOpen && !hasBlockingModal}
+{#if !isOpen && !hasBlockingModal && isChatbotEnabled}
 	<button
 		onclick={() => chatStore.open()}
 		class="fab-btn"
@@ -320,7 +324,7 @@
 	</button>
 {/if}
 
-{#if isOpen}
+{#if isOpen && isChatbotEnabled}
 	<div
 		class="backdrop"
 		transition:fade={{ duration: 200 }}
