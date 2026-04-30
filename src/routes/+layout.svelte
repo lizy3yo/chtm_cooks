@@ -8,6 +8,9 @@
 	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
 	import LoadingBar from '$lib/components/ui/LoadingBar.svelte';
 	import PWAInstallPrompt from '$lib/components/pwa/PWAInstallPrompt.svelte';
+	import OfflineStatusBanner from '$lib/components/offline/OfflineStatusBanner.svelte';
+	import { initializeDatabase } from '$lib/db/schema';
+	import { initializeSyncService } from '$lib/services/syncService';
 	import './layout.css';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
 
@@ -108,16 +111,30 @@
 	
 	// Initialize on mount
 	onMount(() => {
+		// Load AI Chatbot component
 		void import('$lib/components/ui/AIChatbot.svelte').then((module) => {
 			AIChatbotComponent = module.default;
 		});
 
+		// Initialize auth
 		authStore.init();
+		
+		// Initialize offline-first infrastructure (async, non-blocking)
+		void (async () => {
+			try {
+				await initializeDatabase();
+				await initializeSyncService();
+				console.log('[App] Offline-first system initialized');
+			} catch (error) {
+				console.error('[App] Failed to initialize offline system:', error);
+			}
+		})();
 		
 		// Add keyboard listeners
 		window.addEventListener('keydown', handleKeyDown);
 		window.addEventListener('keyup', handleKeyUp);
 		
+		// Cleanup function
 		return () => {
 			window.removeEventListener('keydown', handleKeyDown);
 			window.removeEventListener('keyup', handleKeyUp);
@@ -133,6 +150,9 @@
 
 <!-- Global Loading Bar -->
 <LoadingBar bind:show={isLoading} />
+
+<!-- Offline Status Banner -->
+<OfflineStatusBanner />
 
 {@render children()}
 
