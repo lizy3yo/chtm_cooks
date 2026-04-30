@@ -4,6 +4,7 @@ import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequ
 import { toastStore } from '$lib/stores/toast';
 import { loadingStore } from '$lib/stores/loading';
 import { Clock, Package, CheckCircle2, XCircle, CalendarDays, User, ShieldCheck, FileText, UserCircle, X, ClipboardList, FileCheck, CheckCheck, PackageCheck, Truck, Home, CircleAlert, Info, Filter, Search, RotateCcw } from 'lucide-svelte';
+import HistorySkeletonLoader from '$lib/components/ui/HistorySkeletonLoader.svelte';
 
 let history = $state<BorrowRequestRecord[]>([]);
 let total = $state(0);
@@ -180,6 +181,9 @@ function getApprovalTimeline(request: any) {
   <title>History - Account - Student Portal</title>
 </svelte:head>
 
+{#if loading}
+	<HistorySkeletonLoader {viewMode} />
+{:else}
 <div class="space-y-4 sm:space-y-6">
 	<!-- Header -->
 	<div>
@@ -188,13 +192,12 @@ function getApprovalTimeline(request: any) {
 	</div>
 
 	<!-- Filters -->
-	<div class="rounded-xl bg-white p-4 shadow-sm ring-1 ring-gray-100 sm:p-5">
-		<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+	<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+		<div class="p-4 border-b border-gray-200 bg-gray-50/50 flex flex-col sm:flex-row gap-4 items-center justify-between">
 			<!-- Left: Filters -->
-			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-1">
+			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:flex-1 w-full">
 				<!-- Status Dropdown -->
 				<div class="w-full sm:w-48">
-					<label for="status-filter" class="mb-1.5 block text-xs font-semibold text-gray-700">Status</label>
 					<div class="relative">
 						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
 							<Filter size={16} class="text-gray-400" />
@@ -203,7 +206,7 @@ function getApprovalTimeline(request: any) {
 							id="status-filter"
 							bind:value={statusFilter}
 							onchange={() => { page = 1; loadHistory(); }}
-							class="block w-full appearance-none rounded-lg border-gray-300 bg-white py-2 pl-10 pr-10 text-sm font-medium text-gray-900 shadow-sm transition-all focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20"
+							class="block w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-10 text-sm font-medium text-gray-900 shadow-sm transition-all focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
 						>
 							{#each statusOptions as opt}
 								<option value={opt.value}>{opt.label}</option>
@@ -219,7 +222,6 @@ function getApprovalTimeline(request: any) {
 				
 				<!-- Search Input -->
 				<div class="w-full sm:flex-1 sm:max-w-md">
-					<label for="search" class="mb-1.5 block text-xs font-semibold text-gray-700">Search</label>
 					<div class="relative">
 						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
 							<Search size={16} class="text-gray-400" />
@@ -230,14 +232,14 @@ function getApprovalTimeline(request: any) {
 							placeholder="Search by purpose or item..."
 							bind:value={search}
 							onkeydown={(e) => e.key === 'Enter' && loadHistory()}
-							class="block w-full rounded-lg border-gray-300 bg-white py-2 pl-10 pr-3 text-sm placeholder-gray-400 shadow-sm transition-all focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20"
+							class="block w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-sm placeholder-gray-400 shadow-sm transition-all focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
 						/>
 					</div>
 				</div>
 			</div>
 			
 			<!-- Right: View Mode Toggle -->
-			<div class="flex items-center justify-center sm:justify-end">
+			<div class="flex items-center justify-center sm:justify-end w-full sm:w-auto">
 				<div class="inline-flex rounded-lg border border-gray-200 bg-gray-50 p-0.5 shadow-sm">
 					<button
 						onclick={() => viewMode = 'by-request'}
@@ -257,27 +259,33 @@ function getApprovalTimeline(request: any) {
 	</div>
 
 	<!-- Content -->
-	{#if loading}
-		<div class="flex items-center justify-center py-16">
-			<div class="h-10 w-10 animate-spin rounded-full border-4 border-pink-200 border-t-pink-600"></div>
-		</div>
-	{:else if !history || history.length === 0}
-		<div class="rounded-xl bg-white px-6 py-16 text-center shadow-sm ring-1 ring-gray-100">
-			<Clock size={48} class="mx-auto text-pink-600" />
-			<h3 class="mt-4 text-base font-semibold text-gray-900">No history found</h3>
-			<p class="mt-2 text-sm text-gray-500">You have no completed, cancelled, or rejected requests yet.</p>
-			<p class="mt-1 text-xs text-gray-400">Debug: {history?.length ?? 'null'} items, loading: {loading}</p>
+	{#if !history || history.length === 0}
+		<div class="rounded-xl border border-gray-200 bg-white shadow-sm">
+			<div class="px-6 py-16 text-center">
+				<div class="inline-flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 mb-4">
+					<Clock size={32} class="text-gray-400" />
+				</div>
+				<h3 class="text-base font-semibold text-gray-900">No history found</h3>
+				<p class="mt-2 text-sm text-gray-500">You have no completed, cancelled, or rejected requests yet.</p>
+			</div>
 		</div>
 	{:else}
-		<div class="space-y-3">
-			<p class="text-xs text-gray-500">Showing {history.length} requests</p>
+		<!-- Results Info -->
+		<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+			<div class="px-6 py-3 border-b border-gray-100 bg-gray-50/30">
+				<p class="text-sm text-gray-700">
+					Showing <span class="font-semibold">{history.length}</span> of <span class="font-semibold">{total}</span> {total === 1 ? 'request' : 'requests'}
+				</p>
+			</div>
+		
+		<div class="divide-y divide-gray-200">
 			{#if viewMode === 'by-request'}
 				{#each history as req}
 					{@const uiStatus = toUiStatus(req.status, req.rejectReason)}
 					{@const Icon = statusIcon(uiStatus)}
 					<button
 						onclick={() => openDetailModal({ ...req, rawId: req.id, id: formatRequestCode(req.id), items: req.items, status: uiStatus, requestDate: req.createdAt, purpose: req.purpose, instructor: req.instructor?.fullName || 'N/A', rejectionReason: req.rejectReason, returnedAt: req.returnedAt })}
-						class="group w-full rounded-xl bg-white p-4 text-left shadow-sm ring-1 ring-gray-100 transition-all hover:shadow-md hover:ring-gray-200 sm:p-5"
+						class="group w-full p-5 text-left transition-colors hover:bg-gray-50"
 					>
 						<div class="flex items-start gap-4">
 							<!-- Item Images -->
@@ -292,7 +300,7 @@ function getApprovalTimeline(request: any) {
 									{/if}
 								{/each}
 								{#if req.items.length > 3}
-									<div class="flex h-14 w-14 items-center justify-center rounded-xl bg-linear-to-br from-pink-50 to-violet-50 ring-2 ring-white">
+									<div class="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-pink-50 to-violet-50 ring-2 ring-white">
 										<span class="text-sm font-semibold text-gray-700">+{req.items.length - 3}</span>
 									</div>
 								{/if}
@@ -302,7 +310,7 @@ function getApprovalTimeline(request: any) {
 							<div class="min-w-0 flex-1">
 								<div class="flex items-start justify-between gap-3">
 									<div class="min-w-0 flex-1">
-										<h3 class="text-base font-semibold text-gray-900 group-hover:text-pink-600 transition-colors sm:text-lg">{req.purpose}</h3>
+										<h3 class="text-base font-semibold text-gray-900 group-hover:text-pink-600 transition-colors">{req.purpose}</h3>
 										<p class="mt-0.5 font-mono text-xs text-gray-500">{formatRequestCode(req.id)}</p>
 									</div>
 									<span class="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium {getStatusColor(uiStatus)}">
@@ -359,7 +367,7 @@ function getApprovalTimeline(request: any) {
 					{#each req.items as item}
 						<button
 							onclick={() => openDetailModal({ ...req, rawId: req.id, id: formatRequestCode(req.id), items: req.items, status: uiStatus, requestDate: req.createdAt, purpose: req.purpose, instructor: req.instructor?.fullName || 'N/A', rejectionReason: req.rejectReason, returnedAt: req.returnedAt })}
-							class="group w-full rounded-xl bg-white p-4 text-left shadow-sm ring-1 ring-gray-100 transition-all hover:shadow-md hover:ring-gray-200 sm:p-5"
+							class="group w-full p-5 text-left transition-colors hover:bg-gray-50"
 						>
 							<div class="flex items-start gap-4">
 								<!-- Item Image -->
@@ -419,74 +427,99 @@ function getApprovalTimeline(request: any) {
 
 		<!-- Pagination -->
 		{#if total > limit}
-			<div class="flex flex-col items-center justify-between gap-3 rounded-xl bg-white px-4 py-4 shadow-sm ring-1 ring-gray-100 sm:flex-row sm:px-5">
-				<div class="text-sm text-gray-600">
-					Showing <span class="font-medium text-gray-900">{(page - 1) * limit + 1}</span> to <span class="font-medium text-gray-900">{Math.min(page * limit, total)}</span> of <span class="font-medium text-gray-900">{total}</span> results
+			<div class="flex items-center justify-between border-t border-gray-200 bg-gray-50/50 px-4 py-3 sm:px-6">
+				<div class="hidden sm:block text-sm text-gray-500">
+					Page {page} of {Math.ceil(total / limit)}
 				</div>
-				<div class="flex gap-2">
+				<nav class="flex items-center gap-1 mx-auto sm:mx-0" aria-label="Pagination">
 					<button
 						onclick={() => { if (page > 1) { page--; loadHistory(); } }}
 						disabled={page === 1}
-						class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+						class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+						aria-label="Previous page"
 					>
-						Previous
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+						</svg>
 					</button>
+
+					{#each Array.from({ length: Math.ceil(total / limit) }, (_, i) => i + 1) as pageNum}
+						{@const totalPages = Math.ceil(total / limit)}
+						{#if totalPages <= 7 || pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - page) <= 1}
+							<button
+								onclick={() => { page = pageNum; loadHistory(); }}
+								class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-colors {page === pageNum ? 'bg-pink-600 text-white shadow-sm' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
+								aria-label="Page {pageNum}"
+								aria-current={page === pageNum ? 'page' : undefined}
+							>
+								{pageNum}
+							</button>
+						{:else if (pageNum === page - 2 || pageNum === page + 2) && totalPages > 7}
+							<span class="inline-flex h-9 w-9 items-center justify-center text-sm text-gray-400">…</span>
+						{/if}
+					{/each}
+
 					<button
 						onclick={() => { if (page * limit < total) { page++; loadHistory(); } }}
 						disabled={page * limit >= total}
-						class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+						class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
+						aria-label="Next page"
 					>
-						Next
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+						</svg>
 					</button>
+				</nav>
+				<div class="hidden sm:block text-sm text-gray-500">
+					{total} total {total === 1 ? 'request' : 'requests'}
 				</div>
 			</div>
 		{/if}
+		</div>
 	{/if}
 </div>
+{/if}
 
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeDetailModal} aria-label="Close modal" tabindex="-1"></button>
+		<button type="button" class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onclick={closeDetailModal} aria-label="Close modal" tabindex="-1"></button>
 		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
 			<div class="relative w-full max-w-3xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden">
 				
 				<!-- Header -->
-				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-8 sm:py-6">
+				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white px-6 py-5 sm:px-8">
 					<div class="flex items-start justify-between gap-3">
 						<div class="flex items-start gap-3 min-w-0 flex-1">
-							<div class="flex h-10 w-10 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
-								<ClipboardList size={20} class="text-white sm:hidden" strokeWidth={2.5} />
-								<ClipboardList size={24} class="text-white hidden sm:block" strokeWidth={2.5} />
+							<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+								<ClipboardList size={24} class="text-white" strokeWidth={2.5} />
 							</div>
 							<div class="min-w-0 flex-1">
-								<h2 class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Request Details</h2>
-								<p class="mt-0.5 font-mono text-xs sm:text-sm font-semibold text-pink-600">{selectedRequest.id}</p>
-								<div class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 {getStatusColor(selectedRequest.status)} shadow-sm ring-1 ring-black/5">
-									<StatusIcon size={12} strokeWidth={2.5} class="sm:hidden" />
-									<StatusIcon size={14} strokeWidth={2.5} class="hidden sm:block" />
-									<span class="text-[10px] sm:text-xs font-bold">{toStatusLabel(selectedRequest.status)}</span>
+								<h2 class="text-xl font-bold text-gray-900">Request Details</h2>
+								<p class="mt-0.5 font-mono text-sm font-semibold text-pink-600">{selectedRequest.id}</p>
+								<div class="mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 {getStatusColor(selectedRequest.status)} shadow-sm ring-1 ring-black/5">
+									<StatusIcon size={14} strokeWidth={2.5} />
+									<span class="text-xs font-bold">{toStatusLabel(selectedRequest.status)}</span>
 								</div>
 							</div>
 						</div>
 						<button 
 							onclick={closeDetailModal} 
 							aria-label="Close details modal"
-							class="rounded-xl p-2 sm:p-2.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+							class="rounded-xl p-2.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
 						>
-							<X size={18} class="sm:hidden" />
-							<X size={22} class="hidden sm:block" />
+							<X size={22} />
 						</button>
 					</div>
 				</div>
 				
 				<!-- Content -->
-				<div class="max-h-[70vh] overflow-y-auto px-4 py-5 sm:px-8 sm:py-8">
-					<div class="space-y-6 sm:space-y-8">
+				<div class="max-h-[70vh] overflow-y-auto px-6 py-6 sm:px-8 sm:py-8">
+					<div class="space-y-8">
 						
 						<!-- Approval Timeline -->
 						<div>
-							<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 sm:p-5">
+							<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5">
 								<div class="relative">
 									<svg class="absolute inset-0 w-full h-16 pointer-events-none" style="z-index: 0;">
 										{#each getApprovalTimeline(selectedRequest) as step, idx}
@@ -513,7 +546,7 @@ function getApprovalTimeline(request: any) {
 										{/each}
 									</svg>
 									
-									<div class="relative flex items-start justify-between gap-1 sm:gap-2" style="z-index: 1;">
+									<div class="relative flex items-start justify-between gap-2" style="z-index: 1;">
 										{#each getApprovalTimeline(selectedRequest) as step}
 											{@const isCompleted = step.status === 'completed'}
 											{@const isCancelled = step.status === 'cancelled'}
@@ -521,41 +554,34 @@ function getApprovalTimeline(request: any) {
 											
 											<div class="flex flex-col items-center flex-1">
 												<div class="relative mb-2 flex items-center justify-center">
-													<div class="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-full border-2 bg-white {
+													<div class="flex h-12 w-12 items-center justify-center rounded-full border-2 bg-white {
 														isCompleted ? 'border-pink-600' :
 														isCancelled ? 'border-slate-400' :
 														isRejected ? 'border-red-600' :
 														'border-gray-300'
 													}">
 														{#if step.step === 'Request Submitted'}
-															<FileCheck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
-															<FileCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															<FileCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
 														{:else if step.step === 'Instructor Approved'}
-															<CheckCheck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
-															<CheckCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															<CheckCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
 														{:else if step.step === 'Custodian Approved'}
-															<PackageCheck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
-															<PackageCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															<PackageCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
 														{:else if step.step === 'Pickup Confirmed'}
-															<Truck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
-															<Truck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															<Truck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
 														{:else if step.step === 'Returned'}
-															<Home size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
-															<Home size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															<Home size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
 														{:else if step.step === 'Request Cancelled'}
-															<XCircle size={18} class="text-slate-400 sm:hidden" />
-															<XCircle size={20} class="text-slate-400 hidden sm:block" />
+															<XCircle size={20} class="text-slate-400" />
 														{:else if step.step === 'Request Rejected'}
-															<XCircle size={18} class="text-red-600 sm:hidden" />
-															<XCircle size={20} class="text-red-600 hidden sm:block" />
+															<XCircle size={20} class="text-red-600" />
 														{/if}
 													</div>
 												</div>
 												
 												<div class="text-center min-w-0">
-													<p class="text-[10px] sm:text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{step.step}</p>
-													<p class="text-[9px] sm:text-xs text-gray-500 mt-0.5 line-clamp-1">{step.by}</p>
-													<p class="text-[9px] sm:text-xs font-medium {
+													<p class="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{step.step}</p>
+													<p class="text-xs text-gray-500 mt-0.5 line-clamp-1">{step.by}</p>
+													<p class="text-xs font-medium {
 														isCompleted ? 'text-pink-600' :
 														isCancelled ? 'text-slate-500' :
 														isRejected ? 'text-red-600' :
@@ -573,7 +599,7 @@ function getApprovalTimeline(request: any) {
 									</div>
 								</div>
 								
-								<div class="mt-4 pt-3 border-t border-gray-200 flex flex-wrap gap-3 justify-center text-[10px] sm:text-xs">
+								<div class="mt-4 pt-3 border-t border-gray-200 flex flex-wrap gap-3 justify-center text-xs">
 									<div class="flex items-center gap-1.5">
 										<div class="h-2 w-2 rounded-full bg-pink-600"></div>
 										<span class="text-gray-600">Completed</span>
@@ -596,30 +622,27 @@ function getApprovalTimeline(request: any) {
 								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
 								Request Information
 							</h3>
-							<div class="grid grid-cols-2 gap-3 sm:gap-4">
-								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
-										<CalendarDays size={14} class="text-pink-500 sm:hidden" />
-										<CalendarDays size={16} class="text-pink-500 hidden sm:block" />
-										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Request Date</p>
+							<div class="grid grid-cols-2 gap-4">
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-2 mb-2">
+										<CalendarDays size={16} class="text-pink-500" />
+										<p class="text-xs font-bold uppercase tracking-wider text-gray-500">Request Date</p>
 									</div>
-									<p class="text-sm sm:text-base font-bold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+									<p class="text-base font-bold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
-										<FileText size={14} class="text-pink-500 sm:hidden" />
-										<FileText size={16} class="text-pink-500 hidden sm:block" />
-										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Purpose</p>
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md">
+									<div class="flex items-center gap-2 mb-2">
+										<FileText size={16} class="text-pink-500" />
+										<p class="text-xs font-bold uppercase tracking-wider text-gray-500">Purpose</p>
 									</div>
-									<p class="text-sm sm:text-base font-bold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
+									<p class="text-base font-bold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
-									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
-										<UserCircle size={14} class="text-pink-500 sm:hidden" />
-										<UserCircle size={16} class="text-pink-500 hidden sm:block" />
-										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Instructor</p>
+								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
+									<div class="flex items-center gap-2 mb-2">
+										<UserCircle size={16} class="text-pink-500" />
+										<p class="text-xs font-bold uppercase tracking-wider text-gray-500">Instructor</p>
 									</div>
-									<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.instructor}</p>
+									<p class="text-base font-bold text-gray-900">{selectedRequest.instructor}</p>
 								</div>
 							</div>
 						</div>
@@ -651,7 +674,7 @@ function getApprovalTimeline(request: any) {
 						
 						<!-- Rejection Reason -->
 						{#if selectedRequest.status === 'rejected' && selectedRequest.rejectionReason}
-							<div class="rounded-2xl border-2 border-red-200 bg-linear-to-br from-red-50 to-red-100/50 p-5">
+							<div class="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100/50 p-5">
 								<div class="flex gap-3">
 									<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500">
 										<CircleAlert size={20} class="text-white" />
@@ -667,10 +690,10 @@ function getApprovalTimeline(request: any) {
 				</div>
 				
 				<!-- Footer -->
-				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-3 sm:px-8 sm:py-5">
+				<div class="sticky bottom-0 border-t border-gray-200 bg-white px-6 py-4 sm:px-8">
 					<button
 						onclick={closeDetailModal}
-						class="w-full rounded-xl bg-linear-to-r from-gray-900 to-gray-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-gray-800 hover:to-gray-700 active:scale-[0.98]"
+						class="w-full rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-gray-800 hover:to-gray-700 active:scale-[0.98]"
 					>
 						Close
 					</button>
