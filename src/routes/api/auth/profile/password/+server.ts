@@ -28,10 +28,6 @@ export const PATCH: RequestHandler = async (event) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		if (authUser.role !== UserRole.STUDENT) {
-			return json({ error: 'Forbidden' }, { status: 403 });
-		}
-
 		const body = await event.request.json().catch(() => null);
 		const validation = validatePasswordChange(body);
 		if (!validation.valid || !validation.sanitized) {
@@ -40,7 +36,7 @@ export const PATCH: RequestHandler = async (event) => {
 
 		const db = await getDatabase();
 		const usersCollection = db.collection<User>('users');
-		const user = await usersCollection.findOne({ _id: new ObjectId(authUser.userId), role: UserRole.STUDENT });
+		const user = await usersCollection.findOne({ _id: new ObjectId(authUser.userId) });
 
 		if (!user || !user.isActive) {
 			return json({ error: 'User not found' }, { status: 404 });

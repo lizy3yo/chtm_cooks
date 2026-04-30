@@ -13,6 +13,7 @@ interface ProfileResponse {
 
 interface CacheEntry {
 	user: UserResponse;
+	userId: string;
 	expiresAt: number;
 }
 
@@ -20,8 +21,15 @@ const PROFILE_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 let profileCache: CacheEntry | null = null;
 let inFlight: Promise<UserResponse> | null = null;
 
-function getCachedProfile(): UserResponse | null {
+function getCachedProfile(userId?: string): UserResponse | null {
 	if (!browser || !profileCache) return null;
+	
+	// Invalidate cache if user ID doesn't match (user switched accounts)
+	if (userId && profileCache.userId !== userId) {
+		profileCache = null;
+		return null;
+	}
+	
 	if (Date.now() > profileCache.expiresAt) {
 		profileCache = null;
 		return null;
@@ -33,6 +41,7 @@ function setCachedProfile(user: UserResponse): void {
 	if (!browser) return;
 	profileCache = {
 		user,
+		userId: user.id,
 		expiresAt: Date.now() + PROFILE_CACHE_TTL_MS
 	};
 }
@@ -44,20 +53,27 @@ async function parseError(response: Response): Promise<string> {
 
 export const profileApi = {
 	async get(forceRefresh = false): Promise<UserResponse> {
-		if (!forceRefresh) {
-			const cached = getCachedProfile();
-			if (cached) return cached;
-		}
-
+		const url = forceRefresh ? `/api/auth/profile?_t=${Date.now()}` : '/api/auth/profile';
+		
+		// Always fetch first to get the current user ID
 		if (inFlight) return inFlight;
 
-		const url = forceRefresh ? `/api/auth/profile?_t=${Date.now()}` : '/api/auth/profile';
 		inFlight = fetch(url, { credentials: 'include' })
 			.then(async (response) => {
 				if (!response.ok) {
 					throw new Error(await parseError(response));
 				}
 				const payload = (await response.json()) as ProfileResponse;
+				
+				// Check if cached profile matches current user
+				if (!forceRefresh) {
+					const cached = getCachedProfile(payload.user.id);
+					if (cached) {
+						inFlight = null;
+						return cached;
+					}
+				}
+				
 				setCachedProfile(payload.user);
 				inFlight = null;
 				return payload.user;

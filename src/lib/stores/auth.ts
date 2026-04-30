@@ -123,6 +123,13 @@ function createAuthStore() {
 		console.log('[AuthStore.login] User keys:', user ? Object.keys(user) : 'null');
 		console.log('[AuthStore.login] User JSON:', JSON.stringify(user, null, 2));
 		
+		// Clear profile cache on login to ensure fresh data
+		if (browser) {
+			import('$lib/api/profile').then(({ profileApi }) => {
+				profileApi.clearCache();
+			});
+		}
+		
 		update((state) => ({
 			...state,
 			user,
@@ -154,6 +161,12 @@ function createAuthStore() {
 				});
 			} catch (error) {
 				console.error('Logout API call failed:', error);
+			}
+			
+			// Clear profile cache
+			if (browser) {
+				const { profileApi } = await import('$lib/api/profile');
+				profileApi.clearCache();
 			}
 			
 			// Clear local state
