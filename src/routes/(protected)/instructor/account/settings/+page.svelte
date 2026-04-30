@@ -36,7 +36,7 @@
 </script>
 
 <svelte:head>
-	<title>Settings - Custodian Portal</title>
+	<title>Settings - Instructor Portal</title>
 </svelte:head>
 
 <div class="space-y-6 pb-8">
