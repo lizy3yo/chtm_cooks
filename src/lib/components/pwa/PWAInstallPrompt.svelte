@@ -343,11 +343,6 @@
 					{/if}
 				</button>
 			{/if}
-
-			<!-- Close Button -->
-			<button class="toast-close" onclick={handleDismiss} aria-label="Close">
-				<X size={18} strokeWidth={2.5} />
-			</button>
 		</div>
 	</div>
 {/if}
@@ -355,15 +350,6 @@
 <!-- Desktop Floating Button (Bottom Right) -->
 {#if showButton && deviceType === 'desktop'}
 	<div class="pwa-floating-card">
-		<button
-			class="card-close"
-			onclick={handleDismiss}
-			aria-label="Dismiss install prompt"
-			title="Dismiss"
-		>
-			<X size={16} strokeWidth={2.5} />
-		</button>
-
 		<button
 			class="pwa-install-button"
 			onclick={handleButtonClick}
@@ -509,33 +495,6 @@
 		transform: none;
 	}
 
-	.toast-close {
-		position: absolute;
-		top: 0.5rem;
-		right: 0.5rem;
-		width: 24px;
-		height: 24px;
-		border-radius: 50%;
-		border: none;
-		background: rgba(255, 255, 255, 0.1);
-		color: #fbcfe8;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		cursor: pointer;
-		transition: all 0.2s ease;
-		flex-shrink: 0;
-	}
-
-	.toast-close:hover {
-		background: rgba(255, 255, 255, 0.15);
-		transform: scale(1.1);
-	}
-
-	.toast-close:active {
-		transform: scale(0.95);
-	}
-
 	.spinner-small {
 		width: 14px;
 		height: 14px;
@@ -579,35 +538,6 @@
 			opacity: 1;
 			transform: scale(1) translateY(0);
 		}
-	}
-
-	.card-close {
-		position: absolute;
-		top: -8px;
-		right: -8px;
-		width: 28px;
-		height: 28px;
-		border-radius: 50%;
-		border: none;
-		background: #ffffff;
-		color: #e91e63;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		cursor: pointer;
-		transition: all 0.2s ease;
-		box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-		z-index: 2;
-	}
-
-	.card-close:hover {
-		background: #fef2f5;
-		transform: scale(1.1);
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-	}
-
-	.card-close:active {
-		transform: scale(0.95);
 	}
 
 	.pwa-install-button {
@@ -708,15 +638,6 @@
 
 		.toast-description {
 			color: #78516a;
-		}
-
-		.toast-close {
-			background: rgba(0, 0, 0, 0.05);
-			color: #4a3341;
-		}
-
-		.toast-close:hover {
-			background: rgba(0, 0, 0, 0.1);
 		}
 	}
 

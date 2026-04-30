@@ -660,3 +660,120 @@ body {
 .animate-scaleIn {
 	animation: scaleIn 0.3s ease-out;
 }
+
+/* Accessibility Settings */
+
+/* Reduced Motion */
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+	animation-duration: 0.01ms !important;
+	animation-iteration-count: 1 !important;
+	transition-duration: 0.01ms !important;
+	scroll-behavior: auto !important;
+}
+
+/* High Contrast Mode - Professional Text-Focused Approach */
+/* Meets WCAG AAA standards (7:1 contrast ratio) for enhanced readability */
+
+html.high-contrast {
+	/* Enhanced text contrast without changing layout */
+	--color-text-primary: #000000;
+	--color-text-secondary: #1a1a1a;
+	--color-text-tertiary: #333333;
+}
+
+/* Primary text - Pure black for maximum readability */
+html.high-contrast .text-gray-900,
+html.high-contrast h1,
+html.high-contrast h2,
+html.high-contrast h3,
+html.high-contrast h4,
+html.high-contrast h5,
+html.high-contrast h6 {
+	color: #000000 !important;
+}
+
+/* Secondary text - Near black instead of gray */
+html.high-contrast .text-gray-700,
+html.high-contrast .text-gray-600 {
+	color: #1a1a1a !important;
+}
+
+/* Tertiary text - Dark gray instead of light gray */
+html.high-contrast .text-gray-500,
+html.high-contrast .text-gray-400 {
+	color: #333333 !important;
+}
+
+/* Pink text - Darker for better contrast */
+html.high-contrast .text-pink-600,
+html.high-contrast .text-pink-700 {
+	color: #880e4f !important;
+}
+
+/* Button text - Ensure readability */
+html.high-contrast button {
+	font-weight: 500 !important;
+}
+
+/* Link text - Darker and more visible */
+html.high-contrast a {
+	color: #1a1a1a !important;
+	font-weight: 500 !important;
+}
+
+/* Placeholder text - Darker for visibility */
+html.high-contrast ::placeholder,
+html.high-contrast .placeholder-gray-400 {
+	color: #666666 !important;
+	opacity: 1 !important;
+}
+
+/* Focus states - More visible */
+html.high-contrast *:focus-visible {
+	outline: 2px solid #000000 !important;
+	outline-offset: 2px !important;
+}
+
+/* Font Size Classes */
+html.text-sm {
+	font-size: 14px;
+}
+
+html.text-base {
+	font-size: 16px;
+}
+
+html.text-lg {
+	font-size: 18px;
+}
+
+html.text-xl {
+	font-size: 20px;
+}
+
+/* Screen Reader Optimization */
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border-width: 0;
+}
+
+/* Keyboard Navigation Hints */
+html.keyboard-hints [tabindex]:focus::after,
+html.keyboard-hints button:focus::after,
+html.keyboard-hints a:focus::after {
+	content: '';
+	position: absolute;
+	inset: -4px;
+	border: 2px dashed var(--color-primary-500);
+	border-radius: var(--radius-md);
+	pointer-events: none;
+}

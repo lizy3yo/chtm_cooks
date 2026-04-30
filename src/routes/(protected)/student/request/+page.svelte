@@ -34,7 +34,7 @@
 		requestedQuantity: number;
 	}
 
-	// Loading state
+	// Loading state - Initialize based on cache availability (industry standard: instant render)
 	let isLoading = $state(true);
 	let isSubmitting = $state(false);
 	let availableEquipment = $state<RequestItemOption[]>([]);
@@ -766,6 +766,49 @@
 
 		let unsubscribe: () => void = () => {};
 
+		// Check for cached catalog data BEFORE async operations (industry standard: instant render)
+		const currentFilters = {
+			availability: 'all' as const,
+			sortBy: 'name' as const,
+			page: 1,
+			limit: 300
+		};
+		
+		const cached = catalogAPI.peekCachedCatalog(currentFilters);
+		
+		if (cached) {
+			console.log('[MOUNT] ✅ Cache hit - rendering instantly without skeleton');
+			// Process cached data SYNCHRONOUSLY for instant render
+			const allItems = cached.items.map((item) => ({
+				id: item.id,
+				name: item.name,
+				code: buildItemCode(item),
+				image: inferItemIcon(item.name),
+				picture: item.picture,
+				category: item.category || 'Uncategorized',
+				available: item.quantity,
+				specification: item.specification || 'No specification provided',
+				status: item.status,
+				location: (item as any).location,
+				isConstant: item.isConstant || false,
+				maxQuantityPerRequest: item.maxQuantityPerRequest
+			}));
+
+			constantItems = allItems.filter((item) => item.isConstant === true);
+			availableEquipment = allItems.filter((item) => item.available > 0 && !item.isConstant);
+			
+			// Hide skeleton immediately when cache is available
+			isLoading = false;
+			
+			console.log('[MOUNT] 📊 Loaded from cache:', {
+				total: allItems.length,
+				constant: constantItems.length,
+				available: availableEquipment.length
+			});
+		} else {
+			console.log('[MOUNT] ⚠️ Cache miss - will show skeleton during load');
+		}
+
 		void (async () => {
 			// CRITICAL: Initialize cart from database FIRST before doing anything else
 			// This ensures we don't duplicate items that are already in the cart
@@ -780,35 +823,10 @@
 			// Load student's class codes
 			await loadStudentClassCodes();
 
-			// Check for cached catalog data first (same as student catalog)
-			const cached = catalogAPI.peekCachedCatalog({
-				availability: 'all',
-				sortBy: 'name',
-				page: 1,
-				limit: 300
-			});
-
 			if (cached) {
-				console.log('[MOUNT] Using cached catalog data');
-				// Process cached data immediately
-				const allItems = cached.items.map((item) => ({
-					id: item.id,
-					name: item.name,
-					code: buildItemCode(item),
-					image: inferItemIcon(item.name),
-					picture: item.picture,
-					category: item.category || 'Uncategorized',
-					available: item.quantity,
-					specification: item.specification || 'No specification provided',
-					status: item.status,
-					location: (item as any).location,
-					isConstant: item.isConstant || false,
-					maxQuantityPerRequest: item.maxQuantityPerRequest
-				}));
-
-				constantItems = allItems.filter((item) => item.isConstant === true);
-				availableEquipment = allItems.filter((item) => item.available > 0 && !item.isConstant);
-
+				// Cache path: sync cart and revalidate in background
+				console.log('[MOUNT] 🔄 Cache path: syncing cart and revalidating...');
+				
 				// Get current cart items ONCE before the loop (AFTER cart is initialized)
 				const currentCartItems = get(requestCartItems);
 				console.log('[MOUNT] Current cart items before adding constants:', currentCartItems.length);
@@ -832,20 +850,20 @@
 					}
 				}
 
-				// Sync cart items BEFORE setting loading to false
+				// Sync cart items
 				const cartItems = get(requestCartItems);
 				if (cartItems.length > 0) {
 					syncSelectedItemsFromCart();
 				}
 
-				// Set loading to false AFTER syncing (prevents empty state flash)
-				isLoading = false;
-
-				// Revalidate in background (same as catalog)
-				loadAvailableEquipment({ forceRefresh: true });
+				// Revalidate in background (same as catalog) - this keeps data fresh without blocking UI
+				console.log('[MOUNT] 🔄 Revalidating catalog in background...');
+				loadAvailableEquipment({ forceRefresh: true }).then(() => {
+					console.log('[MOUNT] ✅ Background revalidation complete');
+				});
 			} else {
-				// No cache, load normally
-				console.log('[MOUNT] No cached data, loading from API...');
+				// No cache path: load fresh data
+				console.log('[MOUNT] 📡 No cache: loading fresh data from API...');
 				await loadAvailableEquipment();
 
 				console.log('[MOUNT] Equipment loaded, constant items:', constantItems.length);

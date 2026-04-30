@@ -1,15 +1,34 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { navigating } from '$app/stores';
-	import { authStore, isAuthenticated } from '$lib/stores/auth';
+	import { authStore, isAuthenticated, user } from '$lib/stores/auth';
 	import { loadingStore } from '$lib/stores/loading';
+	import { userSettingsStore } from '$lib/stores/userSettings';
 	import ShortcutKeyModal from '$lib/components/auth/ShortcutKeyModal.svelte';
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
 	import LoadingBar from '$lib/components/ui/LoadingBar.svelte';
 	import PWAInstallPrompt from '$lib/components/pwa/PWAInstallPrompt.svelte';
+	import OfflineStatusBanner from '$lib/components/offline/OfflineStatusBanner.svelte';
+	import { initializeDatabase } from '$lib/db/schema';
+	import { initializeSyncService } from '$lib/services/syncService';
 	import './layout.css';
 	import favicon from '$lib/assets/CHTM_LOGO.png';
+
+	// Subscribe to user settings to apply them globally
+	let settings = $state($userSettingsStore);
+	
+	// Track current user for settings initialization
+	let currentUser = $derived($user);
+
+	// Initialize settings for current user
+	$effect(() => {
+		if (currentUser?.id) {
+			userSettingsStore.initializeForUser(currentUser.id);
+		} else {
+			userSettingsStore.initializeForUser(null);
+		}
+	});
 
 	let { children } = $props();
 	let isLoading = $state(false);
@@ -108,16 +127,30 @@
 	
 	// Initialize on mount
 	onMount(() => {
+		// Load AI Chatbot component
 		void import('$lib/components/ui/AIChatbot.svelte').then((module) => {
 			AIChatbotComponent = module.default;
 		});
 
+		// Initialize auth
 		authStore.init();
+		
+		// Initialize offline-first infrastructure (async, non-blocking)
+		void (async () => {
+			try {
+				await initializeDatabase();
+				await initializeSyncService();
+				console.log('[App] Offline-first system initialized');
+			} catch (error) {
+				console.error('[App] Failed to initialize offline system:', error);
+			}
+		})();
 		
 		// Add keyboard listeners
 		window.addEventListener('keydown', handleKeyDown);
 		window.addEventListener('keyup', handleKeyUp);
 		
+		// Cleanup function
 		return () => {
 			window.removeEventListener('keydown', handleKeyDown);
 			window.removeEventListener('keyup', handleKeyUp);
@@ -133,6 +166,9 @@
 
 <!-- Global Loading Bar -->
 <LoadingBar bind:show={isLoading} />
+
+<!-- Offline Status Banner -->
+<OfflineStatusBanner />
 
 {@render children()}
 
