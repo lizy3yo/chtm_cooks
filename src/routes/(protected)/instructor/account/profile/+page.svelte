@@ -2,22 +2,29 @@
 	import { onMount } from 'svelte';
 	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { get } from 'svelte/store';
+	import { browser } from '$app/environment';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import PasswordStrength from '$lib/components/ui/PasswordStrength.svelte';
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
 	import { authStore } from '$lib/stores/auth';
+	import { profileStore } from '$lib/stores/profile';
 	import { profileApi } from '$lib/api/profile';
 	import type { UserResponse } from '$lib/types/auth';
 	import { validatePassword, validatePasswordConfirmation } from '$lib/utils/validation';
 
-	let loading = $state(true);
+	// Check for cached data before mounting to avoid unnecessary loading states
+	const cachedStore = browser ? get(profileStore) : null;
+	const hasCachedData = cachedStore && cachedStore.profile !== null && profileStore.isProfileCacheValid();
+
+	let loading = $state(!hasCachedData);
 	let isUploadingPhoto = $state(false);
 	let isRemovingPhoto = $state(false);
 	let isChangingPassword = $state(false);
 
-	let profile = $state<UserResponse | null>(null);
+	let profile = $state<UserResponse | null>(hasCachedData ? cachedStore!.profile : null);
 
 	let firstName = $state('');
 	let lastName = $state('');
@@ -49,6 +56,9 @@
 		firstName = user.firstName || '';
 		lastName = user.lastName || '';
 		email = user.email || '';
+		
+		// Update store cache
+		profileStore.setProfile(user);
 	}
 
 	function getInitials(user: UserResponse | null): string {
@@ -58,6 +68,17 @@
 
 	async function loadProfile(forceRefresh = false) {
 		try {
+			// Check if cache is still valid (unless force refresh)
+			if (!forceRefresh && profileStore.isProfileCacheValid()) {
+				const storeData = get(profileStore);
+				if (storeData.profile) {
+					hydrateForm(storeData.profile);
+					authStore.updateUser(storeData.profile);
+					return;
+				}
+			}
+			
+			// Fetch fresh data from API
 			const user = await profileApi.get(forceRefresh);
 			hydrateForm(user);
 			authStore.updateUser(user);
@@ -181,11 +202,22 @@
 		let resizeObserver: ResizeObserver | null = null;
 
 		(async () => {
-			await loadProfile();
-			if (mounted) {
+			// Check if we should force refresh based on cache validity
+			const shouldForceRefresh = !profileStore.isProfileCacheValid();
+			
+			if (!shouldForceRefresh && hasCachedData) {
+				// Use cached data, no need to load
 				loading = false;
 				await tick();
 				syncPhotoCardHeight();
+			} else {
+				// Load fresh data
+				await loadProfile(shouldForceRefresh);
+				if (mounted) {
+					loading = false;
+					await tick();
+					syncPhotoCardHeight();
+				}
 			}
 		})();
 

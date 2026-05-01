@@ -128,6 +128,9 @@ function createAuthStore() {
 			import('$lib/api/profile').then(({ profileApi }) => {
 				profileApi.clearCache();
 			});
+			import('$lib/stores/profile').then(({ profileStore }) => {
+				profileStore.clearCache();
+			});
 		}
 		
 		update((state) => ({
@@ -167,6 +170,8 @@ function createAuthStore() {
 			if (browser) {
 				const { profileApi } = await import('$lib/api/profile');
 				profileApi.clearCache();
+				const { profileStore } = await import('$lib/stores/profile');
+				profileStore.clearCache();
 			}
 			
 			// Clear local state
