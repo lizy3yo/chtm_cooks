@@ -175,6 +175,39 @@ export const inventoryHistoryAPI = {
 		} finally {
 			inFlight.delete(cacheKey);
 		}
+	},
+
+	/**
+	 * Subscribe to real-time inventory changes via SSE
+	 * Returns an unsubscribe function to clean up the connection
+	 */
+	subscribeToChanges(callback: (event: any) => void): () => void {
+		if (!browser) return () => {};
+
+		const source = new EventSource('/api/inventory/stream', { withCredentials: true });
+
+		source.addEventListener('open', () => {
+			console.log('[INVENTORY-HISTORY-STREAM] Connected');
+		});
+
+		source.addEventListener('inventory_change', (e: MessageEvent) => {
+			try {
+				const data = JSON.parse(e.data);
+				console.log('[INVENTORY-HISTORY-STREAM] Event received:', data);
+				callback(data);
+			} catch (err) {
+				console.error('[INVENTORY-HISTORY-STREAM] Malformed payload', err);
+			}
+		});
+
+		source.addEventListener('error', (e) => {
+			console.error('[INVENTORY-HISTORY-STREAM] Error', e);
+		});
+
+		return () => {
+			source.close();
+			console.log('[INVENTORY-HISTORY-STREAM] Disconnected');
+		};
 	}
 };
 
