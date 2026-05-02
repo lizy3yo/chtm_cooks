@@ -3,6 +3,7 @@ import type { InventoryItem, InventoryCategory } from './inventory';
 import { getApiErrorMessage } from './session';
 
 /**
+ * Catalog API - Professional catalog data management
  * Catalog types for unified data fetching
  */
 
@@ -269,5 +270,53 @@ export const catalogAPI = {
 			const message = error instanceof Error ? error.message : 'Failed to fetch items';
 			throw new Error(message);
 		}
+	},
+
+	/**
+	 * Update an inventory item
+	 * Professional API for updating catalog items with validation
+	 *
+	 * @param itemId - The ID of the item to update
+	 * @param updates - The fields to update
+	 * @returns Updated item data
+	 * @throws Error if request fails or validation errors occur
+	 *
+	 * @example
+	 * ```ts
+	 * await catalogAPI.updateItem('item-123', {
+	 *   name: 'Updated Name',
+	 *   categoryId: 'cat-456',
+	 *   quantity: 10
+	 * });
+	 * ```
+	 */
+	async updateItem(
+		itemId: string,
+		updates: {
+			name?: string;
+			categoryId?: string;
+			specification?: string;
+			description?: string;
+			quantity?: number;
+			eomCount?: number;
+		}
+	): Promise<CatalogItem> {
+		try {
+			const response = await fetch(
+				`/api/inventory/items/${itemId}`,
+				getFetchOptions('PATCH', updates)
+			);
+			const data = await handleResponse<{ item: CatalogItem }>(response);
+			
+			// Invalidate cache after successful update
+			this.invalidateCatalogCache();
+			
+			return data.item;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Failed to update item';
+			throw new Error(message);
+		}
 	}
 };
+
+// Force TypeScript reload

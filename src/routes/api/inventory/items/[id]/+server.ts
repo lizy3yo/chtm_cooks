@@ -151,6 +151,12 @@ export const PATCH: RequestHandler = async (event) => {
 	const { request, params, getClientAddress } = event;
 	const isImportContext = request.headers.get('x-import-context') === '1';
 	
+	console.log('========================================');
+	console.log('[PATCH-ITEM] REQUEST RECEIVED');
+	console.log('[PATCH-ITEM] Item ID:', params.id);
+	console.log('[PATCH-ITEM] Method:', request.method);
+	console.log('========================================');
+	
 	// Apply rate limiting unless this request is part of a controlled import flow
 	if (!isImportContext) {
 		const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -163,11 +169,20 @@ export const PATCH: RequestHandler = async (event) => {
 		// Verify authentication via cookie
 		const decoded = getUserFromToken(event);
 		if (!decoded) {
+			console.log('[PATCH-ITEM] ❌ No authentication token found');
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		// Only custodians and superadmins can update items
-		if (!['custodian', 'superadmin'].includes(decoded.role)) {
+		console.log('========================================');
+		console.log('[PATCH-ITEM] ✅ AUTHENTICATED USER:');
+		console.log('  - User ID:', decoded.userId);
+		console.log('  - Email:', decoded.email);
+		console.log('  - Role:', decoded.role);
+		console.log('========================================');
+
+		// Only custodians, instructors, and superadmins can update items
+		if (!['custodian', 'instructor', 'superadmin'].includes(decoded.role)) {
+			console.log('[PATCH-ITEM] ❌ Insufficient permissions for role:', decoded.role);
 			return json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
 		}
 
@@ -227,6 +242,9 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 		if (body.specification !== undefined) {
 			updateFields.specification = sanitizeInput(body.specification.trim());
+		}
+		if (body.description !== undefined) {
+			updateFields.description = sanitizeInput(body.description.trim());
 		}
 		if (body.toolsOrEquipment !== undefined) {
 			updateFields.toolsOrEquipment = sanitizeInput(body.toolsOrEquipment.trim());
@@ -312,6 +330,15 @@ export const PATCH: RequestHandler = async (event) => {
 			action = InventoryAction.QUANTITY_CHANGED;
 		}
 
+		console.log('========================================');
+		console.log('[PATCH-ITEM] 📝 ABOUT TO LOG ACTIVITY:');
+		console.log('  - Action:', action);
+		console.log('  - Entity:', result.name);
+		console.log('  - User ID:', decoded.userId);
+		console.log('  - User Email:', decoded.email);
+		console.log('  - User Role:', decoded.role);
+		console.log('========================================');
+
 		await logInventoryActivity({
 			action,
 			entityType: 'item',
@@ -330,11 +357,17 @@ export const PATCH: RequestHandler = async (event) => {
 			userAgent: request.headers.get('user-agent') || undefined
 		});
 
+		console.log('========================================');
+		console.log('[PATCH-ITEM] ✅ ACTIVITY LOGGED SUCCESSFULLY');
+		console.log('========================================');
+
 		logger.info('Inventory item updated', {
 			userId: decoded.userId,
 			itemId,
 			updates: Object.keys(updateFields),
-			action
+			action,
+			userRole: decoded.role,
+			userEmail: decoded.email
 		});
 
 		// Invalidate inventory cache (use tag-based invalidation — deletePattern is a no-op on Upstash)
