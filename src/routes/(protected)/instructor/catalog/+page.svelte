@@ -394,10 +394,10 @@
 							
 							<div class="min-w-0 flex-1">
 								<h2 id="instructor-catalog-item-title" class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">
-									{isEditMode ? 'Edit Item' : 'Item Details'}
+									{isEditMode ? 'Edit Item' : selectedItem.name}
 								</h2>
 								<p class="mt-0.5 text-xs text-gray-500 sm:text-sm truncate">
-									{isEditMode ? 'Update equipment information' : selectedItem.name}
+									{isEditMode ? 'Update equipment information' : getCategoryName(selectedItem.categoryId)}
 								</p>
 								
 								<!-- Status Badge -->
@@ -888,11 +888,13 @@
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
 			{#each filteredItems as item (item.id)}
 				<div class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
-					<div class="relative aspect-4/3 overflow-hidden bg-gray-100">
+					<div class="relative aspect-4/3 overflow-hidden bg-gray-100 flex items-center justify-center">
 						{#if item.picture}
 							<img src={item.picture} alt={item.name} class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
 						{:else}
-							<ItemImagePlaceholder size="lg" />
+							<svg class="h-10 w-10 sm:h-12 sm:w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+							</svg>
 						{/if}
 						<span class="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight {getAvailabilityColor(item.status)}">
 							{item.status === 'In Stock' ? 'In Stock' : item.status === 'Out of Stock' ? 'Out' : item.status}
@@ -923,11 +925,13 @@
 		<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
 			{#each filteredItems as item (item.id)}
 				<div class="flex items-center gap-3 px-3 py-3 hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5">
-					<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14">
+					<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14 flex items-center justify-center">
 						{#if item.picture}
 							<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
 						{:else}
-							<ItemImagePlaceholder size="sm" />
+							<svg class="h-6 w-6 sm:h-7 sm:w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+							</svg>
 						{/if}
 					</div>
 					<div class="min-w-0 flex-1">
