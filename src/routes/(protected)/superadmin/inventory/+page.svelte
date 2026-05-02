@@ -5,7 +5,7 @@
 		Package, TrendingUp, AlertCircle, Info, Search, Download, 
 		RefreshCw, CheckCircle, Wifi, WifiOff, XCircle, AlertTriangle, 
 		BarChart3, Activity, Clock, Plus, Edit, Trash2, X, Upload,
-		Star, FolderTree
+		Star, FolderTree, Archive, Pin, PinOff
 	} from 'lucide-svelte';	import {
 		inventoryItemsAPI,
 		inventoryCategoriesAPI,
@@ -19,6 +19,8 @@
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
 	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
+	import ActionMenu from '$lib/components/ui/ActionMenu.svelte';
+	import type { ActionMenuItem, LucideIcon } from '$lib/components/ui/ActionMenu.types';
 
 	let activeTab = $state<'stock' | 'usage' | 'obligations'>('stock');
 	let sseConnected = $state(false);
@@ -186,9 +188,12 @@
 
 	// Item detail panel (click a row to open)
 	let selectedItem = $state<InventoryItem | null>(null);
+	let showFullImage = $state(false);
 
 	function openDetail(item: InventoryItem) { selectedItem = item; }
-	function closeDetail() { selectedItem = null; }
+	function closeDetail() { selectedItem = null; showFullImage = false; }
+	function openFullImage() { showFullImage = true; }
+	function closeFullImage() { showFullImage = false; }
 
 	// Create / Edit modal
 	let showItemModal = $state(false);
@@ -350,6 +355,7 @@
 	// Keyboard: ESC closes modals / detail panel
 	function handleKeydown(e: KeyboardEvent) {
 		if (e.key === 'Escape') {
+			if (showFullImage) { closeFullImage(); return; }
 			if (showItemModal) { closeItemModal(); return; }
 			if (selectedItem) { closeDetail(); return; }
 		}
@@ -1132,9 +1138,21 @@ Add Your First Category
 <div class="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
 <div class="flex items-start gap-3 sm:gap-4">
 {#if selectedItem.picture}
-<div class="relative h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0">
-<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full rounded-xl sm:rounded-2xl object-cover shadow-lg ring-2 ring-pink-200" loading="lazy" />
-</div>
+<button
+	type="button"
+	onclick={openFullImage}
+	class="relative cursor-zoom-in transition-all group shrink-0"
+	title="Click to view full size"
+>
+	<div class="relative h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16">
+		<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full rounded-xl sm:rounded-2xl object-cover shadow-lg ring-2 ring-pink-200" loading="lazy" />
+		<div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors rounded-xl sm:rounded-2xl">
+			<svg class="h-4 w-4 sm:h-5 sm:w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/>
+			</svg>
+		</div>
+	</div>
+</button>
 {:else}
 <div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg">
 <Package size={28} class="text-white" />
@@ -1175,19 +1193,39 @@ Item Details
 </h3>
 <div class="grid grid-cols-2 gap-2 lg:gap-3">
 <div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">Category</p>
+<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+</svg>
+<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Category</p>
+</div>
 <p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.category}</p>
 </div>
 <div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">Specification</p>
+<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+</svg>
+<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Specification</p>
+</div>
 <p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.specification || '—'}</p>
 </div>
 <div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">Tools / Equipment</p>
+<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+</svg>
+<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Tools / Equipment</p>
+</div>
 <p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.toolsOrEquipment || '—'}</p>
 </div>
 <div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">Status</p>
+<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+</svg>
+<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Status</p>
+</div>
 <p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.status}</p>
 </div>
 </div>
@@ -1248,22 +1286,72 @@ Stock Information
 </div>
 
 <!-- Footer -->
-<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm">
+<div class="sticky bottom-0 border-t border-gray-200 bg-white">
 <div class="px-4 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-5">
-<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-<button onclick={closeDetail} class="order-3 sm:order-1 rounded-lg sm:rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 whitespace-nowrap">Close</button>
-<div class="order-1 sm:order-2 flex flex-row gap-2">
-<button onclick={() => { if (selectedItem) handleToggleConstant(selectedItem); }} class="flex-1 sm:flex-none rounded-md sm:rounded-xl border border-purple-300 bg-white px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-purple-700 shadow-sm transition-all hover:bg-purple-50 whitespace-nowrap">
-{#if selectedItem.isConstant}Remove Constant{:else}Mark Constant{/if}
-</button>
-<button onclick={() => { if (selectedItem) handleArchiveItem(selectedItem); }} class="flex-1 sm:flex-none rounded-md sm:rounded-xl border border-gray-300 bg-white px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 whitespace-nowrap">Archive</button>
-<button onclick={() => { if (selectedItem) openEditModal(selectedItem); }} class="flex-1 sm:flex-none rounded-md sm:rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 whitespace-nowrap">Edit Item</button>
+<div class="flex items-center justify-end gap-2">
+		<ActionMenu
+			side="left"
+			align="right"
+			triggerLabel="More actions for {selectedItem.name}"
+			items={[
+				{
+					label: 'Edit Item',
+					icon: Edit as unknown as LucideIcon,
+					action: () => { if (selectedItem) openEditModal(selectedItem); },
+					variant: 'default' as const
+				},
+				{
+					label: selectedItem.isConstant ? 'Remove Constant' : 'Mark Constant',
+					icon: (selectedItem.isConstant ? PinOff : Pin) as unknown as LucideIcon,
+					action: () => { if (selectedItem) handleToggleConstant(selectedItem); },
+					variant: 'default' as const
+				},
+				{
+					label: 'Archive',
+					icon: Archive as unknown as LucideIcon,
+					action: () => { if (selectedItem) handleArchiveItem(selectedItem); },
+					variant: 'warning' as const
+				},
+				{
+					label: 'Delete',
+					icon: Trash2 as unknown as LucideIcon,
+					action: () => { if (selectedItem) handleDeleteItem(selectedItem); },
+					variant: 'danger' as const,
+					divider: true
+				}
+			] satisfies ActionMenuItem[]}
+		/>
 </div>
 </div>
 </div>
 </div>
 </div>
 </div>
+{/if}
+<!-- ─── Full Screen Image Lightbox ──────────────────────────────────────────── -->
+{#if showFullImage && selectedItem?.picture}
+<div class="fixed inset-0 z-60 flex items-center justify-center p-4">
+	<!-- svelte-ignore a11y_click_events_have_key_events -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="fixed inset-0 bg-black/90"
+		onclick={closeFullImage}
+	></div>
+	<div class="relative z-61 max-h-[90vh] max-w-[90vw]">
+		<button
+			type="button"
+			onclick={closeFullImage}
+			class="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+			aria-label="Close image (Esc)"
+		>
+			<X size={32} />
+		</button>
+		<img
+			src={selectedItem.picture}
+			alt={selectedItem.name}
+			class="max-h-[90vh] max-w-full rounded-lg shadow-2xl"
+		/>
+	</div>
 </div>
 {/if}
 <!-- ─── Add / Edit Item Modal ────────────────────────────────────────────────── -->
