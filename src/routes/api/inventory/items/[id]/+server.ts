@@ -166,8 +166,8 @@ export const PATCH: RequestHandler = async (event) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		// Only custodians and superadmins can update items
-		if (!['custodian', 'superadmin'].includes(decoded.role)) {
+		// Only custodians, instructors, and superadmins can update items
+		if (!['custodian', 'instructor', 'superadmin'].includes(decoded.role)) {
 			return json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
 		}
 
@@ -227,6 +227,9 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 		if (body.specification !== undefined) {
 			updateFields.specification = sanitizeInput(body.specification.trim());
+		}
+		if (body.description !== undefined) {
+			updateFields.description = sanitizeInput(body.description.trim());
 		}
 		if (body.toolsOrEquipment !== undefined) {
 			updateFields.toolsOrEquipment = sanitizeInput(body.toolsOrEquipment.trim());
