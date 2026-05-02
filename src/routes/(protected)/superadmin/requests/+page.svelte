@@ -23,12 +23,13 @@
 		type BorrowRequestRecord, 
 		type BorrowRequestRealtimeEvent 
 	} from '$lib/api/borrowRequests';
+	import { replacementObligationsAPI, type ReplacementObligation } from '$lib/api/replacementObligations';
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
 	import QRCode from 'qrcode';
 	import RequestsSkeletonLoader from '$lib/components/ui/RequestsSkeletonLoader.svelte';
 
-	let activeTab = $state<'all' | 'pending' | 'active' | 'overdue' | 'history'>('all');
+	let activeTab = $state<'all' | 'pending' | 'active' | 'overdue' | 'history' | 'obligations'>('all');
 	let searchQuery = $state('');
 	let selectedStatus = $state('all');
 	let sseConnected = $state(false);
@@ -37,6 +38,25 @@
 	let pagination = $state({ page: 1, limit: 20, total: 0, totalPages: 1 });
 	let loading = $state(false);
 	let debounceTimer: ReturnType<typeof setTimeout>;
+
+	// ─── Replacement Obligations ──────────────────────────────────────────────
+	let obligations = $state<ReplacementObligation[]>([]);
+	let obligationsLoading = $state(false);
+
+	async function loadObligations(forceRefresh = true) {
+		obligationsLoading = true;
+		try {
+			const res = await replacementObligationsAPI.getObligations({ limit: 200 }, { forceRefresh });
+			obligations = res.obligations;
+		} catch {
+			/* silent — non-critical */
+		} finally {
+			obligationsLoading = false;
+		}
+	}
+
+	const pendingObligations = $derived(obligations.filter(o => o.status === 'pending'));
+	const resolvedObligations = $derived(obligations.filter(o => o.status !== 'pending'));
 
 	let stats = $state({
 		totalRequests: 0,
@@ -104,6 +124,7 @@
 			refreshTimer = null;
 			void loadRequests(false, forceRefresh);
 			void loadStats(forceRefresh);
+			void loadObligations(forceRefresh);
 		}, 250);
 	}
 
@@ -111,6 +132,7 @@
 		hydrateFromCache();
 		void loadRequests(requests.length === 0, false);
 		void loadStats(false);
+		void loadObligations(false);
 		
 		unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((event) => {
 			sseConnected = true;
@@ -144,6 +166,7 @@
 		_pollInterval = setInterval(() => {
 			void loadRequests(false, true);
 			void loadStats(true);
+			void loadObligations(true);
 		}, 30_000);
 
 		// --- Refresh on tab/window focus ---
@@ -386,11 +409,12 @@
 	<div class="border-b border-gray-200">
 		<nav class="-mb-px flex space-x-6 overflow-x-auto">
 			{#each [
-				{ id: 'all', label: 'All Requests' },
-				{ id: 'pending', label: 'Pending' },
-				{ id: 'active', label: 'Active Loans' },
-				{ id: 'overdue', label: 'Overdue' },
-				{ id: 'history', label: 'History' }
+				{ id: 'all',         label: 'All Requests' },
+				{ id: 'pending',     label: 'Pending' },
+				{ id: 'active',      label: 'Active Loans' },
+				{ id: 'overdue',     label: 'Overdue' },
+				{ id: 'history',     label: 'History' },
+				{ id: 'obligations', label: `Replacement Obligations${pendingObligations.length > 0 ? ` (${pendingObligations.length})` : ''}` }
 			] as tab}
 				<button 
 					onclick={() => handleTabChange(tab.id as any)} 
@@ -402,7 +426,8 @@
 		</nav>
 	</div>
 
-	<!-- Filters -->
+	<!-- Filters — hidden on obligations tab -->
+	{#if activeTab !== 'obligations'}
 	<div class="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center">
 		<div class="relative flex-1">
 			<Search size={18} class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -543,7 +568,7 @@
 							{#each Array(pagination.totalPages) as _, i}
 								<button 
 									onclick={() => { pagination.page = i + 1; loadRequests(); }}
-									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pagination.page === i + 1 ? 'z-10 bg-pink-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'} {i === 0 ? 'rounded-l-md' : ''} {i === pagination.totalPages - 1 ? 'rounded-r-md' : ''}"
+									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {pagination.page === i + 1 ? 'z-10 bg-pink-600 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'} {i === 0 ? 'rounded-l-md' : ''} {i === pagination.totalPages - 1 ? 'rounded-r-md' : ''}"
 								>
 									{i + 1}
 								</button>
@@ -554,6 +579,85 @@
 			</div>
 		{/if}
 	</div>
+	{/if}
+
+	<!-- ─── Replacement Obligations Tab ──────────────────────────────────────── -->
+	{#if activeTab === 'obligations'}
+		<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+			<!-- Summary pills -->
+			<div class="flex items-center gap-3 border-b border-gray-200 bg-gray-50/60 px-6 py-3">
+				<span class="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-3 py-1 text-xs font-semibold text-pink-800">
+					<Clock size={12} /> {pendingObligations.length} Pending
+				</span>
+				<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+					<CheckCircle size={12} /> {resolvedObligations.length} Resolved
+				</span>
+			</div>
+
+			{#if obligationsLoading && obligations.length === 0}
+				<div class="flex items-center justify-center py-16">
+					<RefreshCw class="h-6 w-6 animate-spin text-pink-500" />
+					<p class="ml-3 text-sm text-gray-500">Loading obligations…</p>
+				</div>
+			{:else}
+				<div class="overflow-x-auto">
+					<table class="min-w-full divide-y divide-gray-200">
+						<thead class="bg-gray-50">
+							<tr>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item</th>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Student</th>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Type</th>
+								<th scope="col" class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500">Amount</th>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Incident Date</th>
+								<th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-200 bg-white">
+							{#each obligations as ob}
+								<tr class="hover:bg-gray-50 transition-colors">
+									<td class="whitespace-nowrap px-6 py-4">
+										<p class="font-medium text-gray-900">{ob.itemName}</p>
+										<p class="text-xs text-gray-500">Req: REQ-{ob.borrowRequestId.slice(-6).toUpperCase()}</p>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4">
+										<p class="font-medium text-gray-900">{ob.studentName || 'Unknown Student'}</p>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4">
+										<span class="inline-flex items-center gap-1.5 rounded bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800 capitalize">{ob.type}</span>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4 text-center">
+										<span class="font-bold text-gray-900">{ob.amount}</span>
+									</td>
+									<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{formatDate(ob.incidentDate)}</td>
+									<td class="whitespace-nowrap px-6 py-4">
+										{#if ob.status === 'pending'}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-2.5 py-1 text-xs font-medium text-pink-800">
+												<Clock size={12} /> Pending
+											</span>
+										{:else}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
+												<CheckCircle size={12} /> Resolved
+											</span>
+										{/if}
+									</td>
+								</tr>
+							{:else}
+								<tr>
+									<td colspan="6" class="px-6 py-16 text-center">
+										<div class="inline-flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 mb-4">
+											<CheckCircle class="h-6 w-6 text-gray-400" />
+										</div>
+										<h3 class="text-sm font-medium text-gray-900">No Replacement Obligations</h3>
+										<p class="mt-1 text-sm text-gray-500">All equipment replacements have been resolved.</p>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+			{/if}
+		</div>
+	{/if}
 	{/if}
 </div>
 
