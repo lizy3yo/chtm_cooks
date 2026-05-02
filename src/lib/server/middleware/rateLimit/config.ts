@@ -87,6 +87,24 @@ export const RateLimitPresets = {
 	} as RateLimitConfig,
 
 	/**
+	 * Superadmin API endpoints - Elevated rate limit
+	 *
+	 * Superadmins perform high-frequency, legitimate read operations:
+	 * parallel stat queries, 30-second polling, SSE-triggered refreshes,
+	 * and focus/visibility re-fetches. Keyed by authenticated userId (not IP)
+	 * so the budget is per-admin rather than per-machine, which is both more
+	 * accurate and more secure.
+	 *
+	 * 600 req/min = 10 req/s — well above any realistic admin workflow while
+	 * still protecting against runaway loops or compromised tokens.
+	 */
+	SUPERADMIN_API: {
+		windowMs: 60 * 1000, // 1 minute
+		maxRequests: 600, // 600 requests per minute
+		keyPrefix: 'ratelimit:superadmin-api'
+	} as RateLimitConfig,
+
+	/**
 	 * Inventory import endpoint - tighter limits than general API
 	 * - Prevents repeated high-cost bulk imports from overwhelming the system
 	 */

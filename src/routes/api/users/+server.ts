@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { getDatabase } from '$lib/server/db/mongodb';
 import { ObjectId } from 'mongodb';
 import type { User, UserRole } from '$lib/server/models/User';
+import { UserRole as UserRoleEnum } from '$lib/server/models/User';
 import { hashPassword } from '$lib/server/utils/password';
 import { validateEmail, sanitizeInput } from '$lib/server/utils/validation';
 import { getUserFromToken } from '$lib/server/middleware/auth/verify';
@@ -11,40 +12,66 @@ import { logger } from '$lib/server/utils/logger';
 import { publishUserChange, USER_CHANNEL } from '$lib/server/realtime/userEvents';
 
 /**
- * GET /api/users
- * Get all users (superadmin only)
+ * Shared auth + rate-limit guard for all superadmin-only handlers.
+ *
+ * Order matters:
+ *  1. Decode the JWT first — we need the userId to key the rate-limit bucket
+ *     per-user rather than per-IP (multiple admins behind the same NAT would
+ *     otherwise share a single bucket and starve each other).
+ *  2. Apply SUPERADMIN_API rate limit keyed by userId.
+ *  3. Enforce the superadmin role.
+ *
+ * Returns the decoded payload on success, or a ready-to-return Response on
+ * any failure (401 / 403 / 429).
  */
-export const GET: RequestHandler = async (event) => {
-	const { request, getClientAddress } = event;
-	
-	// Apply rate limiting
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
+async function guardSuperadmin(event: Parameters<RequestHandler>[0]) {
+	// ── 1. Authentication ────────────────────────────────────────────────────
+	const decoded = getUserFromToken(event);
+	if (!decoded) {
+		return json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
+	// ── 2. Rate limit — keyed by userId, not IP ──────────────────────────────
+	//    Superadmin pages fire several parallel requests on mount (stats query
+	//    fans out to 4 concurrent calls) plus 30-second polling and SSE-driven
+	//    refreshes.  60 req/min (the generic API preset) is exhausted in seconds.
+	//    SUPERADMIN_API allows 600 req/min and scopes the counter to the
+	//    authenticated user so one admin never affects another.
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.SUPERADMIN_API, decoded.userId);
 	if (rateLimitResult instanceof Response) {
 		return rateLimitResult;
 	}
 
+	// ── 3. Authorisation ─────────────────────────────────────────────────────
+	if (decoded.role !== 'superadmin') {
+		logger.warn('Non-superadmin attempted to access /api/users', {
+			userId: decoded.userId,
+			role: decoded.role,
+			ip: event.getClientAddress()
+		});
+		return json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
+	}
+
+	return decoded;
+}
+
+// ─── GET /api/users ──────────────────────────────────────────────────────────
+
+/**
+ * GET /api/users
+ * Returns a paginated, filterable list of all users.
+ * Superadmin only.
+ */
+export const GET: RequestHandler = async (event) => {
+	const { request } = event;
+
+	const guard = await guardSuperadmin(event);
+	if (guard instanceof Response) return guard;
+
 	try {
-		// Verify authentication via cookie
-		const decoded = getUserFromToken(event);
-		if (!decoded) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-
-		// Verify superadmin role
-		if (decoded.role !== 'superadmin') {
-			logger.warn('Non-superadmin attempted to access user list', {
-				userId: decoded.userId,
-				role: decoded.role,
-				ip: getClientAddress()
-			});
-			return json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
-		}
-
-		// Connect to database
 		const db = await getDatabase();
 		const usersCollection = db.collection<User>('users');
 
-		// Get query parameters for filtering
 		const url = new URL(request.url);
 		const role = url.searchParams.get('role');
 		const search = url.searchParams.get('search');
@@ -52,11 +79,8 @@ export const GET: RequestHandler = async (event) => {
 		const limit = parseInt(url.searchParams.get('limit') || '50');
 		const skip = (page - 1) * limit;
 
-		// Build filter
-		const filter: any = {};
-		if (role) {
-			filter.role = role;
-		}
+		const filter: Record<string, unknown> = {};
+		if (role) filter.role = role;
 		if (search) {
 			filter.$or = [
 				{ email: { $regex: search, $options: 'i' } },
@@ -65,7 +89,6 @@ export const GET: RequestHandler = async (event) => {
 			];
 		}
 
-		// Get users with pagination
 		const [users, total] = await Promise.all([
 			usersCollection
 				.find(filter, {
@@ -84,8 +107,7 @@ export const GET: RequestHandler = async (event) => {
 			usersCollection.countDocuments(filter)
 		]);
 
-		// Format response
-		const formattedUsers = users.map(user => ({
+		const formattedUsers = users.map((user) => ({
 			id: user._id?.toString(),
 			email: user.email,
 			role: user.role,
@@ -115,70 +137,45 @@ export const GET: RequestHandler = async (event) => {
 	}
 };
 
+// ─── POST /api/users ─────────────────────────────────────────────────────────
+
 /**
  * POST /api/users
- * Create new user (superadmin only)
+ * Creates a new user account.
+ * Superadmin only.
  */
 export const POST: RequestHandler = async (event) => {
-	const { request, getClientAddress } = event;
-	
-	// Apply rate limiting
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
-	if (rateLimitResult instanceof Response) {
-		return rateLimitResult;
-	}
+	const { request } = event;
+
+	const guard = await guardSuperadmin(event);
+	if (guard instanceof Response) return guard;
+	const decoded = guard;
 
 	try {
-		// Verify authentication via cookie
-		const decoded = getUserFromToken(event);
-		if (!decoded) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-
-		// Verify superadmin role
-		if (decoded.role !== 'superadmin') {
-			logger.warn('Non-superadmin attempted to create user', {
-				userId: decoded.userId,
-				role: decoded.role,
-				ip: getClientAddress()
-			});
-			return json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
-		}
-
 		const body = await request.json();
-		const { email, password, role, firstName, lastName } = body;
+		const { email, password, role, firstName, lastName, yearLevel, block } = body;
 
-		// Validate required fields
 		if (!email || !password || !role || !firstName || !lastName) {
 			return json({ error: 'All fields are required' }, { status: 400 });
 		}
 
-		// Validate email
 		const sanitizedEmail = sanitizeInput(email.toLowerCase());
 		if (!validateEmail(sanitizedEmail)) {
 			return json({ error: 'Invalid email format' }, { status: 400 });
 		}
 
-		// Validate role
-		const validRoles = ['custodian', 'instructor', 'superadmin'];
+		const validRoles: UserRole[] = [UserRoleEnum.STUDENT, UserRoleEnum.CUSTODIAN, UserRoleEnum.INSTRUCTOR, UserRoleEnum.SUPERADMIN];
 		if (!validRoles.includes(role)) {
-			return json({ 
-				error: 'Invalid role. Must be custodian, instructor, or superadmin' 
-			}, { status: 400 });
+			return json({ error: 'Invalid role' }, { status: 400 });
 		}
 
-		// Validate password strength
 		if (password.length < 8) {
-			return json({ 
-				error: 'Password must be at least 8 characters long' 
-			}, { status: 400 });
+			return json({ error: 'Password must be at least 8 characters long' }, { status: 400 });
 		}
 
-		// Connect to database
 		const db = await getDatabase();
 		const usersCollection = db.collection<User>('users');
 
-		// Check if email already exists
 		const existingUser = await usersCollection.findOne(
 			{ email: sanitizedEmail },
 			{ collation: { locale: 'en', strength: 2 } }
@@ -187,10 +184,8 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: 'Email already registered' }, { status: 409 });
 		}
 
-		// Hash password
 		const hashedPassword = await hashPassword(password);
 
-		// Create user object
 		const newUser: User = {
 			email: sanitizedEmail,
 			password: hashedPassword,
@@ -198,12 +193,13 @@ export const POST: RequestHandler = async (event) => {
 			firstName: sanitizeInput(firstName),
 			lastName: sanitizeInput(lastName),
 			isActive: true,
-			emailVerified: true, // Staff users are pre-verified
+			emailVerified: true,
 			createdAt: new Date(),
-			updatedAt: new Date()
+			updatedAt: new Date(),
+			...(role === 'student' && yearLevel ? { yearLevel } : {}),
+			...(role === 'student' && block ? { block } : {})
 		};
 
-		// Insert user
 		const result = await usersCollection.insertOne(newUser);
 
 		logger.info('User created by superadmin', {
@@ -211,102 +207,82 @@ export const POST: RequestHandler = async (event) => {
 			newUserEmail: sanitizedEmail,
 			newUserRole: role,
 			createdBy: decoded.userId,
-			ip: getClientAddress()
+			ip: event.getClientAddress()
 		});
 
-		// Publish real-time event
 		publishUserChange([USER_CHANNEL], {
 			action: 'user_created',
 			userId: result.insertedId.toString(),
 			occurredAt: new Date().toISOString()
 		});
 
-		return json({
-			success: true,
-			message: 'User created successfully',
-			user: {
-				id: result.insertedId.toString(),
-				email: newUser.email,
-				role: newUser.role,
-				firstName: newUser.firstName,
-				lastName: newUser.lastName,
-				isActive: newUser.isActive,
-				emailVerified: newUser.emailVerified,
-				createdAt: newUser.createdAt
-			}
-		}, { status: 201 });
+		return json(
+			{
+				success: true,
+				message: 'User created successfully',
+				user: {
+					id: result.insertedId.toString(),
+					email: newUser.email,
+					role: newUser.role,
+					firstName: newUser.firstName,
+					lastName: newUser.lastName,
+					isActive: newUser.isActive,
+					emailVerified: newUser.emailVerified,
+					createdAt: newUser.createdAt
+				}
+			},
+			{ status: 201 }
+		);
 	} catch (error) {
 		logger.error('Error creating user:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
 	}
 };
 
+// ─── PATCH /api/users?userId=xxx ─────────────────────────────────────────────
+
 /**
  * PATCH /api/users?userId=xxx
- * Update user (superadmin only)
+ * Updates an existing user's profile or status.
+ * Superadmin only.
  */
 export const PATCH: RequestHandler = async (event) => {
-	const { request, url, getClientAddress } = event;
-	
-	// Apply rate limiting
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
-	if (rateLimitResult instanceof Response) {
-		return rateLimitResult;
-	}
+	const { request, url } = event;
+
+	const guard = await guardSuperadmin(event);
+	if (guard instanceof Response) return guard;
+	const decoded = guard;
 
 	try {
-		// Verify authentication via cookie
-		const decoded = getUserFromToken(event);
-		if (!decoded) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-
-		// Verify superadmin role
-		if (decoded.role !== 'superadmin') {
-			return json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
-		}
-
-		// Get userId from query parameter
 		const userId = url.searchParams.get('userId');
 		if (!userId) {
 			return json({ error: 'userId query parameter is required' }, { status: 400 });
 		}
-
-		// Validate ObjectId
 		if (!ObjectId.isValid(userId)) {
 			return json({ error: 'Invalid userId format' }, { status: 400 });
 		}
 
 		const body = await request.json();
-		const { firstName, lastName, isActive, role } = body;
+		const { firstName, lastName, isActive, role, yearLevel, block } = body;
 
-		// Build update object
-		const updateFields: any = {
-			updatedAt: new Date()
-		};
+		const updateFields: Record<string, unknown> = { updatedAt: new Date() };
 
-		if (firstName !== undefined) {
-			updateFields.firstName = sanitizeInput(firstName);
-		}
-		if (lastName !== undefined) {
-			updateFields.lastName = sanitizeInput(lastName);
-		}
-		if (isActive !== undefined) {
-			updateFields.isActive = Boolean(isActive);
-		}
+		if (firstName !== undefined) updateFields.firstName = sanitizeInput(firstName);
+		if (lastName !== undefined) updateFields.lastName = sanitizeInput(lastName);
+		if (isActive !== undefined) updateFields.isActive = Boolean(isActive);
 		if (role !== undefined) {
-			const validRoles = ['custodian', 'instructor', 'superadmin'];
+			const validRoles = [UserRoleEnum.STUDENT, UserRoleEnum.CUSTODIAN, UserRoleEnum.INSTRUCTOR, UserRoleEnum.SUPERADMIN];
 			if (!validRoles.includes(role)) {
 				return json({ error: 'Invalid role' }, { status: 400 });
 			}
 			updateFields.role = role;
 		}
+		if (yearLevel !== undefined) updateFields.yearLevel = yearLevel;
+		if (block !== undefined) updateFields.block = block;
 
-		// Connect to database
 		const db = await getDatabase();
 		const usersCollection = db.collection<User>('users');
 
-		// Update user
 		const result = await usersCollection.findOneAndUpdate(
 			{ _id: new ObjectId(userId) },
 			{ $set: updateFields },
@@ -321,10 +297,9 @@ export const PATCH: RequestHandler = async (event) => {
 			updatedUserId: userId,
 			updatedBy: decoded.userId,
 			changes: updateFields,
-			ip: getClientAddress()
+			ip: event.getClientAddress()
 		});
 
-		// Publish real-time event
 		publishUserChange([USER_CHANNEL], {
 			action: 'user_updated',
 			userId,
@@ -350,60 +325,40 @@ export const PATCH: RequestHandler = async (event) => {
 	}
 };
 
+// ─── DELETE /api/users?userId=xxx ────────────────────────────────────────────
+
 /**
  * DELETE /api/users?userId=xxx
- * Delete user (superadmin only)
+ * Permanently deletes a user account.
+ * Superadmin only. Cannot delete your own account.
  */
 export const DELETE: RequestHandler = async (event) => {
-	const { url, getClientAddress } = event;
-	
-	// Apply rate limiting
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
-	if (rateLimitResult instanceof Response) {
-		return rateLimitResult;
-	}
+	const { url } = event;
+
+	const guard = await guardSuperadmin(event);
+	if (guard instanceof Response) return guard;
+	const decoded = guard;
 
 	try {
-		// Verify authentication via cookie
-		const decoded = getUserFromToken(event);
-		if (!decoded) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-
-		// Verify superadmin role
-		if (decoded.role !== 'superadmin') {
-			return json({ error: 'Forbidden: Superadmin access required' }, { status: 403 });
-		}
-
-		// Get userId from query parameter
 		const userId = url.searchParams.get('userId');
 		if (!userId) {
 			return json({ error: 'userId query parameter is required' }, { status: 400 });
 		}
-
-		// Validate ObjectId
 		if (!ObjectId.isValid(userId)) {
 			return json({ error: 'Invalid userId format' }, { status: 400 });
 		}
-
-		// Prevent deleting yourself
 		if (userId === decoded.userId) {
-			return json({ 
-				error: 'Cannot delete your own account' 
-			}, { status: 400 });
+			return json({ error: 'Cannot delete your own account' }, { status: 400 });
 		}
 
-		// Connect to database
 		const db = await getDatabase();
 		const usersCollection = db.collection<User>('users');
 
-		// Get user before deletion for logging
 		const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
 		if (!user) {
 			return json({ error: 'User not found' }, { status: 404 });
 		}
 
-		// Delete user
 		await usersCollection.deleteOne({ _id: new ObjectId(userId) });
 
 		logger.info('User deleted by superadmin', {
@@ -411,20 +366,16 @@ export const DELETE: RequestHandler = async (event) => {
 			deletedUserEmail: user.email,
 			deletedUserRole: user.role,
 			deletedBy: decoded.userId,
-			ip: getClientAddress()
+			ip: event.getClientAddress()
 		});
 
-		// Publish real-time event
 		publishUserChange([USER_CHANNEL], {
 			action: 'user_deleted',
 			userId,
 			occurredAt: new Date().toISOString()
 		});
 
-		return json({
-			success: true,
-			message: 'User deleted successfully'
-		});
+		return json({ success: true, message: 'User deleted successfully' });
 	} catch (error) {
 		logger.error('Error deleting user:', error);
 		return json({ error: 'Internal server error' }, { status: 500 });
