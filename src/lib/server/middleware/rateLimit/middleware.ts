@@ -66,27 +66,36 @@ function getRateLimitKey(config: RateLimitConfig, identifier: string, pathname?:
  * Checks if request should be allowed based on rate limit configuration.
  * Returns either RateLimitInfo (allowed) or Response (rate limited).
  * 
- * @param event - SvelteKit request event
- * @param config - Rate limit configuration
+ * @param event      - SvelteKit request event
+ * @param config     - Rate limit configuration
+ * @param identifier - Optional override for the rate-limit key identifier.
+ *                     Defaults to the client IP address.
+ *                     Pass the authenticated userId for role-based limits so
+ *                     the budget is scoped to the user, not the machine.
  * @returns RateLimitInfo if allowed, Response if rate limited
  * 
  * @example
  * ```typescript
+ * // IP-based (default)
  * const result = await rateLimit(event, RateLimitPresets.LOGIN);
- * if (result instanceof Response) {
- *   return result; // Rate limited
- * }
- * // Continue processing...
+ *
+ * // User-based (superadmin routes)
+ * const result = await rateLimit(event, RateLimitPresets.SUPERADMIN_API, decoded.userId);
+ * if (result instanceof Response) return result;
  * ```
  */
 export async function rateLimit(
 	event: RequestEvent,
-	config: RateLimitConfig
+	config: RateLimitConfig,
+	identifier?: string
 ): Promise<RateLimitInfo | Response> {
 	try {
 		const clientIP = getClientIP(event);
+		// Use the provided identifier (e.g. userId for authenticated routes) or
+		// fall back to the client IP for anonymous/public endpoints.
+		const resolvedIdentifier = identifier ?? clientIP;
 		const pathname = new URL(event.request.url).pathname;
-		const key = getRateLimitKey(config, clientIP, pathname);
+		const key = getRateLimitKey(config, resolvedIdentifier, pathname);
 
 		// Check rate limit using sliding window
 		const result = await SlidingWindow.check(key, config);

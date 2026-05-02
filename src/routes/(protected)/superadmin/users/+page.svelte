@@ -1135,7 +1135,7 @@
 
 	<!-- ── ALL USERS TAB ─────────────────────────────────────────────────────── -->
 	{#if activeTab === 'all' || activeTab === 'inactive'}
-		<div role="tabpanel" id="{activeTab}-panel" aria-labelledby="{activeTab}-tab">
+		<div class="flex flex-col gap-4" role="tabpanel" id="{activeTab}-panel" aria-labelledby="{activeTab}-tab">
 			<!-- Stats -->
 			{#if activeTab === 'all'}
 				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -1402,7 +1402,7 @@
 										</td>
 										<td class="px-6 py-4">
 											<span
-												class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {roleBadge(
+												class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {roleBadge(
 													user.role
 												)}"
 											>
@@ -1411,7 +1411,7 @@
 										</td>
 										<td class="px-6 py-4">
 											<span
-												class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {statusBadge(
+												class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold {statusBadge(
 													user.isActive
 												)}"
 											>
@@ -1545,7 +1545,7 @@
 									</div>
 									<div class="flex shrink-0 items-center gap-2">
 										<span
-											class="inline-flex rounded-full px-2 py-0.5 text-xs font-semibold {roleBadge(
+											class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold {roleBadge(
 												user.role
 											)}">{user.role.charAt(0).toUpperCase() + user.role.slice(1)}</span
 										>
@@ -1561,7 +1561,7 @@
 								</div>
 								<div class="mt-3 flex items-center gap-4 text-xs text-gray-500">
 									<span
-										class="inline-flex rounded-full px-2 py-0.5 font-semibold {statusBadge(
+										class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold {statusBadge(
 											user.isActive
 										)}">{user.isActive ? 'Active' : 'Inactive'}</span
 									>
