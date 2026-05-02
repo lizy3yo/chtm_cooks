@@ -292,6 +292,20 @@
 		return badges[role] || 'bg-gray-100 text-gray-800';
 	}
 
+	// Activity log detail modal
+	let showActivityDetailModal = $state(false);
+	let selectedActivityLog = $state<InventoryHistoryEntry | null>(null);
+
+	function openActivityDetailModal(log: InventoryHistoryEntry) {
+		selectedActivityLog = log;
+		showActivityDetailModal = true;
+	}
+
+	function closeActivityDetailModal() {
+		showActivityDetailModal = false;
+		selectedActivityLog = null;
+	}
+
 	// Open request detail modal
 	function openRequestDetailModal(request: any) {
 		selectedHistoryRequest = request;
@@ -605,8 +619,8 @@
 				<!-- Search Bar and Filter Button -->
 				<div class="mb-4 flex flex-col gap-2 sm:mb-6 sm:flex-row">
 					<div class="relative flex-1">
-						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 sm:pl-4">
-							<svg class="h-4 w-4 text-gray-400 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+							<svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
 							</svg>
 						</div>
@@ -614,39 +628,32 @@
 							type="text"
 							placeholder="Search by entity name, user..."
 							bind:value={activitySearchQuery}
-							class="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 shadow-sm transition-colors hover:border-gray-400 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:py-3 sm:pl-11 sm:pr-4"
+							class="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-500 shadow-sm transition-colors hover:border-gray-400 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0"
 						/>
 					</div>
 					<div class="flex gap-2">
 						<button
 							onclick={() => filterMyActivitiesOnly = !filterMyActivitiesOnly}
-							class="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:px-4 sm:py-3 {filterMyActivitiesOnly ? 'border-pink-500 bg-pink-50 text-pink-700' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
-							title="Show only my activities"
+							class="flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-3 py-2.5 text-xs font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:flex-none sm:gap-2 sm:px-4 sm:text-sm {filterMyActivitiesOnly ? 'border-pink-500 bg-pink-50 text-pink-700' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
+							aria-pressed={filterMyActivitiesOnly}
 						>
-							<svg class="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<svg class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
 							</svg>
-							<span class="hidden sm:inline">My Activities</span>
-						</button>
-						<button
-							onclick={refreshActivityLogs}
-							disabled={activityLogsRefreshing}
-							class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-3"
-							title="Refresh activity logs"
-						>
-							<svg class="h-4 w-4 sm:h-5 sm:w-5 {activityLogsRefreshing ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-							</svg>
-							<span class="hidden sm:inline">Refresh</span>
+							<span class="whitespace-nowrap">
+								<span class="sm:hidden">Mine</span>
+								<span class="hidden sm:inline">My Activities</span>
+							</span>
 						</button>
 						<button
 							onclick={() => showActivityFilters = !showActivityFilters}
-							class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:px-4 sm:py-3 {showActivityFilters ? 'bg-gray-50 border-pink-500 text-pink-600' : ''}"
+							class="flex flex-1 items-center justify-center gap-1.5 rounded-lg border bg-white px-3 py-2.5 text-xs font-medium shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:flex-none sm:gap-2 sm:px-4 sm:text-sm {showActivityFilters ? 'border-pink-500 bg-pink-50 text-pink-600' : 'border-gray-300 text-gray-700'}"
+							aria-expanded={showActivityFilters}
 						>
-							<svg class="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<svg class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
 							</svg>
-							<span class="hidden sm:inline">Filters</span>
+							<span class="whitespace-nowrap">Filters</span>
 						</button>
 					</div>
 				</div>
@@ -757,45 +764,90 @@
 						{/if}
 					</div>
 				{:else}
-					<div class="overflow-x-auto activity-logs-table">
+					<!-- Mobile: tap-to-open row list -->
+					<div class="sm:hidden divide-y divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
+						{#each filteredActivityLogs as log, index}
+							{@const isMyActivity = log.userName === currentUserEmail}
+							{@const rowNumber = (activityPage - 1) * activityLimit + index + 1}
+							<button
+								onclick={() => openActivityDetailModal(log)}
+								class="w-full text-left flex items-center gap-3 px-3 py-3 transition-colors {isMyActivity ? 'bg-pink-50/40 active:bg-pink-100' : 'bg-white active:bg-gray-100'}"
+							>
+								<!-- Row number -->
+								<span class="shrink-0 w-5 text-right text-xs font-medium text-gray-400">{rowNumber}</span>
+
+								<!-- Two-line content block -->
+								<div class="min-w-0 flex-1">
+									<!-- Line 1: entity name (full width, no competition) -->
+									<p class="truncate text-sm font-semibold text-gray-900 leading-snug">{log.entityName}</p>
+									<!-- Line 2: badge + timestamp -->
+									<div class="mt-1 flex items-center gap-2">
+										<span class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none {getActionColor(log.action)}">
+											{log.action.replace(/_/g, ' ')}
+										</span>
+										{#if isMyActivity}
+											<span class="h-1.5 w-1.5 shrink-0 rounded-full bg-pink-500"></span>
+										{/if}
+										<span class="truncate text-xs text-gray-400">{formatTimestamp(log.timestamp)}</span>
+									</div>
+								</div>
+
+								<!-- Chevron -->
+								<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+								</svg>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Desktop: full table -->
+					<div class="hidden sm:block overflow-x-auto rounded-lg border border-gray-200">
 						<table class="w-full">
 							<thead>
 								<tr class="border-b border-gray-200 bg-gray-50">
-									<th class="w-16 px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Timestamp</th>
-									<th class="min-w-[140px] px-6 py-3 text-left text-sm font-semibold text-gray-900">Action</th>
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Type</th>
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Entity</th>
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">User</th>
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Role</th>
+									<th class="w-12 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">#</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">Timestamp</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Action</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Type</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Entity</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">User</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Role</th>
 								</tr>
 							</thead>
-							<tbody class="divide-y divide-gray-200">
+							<tbody class="divide-y divide-gray-100">
 								{#each filteredActivityLogs as log, index}
 									{@const isMyActivity = log.userName === currentUserEmail}
 									{@const rowNumber = (activityPage - 1) * activityLimit + index + 1}
-									<tr class="transition-colors {isMyActivity ? 'bg-pink-50/50 hover:bg-pink-50' : 'hover:bg-gray-50'}">
-										<td class="w-16 px-4 py-4 text-sm font-medium text-gray-500">{rowNumber}</td>
-										<td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">{formatTimestamp(log.timestamp)}</td>
-										<td class="min-w-[140px] px-6 py-4">
+									<tr
+										onclick={() => openActivityDetailModal(log)}
+										class="cursor-pointer transition-colors {isMyActivity ? 'bg-pink-50/50 hover:bg-pink-100/60' : 'hover:bg-gray-50'}"
+									>
+										<td class="w-12 px-4 py-3.5 text-sm font-medium text-gray-400">{rowNumber}</td>
+										<td class="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{formatTimestamp(log.timestamp)}</td>
+										<td class="px-4 py-3.5">
 											<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap {getActionColor(log.action)}">
 												{log.action.replace('_', ' ').toUpperCase()}
 											</span>
 										</td>
-										<td class="px-6 py-4 text-sm text-gray-600 capitalize">{log.entityType}</td>
-										<td class="px-6 py-4 text-sm font-medium text-gray-900">{log.entityName}</td>
-										<td class="px-6 py-4">
-											<div class="flex items-center gap-2">
+										<td class="px-4 py-3.5 text-sm text-gray-600 capitalize whitespace-nowrap">{log.entityType}</td>
+										<td class="px-4 py-3.5 text-sm font-medium text-gray-900 max-w-[200px] truncate">{log.entityName}</td>
+										<td class="px-4 py-3.5">
+											<div class="flex items-center gap-1.5">
 												{#if isMyActivity}
-													<span class="flex h-2 w-2 rounded-full bg-pink-500" title="Your activity"></span>
+													<span class="flex h-1.5 w-1.5 shrink-0 rounded-full bg-pink-500" title="Your activity"></span>
 												{/if}
-												<span class="text-sm text-gray-600">{log.userName || 'N/A'}</span>
+												<span class="text-sm text-gray-600 truncate max-w-[180px]">{log.userName || 'N/A'}</span>
 											</div>
 										</td>
-										<td class="px-6 py-4">
-											<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getRoleBadge(log.userRole)}">
-												{log.userRole?.toUpperCase() || 'N/A'}
-											</span>
+										<td class="px-4 py-3.5">
+											<div class="flex items-center justify-between gap-2">
+												<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap {getRoleBadge(log.userRole)}">
+													{log.userRole?.toUpperCase() || 'N/A'}
+												</span>
+												<svg class="h-3.5 w-3.5 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+													<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+												</svg>
+											</div>
 										</td>
 									</tr>
 								{/each}
@@ -805,11 +857,11 @@
 
 					<!-- Pagination -->
 					{#if activityTotal > activityLimit}
-						<div class="mt-6 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6">
-							<div class="text-sm text-gray-500">
+						<div class="mt-4 flex flex-col gap-3 sm:mt-6 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6">
+							<div class="text-center text-xs text-gray-500 sm:text-left sm:text-sm">
 								Showing {(activityPage - 1) * activityLimit + 1}–{Math.min(activityPage * activityLimit, activityTotal)} of {activityTotal} activities
 							</div>
-							<nav class="flex items-center gap-1" aria-label="Pagination">
+							<nav class="flex items-center justify-center gap-1" aria-label="Pagination">
 								<button
 									onclick={() => goToActivityPage(activityPage - 1)}
 									disabled={activityPage === 1 || activityLogsRefreshing}
@@ -863,8 +915,8 @@
 				<!-- Search Bar and Filter Button -->
 				<div class="mb-4 flex gap-2 sm:mb-6">
 					<div class="relative flex-1">
-						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 sm:pl-4">
-							<svg class="h-4 w-4 text-gray-400 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+							<svg class="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
 							</svg>
 						</div>
@@ -872,17 +924,18 @@
 							type="text"
 							placeholder="Search requests..."
 							bind:value={requestHistorySearch}
-							class="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 shadow-sm transition-colors hover:border-gray-400 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:py-3 sm:pl-11 sm:pr-4"
+							class="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-500 shadow-sm transition-colors hover:border-gray-400 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0"
 						/>
 					</div>
 					<button
 						onclick={() => showRequestHistoryFilters = !showRequestHistoryFilters}
-						class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:px-4 sm:py-3 {showRequestHistoryFilters ? 'bg-gray-50 border-pink-500 text-pink-600' : ''}"
+						class="flex items-center gap-1.5 rounded-lg border bg-white px-3 py-2.5 text-xs font-medium shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:gap-2 sm:px-4 sm:text-sm {showRequestHistoryFilters ? 'border-pink-500 bg-pink-50 text-pink-600' : 'border-gray-300 text-gray-700'}"
+						aria-expanded={showRequestHistoryFilters}
 					>
-						<svg class="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<svg class="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
 						</svg>
-						<span class="hidden sm:inline">Filters</span>
+						<span class="whitespace-nowrap">Filters</span>
 					</button>
 				</div>
 
@@ -960,73 +1013,107 @@
 						</p>
 					</div>
 				{:else}
-					<div class="overflow-x-auto">
+					<!-- Mobile: tap-to-open row list -->
+					<div class="sm:hidden divide-y divide-gray-100 rounded-lg border border-gray-200 overflow-hidden">
+						{#each filteredRequestHistory as request, index}
+							{@const rowNumber = (requestHistoryPage - 1) * requestHistoryLimit + index + 1}
+							<button
+								onclick={() => openRequestDetailModal(request)}
+								class="w-full text-left flex items-center gap-3 bg-white px-3 py-3 transition-colors active:bg-gray-100"
+							>
+								<!-- Row number -->
+								<span class="shrink-0 w-5 text-right text-xs font-medium text-gray-400">{rowNumber}</span>
+
+								<!-- Student avatar -->
+								{#if request.student}
+									<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200">
+										{#if request.student.profilePhotoUrl}
+											<img src={request.student.profilePhotoUrl} alt={request.student.fullName || 'Student'} class="h-full w-full object-cover" loading="lazy" />
+										{:else}
+											{(request.student.fullName || request.student.firstName || 'ST').split(' ').filter(Boolean).slice(0, 2).map((p: string) => p[0]?.toUpperCase() || '').join('')}
+										{/if}
+									</div>
+								{/if}
+
+								<!-- Two-line content block -->
+								<div class="min-w-0 flex-1">
+									<!-- Line 1: student name (full width) -->
+									<p class="truncate text-sm font-semibold text-gray-900 leading-snug">
+										{request.student?.fullName || `${request.student?.firstName || ''} ${request.student?.lastName || ''}`.trim() || 'N/A'}
+									</p>
+									<!-- Line 2: status badge + date -->
+									<div class="mt-1 flex items-center gap-2">
+										<span class="inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-semibold leading-none {getRequestStatusColor(request.status)}">
+											{request.status.replace('_', ' ')}
+										</span>
+										<span class="truncate text-xs text-gray-400">{formatTimestamp(request.createdAt)}</span>
+									</div>
+								</div>
+
+								<!-- Chevron -->
+								<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+								</svg>
+							</button>
+						{/each}
+					</div>
+
+					<!-- Desktop: full table -->
+					<div class="hidden sm:block overflow-x-auto rounded-lg border border-gray-200">
 						<table class="w-full">
 							<thead>
 								<tr class="border-b border-gray-200 bg-gray-50">
-									<th class="w-16 px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Request ID</th>
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Student</th>
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Items</th>
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Status</th>
-									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Date</th>
+									<th class="w-12 px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">#</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">Request ID</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Student</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Items</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">Status</th>
+									<th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 whitespace-nowrap">Date</th>
 								</tr>
 							</thead>
-							<tbody class="divide-y divide-gray-200">
+							<tbody class="divide-y divide-gray-100">
 								{#each filteredRequestHistory as request, index}
 									{@const rowNumber = (requestHistoryPage - 1) * requestHistoryLimit + index + 1}
-									<tr 
+									<tr
 										onclick={() => openRequestDetailModal(request)}
-										class="cursor-pointer hover:bg-gray-50 transition-colors"
+										class="cursor-pointer transition-colors hover:bg-gray-50"
 									>
-										<td class="w-16 px-4 py-4 text-sm font-medium text-gray-500">{rowNumber}</td>
-										<td class="px-6 py-4 text-sm font-medium text-gray-900">{formatRequestId(request.id)}</td>
-										<td class="px-6 py-4">
+										<td class="w-12 px-4 py-3.5 text-sm font-medium text-gray-400">{rowNumber}</td>
+										<td class="px-4 py-3.5 text-sm font-mono font-semibold text-pink-600 whitespace-nowrap">{formatRequestId(request.id)}</td>
+										<td class="px-4 py-3.5">
 											{#if request.student}
 												<div class="flex items-center gap-3">
-													<div
-														class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-sm font-semibold text-pink-700 ring-2 ring-pink-200"
-													>
+													<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-2 ring-pink-200">
 														{#if request.student.profilePhotoUrl}
-															<img
-																src={request.student.profilePhotoUrl}
-																alt={request.student.fullName || 'Student'}
-																class="h-full w-full object-cover"
-																loading="lazy"
-															/>
+															<img src={request.student.profilePhotoUrl} alt={request.student.fullName || 'Student'} class="h-full w-full object-cover" loading="lazy" />
 														{:else}
-															{(request.student.fullName || request.student.firstName || 'ST')
-																.split(' ')
-																.filter(Boolean)
-																.slice(0, 2)
-																.map((part: string) => part[0]?.toUpperCase() || '')
-																.join('')}
+															{(request.student.fullName || request.student.firstName || 'ST').split(' ').filter(Boolean).slice(0, 2).map((part: string) => part[0]?.toUpperCase() || '').join('')}
 														{/if}
 													</div>
-													<div>
-														<div class="text-sm font-medium text-gray-900">
+													<div class="min-w-0">
+														<div class="truncate text-sm font-medium text-gray-900 max-w-[160px]">
 															{request.student.fullName || `${request.student.firstName || ''} ${request.student.lastName || ''}`.trim() || 'N/A'}
 														</div>
-														<div class="text-xs text-gray-500">{request.student.email || 'N/A'}</div>
+														<div class="truncate text-xs text-gray-500 max-w-[160px]">{request.student.email || 'N/A'}</div>
 													</div>
 												</div>
 											{:else}
-												<div class="text-sm text-gray-500">N/A</div>
+												<span class="text-sm text-gray-400">N/A</span>
 											{/if}
 										</td>
-										<td class="px-6 py-4 text-sm text-gray-600">
+										<td class="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">
 											{#if request.items.length === 1}
 												{request.items[0].name}
 											{:else}
 												{request.items.length} items
 											{/if}
 										</td>
-										<td class="px-6 py-4">
-											<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getRequestStatusColor(request.status)}">
+										<td class="px-4 py-3.5">
+											<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap {getRequestStatusColor(request.status)}">
 												{request.status.replace('_', ' ').toUpperCase()}
 											</span>
 										</td>
-										<td class="px-6 py-4 text-sm text-gray-600">{formatTimestamp(request.createdAt)}</td>
+										<td class="px-4 py-3.5 text-sm text-gray-600 whitespace-nowrap">{formatTimestamp(request.createdAt)}</td>
 									</tr>
 								{/each}
 							</tbody>
@@ -1071,6 +1158,139 @@
 		</div>
 	</div>
 </div>
+{/if}
+
+<!-- Activity Log Detail Modal (bottom sheet on mobile, centered dialog on desktop) -->
+{#if showActivityDetailModal && selectedActivityLog}
+	{@const log = selectedActivityLog}
+	{@const isMyActivity = log.userName === currentUserEmail}
+	<div class="fixed inset-0 z-50 overflow-y-auto">
+		<!-- Backdrop -->
+		<div
+			class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+			aria-hidden="true"
+			onclick={closeActivityDetailModal}
+		></div>
+		<!-- Bottom sheet on mobile, centered dialog on desktop -->
+		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
+			<div class="animate-scaleIn relative w-full max-w-lg overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl">
+
+				<!-- Handle (mobile only) -->
+				<div class="flex justify-center pt-3 sm:hidden">
+					<div class="h-1 w-10 rounded-full bg-gray-300"></div>
+				</div>
+
+				<!-- Header -->
+				<div class="sticky top-0 z-10 border-b border-gray-100 bg-white/95 px-5 py-4 backdrop-blur-sm sm:px-6">
+					<div class="flex items-start justify-between gap-3">
+						<div class="flex min-w-0 flex-1 items-center gap-3">
+							<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+								<svg class="h-5 w-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+								</svg>
+							</div>
+							<div class="min-w-0">
+								<h2 class="truncate text-base font-bold text-gray-900 sm:text-lg">{log.entityName}</h2>
+								<p class="text-xs text-gray-500 capitalize">{log.entityType}</p>
+							</div>
+						</div>
+						<button
+							onclick={closeActivityDetailModal}
+							aria-label="Close"
+							class="rounded-xl p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+						>
+							<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+							</svg>
+						</button>
+					</div>
+				</div>
+
+				<!-- Content -->
+				<div class="max-h-[65vh] overflow-y-auto px-5 py-5 sm:px-6 sm:py-6">
+					<div class="space-y-4">
+
+						<!-- Action & Role -->
+						<div class="flex flex-wrap gap-2">
+							<span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {getActionColor(log.action)}">
+								{log.action.replace(/_/g, ' ').toUpperCase()}
+							</span>
+							<span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {getRoleBadge(log.userRole)}">
+								{log.userRole?.toUpperCase() || 'N/A'}
+							</span>
+							{#if isMyActivity}
+								<span class="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-3 py-1 text-xs font-semibold text-pink-700">
+									<span class="h-1.5 w-1.5 rounded-full bg-pink-500"></span>
+									My Activity
+								</span>
+							{/if}
+						</div>
+
+						<!-- Detail fields -->
+						<div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+							<!-- Timestamp -->
+							<div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+								<p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Timestamp</p>
+								<p class="mt-1 text-sm font-semibold text-gray-900">{formatTimestamp(log.timestamp)}</p>
+							</div>
+
+							<!-- Entity -->
+							<div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5">
+								<p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Entity</p>
+								<p class="mt-1 text-sm font-semibold text-gray-900">{log.entityName}</p>
+								<p class="mt-0.5 text-xs capitalize text-gray-500">{log.entityType}</p>
+							</div>
+
+							<!-- Performed by -->
+							<div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5 sm:col-span-2">
+								<p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Performed By</p>
+								<p class="mt-1 break-all text-sm font-semibold text-gray-900">{log.userName || 'N/A'}</p>
+								<p class="mt-0.5 text-xs capitalize text-gray-500">{log.userRole || 'N/A'}</p>
+							</div>
+
+							<!-- Changes -->
+							{#if log.changes && log.changes.length > 0}
+								<div class="rounded-xl border border-gray-200 bg-gray-50 p-3.5 sm:col-span-2">
+									<p class="mb-3 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+										Changes ({log.changes.length})
+									</p>
+									<div class="space-y-2">
+										{#each log.changes as change}
+											<div class="rounded-lg border border-gray-100 bg-white px-3 py-2.5">
+												<p class="text-xs font-semibold capitalize text-gray-700">{change.field.replace(/_/g, ' ')}</p>
+												<div class="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
+													<span class="rounded-md bg-red-50 px-2 py-1 font-mono text-red-600 line-through">{change.oldValue ?? '—'}</span>
+													<svg class="h-3 w-3 shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+													</svg>
+													<span class="rounded-md bg-green-50 px-2 py-1 font-mono text-green-700">{change.newValue ?? '—'}</span>
+												</div>
+											</div>
+										{/each}
+									</div>
+								</div>
+							{:else}
+								<div class="rounded-xl border border-dashed border-gray-200 bg-gray-50/50 p-3.5 sm:col-span-2">
+									<p class="text-[10px] font-bold uppercase tracking-wider text-gray-400">Changes</p>
+									<p class="mt-1 text-sm text-gray-400">No field-level changes recorded for this action.</p>
+								</div>
+							{/if}
+						</div>
+					</div>
+				</div>
+
+				<!-- Footer -->
+				<div class="sticky bottom-0 border-t border-gray-100 bg-white/95 px-5 py-4 backdrop-blur-sm sm:px-6">
+					<button
+						onclick={closeActivityDetailModal}
+						class="w-full rounded-xl bg-gray-100 px-5 py-2.5 text-sm font-bold text-gray-700 transition-all hover:bg-gray-200 active:scale-[0.98]"
+					>
+						Close
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
 {/if}
 
 <!-- Request Detail Modal -->
