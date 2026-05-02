@@ -1,15 +1,47 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { toastStore } from '$lib/stores/toast';
+	import { profileStore } from '$lib/stores/profile';
 	import { borrowRequestsAPI } from '$lib/api/borrowRequests';
 	import { catalogAPI } from '$lib/api/catalog';
+	import { inventoryHistoryAPI } from '$lib/api/inventoryHistory';
+	import type { InventoryHistoryEntry } from '$lib/api/inventoryHistory';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 
-	type Tab = 'request-history';
+	type Tab = 'activity-logs' | 'request-history';
 	
-	let activeTab = $state<Tab>('request-history');
+	let activeTab = $state<Tab>('activity-logs');
+	
+	// Get current user email reactively from store
+	let currentUserEmail = $state('');
+	
+	// Update email when profile loads
+	$effect(() => {
+		if (browser && $profileStore.profile?.email) {
+			currentUserEmail = $profileStore.profile.email;
+			console.log('[USER-EMAIL] Set to:', currentUserEmail);
+		}
+	});
 	
 	let initialLoadComplete = $state(false);
+
+	// Activity Logs state
+	let activityLogs = $state<InventoryHistoryEntry[]>([]);
+	let activityTotal = $state(0);
+	let activityPage = $state(1);
+	let activityLimit = $state(20); // Items per page
+	let activityLogsLoaded = $state(false);
+	let activityLogsRefreshing = $state(false);
+	
+	// Filters for activity logs
+	let filterAction = $state('');
+	let filterEntityType = $state('');
+	let filterStartDate = $state('');
+	let filterEndDate = $state('');
+	let activitySearchQuery = $state('');
+	let showActivityFilters = $state(false);
+	let filterMyActivitiesOnly = $state(false);
 
 	// Request History state
 	let requestHistory = $state<any[]>([]);
@@ -28,8 +60,27 @@
 
 	// Load data on mount
 	onMount(() => {
+		// Load profile if not already loaded
+		if (browser && !$profileStore.profile) {
+			console.log('[PROFILE] Loading profile...');
+			import('$lib/api/profile').then(({ profileApi }) => {
+				profileApi.get().then((profile: any) => {
+					console.log('[PROFILE] Loaded:', profile.email);
+					currentUserEmail = profile.email;
+					// Update the profile store so $effect can react to it
+					profileStore.setProfile(profile);
+				}).catch((err: any) => {
+					console.error('[PROFILE] Failed to load:', err);
+				});
+			});
+		} else if (browser && $profileStore.profile?.email) {
+			// Profile already loaded, set email immediately
+			currentUserEmail = $profileStore.profile.email;
+			console.log('[PROFILE] Already loaded:', currentUserEmail);
+		}
+		
 		Promise.all([
-			loadRequestHistory()
+			loadActivityLogs(true) // Force refresh on initial load to get latest data
 		])
 			.then(() => {
 				setTimeout(() => {
@@ -41,6 +92,53 @@
 				initialLoadComplete = true;
 			});
 	});
+
+	// Switch tabs
+	function switchTab(tab: Tab) {
+		activeTab = tab;
+		if (tab === 'activity-logs' && !activityLogsLoaded) {
+			loadActivityLogs();
+		} else if (tab === 'request-history' && !requestHistoryLoaded) {
+			loadRequestHistory();
+		}
+	}
+
+	// Load Activity Logs
+	async function loadActivityLogs(forceRefresh = false) {
+		try {
+			activityLogsRefreshing = true;
+			const response = await inventoryHistoryAPI.getHistory({
+				action: filterAction || undefined,
+				entityType: filterEntityType as any || undefined,
+				startDate: filterStartDate || undefined,
+				endDate: filterEndDate || undefined,
+				page: activityPage,
+				limit: activityLimit,
+				forceRefresh
+			});
+			activityLogs = response.history;
+			activityTotal = response.total;
+			activityLogsLoaded = true;
+		} catch (err: any) {
+			toastStore.error(err.message || 'Failed to load activity logs');
+		} finally {
+			activityLogsRefreshing = false;
+		}
+	}
+
+	// Refresh activity logs
+	async function refreshActivityLogs() {
+		await loadActivityLogs(true);
+		toastStore.success('Activity logs refreshed');
+	}
+
+	// Change activity logs page
+	function goToActivityPage(pageNum: number): void {
+		if (pageNum >= 1 && pageNum <= Math.ceil(activityTotal / activityLimit)) {
+			activityPage = pageNum;
+			loadActivityLogs(true);
+		}
+	}
 
 	// Load Request History
 	async function loadRequestHistory() {
@@ -111,6 +209,29 @@
 		return colors[status] || 'bg-gray-100 text-gray-800';
 	}
 
+	// Get action badge color
+	function getActionColor(action: string): string {
+		const colors: Record<string, string> = {
+			created: 'bg-green-100 text-green-800',
+			updated: 'bg-blue-100 text-blue-800',
+			deleted: 'bg-red-100 text-red-800',
+			archived: 'bg-gray-100 text-gray-800',
+			restored: 'bg-emerald-100 text-emerald-800',
+			quantity_changed: 'bg-purple-100 text-purple-800'
+		};
+		return colors[action] || 'bg-gray-100 text-gray-800';
+	}
+
+	// Get role badge
+	function getRoleBadge(role: string): string {
+		const badges: Record<string, string> = {
+			superadmin: 'bg-purple-100 text-purple-800',
+			custodian: 'bg-blue-100 text-blue-800',
+			instructor: 'bg-green-100 text-green-800'
+		};
+		return badges[role] || 'bg-gray-100 text-gray-800';
+	}
+
 	// Open request detail modal
 	function openRequestDetailModal(request: any) {
 		selectedHistoryRequest = request;
@@ -124,6 +245,88 @@
 	}
 
 	// Filtered data using derived state
+	const filteredActivityLogs = $derived.by(() => {
+		let filtered = activityLogs;
+
+		console.log('[FILTER] ===== FILTER DEBUG START =====');
+		console.log('[FILTER] Total logs:', filtered.length);
+		console.log('[FILTER] Current user email:', currentUserEmail);
+		console.log('[FILTER] My Activities filter active:', filterMyActivitiesOnly);
+		console.log('[FILTER] Profile store email:', $profileStore.profile?.email);
+
+		// Exclude superadmin activities for instructors
+		filtered = filtered.filter(log => log.userRole !== 'superadmin');
+		console.log('[FILTER] After excluding superadmin:', filtered.length);
+
+		// Apply "My Activities Only" filter
+		if (filterMyActivitiesOnly && currentUserEmail) {
+			console.log('[FILTER] Applying My Activities filter...');
+			console.log('[FILTER] Sample log userNames:', filtered.slice(0, 3).map(log => log.userName));
+			
+			filtered = filtered.filter(log => {
+				const matches = log.userName === currentUserEmail;
+				if (!matches) {
+					console.log('[FILTER] Excluding:', log.userName, '(not matching', currentUserEmail, ')');
+				} else {
+					console.log('[FILTER] ✓ Including:', log.userName);
+				}
+				return matches;
+			});
+			console.log('[FILTER] After My Activities filter:', filtered.length);
+		}
+
+		// Apply action filter
+		if (filterAction) {
+			filtered = filtered.filter(log => log.action === filterAction);
+			console.log('[FILTER] After action filter:', filtered.length);
+		}
+
+		// Apply entity type filter
+		if (filterEntityType) {
+			filtered = filtered.filter(log => log.entityType === filterEntityType);
+			console.log('[FILTER] After entity type filter:', filtered.length);
+		}
+
+		// Apply date range filter
+		if (filterStartDate) {
+			const startDate = new Date(filterStartDate);
+			filtered = filtered.filter(log => new Date(log.timestamp) >= startDate);
+			console.log('[FILTER] After start date filter:', filtered.length);
+		}
+
+		if (filterEndDate) {
+			const endDate = new Date(filterEndDate);
+			endDate.setHours(23, 59, 59, 999);
+			filtered = filtered.filter(log => new Date(log.timestamp) <= endDate);
+			console.log('[FILTER] After end date filter:', filtered.length);
+		}
+
+		// Apply search filter
+		if (activitySearchQuery) {
+			const query = activitySearchQuery.toLowerCase();
+			filtered = filtered.filter(log => {
+				const entityName = log.entityName || '';
+				const userName = log.userName || '';
+				const ipAddress = log.ipAddress || '';
+				const userRole = log.userRole || '';
+				
+				return (
+					entityName.toLowerCase().includes(query) ||
+					userName.toLowerCase().includes(query) ||
+					ipAddress.toLowerCase().includes(query) ||
+					userRole.toLowerCase().includes(query)
+				);
+			});
+			console.log('[FILTER] After search filter:', filtered.length);
+		}
+
+		console.log('[FILTER] ===== FILTER DEBUG END =====');
+		return filtered;
+	});
+
+	// Derived pagination values
+	const activityTotalPages = $derived(Math.max(1, Math.ceil(activityTotal / activityLimit)));
+
 	const filteredRequestHistory = $derived.by(() => {
 		let filtered = requestHistory;
 
@@ -167,7 +370,7 @@
 </script>
 
 <svelte:head>
-	<title>Request History - CHTM Cooks</title>
+	<title>History - CHTM Cooks</title>
 </svelte:head>
 
 {#if !initialLoadComplete}
@@ -180,13 +383,316 @@
 <div class="space-y-6">
 	<!-- Header -->
 	<div>
-		<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Request History</h1>
-		<p class="mt-1 text-sm text-gray-500">View your completed, resolved, cancelled, and rejected student requests</p>
+		<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">History</h1>
+		<p class="mt-1 text-sm text-gray-500">View activity logs and request history</p>
+	</div>
+
+	<!-- Tabs Navigation -->
+	<div class="border-b border-gray-200">
+		<nav class="-mb-px flex" aria-label="Tabs">
+			<button
+				onclick={() => switchTab('activity-logs')}
+				class="flex flex-1 items-center justify-center gap-2 border-b-2 px-1 py-3 text-xs font-medium whitespace-nowrap transition-colors sm:text-sm {activeTab === 'activity-logs'
+					? 'border-pink-500 text-pink-600'
+					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+			>
+				<span class="hidden sm:inline">Activity Logs</span>
+				<span class="sm:hidden">Activity</span>
+				{#if activityTotal > 0}
+					<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold {activeTab === 'activity-logs' ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-600'}">
+						{activityTotal}
+					</span>
+				{/if}
+			</button>
+
+			<button
+				onclick={() => switchTab('request-history')}
+				class="flex flex-1 items-center justify-center gap-2 border-b-2 px-1 py-3 text-xs font-medium whitespace-nowrap transition-colors sm:text-sm {activeTab === 'request-history'
+					? 'border-pink-500 text-pink-600'
+					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+			>
+				<span class="hidden sm:inline">Request History</span>
+				<span class="sm:hidden">Requests</span>
+				{#if requestHistoryTotal > 0}
+					<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold {activeTab === 'request-history' ? 'bg-pink-100 text-pink-700' : 'bg-gray-100 text-gray-600'}">
+						{requestHistoryTotal}
+					</span>
+				{/if}
+			</button>
+		</nav>
 	</div>
 
 	<!-- Tab Content -->
 	<div class="rounded-xl bg-white shadow-sm">
 		<div class="p-4 sm:p-6">
+			{#if activeTab === 'activity-logs'}
+			<!-- Activity Logs Tab -->
+			<div>
+				<div class="mb-4 sm:mb-6">
+					<div class="flex items-center justify-between">
+						<div>
+							<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Activity Logs & Audit Trail</h3>
+							<p class="mt-1 text-xs text-gray-500 sm:text-sm">Complete audit trail of all inventory operations</p>
+						</div>
+						{#if filterMyActivitiesOnly && filteredActivityLogs.length > 0}
+							<div class="rounded-full bg-pink-100 px-3 py-1 text-xs font-medium text-pink-700 sm:px-4 sm:py-1.5 sm:text-sm">
+								{filteredActivityLogs.length} {filteredActivityLogs.length === 1 ? 'activity' : 'activities'}
+							</div>
+						{/if}
+					</div>
+				</div>
+
+				<!-- Search Bar and Filter Button -->
+				<div class="mb-4 flex flex-col gap-2 sm:mb-6 sm:flex-row">
+					<div class="relative flex-1">
+						<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 sm:pl-4">
+							<svg class="h-4 w-4 text-gray-400 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+							</svg>
+						</div>
+						<input
+							type="text"
+							placeholder="Search by entity name, user..."
+							bind:value={activitySearchQuery}
+							class="block w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-500 shadow-sm transition-colors hover:border-gray-400 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:py-3 sm:pl-11 sm:pr-4"
+						/>
+					</div>
+					<div class="flex gap-2">
+						<button
+							onclick={() => filterMyActivitiesOnly = !filterMyActivitiesOnly}
+							class="flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:px-4 sm:py-3 {filterMyActivitiesOnly ? 'border-pink-500 bg-pink-50 text-pink-700' : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
+							title="Show only my activities"
+						>
+							<svg class="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+							</svg>
+							<span class="hidden sm:inline">My Activities</span>
+						</button>
+						<button
+							onclick={refreshActivityLogs}
+							disabled={activityLogsRefreshing}
+							class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-3"
+							title="Refresh activity logs"
+						>
+							<svg class="h-4 w-4 sm:h-5 sm:w-5 {activityLogsRefreshing ? 'animate-spin' : ''}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+							</svg>
+							<span class="hidden sm:inline">Refresh</span>
+						</button>
+						<button
+							onclick={() => showActivityFilters = !showActivityFilters}
+							class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:px-4 sm:py-3 {showActivityFilters ? 'bg-gray-50 border-pink-500 text-pink-600' : ''}"
+						>
+							<svg class="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+							</svg>
+							<span class="hidden sm:inline">Filters</span>
+						</button>
+					</div>
+				</div>
+
+				<!-- Filters Section -->
+				{#if showActivityFilters}
+					<div class="mb-4 space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4 sm:mb-6 sm:space-y-4">
+						<div class="grid grid-cols-2 gap-3 sm:gap-4">
+							<div>
+								<label for="action-filter" class="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Action</label>
+								<select
+									id="action-filter"
+									bind:value={filterAction}
+									class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:px-4 sm:py-2.5"
+								>
+									<option value="">All Actions</option>
+									<option value="created">Created</option>
+									<option value="updated">Updated</option>
+									<option value="deleted">Deleted</option>
+									<option value="archived">Archived</option>
+									<option value="restored">Restored</option>
+									<option value="quantity_changed">Quantity Changed</option>
+								</select>
+							</div>
+
+							<div>
+								<label for="entity-filter" class="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Type</label>
+								<select
+									id="entity-filter"
+									bind:value={filterEntityType}
+									class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:px-4 sm:py-2.5"
+								>
+									<option value="">All Types</option>
+									<option value="item">Items</option>
+									<option value="category">Categories</option>
+								</select>
+							</div>
+						</div>
+
+						<div class="grid grid-cols-2 gap-3 sm:gap-4">
+							<div>
+								<label for="start-date" class="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">Start Date</label>
+								<input
+									type="date"
+									id="start-date"
+									bind:value={filterStartDate}
+									class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:px-4 sm:py-2.5"
+								/>
+							</div>
+
+							<div>
+								<label for="end-date" class="mb-1 block text-xs font-medium text-gray-700 sm:text-sm">End Date</label>
+								<input
+									type="date"
+									id="end-date"
+									bind:value={filterEndDate}
+									class="block w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-400 focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:px-4 sm:py-2.5"
+								/>
+							</div>
+						</div>
+
+						<div class="flex justify-between">
+							<button
+								onclick={() => loadActivityLogs(true)}
+								class="rounded-lg bg-pink-600 px-4 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-0 sm:text-sm"
+							>
+								Apply Filters
+							</button>
+							<button
+								onclick={() => {
+									filterAction = '';
+									filterEntityType = '';
+									filterStartDate = '';
+									filterEndDate = '';
+									loadActivityLogs(true);
+								}}
+								class="text-xs font-medium text-pink-600 hover:text-pink-700 sm:text-sm"
+							>
+								Clear Filters
+							</button>
+						</div>
+					</div>
+				{/if}
+
+				<!-- Activity Logs Table -->
+				{#if filteredActivityLogs.length === 0}
+					<div class="py-12 text-center">
+						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+						</svg>
+						<h3 class="mt-4 text-lg font-medium text-gray-900">No activity logs found</h3>
+						<p class="mt-2 text-sm text-gray-500">
+							{#if filterMyActivitiesOnly}
+								You haven't performed any activities yet. Try editing an item in the catalog to see your activities here.
+							{:else if filterAction || filterEntityType || filterStartDate || filterEndDate || activitySearchQuery}
+								No logs match your current filters. Try adjusting your search criteria.
+							{:else}
+								Activity logs will appear here as operations are performed.
+							{/if}
+						</p>
+						{#if filterMyActivitiesOnly}
+							<button
+								onclick={() => filterMyActivitiesOnly = false}
+								class="mt-4 text-sm font-medium text-pink-600 hover:text-pink-700"
+							>
+								Show all activities
+							</button>
+						{/if}
+					</div>
+				{:else}
+					<div class="overflow-x-auto activity-logs-table">
+						<table class="w-full">
+							<thead>
+								<tr class="border-b border-gray-200 bg-gray-50">
+									<th class="w-16 px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
+									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Timestamp</th>
+									<th class="min-w-[140px] px-6 py-3 text-left text-sm font-semibold text-gray-900">Action</th>
+									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Type</th>
+									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Entity</th>
+									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">User</th>
+									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Role</th>
+								</tr>
+							</thead>
+							<tbody class="divide-y divide-gray-200">
+								{#each filteredActivityLogs as log, index}
+									{@const isMyActivity = log.userName === currentUserEmail}
+									{@const rowNumber = (activityPage - 1) * activityLimit + index + 1}
+									<tr class="transition-colors {isMyActivity ? 'bg-pink-50/50 hover:bg-pink-50' : 'hover:bg-gray-50'}">
+										<td class="w-16 px-4 py-4 text-sm font-medium text-gray-500">{rowNumber}</td>
+										<td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">{formatTimestamp(log.timestamp)}</td>
+										<td class="min-w-[140px] px-6 py-4">
+											<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap {getActionColor(log.action)}">
+												{log.action.replace('_', ' ').toUpperCase()}
+											</span>
+										</td>
+										<td class="px-6 py-4 text-sm text-gray-600 capitalize">{log.entityType}</td>
+										<td class="px-6 py-4 text-sm font-medium text-gray-900">{log.entityName}</td>
+										<td class="px-6 py-4">
+											<div class="flex items-center gap-2">
+												{#if isMyActivity}
+													<span class="flex h-2 w-2 rounded-full bg-pink-500" title="Your activity"></span>
+												{/if}
+												<span class="text-sm text-gray-600">{log.userName || 'N/A'}</span>
+											</div>
+										</td>
+										<td class="px-6 py-4">
+											<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getRoleBadge(log.userRole)}">
+												{log.userRole?.toUpperCase() || 'N/A'}
+											</span>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+
+					<!-- Pagination -->
+					{#if activityTotal > activityLimit}
+						<div class="mt-6 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6">
+							<div class="text-sm text-gray-500">
+								Showing {(activityPage - 1) * activityLimit + 1}–{Math.min(activityPage * activityLimit, activityTotal)} of {activityTotal} activities
+							</div>
+							<nav class="flex items-center gap-1" aria-label="Pagination">
+								<button
+									onclick={() => goToActivityPage(activityPage - 1)}
+									disabled={activityPage === 1 || activityLogsRefreshing}
+									class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+									aria-label="Previous page"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+									</svg>
+								</button>
+
+								{#each Array.from({ length: activityTotalPages }, (_, i) => i + 1) as page}
+									{#if activityTotalPages <= 7 || page === 1 || page === activityTotalPages || Math.abs(page - activityPage) <= 1}
+										<button
+											onclick={() => goToActivityPage(page)}
+											disabled={activityLogsRefreshing}
+											class="inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 {activityPage === page ? 'bg-pink-600 text-white shadow-sm' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
+											aria-label="Page {page}"
+											aria-current={activityPage === page ? 'page' : undefined}
+										>
+											{page}
+										</button>
+									{:else if (page === activityPage - 2 || page === activityPage + 2) && activityTotalPages > 7}
+										<span class="inline-flex h-8 w-8 items-center justify-center text-sm text-gray-400">…</span>
+									{/if}
+								{/each}
+
+								<button
+									onclick={() => goToActivityPage(activityPage + 1)}
+									disabled={activityPage === activityTotalPages || activityLogsRefreshing}
+									class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+									aria-label="Next page"
+								>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+									</svg>
+								</button>
+							</nav>
+						</div>
+					{/if}
+				{/if}
+			</div>
+			{:else if activeTab === 'request-history'}
 			<!-- Request History Tab -->
 			<div>
 				<div class="mb-4 sm:mb-6">
@@ -298,6 +804,7 @@
 						<table class="w-full">
 							<thead>
 								<tr class="border-b border-gray-200 bg-gray-50">
+									<th class="w-16 px-4 py-3 text-left text-sm font-semibold text-gray-900">#</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Request ID</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Student</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Items</th>
@@ -306,11 +813,13 @@
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-200">
-								{#each filteredRequestHistory as request}
+								{#each filteredRequestHistory as request, index}
+									{@const rowNumber = (requestHistoryPage - 1) * requestHistoryLimit + index + 1}
 									<tr 
 										onclick={() => openRequestDetailModal(request)}
 										class="cursor-pointer hover:bg-gray-50 transition-colors"
 									>
+										<td class="w-16 px-4 py-4 text-sm font-medium text-gray-500">{rowNumber}</td>
 										<td class="px-6 py-4 text-sm font-medium text-gray-900">{formatRequestId(request.id)}</td>
 										<td class="px-6 py-4">
 											{#if request.student}
@@ -398,6 +907,7 @@
 					{/if}
 				{/if}
 			</div>
+			{/if}
 		</div>
 	</div>
 </div>

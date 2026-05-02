@@ -52,8 +52,8 @@ export const GET: RequestHandler = async (event) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		// Only custodians and superadmins can view history
-		if (!['custodian', 'superadmin'].includes(decoded.role)) {
+		// Only custodians, instructors, and superadmins can view history
+		if (!['custodian', 'instructor', 'superadmin'].includes(decoded.role)) {
 			logger.warn('Unauthorized role attempted to access inventory history', {
 				userId: decoded.userId,
 				role: decoded.role,

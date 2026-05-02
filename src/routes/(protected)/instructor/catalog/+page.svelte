@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { catalogAPI, type CatalogResponse, type CatalogFilters, type CatalogItem } from '$lib/api/catalog';
+	import { inventoryHistoryAPI } from '$lib/api/inventoryHistory';
 	import { subscribeToInventoryChanges } from '$lib/api/inventory';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 
@@ -267,6 +268,7 @@
 			
 			// Invalidate cache and refresh catalog data
 			catalogAPI.invalidateCatalogCache();
+			inventoryHistoryAPI.invalidateCache(); // Also invalidate history cache
 			await fetchCatalog({ forceRefresh: true });
 			
 			// Update selected item with new data
