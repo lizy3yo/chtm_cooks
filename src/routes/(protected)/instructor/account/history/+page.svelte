@@ -58,7 +58,7 @@
 	let selectedHistoryRequest = $state<any>(null);
 	let itemPictureCache = $state<Map<string, string>>(new Map());
 
-	// Load data on mount
+	// Load data on mount with caching
 	onMount(() => {
 		// Load profile if not already loaded
 		if (browser && !$profileStore.profile) {
@@ -79,18 +79,78 @@
 			console.log('[PROFILE] Already loaded:', currentUserEmail);
 		}
 		
-		Promise.all([
-			loadActivityLogs(true) // Force refresh on initial load to get latest data
-		])
-			.then(() => {
-				setTimeout(() => {
-					initialLoadComplete = true;
-				}, 150);
-			})
-			.catch((err) => {
-				console.error('[HISTORY] Failed to load data:', err);
-				initialLoadComplete = true;
+		// Check for cached activity logs first for instant render
+		const cachedActivityLogs = inventoryHistoryAPI.peekCachedHistory({
+			action: filterAction || undefined,
+			entityType: filterEntityType as any || undefined,
+			startDate: filterStartDate || undefined,
+			endDate: filterEndDate || undefined,
+			page: activityPage,
+			limit: activityLimit
+		});
+
+		if (cachedActivityLogs) {
+			// Use cached data for instant render
+			activityLogs = cachedActivityLogs.history;
+			activityTotal = cachedActivityLogs.total;
+			activityLogsLoaded = true;
+			initialLoadComplete = true;
+			console.log('[HISTORY-CACHE] Using cached activity logs:', cachedActivityLogs.history.length, 'items');
+			
+			// Fetch fresh data in background
+			loadActivityLogs(true).catch((err) => {
+				console.error('[HISTORY] Background refresh failed:', err);
 			});
+		} else {
+			// No cache, load normally
+			Promise.all([
+				loadActivityLogs(true) // Force refresh on initial load to get latest data
+			])
+				.then(() => {
+					setTimeout(() => {
+						initialLoadComplete = true;
+					}, 150);
+				})
+				.catch((err) => {
+					console.error('[HISTORY] Failed to load data:', err);
+					initialLoadComplete = true;
+				});
+		}
+
+		// Set up periodic background refresh (every 5 minutes)
+		const refreshInterval = setInterval(() => {
+			console.log('[HISTORY-AUTO-REFRESH] Refreshing activity logs in background...');
+			loadActivityLogs(true).catch((err) => {
+				console.error('[HISTORY-AUTO-REFRESH] Failed:', err);
+			});
+		}, 5 * 60 * 1000);
+
+		return () => {
+			clearInterval(refreshInterval);
+		};
+	});
+
+	// Set up real-time inventory change subscription
+	onMount(() => {
+		console.log('[HISTORY-SSE] Setting up inventory change subscription');
+		const unsubscribe = inventoryHistoryAPI.subscribeToChanges((event) => {
+			console.log('[HISTORY-SSE] ✓ Inventory change received:', event);
+			console.log('[HISTORY-SSE] Refreshing activity logs...');
+			
+			// Refresh activity logs in background when inventory changes
+			loadActivityLogs(true).then(() => {
+				console.log('[HISTORY-SSE] Activity logs refreshed successfully');
+			}).catch((err) => {
+				console.error('[HISTORY-SSE] Failed to refresh activity logs:', err);
+			});
+		});
+		
+		console.log('[HISTORY-SSE] Subscription created');
+		
+		return () => {
+			console.log('[HISTORY-SSE] Unsubscribing from inventory changes');
+			unsubscribe();
+		};
 	});
 
 	// Switch tabs
@@ -374,10 +434,110 @@
 </svelte:head>
 
 {#if !initialLoadComplete}
-	<div class="space-y-6">
-		<div class="h-8 w-48 animate-pulse rounded bg-gray-200"></div>
-		<div class="h-4 w-96 animate-pulse rounded bg-gray-200"></div>
-		<div class="h-64 animate-pulse rounded-xl bg-gray-200"></div>
+	<!-- Professional Skeleton Loader -->
+	<div class="space-y-6 animate-pulse">
+		<!-- Header Skeleton -->
+		<div>
+			<div class="h-8 w-48 bg-gray-200 rounded sm:h-9 sm:w-64"></div>
+			<div class="mt-1 h-4 w-64 bg-gray-100 rounded sm:w-96"></div>
+		</div>
+
+		<!-- Tabs Skeleton -->
+		<div class="border-b border-gray-200">
+			<nav class="-mb-px flex" aria-label="Tabs">
+				{#each Array(2) as _, i}
+					<div class="flex flex-1 items-center justify-center gap-2 border-b-2 {i === 0 ? 'border-pink-500' : 'border-transparent'} px-1 py-3">
+						<div class="h-4 w-20 bg-gray-200 rounded sm:w-28"></div>
+						<div class="h-5 w-8 bg-gray-200 rounded-full"></div>
+					</div>
+				{/each}
+			</nav>
+		</div>
+
+		<!-- Content Skeleton -->
+		<div class="rounded-xl bg-white shadow-sm">
+			<div class="p-4 sm:p-6">
+				<!-- Section Header Skeleton -->
+				<div class="mb-4 sm:mb-6">
+					<div class="h-6 w-56 bg-gray-200 rounded sm:h-7 sm:w-72"></div>
+					<div class="mt-1 h-4 w-72 bg-gray-100 rounded sm:w-96"></div>
+				</div>
+
+				<!-- Search Bar and Buttons Skeleton -->
+				<div class="mb-4 flex flex-col gap-2 sm:mb-6 sm:flex-row">
+					<div class="flex-1">
+						<div class="h-11 w-full bg-gray-100 rounded-lg sm:h-12"></div>
+					</div>
+					<div class="flex gap-2">
+						<div class="h-11 w-32 bg-gray-100 rounded-lg sm:h-12 sm:w-36"></div>
+						<div class="h-11 w-20 bg-gray-100 rounded-lg sm:h-12 sm:w-24"></div>
+						<div class="h-11 w-20 bg-gray-100 rounded-lg sm:h-12 sm:w-24"></div>
+					</div>
+				</div>
+
+				<!-- Table Skeleton -->
+				<div class="overflow-x-auto">
+					<table class="w-full">
+						<thead>
+							<tr class="border-b border-gray-200 bg-gray-50">
+								<th class="w-16 px-4 py-3 text-left">
+									<div class="h-4 w-6 bg-gray-200 rounded"></div>
+								</th>
+								{#each Array(6) as _}
+									<th class="px-6 py-3 text-left">
+										<div class="h-4 w-20 bg-gray-200 rounded sm:w-24"></div>
+									</th>
+								{/each}
+							</tr>
+						</thead>
+						<tbody class="divide-y divide-gray-200">
+							{#each Array(10) as _, rowIndex}
+								<tr class="{rowIndex % 3 === 0 ? 'bg-pink-50/30' : ''}">
+									<td class="w-16 px-4 py-4">
+										<div class="h-4 w-6 bg-gray-200 rounded"></div>
+									</td>
+									<td class="px-6 py-4">
+										<div class="h-4 w-32 bg-gray-100 rounded"></div>
+									</td>
+									<td class="px-6 py-4">
+										<div class="h-6 w-28 bg-gray-100 rounded-full"></div>
+									</td>
+									<td class="px-6 py-4">
+										<div class="h-4 w-16 bg-gray-100 rounded"></div>
+									</td>
+									<td class="px-6 py-4">
+										<div class="h-4 w-40 bg-gray-100 rounded"></div>
+									</td>
+									<td class="px-6 py-4">
+										<div class="flex items-center gap-2">
+											{#if rowIndex % 3 === 0}
+												<div class="h-2 w-2 bg-pink-300 rounded-full"></div>
+											{/if}
+											<div class="h-4 w-36 bg-gray-100 rounded"></div>
+										</div>
+									</td>
+									<td class="px-6 py-4">
+										<div class="h-6 w-24 bg-gray-100 rounded-full"></div>
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
+				</div>
+
+				<!-- Pagination Skeleton -->
+				<div class="mt-6 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6">
+					<div class="h-4 w-48 bg-gray-100 rounded"></div>
+					<div class="flex items-center gap-1">
+						<div class="h-8 w-8 bg-gray-100 rounded-md"></div>
+						{#each Array(5) as _}
+							<div class="h-8 w-8 bg-gray-100 rounded-md"></div>
+						{/each}
+						<div class="h-8 w-8 bg-gray-100 rounded-md"></div>
+					</div>
+				</div>
+			</div>
+		</div>
 	</div>
 {:else}
 <div class="space-y-6">
