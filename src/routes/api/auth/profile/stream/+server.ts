@@ -15,10 +15,6 @@ export const GET: RequestHandler = async (event) => {
 		return new Response('Unauthorized', { status: 401 });
 	}
 
-	if (authUser.role !== UserRole.STUDENT) {
-		return new Response('Forbidden', { status: 403 });
-	}
-
 	const stream = new ReadableStream({
 		start(controller) {
 			const encode = (data: string) => new TextEncoder().encode(data);

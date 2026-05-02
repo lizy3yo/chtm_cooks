@@ -56,10 +56,6 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		if (authUser.role !== UserRole.STUDENT) {
-			return json({ error: 'Forbidden' }, { status: 403 });
-		}
-
 		const formData = await event.request.formData();
 		const file = formData.get('file');
 
@@ -74,7 +70,7 @@ export const POST: RequestHandler = async (event) => {
 
 		const db = await getDatabase();
 		const usersCollection = db.collection<User>('users');
-		const user = await usersCollection.findOne({ _id: new ObjectId(authUser.userId), role: UserRole.STUDENT });
+		const user = await usersCollection.findOne({ _id: new ObjectId(authUser.userId) });
 
 		if (!user || !user.isActive) {
 			return json({ error: 'User not found' }, { status: 404 });
@@ -82,7 +78,7 @@ export const POST: RequestHandler = async (event) => {
 
 		const upload = await storageService.upload(uploadFile, {
 			folder: 'profile',
-			tags: ['profile-photo', 'student']
+			tags: ['profile-photo', authUser.role.toLowerCase()]
 		});
 
 		await deleteExistingProfilePhoto(user);
@@ -130,13 +126,9 @@ export const DELETE: RequestHandler = async (event) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		if (authUser.role !== UserRole.STUDENT) {
-			return json({ error: 'Forbidden' }, { status: 403 });
-		}
-
 		const db = await getDatabase();
 		const usersCollection = db.collection<User>('users');
-		const user = await usersCollection.findOne({ _id: new ObjectId(authUser.userId), role: UserRole.STUDENT });
+		const user = await usersCollection.findOne({ _id: new ObjectId(authUser.userId) });
 
 		if (!user || !user.isActive) {
 			return json({ error: 'User not found' }, { status: 404 });

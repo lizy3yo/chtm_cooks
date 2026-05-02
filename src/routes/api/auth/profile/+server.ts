@@ -44,10 +44,6 @@ export const GET: RequestHandler = async (event) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		if (authUser.role !== UserRole.STUDENT) {
-			return json({ error: 'Forbidden' }, { status: 403 });
-		}
-
 		const key = buildProfileCacheKey(authUser.userId);
 		const url = new URL(event.request.url);
 		const bypassCache = url.searchParams.has('_t');

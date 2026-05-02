@@ -62,8 +62,8 @@
 	}
 
 	function getInitials(user: UserResponse | null): string {
-		if (!user) return 'CU';
-		return `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase() || 'CU';
+		if (!user) return 'IN';
+		return `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase() || 'IN';
 	}
 
 	async function loadProfile(forceRefresh = false) {
@@ -250,13 +250,13 @@
 </script>
 
 <svelte:head>
-	<title>Profile - Custodian Portal</title>
+	<title>Profile - Instructor Portal</title>
 </svelte:head>
 
 <div class="space-y-6">
 	<div>
 		<div>
-			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Custodian Profile</h1>
+			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Instructor Profile</h1>
 			<p class="mt-1 text-sm text-gray-500">Manage your personal information and account security settings.</p>
 		</div>
 	</div>
@@ -286,7 +286,7 @@
 						{#if profile?.profilePhotoUrl}
 							<img
 								src={profile.profilePhotoUrl}
-								alt={(profile && `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim()) || 'Custodian'}
+								alt={(profile && `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim()) || 'Instructor'}
 								class="h-48 w-48 rounded-xl border-4 border-pink-100 object-cover"
 							/>
 							<button

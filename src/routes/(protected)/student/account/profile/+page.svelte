@@ -2,22 +2,29 @@
 	import { onMount } from 'svelte';
 	import { tick } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { get } from 'svelte/store';
+	import { browser } from '$app/environment';
 	import Input from '$lib/components/ui/Input.svelte';
 	import Button from '$lib/components/ui/Button.svelte';
 	import PasswordStrength from '$lib/components/ui/PasswordStrength.svelte';
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
 	import { authStore } from '$lib/stores/auth';
+	import { profileStore } from '$lib/stores/profile';
 	import { profileApi } from '$lib/api/profile';
 	import type { UserResponse } from '$lib/types/auth';
 	import { validatePassword, validatePasswordConfirmation } from '$lib/utils/validation';
 
-	let loading = $state(true);
+	// Check for cached data before mounting to avoid unnecessary loading states
+	const cachedStore = browser ? get(profileStore) : null;
+	const hasCachedData = cachedStore && cachedStore.profile !== null && profileStore.isProfileCacheValid();
+
+	let loading = $state(!hasCachedData);
 	let isUploadingPhoto = $state(false);
 	let isRemovingPhoto = $state(false);
 	let isChangingPassword = $state(false);
 
-	let profile = $state<UserResponse | null>(null);
+	let profile = $state<UserResponse | null>(hasCachedData ? cachedStore!.profile : null);
 
 	let firstName = $state('');
 	let lastName = $state('');
@@ -53,6 +60,9 @@
 		yearLevel = user.yearLevel || '';
 		block = user.block || '';
 		email = user.email || '';
+		
+		// Update store cache
+		profileStore.setProfile(user);
 	}
 
 	function getInitials(user: UserResponse | null): string {
@@ -62,6 +72,17 @@
 
 	async function loadProfile(forceRefresh = false) {
 		try {
+			// Check if cache is still valid (unless force refresh)
+			if (!forceRefresh && profileStore.isProfileCacheValid()) {
+				const storeData = get(profileStore);
+				if (storeData.profile) {
+					hydrateForm(storeData.profile);
+					authStore.updateUser(storeData.profile);
+					return;
+				}
+			}
+			
+			// Fetch fresh data from API
 			const user = await profileApi.get(forceRefresh);
 			hydrateForm(user);
 			authStore.updateUser(user);
@@ -185,11 +206,22 @@
 		let resizeObserver: ResizeObserver | null = null;
 
 		(async () => {
-			await loadProfile();
-			if (mounted) {
+			// Check if we should force refresh based on cache validity
+			const shouldForceRefresh = !profileStore.isProfileCacheValid();
+			
+			if (!shouldForceRefresh && hasCachedData) {
+				// Use cached data, no need to load
 				loading = false;
 				await tick();
 				syncPhotoCardHeight();
+			} else {
+				// Load fresh data
+				await loadProfile(shouldForceRefresh);
+				if (mounted) {
+					loading = false;
+					await tick();
+					syncPhotoCardHeight();
+				}
 			}
 		})();
 
@@ -237,8 +269,8 @@
 		<div class="grid gap-6 lg:grid-cols-3">
 			<div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm lg:col-span-1">
 				<div class="h-5 w-28 animate-pulse rounded bg-gray-200"></div>
-				<div class="mt-4 h-72 w-72 animate-pulse rounded-xl bg-gray-200"></div>
-				<div class="mt-6 h-4 w-full animate-pulse rounded bg-gray-200"></div>
+				<div class="mt-4 h-48 w-48 animate-pulse rounded-xl bg-gray-200 mx-auto"></div>
+				<div class="mt-6 h-10 w-48 animate-pulse rounded bg-gray-200 mx-auto"></div>
 			</div>
 			<div class="space-y-6 lg:col-span-2">
 				<div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -253,28 +285,28 @@
 				<h2 class="text-lg font-semibold text-gray-900">Profile Photo</h2>
 				<p class="mt-1 text-sm text-gray-500">JPG, PNG, or WebP up to 10MB.</p>
 
-				<div class="mt-6 flex flex-col items-center">
-					<div class="group relative h-72 w-72">
+				<div class="mt-6 flex flex-col items-center justify-center">
+					<div class="group relative h-48 w-48 flex-shrink-0">
 						{#if profile?.profilePhotoUrl}
 							<img
 								src={profile.profilePhotoUrl}
 								alt={(profile && `${profile.firstName ?? ''} ${profile.lastName ?? ''}`.trim()) || 'Student'}
-								class="h-72 w-72 rounded-xl border-4 border-pink-100 object-cover"
+								class="h-48 w-48 rounded-xl border-4 border-pink-100 object-cover"
 							/>
 							<button
 								type="button"
 								onclick={handleRemovePhoto}
 								disabled={isRemovingPhoto || isUploadingPhoto}
-								class="absolute right-3 top-3 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/65 text-white opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 disabled:cursor-not-allowed disabled:opacity-60"
+								class="absolute right-2 top-2 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/65 text-white opacity-0 shadow-md transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100 disabled:cursor-not-allowed disabled:opacity-60"
 								aria-label="Remove profile photo"
 								title="Remove profile photo"
 							>
-								<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
 									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"/>
 								</svg>
 							</button>
 						{:else}
-							<div class="flex h-72 w-72 items-center justify-center rounded-xl bg-linear-to-br from-pink-600 to-rose-600 text-3xl font-semibold text-white shadow-lg">
+							<div class="flex h-48 w-48 items-center justify-center rounded-xl bg-gradient-to-br from-pink-600 to-rose-600 text-2xl font-semibold text-white shadow-lg">
 								{getInitials(profile)}
 							</div>
 						{/if}
@@ -288,11 +320,15 @@
 						onchange={handlePhotoUpload}
 						disabled={isUploadingPhoto || isRemovingPhoto}
 					/>
-					<div class="mt-5 w-full">
-						<Button variant="outline" fullWidth loading={isUploadingPhoto} disabled={isUploadingPhoto || isRemovingPhoto} onclick={openPhotoPicker}>
-							Upload New Photo
-						</Button>
-					</div>
+					<Button 
+						variant="outline" 
+						class="mt-5 w-48" 
+						loading={isUploadingPhoto} 
+						disabled={isUploadingPhoto || isRemovingPhoto} 
+						onclick={openPhotoPicker}
+					>
+						Upload New Photo
+					</Button>
 				</div>
 			</section>
 
