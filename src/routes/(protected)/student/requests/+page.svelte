@@ -920,7 +920,7 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 				<!-- List View -->
 				<div style="min-height: 600px;">
 					<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-						<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.2fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+						<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.2fr_1.8fr_1fr_120px] md:items-center md:gap-4">
 							<span>Request</span>
 							<span>Items & Purpose</span>
 							<span>Status</span>
@@ -932,22 +932,24 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
-									class="grid gap-3 p-4 md:grid-cols-[1.2fr_1.5fr_1fr_auto] md:items-center md:gap-3 hover:bg-gray-50 transition-colors cursor-pointer"
+									class="grid gap-3 p-4 md:grid-cols-[1.2fr_1.8fr_1fr_120px] md:items-start md:gap-4 hover:bg-gray-50 transition-colors cursor-pointer"
 									onclick={() => openDetailModal(request)}
 									role="button"
 									tabindex="0"
 									onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
 									aria-label="View details for {request.id}"
 								>
-									<div class="min-w-0">
+									<!-- Request ID + dates -->
+									<div class="min-w-0 pt-0.5">
 										<p class="font-mono text-xs font-bold tracking-wider text-gray-900 truncate">{request.id}</p>
-										<p class="mt-1 text-[11px] text-gray-500 truncate">
-											{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+										<p class="mt-1 text-[11px] text-gray-500">
+											{new Date(request.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(request.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
 										</p>
 									</div>
 
+									<!-- Items + purpose -->
 									<div class="min-w-0">
-										<div class="flex flex-wrap gap-1.5 mb-2">
+										<div class="flex flex-wrap gap-1.5 mb-1.5">
 											{#each request.items.slice(0, 3) as item}
 												{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
 												<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700">
@@ -956,7 +958,7 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 													{:else}
 														<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
 													{/if}
-													<span class="truncate max-w-[100px]">{item.name}</span>
+													<span class="truncate max-w-[90px]">{item.name}</span>
 												</span>
 											{/each}
 											{#if request.items.length > 3}
@@ -967,7 +969,8 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 										<p class="mt-0.5 truncate text-[11px] text-gray-400">Reviewer: {request.instructor}</p>
 									</div>
 
-									<div class="min-w-0">
+									<!-- Status -->
+									<div class="min-w-0 pt-0.5">
 										<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold {getStatusColor(request.status)}">
 											<StatusIcon size={11} />
 											{getStatusLabel(request.status)}
@@ -981,13 +984,14 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 												<Clock size={12} /> Awaiting confirmation
 											</p>
 										{:else if request.status === 'rejected' && request.rejectionReason}
-											<p class="mt-1.5 text-[11px] text-red-600 line-clamp-1" title={request.rejectionReason}>
+											<p class="mt-1.5 text-[11px] text-red-600 line-clamp-2" title={request.rejectionReason}>
 												{request.rejectionReason}
 											</p>
 										{/if}
 									</div>
 
-									<div class="flex flex-wrap items-center gap-1.5 md:justify-end">
+									<!-- Actions -->
+									<div class="flex flex-wrap items-center justify-end gap-1.5 pt-0.5">
 										{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(request.status)}
 											<button
 												onclick={(e) => { e.stopPropagation(); selectedRequest = request; qrDataUrl = null; QRCode.toDataURL(request.rawId, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' }, errorCorrectionLevel: 'H' }).then(url => { qrDataUrl = url; }).catch(() => {}); showQrModal = true; }}

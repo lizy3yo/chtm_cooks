@@ -1466,7 +1466,7 @@
 							{#if paginatedRequests.length > 0}
 								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 								<div
-									class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3"
+									class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4"
 								>
 									<span>Request</span>
 									<span>Student</span>
@@ -1479,7 +1479,7 @@
 										<!-- svelte-ignore a11y_click_events_have_key_events -->
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
-											class="grid gap-3 p-4 md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3 hover:bg-gray-50 transition-colors cursor-pointer"
+											class="grid gap-3 p-4 md:grid-cols-[1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 hover:bg-gray-50 transition-colors cursor-pointer"
 											onclick={() => openDetailModal(request)}
 											role="button"
 											tabindex="0"
@@ -1525,19 +1525,19 @@
 
 											<div class="min-w-0">
 												<div class="flex flex-wrap gap-1.5">
-													{#each request.items.slice(0, 2) as item}
-														<span
-															class="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700"
-														>
-															<span class="max-w-[120px] truncate">{item.name}</span>
-															<span class="ml-1 text-gray-400">x{item.quantity}</span>
+													{#each request.items.slice(0, 3) as item}
+														{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+														<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700">
+															{#if pic}
+																<img src={pic} alt={item.name} class="h-3.5 w-3.5 rounded object-cover shrink-0" loading="lazy" />
+															{:else}
+																<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
+															{/if}
+															<span class="max-w-[100px] truncate">{item.name}</span>
 														</span>
 													{/each}
-													{#if request.items.length > 2}
-														<span
-															class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600"
-															>+{request.items.length - 2} more</span
-														>
+													{#if request.items.length > 3}
+														<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">+{request.items.length - 3} more</span>
 													{/if}
 												</div>
 												<p class="mt-1 truncate text-xs text-gray-500">{request.purpose}</p>
