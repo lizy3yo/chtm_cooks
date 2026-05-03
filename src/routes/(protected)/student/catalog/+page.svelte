@@ -610,12 +610,6 @@
 							>
 								Request
 							</button>
-							<button
-								onclick={(e) => { e.stopPropagation(); openDetailsModal(item); }}
-								class="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 sm:text-xs"
-							>
-								Details
-							</button>
 						</div>
 					</div>
 				</div>
@@ -642,7 +636,7 @@
 						{#if item.picture}
 							<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
 						{:else}
-							<ItemImagePlaceholder size="sm" />
+							<ItemImagePlaceholder size="md" />
 						{/if}
 					</div>
 
@@ -670,12 +664,6 @@
 							class="rounded-md bg-pink-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
 						>
 							Request
-						</button>
-						<button
-							onclick={(e) => { e.stopPropagation(); openDetailsModal(item); }}
-							class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 sm:text-xs"
-						>
-							Details
 						</button>
 					</div>
 				</div>
