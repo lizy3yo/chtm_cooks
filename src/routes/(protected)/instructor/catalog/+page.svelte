@@ -214,8 +214,6 @@
 			return;
 		}
 
-		console.log('[CATALOG-EDIT] Starting save operation for item:', selectedItem.id);
-
 		try {
 			isSaving = true;
 			saveError = null;
@@ -229,8 +227,6 @@
 				eomCount: editForm.eomCount
 			};
 			
-			console.log('[CATALOG-EDIT] Update payload:', updatePayload);
-			
 			// Call API to update item
 			const response = await fetch(`/api/inventory/items/${selectedItem.id}`, {
 				method: 'PATCH',
@@ -241,11 +237,8 @@
 				body: JSON.stringify(updatePayload)
 			});
 
-			console.log('[CATALOG-EDIT] Response status:', response.status);
-
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-				console.error('[CATALOG-EDIT] Update failed:', errorData);
 				
 				// Provide user-friendly error messages
 				if (response.status === 401) {
@@ -261,26 +254,33 @@
 				}
 			}
 
-			console.log('[CATALOG-EDIT] Update successful');
+			// Parse the updated item directly from the API response — no need to
+			// wait for a full catalog refetch before updating the UI.
+			const updatedData = await response.json();
 
-			// Show success message
-			saveSuccess = true;
-			
-			// Invalidate cache and refresh catalog data
-			catalogAPI.invalidateCatalogCache();
-			inventoryHistoryAPI.invalidateCache(); // Also invalidate history cache
-			await fetchCatalog({ forceRefresh: true });
-			
-			// Update selected item with new data
-			const updatedItem = allItems.find(item => item.id === selectedItem?.id);
-			if (updatedItem) {
-				selectedItem = updatedItem;
-				console.log('[CATALOG-EDIT] Selected item updated with fresh data');
+			// Patch the local catalog state immediately so the modal reflects
+			// the new values without any visible delay.
+			if (catalogData) {
+				catalogData = {
+					...catalogData,
+					items: catalogData.items.map(i => i.id === selectedItem?.id ? { ...i, ...updatedData } : i)
+				};
 			}
-			
-			// Exit edit mode after short delay
+			if (selectedItem) {
+				selectedItem = { ...selectedItem, ...updatedData };
+			}
+
+			// Show success state and exit edit mode right away.
+			saveSuccess = true;
+			isEditMode = false;
+
+			// Refresh the full catalog in the background so subsequent views
+			// are up-to-date, but don't block the current interaction.
+			catalogAPI.invalidateCatalogCache();
+			inventoryHistoryAPI.invalidateCache();
+			fetchCatalog({ background: true, forceRefresh: true }).catch(() => {/* non-fatal */});
+
 			setTimeout(() => {
-				isEditMode = false;
 				saveSuccess = false;
 			}, 1500);
 			
