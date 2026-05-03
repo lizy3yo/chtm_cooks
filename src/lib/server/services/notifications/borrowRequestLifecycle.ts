@@ -333,6 +333,8 @@ export async function notifyBorrowRequestLifecycle(input: NotifyBorrowRequestLif
 
 	await createNotifications(db, notifications);
 
+	// Fire emails without blocking the caller. Each task already catches its own
+	// errors internally; the outer catch ensures any unexpected rejection is logged.
 	const emailTasks = recipients
 		.filter((recipient) => Boolean(recipient.email))
 		.map(async (recipient) => {
@@ -365,5 +367,10 @@ export async function notifyBorrowRequestLifecycle(input: NotifyBorrowRequestLif
 			}
 		});
 
-	await Promise.allSettled(emailTasks);
+	Promise.allSettled(emailTasks).catch((err) => {
+		logger.warn('Email batch settlement error (non-fatal)', {
+			requestId: request._id.toString(),
+			error: err instanceof Error ? err.message : String(err)
+		});
+	});
 }
