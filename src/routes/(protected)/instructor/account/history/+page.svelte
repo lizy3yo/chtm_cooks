@@ -8,6 +8,7 @@
 	import { inventoryHistoryAPI } from '$lib/api/inventoryHistory';
 	import type { InventoryHistoryEntry } from '$lib/api/inventoryHistory';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 
 	type Tab = 'activity-logs' | 'request-history';
 	
@@ -857,50 +858,14 @@
 
 					<!-- Pagination -->
 					{#if activityTotal > activityLimit}
-						<div class="mt-4 flex flex-col gap-3 sm:mt-6 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6">
-							<div class="text-center text-xs text-gray-500 sm:text-left sm:text-sm">
-								Showing {(activityPage - 1) * activityLimit + 1}–{Math.min(activityPage * activityLimit, activityTotal)} of {activityTotal} activities
-							</div>
-							<nav class="flex items-center justify-center gap-1" aria-label="Pagination">
-								<button
-									onclick={() => goToActivityPage(activityPage - 1)}
-									disabled={activityPage === 1 || activityLogsRefreshing}
-									class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-									aria-label="Previous page"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-									</svg>
-								</button>
-
-								{#each Array.from({ length: activityTotalPages }, (_, i) => i + 1) as page}
-									{#if activityTotalPages <= 7 || page === 1 || page === activityTotalPages || Math.abs(page - activityPage) <= 1}
-										<button
-											onclick={() => goToActivityPage(page)}
-											disabled={activityLogsRefreshing}
-											class="inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 {activityPage === page ? 'bg-pink-600 text-white shadow-sm' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
-											aria-label="Page {page}"
-											aria-current={activityPage === page ? 'page' : undefined}
-										>
-											{page}
-										</button>
-									{:else if (page === activityPage - 2 || page === activityPage + 2) && activityTotalPages > 7}
-										<span class="inline-flex h-8 w-8 items-center justify-center text-sm text-gray-400">…</span>
-									{/if}
-								{/each}
-
-								<button
-									onclick={() => goToActivityPage(activityPage + 1)}
-									disabled={activityPage === activityTotalPages || activityLogsRefreshing}
-									class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-									aria-label="Next page"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-									</svg>
-								</button>
-							</nav>
-						</div>
+						<Pagination
+							currentPage={activityPage}
+							totalPages={activityTotalPages}
+							totalItems={activityTotal}
+							itemsPerPage={activityLimit}
+							onPageChange={(p) => goToActivityPage(p)}
+							class="mt-4"
+						/>
 					{/if}
 				{/if}
 			</div>
@@ -1122,31 +1087,14 @@
 
 					<!-- Pagination -->
 					{#if requestHistoryTotal > requestHistoryLimit}
-						<div class="mt-4 flex flex-col gap-3 border-t border-gray-200 pt-4 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
-							<div class="text-center text-xs text-gray-700 sm:text-left sm:text-sm">
-								{#if filteredRequestHistory.length < requestHistoryTotal}
-									Showing {filteredRequestHistory.length} of {requestHistoryTotal} requests (filtered)
-								{:else}
-									Showing {(requestHistoryPage - 1) * requestHistoryLimit + 1} to {Math.min(requestHistoryPage * requestHistoryLimit, requestHistoryTotal)} of {requestHistoryTotal} requests
-								{/if}
-							</div>
-							<div class="flex justify-center gap-2">
-								<button
-									onclick={() => { requestHistoryPage--; loadRequestHistory(); }}
-									disabled={requestHistoryPage === 1}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2 sm:text-sm"
-								>
-									Previous
-								</button>
-								<button
-									onclick={() => { requestHistoryPage++; loadRequestHistory(); }}
-									disabled={requestHistoryPage >= Math.ceil(requestHistoryTotal / requestHistoryLimit)}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2 sm:text-sm"
-								>
-									Next
-								</button>
-							</div>
-						</div>
+						<Pagination
+							currentPage={requestHistoryPage}
+							totalPages={Math.ceil(requestHistoryTotal / requestHistoryLimit)}
+							totalItems={requestHistoryTotal}
+							itemsPerPage={requestHistoryLimit}
+							onPageChange={(p) => { requestHistoryPage = p; loadRequestHistory(); }}
+							class="mt-4"
+						/>
 					{:else if filteredRequestHistory.length < requestHistory.length}
 						<div class="mt-4 border-t border-gray-200 pt-4 text-center text-xs text-gray-700 sm:text-sm">
 							Showing {filteredRequestHistory.length} of {requestHistory.length} requests (filtered)

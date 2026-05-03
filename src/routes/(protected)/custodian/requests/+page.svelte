@@ -20,6 +20,7 @@
 	import type { ReplacementObligation } from '$lib/api/replacementObligations';
 	import RequestsSkeletonLoader from '$lib/components/ui/RequestsSkeletonLoader.svelte';
 	import { replacementObligationsAPI } from '$lib/api/replacementObligations';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import { Package } from 'lucide-svelte';
 
 	type Tab = 'pending' | 'ready' | 'active' | 'unresolved' | 'history';
@@ -1274,12 +1275,19 @@
 							{#if paginatedRequests.length > 0}
 								<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">
 									{#each paginatedRequests as request}
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div
-										class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(
+										class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getCardBorderColor(
 											request.status,
 											request.rawStatus,
 											request.rejectionReason
 										)}"
+										onclick={() => openDetailModal(request)}
+										role="button"
+										tabindex="0"
+										onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
+										aria-label="View details for {request.id}"
 									>
 										<div class="p-4 sm:p-5">
 											<!-- Header: Student, Request ID, Status -->
@@ -1392,13 +1400,6 @@
 												{/if}
 
 
-												<button
-													onclick={() => openDetailModal(request)}
-													class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1"
-												>
-													View Details
-													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-												</button>
 											</div>
 										</div>
 									</div>
@@ -1475,8 +1476,15 @@
 								</div>
 								<div class="divide-y divide-gray-100">
 									{#each paginatedRequests as request}
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
-											class="grid gap-3 p-4 md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3"
+											class="grid gap-3 p-4 md:grid-cols-[1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3 hover:bg-gray-50 transition-colors cursor-pointer"
+											onclick={() => openDetailModal(request)}
+											role="button"
+											tabindex="0"
+											onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
+											aria-label="View details for {request.id}"
 										>
 											<div class="min-w-0">
 												<p class="font-mono text-xs font-bold tracking-wider text-gray-900">
@@ -1556,15 +1564,9 @@
 											</div>
 
 											<div class="relative flex flex-wrap items-center gap-2 md:justify-end">
-												<button
-													onclick={() => openDetailModal(request)}
-													class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-												>
-													Details
-												</button>
 												{#if request.status === 'pending'}
 													<button
-														onclick={() => markReady(request.rawId)}
+														onclick={(e) => { e.stopPropagation(); markReady(request.rawId); }}
 														class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
 													>
 														Mark Ready
@@ -1572,7 +1574,7 @@
 												{/if}
 												{#if request.status === 'ready'}
 													<button
-														onclick={() => confirmPickup(request.rawId)}
+														onclick={(e) => { e.stopPropagation(); confirmPickup(request.rawId); }}
 														class="rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700"
 													>
 														Confirm Pickup
@@ -1580,10 +1582,7 @@
 												{/if}
 												{#if request.status === 'active' && request.rawStatus === 'pending_return'}
 													<button
-														onclick={() => {
-															closeActionMenu();
-															confirmReturn(request.rawId);
-														}}
+														onclick={(e) => { e.stopPropagation(); closeActionMenu(); confirmReturn(request.rawId); }}
 														class="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-700"
 													>
 														Confirm Return
@@ -1653,70 +1652,14 @@
 					{/if}
 
 					{#if filteredRequests.length > 0 && totalPages > 1}
-						<div
-							class="flex flex-col gap-2 border-t border-gray-200 pt-4 sm:flex-row sm:items-center sm:justify-between"
-						>
-							<div class="text-sm text-gray-500">
-								Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(
-									currentPage * PAGE_SIZE,
-									filteredRequests.length
-								)} of {filteredRequests.length} requests
-							</div>
-							<nav class="flex items-center gap-1" aria-label="Requests pagination">
-								<button
-									onclick={() => (currentPage = Math.max(1, currentPage - 1))}
-									disabled={currentPage === 1}
-									class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-									aria-label="Previous page"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M15 19l-7-7 7-7"
-										/>
-									</svg>
-								</button>
-
-								{#each Array.from({ length: totalPages }, (_, i) => i + 1) as pageNum}
-									{#if totalPages <= 7 || pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - currentPage) <= 1}
-										<button
-											onclick={() => (currentPage = pageNum)}
-											class="inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors {currentPage ===
-											pageNum
-												? 'bg-pink-600 text-white shadow-sm'
-												: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
-											aria-label="Page {pageNum}"
-											aria-current={currentPage === pageNum ? 'page' : undefined}
-										>
-											{pageNum}
-										</button>
-									{:else if (pageNum === currentPage - 2 || pageNum === currentPage + 2) && totalPages > 7}
-										<span
-											class="inline-flex h-8 w-8 items-center justify-center text-sm text-gray-400"
-											>...</span
-										>
-									{/if}
-								{/each}
-
-								<button
-									onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
-									disabled={currentPage === totalPages}
-									class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-									aria-label="Next page"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M9 5l7 7-7 7"
-										/>
-									</svg>
-								</button>
-							</nav>
-						</div>
+						<Pagination
+							{currentPage}
+							{totalPages}
+							totalItems={filteredRequests.length}
+							itemsPerPage={PAGE_SIZE}
+							onPageChange={(p) => { currentPage = p; }}
+							class="mt-4"
+						/>
 					{/if}
 				</div>
 			</div>

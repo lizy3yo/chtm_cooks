@@ -4,6 +4,8 @@
 	import { inventoryHistoryAPI } from '$lib/api/inventoryHistory';
 	import { subscribeToInventoryChanges } from '$lib/api/inventory';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+	import CatalogItemModal from '$lib/components/ui/CatalogItemModal.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 
 	// UI State
 	let viewMode = $state<'grid' | 'list'>('grid');
@@ -214,8 +216,6 @@
 			return;
 		}
 
-		console.log('[CATALOG-EDIT] Starting save operation for item:', selectedItem.id);
-
 		try {
 			isSaving = true;
 			saveError = null;
@@ -229,8 +229,6 @@
 				eomCount: editForm.eomCount
 			};
 			
-			console.log('[CATALOG-EDIT] Update payload:', updatePayload);
-			
 			// Call API to update item
 			const response = await fetch(`/api/inventory/items/${selectedItem.id}`, {
 				method: 'PATCH',
@@ -241,11 +239,8 @@
 				body: JSON.stringify(updatePayload)
 			});
 
-			console.log('[CATALOG-EDIT] Response status:', response.status);
-
 			if (!response.ok) {
 				const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-				console.error('[CATALOG-EDIT] Update failed:', errorData);
 				
 				// Provide user-friendly error messages
 				if (response.status === 401) {
@@ -261,26 +256,33 @@
 				}
 			}
 
-			console.log('[CATALOG-EDIT] Update successful');
+			// Parse the updated item directly from the API response — no need to
+			// wait for a full catalog refetch before updating the UI.
+			const updatedData = await response.json();
 
-			// Show success message
-			saveSuccess = true;
-			
-			// Invalidate cache and refresh catalog data
-			catalogAPI.invalidateCatalogCache();
-			inventoryHistoryAPI.invalidateCache(); // Also invalidate history cache
-			await fetchCatalog({ forceRefresh: true });
-			
-			// Update selected item with new data
-			const updatedItem = allItems.find(item => item.id === selectedItem?.id);
-			if (updatedItem) {
-				selectedItem = updatedItem;
-				console.log('[CATALOG-EDIT] Selected item updated with fresh data');
+			// Patch the local catalog state immediately so the modal reflects
+			// the new values without any visible delay.
+			if (catalogData) {
+				catalogData = {
+					...catalogData,
+					items: catalogData.items.map(i => i.id === selectedItem?.id ? { ...i, ...updatedData } : i)
+				};
 			}
-			
-			// Exit edit mode after short delay
+			if (selectedItem) {
+				selectedItem = { ...selectedItem, ...updatedData };
+			}
+
+			// Show success state and exit edit mode right away.
+			saveSuccess = true;
+			isEditMode = false;
+
+			// Refresh the full catalog in the background so subsequent views
+			// are up-to-date, but don't block the current interaction.
+			catalogAPI.invalidateCatalogCache();
+			inventoryHistoryAPI.invalidateCache();
+			fetchCatalog({ background: true, forceRefresh: true }).catch(() => {/* non-fatal */});
+
 			setTimeout(() => {
-				isEditMode = false;
 				saveSuccess = false;
 			}, 1500);
 			
@@ -360,370 +362,154 @@
 
 <!-- Detail Modal -->
 {#if selectedItem}
-	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<!-- Backdrop -->
-		<button
-			type="button"
-			class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
-			onclick={closeDetailModal}
-			aria-label="Close modal"
-			tabindex="-1"
-		></button>
-		
-		<!-- Modal -->
-		<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
-			<div
-				role="dialog"
-				aria-modal="true"
-				aria-labelledby="instructor-catalog-item-title"
-				aria-describedby="instructor-catalog-item-description"
-				class="relative w-full max-w-2xl sm:max-w-3xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden mx-0 sm:mx-auto"
-			>
-				<!-- Header -->
-				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
-					<div class="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
-						<div class="flex items-start gap-3 sm:gap-4">
-							<!-- Icon -->
-							<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30 overflow-hidden">
-								{#if selectedItem.picture}
-									<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full object-cover" loading="lazy" />
-								{:else}
-									<svg class="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-									</svg>
-								{/if}
-							</div>
-							
-							<div class="min-w-0 flex-1">
-								<h2 id="instructor-catalog-item-title" class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">
-									{isEditMode ? 'Edit Item' : selectedItem.name}
-								</h2>
-								<p class="mt-0.5 text-xs text-gray-500 sm:text-sm truncate">
-									{isEditMode ? 'Update equipment information' : getCategoryName(selectedItem.categoryId)}
-								</p>
-								
-								<!-- Status Badge -->
-								<div class="mt-2 flex flex-wrap items-center gap-2">
-									<span class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold {getAvailabilityColor(selectedItem.status)}">
-										{selectedItem.status}
-									</span>
-									<span class="inline-flex items-center gap-1.5 rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs font-bold text-gray-700">
-										Qty: {selectedItem.currentCount ?? (selectedItem.quantity + (selectedItem.donations ?? 0))}
-									</span>
-								</div>
-							</div>
+	<CatalogItemModal
+		item={selectedItem}
+		{categories}
+		{isEditMode}
+		{saveError}
+		{saveSuccess}
+		onClose={closeDetailModal}
+		footerHint={isEditMode
+			? '* Required fields. Changes will be saved immediately.'
+			: 'Review details before continuing with instruction planning.'}
+	>
+		{#snippet footerAction()}
+			{#if !isEditMode}
+				<button
+					type="button"
+					onclick={enterEditMode}
+					class="flex-1 sm:flex-none rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 active:scale-[0.98]"
+				>
+					Edit Item
+				</button>
+			{:else}
+				<button
+					type="button"
+					onclick={cancelEdit}
+					disabled={isSaving}
+					class="flex-1 sm:flex-none rounded-lg border-2 border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
+				>
+					Cancel
+				</button>
+				<button
+					type="button"
+					onclick={saveChanges}
+					disabled={!editForm.name.trim() || !editForm.categoryId || editForm.quantity < 0 || isSaving}
+					class="flex-1 sm:flex-none rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
+				>
+					{#if isSaving}
+						<span class="flex items-center justify-center gap-2">
+							<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+							Saving...
+						</span>
+					{:else}
+						Save Changes
+					{/if}
+				</button>
+			{/if}
+		{/snippet}
 
-							<div class="flex items-center gap-2">
-								{#if selectedItem.picture && !isEditMode}
-									<button
-										type="button"
-										onclick={openFullImage}
-										class="rounded-lg sm:rounded-xl p-1.5 sm:p-2 border border-pink-200 text-pink-600 transition-all hover:bg-pink-50 active:scale-95 shrink-0"
-										aria-label="View full image"
-										title="View full image"
-									>
-										<svg class="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-										</svg>
-									</button>
-								{/if}
-								<button
-									type="button"
-									onclick={closeDetailModal}
-									class="rounded-lg sm:rounded-xl p-1.5 sm:p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95 shrink-0"
-									aria-label="Close modal"
-									title="Close"
-								>
-									<svg class="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-									</svg>
-								</button>
-							</div>
-						</div>
+		{#snippet editContent()}
+			<div class="space-y-4">
+				<div>
+					<label for="edit-name" class="block text-sm font-bold text-gray-900 mb-2">
+						Item Name <span class="text-pink-500">*</span>
+					</label>
+					<input
+						id="edit-name"
+						type="text"
+						bind:value={editForm.name}
+						class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+						placeholder="Enter item name"
+						required
+						disabled={isSaving}
+					/>
+				</div>
+
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+					<div>
+						<label for="edit-category" class="block text-sm font-bold text-gray-900 mb-2">
+							Category <span class="text-pink-500">*</span>
+						</label>
+						<select
+							id="edit-category"
+							bind:value={editForm.categoryId}
+							class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+							required
+							disabled={isSaving}
+						>
+							<option value="">Select category</option>
+							{#each categories as category}
+								<option value={category.id}>{category.name}</option>
+							{/each}
+						</select>
+					</div>
+
+					<div>
+						<label for="edit-specification" class="block text-sm font-bold text-gray-900 mb-2">
+							Specification
+						</label>
+						<input
+							id="edit-specification"
+							type="text"
+							bind:value={editForm.specification}
+							class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+							placeholder="Enter specification"
+							disabled={isSaving}
+						/>
 					</div>
 				</div>
 
-				<!-- Content -->
-				<div class="max-h-[calc(100vh-240px)] sm:max-h-[60vh] overflow-y-auto">
-					<div class="px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 space-y-6" id="instructor-catalog-item-description">
-						<!-- Error/Success Messages -->
-						{#if saveError}
-							<div class="rounded-xl border border-rose-200 bg-rose-50 p-4">
-								<div class="flex items-center gap-3">
-									<svg class="h-5 w-5 text-rose-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-									</svg>
-									<p class="text-sm font-medium text-rose-800">{saveError}</p>
-								</div>
-							</div>
-						{/if}
-						{#if saveSuccess}
-							<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-								<div class="flex items-center gap-3">
-									<svg class="h-5 w-5 text-emerald-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-									</svg>
-									<p class="text-sm font-medium text-emerald-800">Changes saved successfully</p>
-								</div>
-							</div>
-						{/if}
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+					<div>
+						<label for="edit-quantity" class="block text-sm font-bold text-gray-900 mb-2">
+							Quantity
+						</label>
+						<input
+							id="edit-quantity"
+							type="number"
+							bind:value={editForm.quantity}
+							min="0"
+							class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+							disabled={isSaving}
+						/>
+					</div>
 
-						<!-- Item Image Card -->
-						<div class="rounded-2xl border-2 border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 sm:p-5 shadow-sm">
-							<div class="relative aspect-21/8 overflow-hidden rounded-xl bg-gray-100">
-								{#if selectedItem.picture}
-									<button
-										type="button"
-										onclick={openFullImage}
-										class="h-full w-full cursor-zoom-in"
-										title="View full image"
-										disabled={isEditMode}
-									>
-										<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full object-cover" loading="lazy" />
-									</button>
-								{:else}
-									<div class="flex h-full w-full items-center justify-center">
-										<ItemImagePlaceholder size="lg" />
-									</div>
-								{/if}
-								<div class="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/60 via-black/20 to-transparent p-3">
-									<p class="truncate text-sm font-semibold text-white sm:text-base">{selectedItem.name}</p>
-									<p class="truncate text-xs text-white/85">{getCategoryName(selectedItem.categoryId)}</p>
-								</div>
-							</div>
-						</div>
-
-						<!-- Item Details Card -->
-						<div class="rounded-2xl border-2 border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6 shadow-sm">
-							{#if !isEditMode}
-								<!-- View Mode -->
-								<div class="space-y-4">
-									<div class="grid grid-cols-2 gap-4">
-										<div>
-											<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Item Name</p>
-											<p class="text-sm font-semibold text-gray-900">{selectedItem.name}</p>
-										</div>
-										<div>
-											<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Category</p>
-											<p class="text-sm font-semibold text-gray-900">{getCategoryName(selectedItem.categoryId)}</p>
-										</div>
-									</div>
-
-									<div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-										<div>
-											<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Specification</p>
-											<p class="text-sm text-gray-700">{selectedItem.specification || 'No specification provided'}</p>
-										</div>
-										<div>
-											<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Quantity</p>
-											<p class="text-sm font-semibold text-gray-900">{selectedItem.quantity}</p>
-										</div>
-									</div>
-
-									{#if selectedItem.eomCount != null || selectedItem.variance != null}
-										<div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-											{#if selectedItem.eomCount != null}
-												<div>
-													<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">EOM Count</p>
-													<p class="text-sm font-semibold text-gray-900">{selectedItem.eomCount}</p>
-												</div>
-											{/if}
-											{#if selectedItem.variance != null}
-												<div>
-													<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Variance</p>
-													<p class="text-sm font-semibold {selectedItem.variance < 0 ? 'text-red-600' : selectedItem.variance > 0 ? 'text-green-600' : 'text-gray-900'}">
-														{selectedItem.variance > 0 ? '+' : ''}{selectedItem.variance}
-													</p>
-												</div>
-											{/if}
-										</div>
-									{/if}
-
-									{#if selectedItem.description}
-										<div class="pt-4 border-t border-gray-200">
-											<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Description</p>
-											<p class="text-sm text-gray-700 bg-gray-50 rounded-lg p-3">{selectedItem.description}</p>
-										</div>
-									{/if}
-								</div>
-							{:else}
-								<!-- Edit Mode -->
-								<div class="space-y-4">
-									<div>
-										<label for="edit-name" class="block text-sm font-bold text-gray-900 mb-2">
-											Item Name <span class="text-pink-500">*</span>
-										</label>
-										<input
-											id="edit-name"
-											type="text"
-											bind:value={editForm.name}
-											class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-											placeholder="Enter item name"
-											required
-											disabled={isSaving}
-										/>
-									</div>
-
-									<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-										<div>
-											<label for="edit-category" class="block text-sm font-bold text-gray-900 mb-2">
-												Category <span class="text-pink-500">*</span>
-											</label>
-											<select
-												id="edit-category"
-												bind:value={editForm.categoryId}
-												class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-												required
-												disabled={isSaving}
-											>
-												<option value="">Select category</option>
-												{#each categories as category}
-													<option value={category.id}>{category.name}</option>
-												{/each}
-											</select>
-										</div>
-
-										<div>
-											<label for="edit-specification" class="block text-sm font-bold text-gray-900 mb-2">
-												Specification
-											</label>
-											<input
-												id="edit-specification"
-												type="text"
-												bind:value={editForm.specification}
-												class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-												placeholder="Enter specification"
-												disabled={isSaving}
-											/>
-										</div>
-									</div>
-
-									<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-										<div>
-											<label for="edit-quantity" class="block text-sm font-bold text-gray-900 mb-2">
-												Quantity
-											</label>
-											<input
-												id="edit-quantity"
-												type="number"
-												bind:value={editForm.quantity}
-												min="0"
-												class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-												disabled={isSaving}
-											/>
-										</div>
-
-										<div>
-											<label for="edit-eom-count" class="block text-sm font-bold text-gray-900 mb-2">
-												EOM Count
-											</label>
-											<input
-												id="edit-eom-count"
-												type="number"
-												bind:value={editForm.eomCount}
-												min="0"
-												class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-												disabled={isSaving}
-											/>
-										</div>
-									</div>
-
-									<div>
-										<label for="edit-description" class="block text-sm font-bold text-gray-900 mb-2">
-											Description
-										</label>
-										<textarea
-											id="edit-description"
-											bind:value={editForm.description}
-											rows="4"
-											class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
-											placeholder="Enter item description"
-											disabled={isSaving}
-										></textarea>
-										<p class="mt-2 text-xs text-gray-500">
-											Provide additional details about this equipment item.
-										</p>
-									</div>
-								</div>
-							{/if}
-						</div>
+					<div>
+						<label for="edit-eom-count" class="block text-sm font-bold text-gray-900 mb-2">
+							EOM Count
+						</label>
+						<input
+							id="edit-eom-count"
+							type="number"
+							bind:value={editForm.eomCount}
+							min="0"
+							class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+							disabled={isSaving}
+						/>
 					</div>
 				</div>
 
-				<!-- Footer -->
-				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-4 sm:px-6 sm:py-5 lg:px-8">
-					<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-						{#if !isEditMode}
-							<p class="text-xs text-gray-500 order-2 sm:order-1">Review details before continuing with instruction planning.</p>
-							<div class="flex w-full items-center gap-2 sm:w-auto order-1 sm:order-2">
-								<button
-									type="button"
-									onclick={enterEditMode}
-									class="flex-1 sm:flex-none rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 active:scale-[0.98]"
-								>
-									Edit Item
-								</button>
-								<button
-									type="button"
-									onclick={closeDetailModal}
-									class="flex-1 sm:flex-none rounded-lg border-2 border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]"
-								>
-									Close
-								</button>
-							</div>
-						{:else}
-							<p class="text-xs text-gray-500 order-2 sm:order-1">
-								<span class="text-pink-500">*</span> Required fields. Changes will be saved immediately.
-							</p>
-							<div class="flex w-full items-center gap-2 sm:w-auto order-1 sm:order-2">
-								<button
-									type="button"
-									onclick={saveChanges}
-									disabled={!editForm.name.trim() || !editForm.categoryId || editForm.quantity < 0 || isSaving}
-									class="flex-1 sm:flex-none rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
-								>
-									{#if isSaving}
-										<span class="flex items-center justify-center gap-2">
-											<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
-												<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-												<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-											</svg>
-											Saving...
-										</span>
-									{:else}
-										Save Changes
-									{/if}
-								</button>
-								<button
-									type="button"
-									onclick={cancelEdit}
-									disabled={isSaving}
-									class="flex-1 sm:flex-none rounded-lg border-2 border-gray-300 bg-white px-5 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98]"
-								>
-									Cancel
-								</button>
-							</div>
-						{/if}
-					</div>
+				<div>
+					<label for="edit-description" class="block text-sm font-bold text-gray-900 mb-2">
+						Description
+					</label>
+					<textarea
+						id="edit-description"
+						bind:value={editForm.description}
+						rows="4"
+						class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20"
+						placeholder="Enter item description"
+						disabled={isSaving}
+					></textarea>
+					<p class="mt-2 text-xs text-gray-500">Provide additional details about this equipment item.</p>
 				</div>
 			</div>
-		</div>
-	</div>
-{/if}
-
-<!-- Full image lightbox -->
-{#if showFullImage && selectedItem?.picture}
-	<div class="fixed inset-0 z-60 flex items-center justify-center p-4">
-		<div class="fixed inset-0 bg-black/90" aria-hidden="true" onclick={closeFullImage}></div>
-		<div class="relative z-61 max-h-[90vh] max-w-[90vw]">
-			<button type="button" onclick={closeFullImage} class="absolute -top-12 right-0 rounded-md p-2 text-white hover:bg-white/10" aria-label="Close full image">
-				<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-				</svg>
-			</button>
-			<img src={selectedItem.picture} alt={selectedItem.name} class="max-h-[90vh] max-w-full rounded-lg shadow-2xl" />
-		</div>
-	</div>
+		{/snippet}
+	</CatalogItemModal>
 {/if}
 
 <div class="space-y-6">
@@ -889,8 +675,12 @@
 	{#if !isLoading && viewMode === 'grid' && filteredItems.length > 0}
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
 			{#each filteredItems as item (item.id)}
-				<div class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
-					<div class="relative aspect-4/3 overflow-hidden bg-gray-100 flex items-center justify-center">
+				<button
+					type="button"
+					onclick={() => openDetailModal(item)}
+					class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md text-left focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1"
+				>
+					<div class="relative aspect-4/3 overflow-hidden bg-gray-100 flex items-center justify-center w-full">
 						{#if item.picture}
 							<img src={item.picture} alt={item.name} class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
 						{:else}
@@ -898,6 +688,14 @@
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
 							</svg>
 						{/if}
+						<!-- Constant badge — top left -->
+						{#if item.isConstant}
+							<span class="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-purple-800 ring-1 ring-purple-200">
+								<svg class="h-2 w-2 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+								Constant
+							</span>
+						{/if}
+						<!-- Status badge — top right -->
 						<span class="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight {getAvailabilityColor(item.status)}">
 							{item.status === 'In Stock' ? 'In Stock' : item.status === 'Out of Stock' ? 'Out' : item.status}
 						</span>
@@ -908,16 +706,8 @@
 							<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">{getCategoryName(item.categoryId)}</span>
 						</div>
 						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</p>
-						<div class="mt-auto pt-2">
-							<button
-								onclick={() => openDetailModal(item)}
-								class="w-full rounded-md border border-gray-300 bg-white py-1.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50 sm:text-xs"
-							>
-								View Details
-							</button>
-						</div>
 					</div>
-				</div>
+				</button>
 			{/each}
 		</div>
 	{/if}
@@ -926,7 +716,11 @@
 	{#if !isLoading && viewMode === 'list' && filteredItems.length > 0}
 		<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
 			{#each filteredItems as item (item.id)}
-				<div class="flex items-center gap-3 px-3 py-3 hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5">
+				<button
+					type="button"
+					onclick={() => openDetailModal(item)}
+					class="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-500 sm:px-4 sm:py-3.5"
+				>
 					<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14 flex items-center justify-center">
 						{#if item.picture}
 							<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
@@ -940,19 +734,20 @@
 						<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
 						<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
 						<div class="mt-1 flex flex-wrap items-center gap-1">
+							{#if item.isConstant}
+								<span class="inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800 ring-1 ring-purple-200">
+									<svg class="h-2 w-2 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+									Constant
+								</span>
+							{/if}
 							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
 							<span class="text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</span>
 						</div>
 					</div>
-					<div class="shrink-0">
-						<button
-							onclick={() => openDetailModal(item)}
-							class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 sm:text-xs"
-						>
-							Details
-						</button>
-					</div>
-				</div>
+					<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+					</svg>
+				</button>
 			{/each}
 		</div>
 	{/if}
@@ -973,67 +768,16 @@
 
 	<!-- Pagination -->
 	{#if !isLoading && allItems.length > itemsPerPage}
-		<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6">
-			<div class="text-sm text-gray-500">
-				Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, allItems.length)} of {allItems.length} items
-			</div>
-			<nav class="flex items-center gap-1" aria-label="Pagination">
-				<button
-					onclick={() => goToPage(currentPage - 1)}
-					disabled={currentPage === 1}
-					class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-					aria-label="Previous page"
-				>
-					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-					</svg>
-				</button>
-
-				{#each Array.from({ length: totalPages }, (_, i) => i + 1) as page}
-					{#if totalPages <= 7 || page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1}
-						<button
-							onclick={() => goToPage(page)}
-							class="inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors {currentPage === page ? 'bg-pink-600 text-white shadow-sm' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
-							aria-label="Page {page}"
-							aria-current={currentPage === page ? 'page' : undefined}
-						>
-							{page}
-						</button>
-					{:else if (page === currentPage - 2 || page === currentPage + 2) && totalPages > 7}
-						<span class="inline-flex h-8 w-8 items-center justify-center text-sm text-gray-400">…</span>
-					{/if}
-				{/each}
-
-				<button
-					onclick={() => goToPage(currentPage + 1)}
-					disabled={currentPage === totalPages}
-					class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-					aria-label="Next page"
-				>
-					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-					</svg>
-				</button>
-			</nav>
-		</div>
+		<Pagination
+			{currentPage}
+			{totalPages}
+			totalItems={allItems.length}
+			{itemsPerPage}
+			onPageChange={goToPage}
+		/>
 	{/if}
 </div>
 
 
 
-<style>
-	@keyframes scaleIn {
-		from {
-			opacity: 0;
-			transform: scale(0.95);
-		}
-		to {
-			opacity: 1;
-			transform: scale(1);
-		}
-	}
 
-	.animate-scaleIn {
-		animation: scaleIn 0.2s ease-out;
-	}
-</style>

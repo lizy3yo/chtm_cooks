@@ -150,13 +150,7 @@ export const GET: RequestHandler = async (event) => {
 export const PATCH: RequestHandler = async (event) => {
 	const { request, params, getClientAddress } = event;
 	const isImportContext = request.headers.get('x-import-context') === '1';
-	
-	console.log('========================================');
-	console.log('[PATCH-ITEM] REQUEST RECEIVED');
-	console.log('[PATCH-ITEM] Item ID:', params.id);
-	console.log('[PATCH-ITEM] Method:', request.method);
-	console.log('========================================');
-	
+
 	// Apply rate limiting unless this request is part of a controlled import flow
 	if (!isImportContext) {
 		const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -169,20 +163,11 @@ export const PATCH: RequestHandler = async (event) => {
 		// Verify authentication via cookie
 		const decoded = getUserFromToken(event);
 		if (!decoded) {
-			console.log('[PATCH-ITEM] ❌ No authentication token found');
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		console.log('========================================');
-		console.log('[PATCH-ITEM] ✅ AUTHENTICATED USER:');
-		console.log('  - User ID:', decoded.userId);
-		console.log('  - Email:', decoded.email);
-		console.log('  - Role:', decoded.role);
-		console.log('========================================');
-
 		// Only custodians, instructors, and superadmins can update items
 		if (!['custodian', 'instructor', 'superadmin'].includes(decoded.role)) {
-			console.log('[PATCH-ITEM] ❌ Insufficient permissions for role:', decoded.role);
 			return json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
 		}
 
@@ -330,36 +315,35 @@ export const PATCH: RequestHandler = async (event) => {
 			action = InventoryAction.QUANTITY_CHANGED;
 		}
 
-		console.log('========================================');
-		console.log('[PATCH-ITEM] 📝 ABOUT TO LOG ACTIVITY:');
-		console.log('  - Action:', action);
-		console.log('  - Entity:', result.name);
-		console.log('  - User ID:', decoded.userId);
-		console.log('  - User Email:', decoded.email);
-		console.log('  - User Role:', decoded.role);
-		console.log('========================================');
+		// Log activity, invalidate caches, and publish SSE in parallel.
+		// Old image deletion is fire-and-forget — it's non-critical and should
+		// not block the response.
+		const cacheInvalidation = Promise.all([
+			cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'reports-analytics']),
+			cacheService.deletePattern('inventory:archived:*'),
+			cacheService.deletePattern('inventory:history:*')
+		]);
 
-		await logInventoryActivity({
-			action,
-			entityType: 'item',
-			entityId: result._id!,
-			entityName: result.name,
-			userId: new ObjectId(decoded.userId),
-			userName: decoded.email,
-			userRole: decoded.role,
-			changes: changes.length > 0 ? changes : undefined,
-			metadata: {
-				previousStatus: currentItem.status,
-				newStatus: result.status,
-				quantityChange: body.quantity !== undefined ? body.quantity - currentItem.quantity : undefined
-			},
-			ipAddress: getClientAddress(),
-			userAgent: request.headers.get('user-agent') || undefined
-		});
-
-		console.log('========================================');
-		console.log('[PATCH-ITEM] ✅ ACTIVITY LOGGED SUCCESSFULLY');
-		console.log('========================================');
+		await Promise.all([
+			logInventoryActivity({
+				action,
+				entityType: 'item',
+				entityId: result._id!,
+				entityName: result.name,
+				userId: new ObjectId(decoded.userId),
+				userName: decoded.email,
+				userRole: decoded.role,
+				changes: changes.length > 0 ? changes : undefined,
+				metadata: {
+					previousStatus: currentItem.status,
+					newStatus: result.status,
+					quantityChange: body.quantity !== undefined ? body.quantity - currentItem.quantity : undefined
+				},
+				ipAddress: getClientAddress(),
+				userAgent: request.headers.get('user-agent') || undefined
+			}),
+			cacheInvalidation
+		]);
 
 		logger.info('Inventory item updated', {
 			userId: decoded.userId,
@@ -370,11 +354,6 @@ export const PATCH: RequestHandler = async (event) => {
 			userEmail: decoded.email
 		});
 
-		// Invalidate inventory cache (use tag-based invalidation — deletePattern is a no-op on Upstash)
-		await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'reports-analytics']);
-		await cacheService.deletePattern('inventory:archived:*');
-		await cacheService.deletePattern('inventory:history:*');
-
 		const sseEvent: InventoryRealtimeEvent = {
 			action: action === InventoryAction.ARCHIVED ? 'item_archived' : action === InventoryAction.RESTORED ? 'item_restored' : 'item_updated',
 			entityType: 'item' as const,
@@ -382,22 +361,19 @@ export const PATCH: RequestHandler = async (event) => {
 			entityName: result.name,
 			occurredAt: new Date().toISOString()
 		};
-		
-		console.log('[PATCH-ITEM] Publishing SSE event:', JSON.stringify(sseEvent, null, 2));
 		publishInventoryChange([INVENTORY_CHANNEL], sseEvent);
-		console.log('[PATCH-ITEM] SSE event published successfully');
 
 		if (oldPictureForDeletion) {
 			const deleteOptions = getDeleteOptionsFromManagedImageUrl(oldPictureForDeletion);
 			if (deleteOptions) {
-				const deleted = await storageService.delete(deleteOptions);
-				if (!deleted) {
+				// Fire-and-forget — image cleanup is non-critical and must not delay the response
+				storageService.delete(deleteOptions).catch((err) => {
 					logger.warn('Failed to delete replaced inventory image', {
 						itemId,
 						oldPictureForDeletion,
-						deleteOptions
+						error: err instanceof Error ? err.message : String(err)
 					});
-				}
+				});
 			}
 		}
 

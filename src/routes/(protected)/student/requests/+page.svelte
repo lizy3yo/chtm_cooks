@@ -6,6 +6,7 @@ import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
 import Skeleton from '$lib/components/ui/Skeleton.svelte';
 import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+import Pagination from '$lib/components/ui/Pagination.svelte';
 import QRCode from 'qrcode';
 import {
 	ClipboardList, Clock, Activity, PackageOpen, Package,
@@ -789,7 +790,16 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 					<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">
 						{#each paginatedRequests as request}
 							{@const StatusIcon = getStatusIconComponent(request.status)}
-							<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getStatusBorderColor(request.status)}">
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
+							<div
+								class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getStatusBorderColor(request.status)}"
+								onclick={() => openDetailModal(request)}
+								role="button"
+								tabindex="0"
+								onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
+								aria-label="View details for {request.id}"
+							>
 								<div class="p-4 sm:p-5">
 									<!-- Header: Request ID, Status -->
 									<div class="mb-3 flex items-start justify-between gap-3">
@@ -870,27 +880,16 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 									<div class="flex items-center gap-1.5 self-end sm:self-auto">
 										{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(request.status)}
 											<button
-												onclick={() => {
-													selectedRequest = request;
-													qrDataUrl = null;
-													QRCode.toDataURL(request.rawId, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' }, errorCorrectionLevel: 'H' }).then(url => { qrDataUrl = url; }).catch(() => {});
-													showQrModal = true;
-												}}
+												onclick={(e) => { e.stopPropagation(); selectedRequest = request; qrDataUrl = null; QRCode.toDataURL(request.rawId, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' }, errorCorrectionLevel: 'H' }).then(url => { qrDataUrl = url; }).catch(() => {}); showQrModal = true; }}
 												class="shrink-0 rounded-lg border border-pink-200 bg-white p-1.5 text-pink-600 shadow-sm transition-colors hover:bg-pink-50"
 												title="View QR Code"
 											>
 												<QrCode size={14} strokeWidth={2} />
 											</button>
 										{/if}
-										<button
-											onclick={() => openDetailModal(request)}
-											class="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-										>
-											Details
-										</button>
 										{#if request.status === 'pending'}
 											<button
-												onclick={() => requestCancelConfirmation(request)}
+												onclick={(e) => { e.stopPropagation(); requestCancelConfirmation(request); }}
 												disabled={loadingCancel === request.rawId}
 												class="rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
 											>
@@ -899,7 +898,7 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 										{/if}
 										{#if request.status === 'picked-up'}
 											<button
-												onclick={() => requestReturnConfirmation(request)}
+												onclick={(e) => { e.stopPropagation(); requestReturnConfirmation(request); }}
 												disabled={loadingReturn === request.rawId}
 												class="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
 											>
@@ -930,7 +929,16 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 						<div class="divide-y divide-gray-100">
 							{#each paginatedRequests as request}
 								{@const StatusIcon = getStatusIconComponent(request.status)}
-								<div class="grid gap-3 p-4 md:grid-cols-[1.2fr_1.5fr_1fr_auto] md:items-center md:gap-3 hover:bg-gray-50 transition-colors">
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<div
+									class="grid gap-3 p-4 md:grid-cols-[1.2fr_1.5fr_1fr_auto] md:items-center md:gap-3 hover:bg-gray-50 transition-colors cursor-pointer"
+									onclick={() => openDetailModal(request)}
+									role="button"
+									tabindex="0"
+									onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
+									aria-label="View details for {request.id}"
+								>
 									<div class="min-w-0">
 										<p class="font-mono text-xs font-bold tracking-wider text-gray-900 truncate">{request.id}</p>
 										<p class="mt-1 text-[11px] text-gray-500 truncate">
@@ -982,27 +990,16 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 									<div class="flex flex-wrap items-center gap-1.5 md:justify-end">
 										{#if ['approved', 'ready', 'picked-up', 'pending-return'].includes(request.status)}
 											<button
-												onclick={() => {
-													selectedRequest = request;
-													qrDataUrl = null;
-													QRCode.toDataURL(request.rawId, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' }, errorCorrectionLevel: 'H' }).then(url => { qrDataUrl = url; }).catch(() => {});
-													showQrModal = true;
-												}}
+												onclick={(e) => { e.stopPropagation(); selectedRequest = request; qrDataUrl = null; QRCode.toDataURL(request.rawId, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' }, errorCorrectionLevel: 'H' }).then(url => { qrDataUrl = url; }).catch(() => {}); showQrModal = true; }}
 												class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-pink-200 bg-white text-pink-600 shadow-sm transition-colors hover:bg-pink-50"
 												title="View QR Code"
 											>
 												<QrCode size={14} strokeWidth={2} />
 											</button>
 										{/if}
-										<button
-											onclick={() => openDetailModal(request)}
-											class="rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-										>
-											Details
-										</button>
 										{#if request.status === 'pending'}
 											<button
-												onclick={() => requestCancelConfirmation(request)}
+												onclick={(e) => { e.stopPropagation(); requestCancelConfirmation(request); }}
 												disabled={loadingCancel === request.rawId}
 												class="rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
 											>
@@ -1011,7 +1008,7 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 										{/if}
 										{#if request.status === 'picked-up'}
 											<button
-												onclick={() => requestReturnConfirmation(request)}
+												onclick={(e) => { e.stopPropagation(); requestReturnConfirmation(request); }}
 												disabled={loadingReturn === request.rawId}
 												class="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
 											>
@@ -1071,107 +1068,14 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 		
 		<!-- Pagination -->
 		{#if filteredRequests.length > 0 && totalPages > 1}
-			<div class="mt-4 flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 sm:px-6">
-				<div class="flex flex-1 justify-between sm:hidden">
-					<button
-						onclick={() => currentPage = Math.max(1, currentPage - 1)}
-						disabled={currentPage === 1}
-						class="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						Previous
-					</button>
-					<button
-						onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
-						disabled={currentPage === totalPages}
-						class="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-					>
-						Next
-					</button>
-				</div>
-				<div class="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-					<div>
-						<p class="text-sm text-gray-700">
-							Showing
-							<span class="font-medium">{(currentPage - 1) * (requestViewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST) + 1}</span>
-							to
-							<span class="font-medium">{Math.min(currentPage * (requestViewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST), filteredRequests.length)}</span>
-							of
-							<span class="font-medium">{filteredRequests.length}</span>
-							results
-						</p>
-					</div>
-					<div>
-						<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-							<button
-								onclick={() => currentPage = Math.max(1, currentPage - 1)}
-								disabled={currentPage === 1}
-								class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								<span class="sr-only">Previous</span>
-								<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-									<path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
-								</svg>
-							</button>
-							
-							{#if totalPages <= 7}
-								{#each Array(totalPages) as _, i}
-									<button
-										onclick={() => currentPage = i + 1}
-										class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === i + 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
-									>
-										{i + 1}
-									</button>
-								{/each}
-							{:else}
-								<button
-									onclick={() => currentPage = 1}
-									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === 1 ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
-								>
-									1
-								</button>
-								
-								{#if currentPage > 3}
-									<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>
-								{/if}
-								
-								{#each Array(totalPages) as _, i}
-									{@const page = i + 1}
-									{#if page > 1 && page < totalPages && Math.abs(page - currentPage) <= 1}
-										<button
-											onclick={() => currentPage = page}
-											class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === page ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
-										>
-											{page}
-										</button>
-									{/if}
-								{/each}
-								
-								{#if currentPage < totalPages - 2}
-									<span class="relative inline-flex items-center px-4 py-2 text-sm font-semibold text-gray-700 ring-1 ring-inset ring-gray-300">...</span>
-								{/if}
-								
-								<button
-									onclick={() => currentPage = totalPages}
-									class="relative inline-flex items-center px-4 py-2 text-sm font-semibold {currentPage === totalPages ? 'z-10 bg-pink-600 text-white focus:z-20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pink-600' : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'}"
-								>
-									{totalPages}
-								</button>
-							{/if}
-							
-							<button
-								onclick={() => currentPage = Math.min(totalPages, currentPage + 1)}
-								disabled={currentPage === totalPages}
-								class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								<span class="sr-only">Next</span>
-								<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-									<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
-								</svg>
-							</button>
-						</nav>
-					</div>
-				</div>
-			</div>
+			<Pagination
+				{currentPage}
+				{totalPages}
+				totalItems={filteredRequests.length}
+				itemsPerPage={requestViewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST}
+				onPageChange={(p) => { currentPage = p; }}
+				class="mt-4"
+			/>
 		{/if}
 	</div>
 		</div>

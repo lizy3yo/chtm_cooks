@@ -11,6 +11,7 @@
 	import { catalogAPI } from '$lib/api/catalog';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import HistorySkeletonLoader from '$lib/components/ui/HistorySkeletonLoader.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 
 	type Tab = 'activity-logs' | 'request-history' | 'archived' | 'deleted';
 	
@@ -842,31 +843,14 @@
 
 					<!-- Pagination -->
 					{#if activityTotal > activityLimit}
-						<div class="mt-4 flex flex-col gap-3 border-t border-gray-200 pt-4 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
-							<div class="text-center text-xs text-gray-700 sm:text-left sm:text-sm">
-								{#if filteredActivityLogs.length < activityTotal}
-									Showing {filteredActivityLogs.length} of {activityTotal} entries (filtered)
-								{:else}
-									Showing {(activityPage - 1) * activityLimit + 1} to {Math.min(activityPage * activityLimit, activityTotal)} of {activityTotal} entries
-								{/if}
-							</div>
-							<div class="flex justify-center gap-2">
-								<button
-									onclick={() => { activityPage--; loadActivityLogs(); }}
-									disabled={activityPage === 1}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2 sm:text-sm"
-								>
-									Previous
-								</button>
-								<button
-									onclick={() => { activityPage++; loadActivityLogs(); }}
-									disabled={activityPage >= Math.ceil(activityTotal / activityLimit)}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2 sm:text-sm"
-								>
-									Next
-								</button>
-							</div>
-						</div>
+						<Pagination
+							currentPage={activityPage}
+							totalPages={Math.ceil(activityTotal / activityLimit)}
+							totalItems={activityTotal}
+							itemsPerPage={activityLimit}
+							onPageChange={(p) => { activityPage = p; loadActivityLogs(); }}
+							class="mt-4"
+						/>
 					{:else if filteredActivityLogs.length < activityLogs.length}
 						<div class="mt-4 border-t border-gray-200 pt-4 text-center text-xs text-gray-700 sm:text-sm">
 							Showing {filteredActivityLogs.length} of {activityLogs.length} entries (filtered)
@@ -1055,31 +1039,14 @@
 
 					<!-- Pagination -->
 					{#if requestHistoryTotal > requestHistoryLimit}
-						<div class="mt-4 flex flex-col gap-3 border-t border-gray-200 pt-4 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
-							<div class="text-center text-xs text-gray-700 sm:text-left sm:text-sm">
-								{#if filteredRequestHistory.length < requestHistoryTotal}
-									Showing {filteredRequestHistory.length} of {requestHistoryTotal} requests (filtered)
-								{:else}
-									Showing {(requestHistoryPage - 1) * requestHistoryLimit + 1} to {Math.min(requestHistoryPage * requestHistoryLimit, requestHistoryTotal)} of {requestHistoryTotal} requests
-								{/if}
-							</div>
-							<div class="flex justify-center gap-2">
-								<button
-									onclick={() => { requestHistoryPage--; loadRequestHistory(); }}
-									disabled={requestHistoryPage === 1}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2 sm:text-sm"
-								>
-									Previous
-								</button>
-								<button
-									onclick={() => { requestHistoryPage++; loadRequestHistory(); }}
-									disabled={requestHistoryPage >= Math.ceil(requestHistoryTotal / requestHistoryLimit)}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2 sm:text-sm"
-								>
-									Next
-								</button>
-							</div>
-						</div>
+						<Pagination
+							currentPage={requestHistoryPage}
+							totalPages={Math.ceil(requestHistoryTotal / requestHistoryLimit)}
+							totalItems={requestHistoryTotal}
+							itemsPerPage={requestHistoryLimit}
+							onPageChange={(p) => { requestHistoryPage = p; loadRequestHistory(); }}
+							class="mt-4"
+						/>
 					{:else if filteredRequestHistory.length < requestHistory.length}
 						<div class="mt-4 border-t border-gray-200 pt-4 text-center text-xs text-gray-700 sm:text-sm">
 							Showing {filteredRequestHistory.length} of {requestHistory.length} requests (filtered)
@@ -1235,31 +1202,14 @@
 
 					<!-- Pagination -->
 					{#if archivedTotal > archivedLimit}
-						<div class="mt-4 flex flex-col gap-3 border-t border-gray-200 pt-4 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
-							<div class="text-center text-xs text-gray-700 sm:text-left sm:text-sm">
-								{#if filteredArchivedItems.length < archivedTotal}
-									Showing {filteredArchivedItems.length} of {archivedTotal} items (filtered)
-								{:else}
-									Showing {(archivedPage - 1) * archivedLimit + 1} to {Math.min(archivedPage * archivedLimit, archivedTotal)} of {archivedTotal} items
-								{/if}
-							</div>
-							<div class="flex justify-center gap-2">
-								<button
-									onclick={() => { archivedPage--; loadArchivedItems(); }}
-									disabled={archivedPage === 1}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2 sm:text-sm"
-								>
-									Previous
-								</button>
-								<button
-									onclick={() => { archivedPage++; loadArchivedItems(); }}
-									disabled={archivedPage >= Math.ceil(archivedTotal / archivedLimit)}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2 sm:text-sm"
-								>
-									Next
-								</button>
-							</div>
-						</div>
+						<Pagination
+							currentPage={archivedPage}
+							totalPages={Math.ceil(archivedTotal / archivedLimit)}
+							totalItems={archivedTotal}
+							itemsPerPage={archivedLimit}
+							onPageChange={(p) => { archivedPage = p; loadArchivedItems(); }}
+							class="mt-4"
+						/>
 					{:else if filteredArchivedItems.length < archivedItems.length}
 						<div class="mt-4 border-t border-gray-200 pt-4 text-center text-xs text-gray-700 sm:text-sm">
 							Showing {filteredArchivedItems.length} of {archivedItems.length} items (filtered)
@@ -1430,31 +1380,14 @@
 
 					<!-- Pagination -->
 					{#if deletedTotal > deletedLimit}
-						<div class="mt-4 flex flex-col gap-3 border-t border-gray-200 pt-4 sm:mt-6 sm:flex-row sm:items-center sm:justify-between">
-							<div class="text-center text-xs text-gray-700 sm:text-left sm:text-sm">
-								{#if filteredDeletedItems.length < deletedTotal}
-									Showing {filteredDeletedItems.length} of {deletedTotal} items (filtered)
-								{:else}
-									Showing {(deletedPage - 1) * deletedLimit + 1} to {Math.min(deletedPage * deletedLimit, deletedTotal)} of {deletedTotal} items
-								{/if}
-							</div>
-							<div class="flex justify-center gap-2">
-								<button
-									onclick={() => { deletedPage--; loadDeletedItems(); }}
-									disabled={deletedPage === 1}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2 sm:text-sm"
-								>
-									Previous
-								</button>
-								<button
-									onclick={() => { deletedPage++; loadDeletedItems(); }}
-									disabled={deletedPage >= Math.ceil(deletedTotal / deletedLimit)}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2 sm:text-sm"
-								>
-									Next
-								</button>
-							</div>
-						</div>
+						<Pagination
+							currentPage={deletedPage}
+							totalPages={Math.ceil(deletedTotal / deletedLimit)}
+							totalItems={deletedTotal}
+							itemsPerPage={deletedLimit}
+							onPageChange={(p) => { deletedPage = p; loadDeletedItems(); }}
+							class="mt-4"
+						/>
 					{:else if filteredDeletedItems.length < deletedItems.length}
 						<div class="mt-4 border-t border-gray-200 pt-4 text-center text-xs text-gray-700 sm:text-sm">
 							Showing {filteredDeletedItems.length} of {deletedItems.length} items (filtered)
