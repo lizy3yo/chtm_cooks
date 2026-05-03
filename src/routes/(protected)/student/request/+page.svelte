@@ -1712,7 +1712,7 @@
 							{/if}
 						</div>
 
-						<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_auto]">
 							<!-- Borrow Time -->
 							<div>
 								<label for="borrowHour" class="mb-1 block text-sm font-medium text-gray-700">
