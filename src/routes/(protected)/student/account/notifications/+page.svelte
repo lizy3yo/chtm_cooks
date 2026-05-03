@@ -2,10 +2,19 @@
 	import { goto } from '$app/navigation';
 	import { Bell, CheckCheck } from 'lucide-svelte';
 	import { notificationsAPI, type NotificationRecord } from '$lib/api/notifications';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+
+	const PAGE_SIZE = 10;
 
 	let notifications = $state<NotificationRecord[]>([]);
 	let unreadCount = $state(0);
 	let loading = $state(true);
+	let currentPage = $state(1);
+
+	const totalPages = $derived(Math.max(1, Math.ceil(notifications.length / PAGE_SIZE)));
+	const pagedNotifications = $derived(
+		notifications.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+	);
 
 	function formatDate(value: string): string {
 		return new Date(value).toLocaleString('en-US', {
@@ -21,9 +30,10 @@
 	async function loadNotifications() {
 		loading = true;
 		try {
-			const data = await notificationsAPI.list(50, 0);
+			const data = await notificationsAPI.list(200, 0);
 			notifications = data.notifications;
 			unreadCount = data.unreadCount;
+			currentPage = 1;
 		} finally {
 			loading = false;
 		}
@@ -86,7 +96,7 @@
 		</div>
 	{:else}
 		<div class="space-y-3">
-			{#each notifications as notification (notification.id)}
+			{#each pagedNotifications as notification (notification.id)}
 				<button
 					type="button"
 					onclick={() => openNotification(notification)}
@@ -105,5 +115,15 @@
 				</button>
 			{/each}
 		</div>
+
+		{#if notifications.length > PAGE_SIZE}
+			<Pagination
+				{currentPage}
+				{totalPages}
+				totalItems={notifications.length}
+				itemsPerPage={PAGE_SIZE}
+				onPageChange={(p) => { currentPage = p; }}
+			/>
+		{/if}
 	{/if}
 </div>

@@ -5,6 +5,7 @@ import { toastStore } from '$lib/stores/toast';
 import { loadingStore } from '$lib/stores/loading';
 import { Clock, Package, CheckCircle2, XCircle, CalendarDays, User, ShieldCheck, FileText, UserCircle, X, ClipboardList, FileCheck, CheckCheck, PackageCheck, Truck, Home, CircleAlert, Info, Filter, Search, RotateCcw } from 'lucide-svelte';
 import HistorySkeletonLoader from '$lib/components/ui/HistorySkeletonLoader.svelte';
+import Pagination from '$lib/components/ui/Pagination.svelte';
 
 let history = $state<BorrowRequestRecord[]>([]);
 let total = $state(0);
@@ -182,7 +183,7 @@ function getApprovalTimeline(request: any) {
 </svelte:head>
 
 {#if loading}
-	<HistorySkeletonLoader {viewMode} />
+	<HistorySkeletonLoader />
 {:else}
 <div class="space-y-4 sm:space-y-6">
 	<!-- Header -->
@@ -300,7 +301,7 @@ function getApprovalTimeline(request: any) {
 									{/if}
 								{/each}
 								{#if req.items.length > 3}
-									<div class="flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-pink-50 to-violet-50 ring-2 ring-white">
+									<div class="flex h-14 w-14 items-center justify-center rounded-xl bg-linear-to-br from-pink-50 to-violet-50 ring-2 ring-white">
 										<span class="text-sm font-semibold text-gray-700">+{req.items.length - 3}</span>
 									</div>
 								{/if}
@@ -427,53 +428,13 @@ function getApprovalTimeline(request: any) {
 
 		<!-- Pagination -->
 		{#if total > limit}
-			<div class="flex items-center justify-between border-t border-gray-200 bg-gray-50/50 px-4 py-3 sm:px-6">
-				<div class="hidden sm:block text-sm text-gray-500">
-					Page {page} of {Math.ceil(total / limit)}
-				</div>
-				<nav class="flex items-center gap-1 mx-auto sm:mx-0" aria-label="Pagination">
-					<button
-						onclick={() => { if (page > 1) { page--; loadHistory(); } }}
-						disabled={page === 1}
-						class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-						aria-label="Previous page"
-					>
-						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-						</svg>
-					</button>
-
-					{#each Array.from({ length: Math.ceil(total / limit) }, (_, i) => i + 1) as pageNum}
-						{@const totalPages = Math.ceil(total / limit)}
-						{#if totalPages <= 7 || pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - page) <= 1}
-							<button
-								onclick={() => { page = pageNum; loadHistory(); }}
-								class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-medium transition-colors {page === pageNum ? 'bg-pink-600 text-white shadow-sm' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
-								aria-label="Page {pageNum}"
-								aria-current={page === pageNum ? 'page' : undefined}
-							>
-								{pageNum}
-							</button>
-						{:else if (pageNum === page - 2 || pageNum === page + 2) && totalPages > 7}
-							<span class="inline-flex h-9 w-9 items-center justify-center text-sm text-gray-400">…</span>
-						{/if}
-					{/each}
-
-					<button
-						onclick={() => { if (page * limit < total) { page++; loadHistory(); } }}
-						disabled={page * limit >= total}
-						class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 transition-colors"
-						aria-label="Next page"
-					>
-						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-						</svg>
-					</button>
-				</nav>
-				<div class="hidden sm:block text-sm text-gray-500">
-					{total} total {total === 1 ? 'request' : 'requests'}
-				</div>
-			</div>
+			<Pagination
+				currentPage={page}
+				totalPages={Math.ceil(total / limit)}
+				totalItems={total}
+				itemsPerPage={limit}
+				onPageChange={(p) => { page = p; loadHistory(); }}
+			/>
 		{/if}
 		</div>
 	{/if}
@@ -491,7 +452,7 @@ function getApprovalTimeline(request: any) {
 				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white px-6 py-5 sm:px-8">
 					<div class="flex items-start justify-between gap-3">
 						<div class="flex items-start gap-3 min-w-0 flex-1">
-							<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
+							<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
 								<ClipboardList size={24} class="text-white" strokeWidth={2.5} />
 							</div>
 							<div class="min-w-0 flex-1">
@@ -519,7 +480,7 @@ function getApprovalTimeline(request: any) {
 						
 						<!-- Approval Timeline -->
 						<div>
-							<div class="rounded-2xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-5">
+							<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-5">
 								<div class="relative">
 									<svg class="absolute inset-0 w-full h-16 pointer-events-none" style="z-index: 0;">
 										{#each getApprovalTimeline(selectedRequest) as step, idx}
@@ -561,15 +522,15 @@ function getApprovalTimeline(request: any) {
 														'border-gray-300'
 													}">
 														{#if step.step === 'Request Submitted'}
-															<FileCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+															<FileCheck size={20} class={isCompleted ? 'text-pink-600' : 'text-gray-400'} />
 														{:else if step.step === 'Instructor Approved'}
-															<CheckCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+															<CheckCheck size={20} class={isCompleted ? 'text-pink-600' : 'text-gray-400'} />
 														{:else if step.step === 'Custodian Approved'}
-															<PackageCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+															<PackageCheck size={20} class={isCompleted ? 'text-pink-600' : 'text-gray-400'} />
 														{:else if step.step === 'Pickup Confirmed'}
-															<Truck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+															<Truck size={20} class={isCompleted ? 'text-pink-600' : 'text-gray-400'} />
 														{:else if step.step === 'Returned'}
-															<Home size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'}" />
+															<Home size={20} class={isCompleted ? 'text-pink-600' : 'text-gray-400'} />
 														{:else if step.step === 'Request Cancelled'}
 															<XCircle size={20} class="text-slate-400" />
 														{:else if step.step === 'Request Rejected'}
@@ -623,21 +584,21 @@ function getApprovalTimeline(request: any) {
 								Request Information
 							</h3>
 							<div class="grid grid-cols-2 gap-4">
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-2 mb-2">
 										<CalendarDays size={16} class="text-pink-500" />
 										<p class="text-xs font-bold uppercase tracking-wider text-gray-500">Request Date</p>
 									</div>
 									<p class="text-base font-bold text-gray-900">{new Date(selectedRequest.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md">
 									<div class="flex items-center gap-2 mb-2">
 										<FileText size={16} class="text-pink-500" />
 										<p class="text-xs font-bold uppercase tracking-wider text-gray-500">Purpose</p>
 									</div>
 									<p class="text-base font-bold text-gray-900 line-clamp-2">{selectedRequest.purpose}</p>
 								</div>
-								<div class="group rounded-xl border border-gray-200 bg-gradient-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
 									<div class="flex items-center gap-2 mb-2">
 										<UserCircle size={16} class="text-pink-500" />
 										<p class="text-xs font-bold uppercase tracking-wider text-gray-500">Instructor</p>
@@ -674,7 +635,7 @@ function getApprovalTimeline(request: any) {
 						
 						<!-- Rejection Reason -->
 						{#if selectedRequest.status === 'rejected' && selectedRequest.rejectionReason}
-							<div class="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-red-50 to-red-100/50 p-5">
+							<div class="rounded-2xl border-2 border-red-200 bg-linear-to-br from-red-50 to-red-100/50 p-5">
 								<div class="flex gap-3">
 									<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500">
 										<CircleAlert size={20} class="text-white" />
@@ -693,7 +654,7 @@ function getApprovalTimeline(request: any) {
 				<div class="sticky bottom-0 border-t border-gray-200 bg-white px-6 py-4 sm:px-8">
 					<button
 						onclick={closeDetailModal}
-						class="w-full rounded-xl bg-gradient-to-r from-gray-900 to-gray-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-gray-800 hover:to-gray-700 active:scale-[0.98]"
+						class="w-full rounded-xl bg-linear-to-r from-gray-900 to-gray-800 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:from-gray-800 hover:to-gray-700 active:scale-[0.98]"
 					>
 						Close
 					</button>
