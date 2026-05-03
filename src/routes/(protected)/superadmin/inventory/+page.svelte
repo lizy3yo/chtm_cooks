@@ -1253,7 +1253,7 @@ Stock Information
 </div>
 <p class="text-[8px] sm:text-[9px] lg:text-xs font-bold uppercase tracking-tight text-gray-500">Current</p>
 </div>
-<p class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{selectedItem.quantity}</p>
+<p class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{selectedItem.currentCount ?? getCurrentCount(selectedItem.quantity, selectedItem.donations ?? 0)}</p>
 </div>
 <div class="rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4">
 <div class="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">

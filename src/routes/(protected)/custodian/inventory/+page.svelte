@@ -2606,7 +2606,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												</div>
 												<p class="text-[8px] sm:text-[9px] lg:text-xs font-bold uppercase tracking-tight text-gray-500 leading-tight">Current</p>
 											</div>
-											<p class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{selectedItem.quantity}</p>
+											<p class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{selectedItem.currentCount ?? getCurrentCount(selectedItem.quantity, selectedItem.donations ?? 0)}</p>
 											</div>
 
 <div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">

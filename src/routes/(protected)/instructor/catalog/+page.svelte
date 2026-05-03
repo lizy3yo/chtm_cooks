@@ -516,7 +516,7 @@
 										</div>
 										<div>
 											<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Quantity</p>
-											<p class="text-sm font-semibold text-gray-900">{selectedItem.quantity}</p>
+											<p class="text-sm font-semibold text-gray-900">{selectedItem.currentCount ?? (selectedItem.quantity + (selectedItem.donations ?? 0))}</p>
 										</div>
 									</div>
 
