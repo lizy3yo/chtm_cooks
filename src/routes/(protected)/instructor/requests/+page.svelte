@@ -35,6 +35,7 @@ let searchQuery = $state('');
 let sortBy = $state<'date' | 'student' | 'status'>('date');
 let viewMode = $state<'list' | 'card'>('list');
 let requests = $state<any[]>([]);
+let loading = $state(true);
 let itemPictureCache = $state<Map<string, string>>(new Map());
 let classCodeCache = $state<Map<string, ClassCodeResponse>>(new Map());
 let actionInFlightById = $state<Record<string, boolean>>({});
@@ -174,15 +175,18 @@ trustScore: 'Good'
 };
 }
 
-async function loadRequests(forceRefresh = false): Promise<void> {
+async function loadRequests(forceRefresh = false, background = false): Promise<void> {
 try {
+	if (!background) loading = true;
 const response = await borrowRequestsAPI.list({}, { forceRefresh });
 requests = response.requests.map(mapRequest);
 await backfillItemPictures();
 await backfillClassCodes();
 } catch (error) {
 console.error('Failed to load instructor requests', error);
-requests = [];
+if (!background) requests = [];
+} finally {
+	if (!background) loading = false;
 }
 }
 
@@ -241,22 +245,26 @@ async function backfillClassCodes(): Promise<void> {
 onMount(() => {
 	let mounted = true;
 
-	(async () => {
-		await loadRequests(true);
-		if (!mounted) return;
-	})();
+	// Cache-first: render instantly from cache if available, then revalidate in background.
+	const cached = borrowRequestsAPI.peekCachedList({});
+	if (cached) {
+		requests = cached.requests.map(mapRequest);
+		loading = false;
+		void loadRequests(true, true); // background revalidation
+	} else {
+		void loadRequests(true);
+	}
 
 	const refresh = () => {
-		void loadRequests(true);
+		if (mounted) void loadRequests(true, true);
 	};
 
-	const intervalId = window.setInterval(refresh, 15000);
+	// Periodic background refresh every 5 minutes (not 15 seconds).
+	const intervalId = window.setInterval(refresh, 5 * 60 * 1000);
 	window.addEventListener('focus', refresh);
 
 	const onVisibilityChange = () => {
-		if (!document.hidden) {
-			refresh();
-		}
+		if (!document.hidden) refresh();
 	};
 
 	document.addEventListener('visibilitychange', onVisibilityChange);
