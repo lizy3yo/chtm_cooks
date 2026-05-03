@@ -548,7 +548,16 @@
 	{#if !isLoading && viewMode === 'grid' && filteredItems.length > 0}
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
 			{#each filteredItems as item (item.id)}
-				<div class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md cursor-pointer"
+					onclick={() => openDetailsModal(item)}
+					role="button"
+					tabindex="0"
+					onkeydown={(e) => e.key === 'Enter' && openDetailsModal(item)}
+					aria-label="View details for {item.name}"
+				>
 
 					<!-- Image — 4:3 ratio like Shopee product cards -->
 					<div class="relative aspect-4/3 overflow-hidden bg-gray-100">
@@ -592,17 +601,17 @@
 						<!-- Qty -->
 						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</p>
 
-						<!-- Actions — pushed to bottom -->
+						<!-- Actions — stop propagation so they don't open the modal -->
 						<div class="mt-auto flex gap-1 pt-2">
 							<button
-								onclick={() => requestItem(item)}
+								onclick={(e) => { e.stopPropagation(); requestItem(item); }}
 								disabled={item.status === 'Out of Stock'}
 								class="flex-1 rounded-md bg-pink-600 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
 							>
 								Request
 							</button>
 							<button
-								onclick={() => openDetailsModal(item)}
+								onclick={(e) => { e.stopPropagation(); openDetailsModal(item); }}
 								class="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 sm:text-xs"
 							>
 								Details
@@ -618,7 +627,16 @@
 	{#if !isLoading && viewMode === 'list' && filteredItems.length > 0}
 		<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
 			{#each filteredItems as item (item.id)}
-				<div class="flex items-center gap-3 px-3 py-3 hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5">
+				<!-- svelte-ignore a11y_click_events_have_key_events -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div
+					class="flex items-center gap-3 px-3 py-3 hover:bg-gray-50 transition-colors cursor-pointer sm:px-4 sm:py-3.5"
+					onclick={() => openDetailsModal(item)}
+					role="button"
+					tabindex="0"
+					onkeydown={(e) => e.key === 'Enter' && openDetailsModal(item)}
+					aria-label="View details for {item.name}"
+				>
 					<!-- Thumbnail -->
 					<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14">
 						{#if item.picture}
@@ -644,17 +662,17 @@
 						</div>
 					</div>
 
-					<!-- Actions -->
+					<!-- Actions — stop propagation so they don't open the modal -->
 					<div class="flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
 						<button
-							onclick={() => requestItem(item)}
+							onclick={(e) => { e.stopPropagation(); requestItem(item); }}
 							disabled={item.status === 'Out of Stock'}
 							class="rounded-md bg-pink-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
 						>
 							Request
 						</button>
 						<button
-							onclick={() => openDetailsModal(item)}
+							onclick={(e) => { e.stopPropagation(); openDetailsModal(item); }}
 							class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 sm:text-xs"
 						>
 							Details

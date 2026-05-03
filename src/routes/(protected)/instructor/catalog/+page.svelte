@@ -674,8 +674,12 @@
 	{#if !isLoading && viewMode === 'grid' && filteredItems.length > 0}
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
 			{#each filteredItems as item (item.id)}
-				<div class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md">
-					<div class="relative aspect-4/3 overflow-hidden bg-gray-100 flex items-center justify-center">
+				<button
+					type="button"
+					onclick={() => openDetailModal(item)}
+					class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md text-left focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1"
+				>
+					<div class="relative aspect-4/3 overflow-hidden bg-gray-100 flex items-center justify-center w-full">
 						{#if item.picture}
 							<img src={item.picture} alt={item.name} class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
 						{:else}
@@ -701,16 +705,8 @@
 							<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">{getCategoryName(item.categoryId)}</span>
 						</div>
 						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</p>
-						<div class="mt-auto pt-2">
-							<button
-								onclick={() => openDetailModal(item)}
-								class="w-full rounded-md border border-gray-300 bg-white py-1.5 text-[11px] font-medium text-gray-700 hover:bg-gray-50 sm:text-xs"
-							>
-								View Details
-							</button>
-						</div>
 					</div>
-				</div>
+				</button>
 			{/each}
 		</div>
 	{/if}
@@ -719,7 +715,11 @@
 	{#if !isLoading && viewMode === 'list' && filteredItems.length > 0}
 		<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
 			{#each filteredItems as item (item.id)}
-				<div class="flex items-center gap-3 px-3 py-3 hover:bg-gray-50 transition-colors sm:px-4 sm:py-3.5">
+				<button
+					type="button"
+					onclick={() => openDetailModal(item)}
+					class="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-500 sm:px-4 sm:py-3.5"
+				>
 					<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14 flex items-center justify-center">
 						{#if item.picture}
 							<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
@@ -743,15 +743,10 @@
 							<span class="text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</span>
 						</div>
 					</div>
-					<div class="shrink-0">
-						<button
-							onclick={() => openDetailModal(item)}
-							class="rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-[11px] font-medium text-gray-600 hover:bg-gray-50 sm:text-xs"
-						>
-							Details
-						</button>
-					</div>
-				</div>
+					<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+					</svg>
+				</button>
 			{/each}
 		</div>
 	{/if}
