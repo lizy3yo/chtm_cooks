@@ -6,13 +6,13 @@
 	import { requestCartCount, requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+	import CatalogItemModal from '$lib/components/ui/CatalogItemModal.svelte';
 	
 	// UI State Management
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let selectedItem = $state<CatalogItem | null>(null);
-	let showFullImage = $state(false);
 	let hasShownUnauthorizedToast = $state(false);
 	
 	// Filter State
@@ -185,24 +185,7 @@
 	 * Close details modal
 	 */
 	function closeDetailsModal(): void {
-		showFullImage = false;
 		selectedItem = null;
-	}
-
-	/**
-	 * Open full image lightbox from details modal image
-	 */
-	function openFullImage(): void {
-		if (selectedItem?.picture) {
-			showFullImage = true;
-		}
-	}
-
-	/**
-	 * Close full image lightbox
-	 */
-	function closeFullImage(): void {
-		showFullImage = false;
 	}
 
 	/**
@@ -364,10 +347,6 @@
 
 <svelte:window
 	onkeydown={(event) => {
-		if (event.key === 'Escape' && showFullImage) {
-			closeFullImage();
-			return;
-		}
 		if (event.key === 'Escape' && selectedItem) {
 			closeDetailsModal();
 		}
@@ -380,152 +359,22 @@
 </svelte:head>
 
 {#if selectedItem}
-	<div class="fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-4">
-		<div class="fixed inset-0 bg-black/45 backdrop-blur-sm" aria-hidden="true" onclick={closeDetailsModal}></div>
-		<div
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="catalog-item-details-title"
-			aria-describedby="catalog-item-details-description"
-			class="relative z-50 w-full max-h-[92vh] overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-w-5xl sm:rounded-3xl"
-		>
-			<div class="border-b border-gray-200 px-5 py-4 sm:px-8 sm:py-6">
-				<div class="flex items-start justify-between gap-4">
-					<div class="flex min-w-0 items-start gap-3 sm:gap-4">
-						<div class="mt-0.5 h-10 w-10 shrink-0 overflow-hidden rounded-full border border-pink-100 bg-gray-100 shadow-lg shadow-pink-100 sm:h-12 sm:w-12">
-							{#if selectedItem.picture}
-								<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full object-cover" loading="lazy" />
-							{:else}
-								<ItemImagePlaceholder size="sm" />
-							{/if}
-						</div>
-						<div class="min-w-0">
-							<h2 id="catalog-item-details-title" class="truncate text-xl font-bold text-gray-900 sm:text-2xl">Item Details</h2>
-							<p class="mt-1 truncate text-sm font-semibold tracking-wide text-pink-600">CAT-{selectedItem.id.slice(0, 8).toUpperCase()}</p>
-							<div class="mt-3 flex flex-wrap items-center gap-2">
-								<span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {getAvailabilityColor(selectedItem.status)}">{selectedItem.status}</span>
-								<span class="inline-flex rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-700">Qty: {selectedItem.currentCount ?? (selectedItem.quantity + (selectedItem.donations ?? 0))}</span>
-							</div>
-						</div>
-					</div>
-
-					<div class="flex items-center gap-2">
-						{#if selectedItem.picture}
-							<button
-								type="button"
-								onclick={openFullImage}
-								class="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-pink-200 text-pink-600 transition-colors hover:bg-pink-50"
-								aria-label="View full image"
-								title="View full image"
-							>
-								<svg class="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
-								</svg>
-							</button>
-						{/if}
-						<button
-							onclick={closeDetailsModal}
-							class="inline-flex h-9 w-9 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
-							aria-label="Close details modal"
-							title="Close"
-						>
-							<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-							</svg>
-						</button>
-					</div>
-				</div>
-			</div>
-
-			<div class="px-4 py-4 sm:px-8 sm:py-6" id="catalog-item-details-description">
-				<div class="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/70 p-3 sm:p-4">
-					<div class="relative aspect-21/8 overflow-hidden rounded-xl bg-gray-100">
-						{#if selectedItem.picture}
-							<button
-								type="button"
-								onclick={openFullImage}
-								class="h-full w-full cursor-zoom-in"
-								title="View full image"
-							>
-								<img src={selectedItem.picture} alt={selectedItem.name} class="h-full w-full object-cover" loading="lazy" />
-							</button>
-						{:else}
-							<div class="flex h-full w-full items-center justify-center">
-								<ItemImagePlaceholder size="lg" />
-							</div>
-						{/if}
-						<div class="pointer-events-none absolute inset-x-0 bottom-0 bg-linear-to-t from-black/60 via-black/20 to-transparent p-3">
-							<p class="truncate text-sm font-semibold text-white sm:text-base">{selectedItem.name}</p>
-							<p class="truncate text-xs text-white/85">{getCategoryName(selectedItem.categoryId)}</p>
-						</div>
-					</div>
-				</div>
-
-				<div class="mt-5 grid grid-cols-2 gap-3">
-					<div class="rounded-2xl border border-gray-200 bg-white p-4">
-						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Item Name</p>
-						<p class="mt-1.5 wrap-break-word text-sm font-semibold text-gray-900 sm:text-base">{selectedItem.name}</p>
-					</div>
-					<div class="rounded-2xl border border-gray-200 bg-white p-4">
-						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Category</p>
-						<p class="mt-1.5 wrap-break-word text-sm font-semibold text-gray-900 sm:text-base">{getCategoryName(selectedItem.categoryId)}</p>
-					</div>
-					<div class="rounded-2xl border border-gray-200 bg-white p-4">
-						<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Specification</p>
-						<p class="mt-1.5 wrap-break-word text-sm font-medium text-gray-900">{selectedItem.specification || 'No specification provided'}</p>
-					</div>
-				</div>
-
-				<div class="mt-3 rounded-2xl border border-gray-200 bg-white p-4">
-					<p class="text-[11px] font-bold uppercase tracking-[0.14em] text-gray-400">Description</p>
-					<p class="mt-2 text-sm leading-relaxed text-gray-700">{selectedItem.description || 'No description available.'}</p>
-				</div>
-
-
-			</div>
-
-			<div class="sticky bottom-0 z-10 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8">
-				<div class="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-					<p class="text-xs text-gray-500">Review details carefully before adding this item to your request list.</p>
-					<div class="flex w-full items-center gap-2 sm:w-auto">
-						<button
-							onclick={closeDetailsModal}
-							class="shrink-0 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
-						>
-							Close
-						</button>
-						<button
-							onclick={() => selectedItem && requestItem(selectedItem)}
-							disabled={selectedItem.status === 'Out of Stock'}
-							class="min-w-0 flex-1 rounded-lg bg-pink-600 px-4 py-2 text-center text-sm font-semibold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
-						>
-							{selectedItem.status === 'Out of Stock' ? 'Out of Stock' : 'Add to Request List'}
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-{/if}
-
-{#if showFullImage && selectedItem?.picture}
-	<div class="fixed inset-0 z-60 flex items-center justify-center p-4">
-		<div class="fixed inset-0 bg-black/90" aria-hidden="true" onclick={closeFullImage}></div>
-		<div class="relative z-61 max-h-[90vh] max-w-[90vw]">
+	<CatalogItemModal
+		item={selectedItem}
+		{categories}
+		onClose={closeDetailsModal}
+		footerHint="Review details carefully before adding this item to your request list."
+	>
+		{#snippet footerAction()}
 			<button
-				type="button"
-				onclick={closeFullImage}
-				class="absolute -top-12 right-0 rounded-md p-2 text-white transition-colors hover:bg-white/10"
-				aria-label="Close full image"
-				title="Close"
+				onclick={() => selectedItem && requestItem(selectedItem)}
+				disabled={selectedItem!.status === 'Out of Stock'}
+				class="min-w-0 flex-1 rounded-lg bg-pink-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
 			>
-				<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-				</svg>
+				{selectedItem!.status === 'Out of Stock' ? 'Out of Stock' : 'Add to Request List'}
 			</button>
-			<img src={selectedItem.picture} alt={selectedItem.name} class="max-h-[90vh] max-w-full rounded-lg shadow-2xl" />
-		</div>
-	</div>
+		{/snippet}
+	</CatalogItemModal>
 {/if}
 
 <div class="space-y-6">
