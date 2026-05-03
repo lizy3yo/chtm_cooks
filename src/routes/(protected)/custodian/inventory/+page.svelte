@@ -3028,7 +3028,15 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 														<ItemImagePlaceholder size="sm" />
 													{/if}
 												</div>
-												<div class="text-sm font-medium text-gray-900">{item.name}</div>
+												<div class="flex flex-col gap-0.5">
+													{#if item.isConstant}
+														<span class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-800 ring-1 ring-purple-200">
+															<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+															Constant
+														</span>
+													{/if}
+													<div class="text-sm font-medium text-gray-900">{item.name}</div>
+												</div>
 											</div>
 										</td>
 										<td class="whitespace-nowrap px-6 py-4">
@@ -3038,12 +3046,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment || '—'}</td>
 										<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{item.currentCount ?? getCurrentCount(item.quantity, item.donations ?? 0)}</td>
 										<td class="whitespace-nowrap px-6 py-4">
-											{#if item.isConstant}
-												<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
-													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-													Constant
-												</span>
-											{:else if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
 												<span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
 													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
 													{item.status}
@@ -3522,7 +3525,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 														<ItemImagePlaceholder size="sm" />
 													</div>
 												{/if}
-												<div class="text-sm font-medium text-gray-900">{item.name}</div>
+												<div class="flex flex-col gap-0.5">
+													<span class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-800 ring-1 ring-purple-200">
+														<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+														Constant
+													</span>
+													<div class="text-sm font-medium text-gray-900">{item.name}</div>
+												</div>
 											</div>
 										</td>
 										<td class="whitespace-nowrap px-6 py-4">
@@ -3549,9 +3558,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													{item.status}
 												</span>
 											{:else}
-												<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-800">
+												<span class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
 													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-													Constant
+													{item.status}
 												</span>
 											{/if}
 										</td>

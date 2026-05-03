@@ -2330,8 +2330,9 @@
 						{#if selectedRequest.status === 'pending'}
 							<button
 								onclick={() => {
+									const rawId = selectedRequest.rawId;
 									closeDetailModal();
-									markReady(selectedRequest.rawId);
+									markReady(rawId);
 								}}
 								class="rounded-xl bg-linear-to-r from-green-600 to-green-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-green-700 hover:to-green-800 active:scale-[0.98] sm:px-6 sm:py-3"
 							>
@@ -2341,8 +2342,9 @@
 						{#if selectedRequest.status === 'ready'}
 							<button
 								onclick={() => {
+									const rawId = selectedRequest.rawId;
 									closeDetailModal();
-									confirmPickup(selectedRequest.rawId);
+									confirmPickup(rawId);
 								}}
 								class="rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] sm:px-6 sm:py-3"
 							>

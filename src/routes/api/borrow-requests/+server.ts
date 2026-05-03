@@ -396,14 +396,25 @@ export const POST: RequestHandler = async (event) => {
 		const result = await requestCollection.insertOne(newRequest);
 		newRequest._id = result.insertedId;
 
-		// Invalidate all relevant caches
-		await invalidateBorrowRequestCaches();
-		publishBorrowRequestRealtimeEvent(newRequest as BorrowRequest & { _id: ObjectId }, 'created', now);
-		await notifyBorrowRequestLifecycle({
+		// Invalidate caches, publish realtime event, and dispatch notifications in parallel.
+		// Notifications fire-and-forget after the DB write — the response is not blocked by
+		// email delivery, which can take 500 ms–2 s per recipient.
+		const notifyPromise = notifyBorrowRequestLifecycle({
 			db,
 			request: newRequest as BorrowRequest & { _id: ObjectId },
 			event: 'submitted'
+		}).catch((err) => {
+			logger.warn('Post-creation notification failed (non-fatal)', {
+				requestId: result.insertedId.toString(),
+				error: err instanceof Error ? err.message : String(err)
+			});
 		});
+
+		await Promise.all([
+			invalidateBorrowRequestCaches(),
+			notifyPromise
+		]);
+		publishBorrowRequestRealtimeEvent(newRequest as BorrowRequest & { _id: ObjectId }, 'created', now);
 
 		logger.info('Borrow request created successfully', {
 			userId: user.userId,
