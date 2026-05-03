@@ -7,6 +7,7 @@
 	import { toastStore } from '$lib/stores/toast';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import CatalogItemModal from '$lib/components/ui/CatalogItemModal.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 	
 	// UI State Management
 	let viewMode = $state<'grid' | 'list'>('grid');
@@ -692,48 +693,12 @@
 
 	<!-- Pagination -->
 	{#if !isLoading && allItems.length > itemsPerPage}
-		<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm sm:px-6">
-			<div class="text-sm text-gray-500">
-				Showing {(currentPage - 1) * itemsPerPage + 1}–{Math.min(currentPage * itemsPerPage, allItems.length)} of {allItems.length} items
-			</div>
-			<nav class="flex items-center gap-1" aria-label="Pagination">
-				<button
-					onclick={() => goToPage(currentPage - 1)}
-					disabled={currentPage === 1}
-					class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-					aria-label="Previous page"
-				>
-					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-					</svg>
-				</button>
-
-				{#each Array.from({ length: totalPages }, (_, i) => i + 1) as page}
-					{#if totalPages <= 7 || page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1}
-						<button
-							onclick={() => goToPage(page)}
-							class="inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors {currentPage === page ? 'bg-pink-600 text-white shadow-sm' : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
-							aria-label="Page {page}"
-							aria-current={currentPage === page ? 'page' : undefined}
-						>
-							{page}
-						</button>
-					{:else if (page === currentPage - 2 || page === currentPage + 2) && totalPages > 7}
-						<span class="inline-flex h-8 w-8 items-center justify-center text-sm text-gray-400">…</span>
-					{/if}
-				{/each}
-
-				<button
-					onclick={() => goToPage(currentPage + 1)}
-					disabled={currentPage === totalPages}
-					class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-					aria-label="Next page"
-				>
-					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-					</svg>
-				</button>
-			</nav>
-		</div>
+		<Pagination
+			{currentPage}
+			{totalPages}
+			totalItems={allItems.length}
+			{itemsPerPage}
+			onPageChange={goToPage}
+		/>
 	{/if}
 </div>
