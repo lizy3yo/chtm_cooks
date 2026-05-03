@@ -1415,50 +1415,13 @@
 
 							<!-- Pagination -->
 							{#if totalRequestPages > 1}
-								<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
-									<p class="text-sm text-gray-700">
-										Page <span class="font-medium">{currentPage}</span> of <span class="font-medium">{totalRequestPages}</span>
-										<span class="text-gray-500">·</span>
-										<span class="font-medium">{new Set(filteredObligations.map(o => o.borrowRequestId)).size}</span> total requests
-									</p>
-									<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-										<button
-											onclick={() => goToPage(currentPage - 1)}
-											disabled={currentPage === 1}
-											class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-											aria-label="Previous page"
-										>
-											<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-												<path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
-											</svg>
-										</button>
-
-										{#each Array(totalRequestPages) as _, i}
-											{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalRequestPages}
-												<button
-													onclick={() => goToPage(i + 1)}
-													class="relative inline-flex items-center px-4 py-2 text-sm font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
-													aria-current={i + 1 === currentPage ? 'page' : undefined}
-												>
-													{i + 1}
-												</button>
-											{:else if Math.abs(i + 1 - currentPage) === 2}
-												<span class="relative inline-flex items-center px-4 py-2 text-sm text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
-											{/if}
-										{/each}
-
-										<button
-											onclick={() => goToPage(currentPage + 1)}
-											disabled={currentPage === totalRequestPages}
-											class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-											aria-label="Next page"
-										>
-											<svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-												<path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
-											</svg>
-										</button>
-									</nav>
-								</div>
+								<Pagination
+									{currentPage}
+									totalPages={totalRequestPages}
+									totalItems={new Set(filteredObligations.map(o => o.borrowRequestId)).size}
+									itemsPerPage={itemsPerPageByRequest}
+									onPageChange={goToPage}
+								/>
 							{/if}
 						</div>
 					{:else}
@@ -1527,48 +1490,13 @@
 
 							<!-- Pagination -->
 							{#if totalPages > 1}
-								<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
-									<p class="text-xs text-gray-600">
-										Page <span class="font-semibold">{currentPage}</span> of <span class="font-semibold">{totalPages}</span>
-									</p>
-									<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-										<button
-											onclick={() => goToPage(currentPage - 1)}
-											disabled={currentPage === 1}
-											class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-											aria-label="Previous page"
-										>
-											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-											</svg>
-										</button>
-
-										{#each Array(totalPages) as _, i}
-											{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalPages}
-												<button
-													onclick={() => goToPage(i + 1)}
-													class="relative inline-flex items-center px-3 py-2 text-xs font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
-													aria-current={i + 1 === currentPage ? 'page' : undefined}
-												>
-													{i + 1}
-												</button>
-											{:else if Math.abs(i + 1 - currentPage) === 2}
-												<span class="relative inline-flex items-center px-3 py-2 text-xs text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
-											{/if}
-										{/each}
-
-										<button
-											onclick={() => goToPage(currentPage + 1)}
-											disabled={currentPage === totalPages}
-											class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-											aria-label="Next page"
-										>
-											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-											</svg>
-										</button>
-									</nav>
-								</div>
+								<Pagination
+									{currentPage}
+									{totalPages}
+									totalItems={filteredObligations.length}
+									itemsPerPage={itemsPerPageByItem}
+									onPageChange={goToPage}
+								/>
 							{/if}
 						</div>
 					{/if}
@@ -1725,48 +1653,13 @@
 
 						<!-- Pagination -->
 						{#if totalHistoryPages > 1}
-							<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
-								<p class="text-xs text-gray-600">
-									Page <span class="font-semibold">{currentPage}</span> of <span class="font-semibold">{totalHistoryPages}</span>
-								</p>
-								<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-									<button
-										onclick={() => goToPage(currentPage - 1)}
-										disabled={currentPage === 1}
-										class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-										aria-label="Previous page"
-									>
-										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-										</svg>
-									</button>
-
-									{#each Array(totalHistoryPages) as _, i}
-										{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalHistoryPages}
-											<button
-												onclick={() => goToPage(i + 1)}
-												class="relative inline-flex items-center px-3 py-2 text-xs font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
-												aria-current={i + 1 === currentPage ? 'page' : undefined}
-											>
-												{i + 1}
-											</button>
-										{:else if Math.abs(i + 1 - currentPage) === 2}
-											<span class="relative inline-flex items-center px-3 py-2 text-xs text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
-										{/if}
-									{/each}
-
-									<button
-										onclick={() => goToPage(currentPage + 1)}
-										disabled={currentPage === totalHistoryPages}
-										class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-										aria-label="Next page"
-									>
-										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-										</svg>
-									</button>
-								</nav>
-							</div>
+							<Pagination
+								{currentPage}
+								totalPages={totalHistoryPages}
+								totalItems={filteredPaymentHistory.length}
+								itemsPerPage={itemsPerPageHistory}
+								onPageChange={goToPage}
+							/>
 						{/if}
 					{/if}
 				</div>
