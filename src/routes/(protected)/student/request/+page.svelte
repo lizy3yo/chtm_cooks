@@ -247,7 +247,134 @@
 	}
 
 	const HOURS_12 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-	const MINUTES = [0, 15, 30, 45];
+	const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+
+	let showBorrowPicker = $state(false);
+	let showReturnPicker = $state(false);
+	let borrowTimeInput = $state(formatTimeTo12Hour('08:00'));
+	let returnTimeInput = $state(formatTimeTo12Hour('17:00'));
+
+	/** Parse a typed 12-hour time string like "9:30 AM" or "930pm" → HH:MM 24h, or null if invalid */
+	function parseTypedTime(raw: string): string | null {
+		const s = raw.trim().toUpperCase().replace(/\s+/g, '');
+		// Match patterns: 9:30AM, 930AM, 9AM, 9:30, 930
+		const m = s.match(/^(\d{1,2})(?::?(\d{2}))?\s*(AM|PM)?$/);
+		if (!m) return null;
+		let h = parseInt(m[1], 10);
+		const min = m[2] ? parseInt(m[2], 10) : 0;
+		const period = m[3];
+		if (h < 1 || h > 12 || min < 0 || min > 59) return null;
+		if (period === 'PM' && h !== 12) h += 12;
+		if (period === 'AM' && h === 12) h = 0;
+		// If no period given, keep as-is (treat as 24h if h > 12, else 12h AM)
+		if (!period && h > 12) return null;
+		return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+	}
+
+	function commitBorrowInput() {
+		const parsed = parseTypedTime(borrowTimeInput);
+		if (parsed) {
+			borrowTime = parsed;
+			borrowTimeInput = formatTimeTo12Hour(parsed);
+		} else {
+			borrowTimeInput = formatTimeTo12Hour(borrowTime);
+		}
+	}
+
+	function commitReturnInput() {
+		const parsed = parseTypedTime(returnTimeInput);
+		if (parsed) {
+			returnTime = parsed;
+			returnTimeInput = formatTimeTo12Hour(parsed);
+		} else {
+			returnTimeInput = formatTimeTo12Hour(returnTime);
+		}
+	}
+
+	// Keep input display in sync when borrowTime/returnTime change programmatically
+	$effect(() => { borrowTimeInput = formatTimeTo12Hour(borrowTime); });
+	$effect(() => { returnTimeInput = formatTimeTo12Hour(returnTime); });
+
+	/**
+	 * Svelte action: infinite-looping scroll-snap drum column.
+	 *
+	 * Renders values × 3 (prefix + main + suffix). On mount it scrolls to the
+	 * middle copy. When the user scrolls into the prefix or suffix it silently
+	 * jumps back to the equivalent position in the middle copy, creating the
+	 * illusion of an infinite loop.
+	 */
+	function drumScroll(
+		node: HTMLElement,
+		params: { values: number[]; current: number; set: (v: number) => void }
+	) {
+		const ITEM_H = 36; // h-9 = 36px
+		let isJumping = false;
+
+		function idxInMiddle(values: number[], current: number): number {
+			const base = values.indexOf(current);
+			return base === -1 ? values.length : values.length + base;
+		}
+
+		function scrollToIdx(idx: number, instant = false) {
+			// scrollTop so that item `idx` is centered in the drum
+			const containerCenter = node.clientHeight / 2;
+			const top = idx * ITEM_H - containerCenter + ITEM_H / 2;
+			if (instant) {
+				node.scrollTop = Math.max(0, top);
+			} else {
+				node.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+			}
+		}
+
+		function onScrollEnd() {
+			if (isJumping) return;
+			const n = params.values.length;
+			// The selected item is the one whose center aligns with the drum's center.
+			// drum center = containerHeight / 2; item center at index i = i * ITEM_H + ITEM_H/2
+			// → i = (scrollTop + containerHeight/2 - ITEM_H/2) / ITEM_H
+			const containerCenter = node.clientHeight / 2;
+			const rawIdx = Math.round((node.scrollTop + containerCenter - ITEM_H / 2) / ITEM_H);
+			const clamped = Math.max(0, Math.min(rawIdx, n * 3 - 1));
+
+			// Determine which value was selected
+			const valueIdx = clamped % n;
+			params.set(params.values[valueIdx]);
+
+			// If we're in the prefix or suffix copy, jump silently to the middle copy
+			if (clamped < n || clamped >= n * 2) {
+				isJumping = true;
+				node.scrollTop = (n + valueIdx) * ITEM_H - (containerCenter - ITEM_H / 2);
+				requestAnimationFrame(() => { isJumping = false; });
+			}
+		}
+
+		let timer: ReturnType<typeof setTimeout>;
+		function onScroll() {
+			clearTimeout(timer);
+			timer = setTimeout(onScrollEnd, 120);
+		}
+
+		// Scroll to middle copy on mount
+		let raf = requestAnimationFrame(() => {
+			scrollToIdx(idxInMiddle(params.values, params.current), true);
+		});
+
+		node.addEventListener('scroll', onScroll, { passive: true });
+		node.addEventListener('scrollend', onScrollEnd, { passive: true });
+
+		return {
+			update(newParams: typeof params) {
+				params = newParams;
+				scrollToIdx(idxInMiddle(newParams.values, newParams.current), true);
+			},
+			destroy() {
+				cancelAnimationFrame(raf);
+				clearTimeout(timer);
+				node.removeEventListener('scroll', onScroll);
+				node.removeEventListener('scrollend', onScrollEnd);
+			}
+		};
+	}
 
 	function buildItemCode(item: CatalogItem): string {
 		return item.id.slice(-6).toUpperCase();
@@ -1712,52 +1839,88 @@
 							{/if}
 						</div>
 
-						<div class="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_auto]">
-							<!-- Borrow Time -->
+						<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+							<!-- Pickup Time -->
 							<div>
-								<label for="borrowHour" class="mb-1 block text-sm font-medium text-gray-700">
+								<label for="borrowTimeBtn" class="mb-1 block text-sm font-medium text-gray-700">
 									Pickup Time <span class="text-red-500">*</span>
 								</label>
-								<div class="flex gap-1">
-									<select
-										id="borrowHour"
-										value={from24Hour(borrowTime).hour12}
-										onchange={(e) => {
-											const p = from24Hour(borrowTime);
-											borrowTime = to24Hour(Number((e.target as HTMLSelectElement).value), p.minute, p.period);
-										}}
-										class="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime ? 'border-red-500' : ''}"
-										aria-label="Pickup hour"
-									>
-										{#each HOURS_12 as h}
-											<option value={h}>{h}</option>
-										{/each}
-									</select>
-									<select
-										value={from24Hour(borrowTime).minute}
-										onchange={(e) => {
-											const p = from24Hour(borrowTime);
-											borrowTime = to24Hour(p.hour12, Number((e.target as HTMLSelectElement).value), p.period);
-										}}
-										class="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime ? 'border-red-500' : ''}"
-										aria-label="Pickup minute"
-									>
-										{#each MINUTES as m}
-											<option value={m}>{String(m).padStart(2, '0')}</option>
-										{/each}
-									</select>
-									<select
-										value={from24Hour(borrowTime).period}
-										onchange={(e) => {
-											const p = from24Hour(borrowTime);
-											borrowTime = to24Hour(p.hour12, p.minute, (e.target as HTMLSelectElement).value as 'AM' | 'PM');
-										}}
-										class="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime ? 'border-red-500' : ''}"
-										aria-label="Pickup AM/PM"
-									>
-										<option value="AM">AM</option>
-										<option value="PM">PM</option>
-									</select>
+								<div class="relative">
+									<input
+										id="borrowTimeBtn"
+										type="text"
+										inputmode="text"
+										value={borrowTimeInput}
+										oninput={(e) => { borrowTimeInput = (e.target as HTMLInputElement).value; }}
+										onfocus={() => { showBorrowPicker = true; showReturnPicker = false; }}
+										onblur={commitBorrowInput}
+										onkeydown={(e) => { if (e.key === 'Enter') { commitBorrowInput(); showBorrowPicker = false; (e.target as HTMLInputElement).blur(); } if (e.key === 'Escape') { showBorrowPicker = false; borrowTimeInput = formatTimeTo12Hour(borrowTime); } }}
+										placeholder="e.g. 8:00 AM"
+										class="w-full rounded-lg border px-3 py-2 text-sm font-medium transition-colors {errors.borrowTime ? 'border-red-400 bg-red-50 text-red-900' : 'border-gray-300 bg-white text-gray-900 hover:border-pink-400'} focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
+										autocomplete="off"
+									/>
+
+									{#if showBorrowPicker}
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<div class="fixed inset-0 z-10" onclick={() => showBorrowPicker = false} aria-hidden="true"></div>
+										<div class="absolute left-0 top-full z-20 mt-1 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
+											<p class="mb-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">Pickup Time</p>
+											<div class="flex items-stretch gap-2">
+												{#each [
+													{ label: 'Hour', values: HOURS_12, current: from24Hour(borrowTime).hour12, set: (v: number) => { const p = from24Hour(borrowTime); borrowTime = to24Hour(v, p.minute, p.period); } },
+													{ label: 'Min',  values: MINUTES,  current: from24Hour(borrowTime).minute,  set: (v: number) => { const p = from24Hour(borrowTime); borrowTime = to24Hour(p.hour12, v, p.period); } }
+												] as col}
+													<div class="flex flex-col items-center gap-1">
+														<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{col.label}</span>
+														<div class="relative h-[144px] w-12 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+															<div class="pointer-events-none absolute inset-x-0 top-1/2 h-9 -translate-y-1/2 rounded-lg bg-pink-50 ring-1 ring-pink-200"></div>
+															<div
+																class="relative z-10 h-full overflow-y-auto"
+																style="scroll-snap-type: y mandatory; scrollbar-width: none;"
+																use:drumScroll={{ values: col.values, current: col.current, set: col.set }}
+															>
+																{#each [col.values, col.values, col.values] as copy}
+																	{#each copy as v}
+																		<!-- svelte-ignore a11y_click_events_have_key_events -->
+																		<!-- svelte-ignore a11y_no_static_element_interactions -->
+																		<div
+																			class="flex h-9 shrink-0 cursor-pointer items-center justify-center text-sm transition-colors"
+																			style="scroll-snap-align: center;"
+																			class:font-bold={v === col.current}
+																			class:text-pink-700={v === col.current}
+																			class:text-gray-600={v !== col.current}
+																			onclick={() => col.set(v)}
+																			role="option"
+																			aria-selected={v === col.current}
+																			tabindex="0"
+																		>{String(v).padStart(2, '0')}</div>
+																	{/each}
+																{/each}
+															</div>
+														</div>
+													</div>
+												{/each}
+												<div class="flex flex-col items-center gap-1">
+													<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">AM/PM</span>
+													<div class="flex h-[144px] w-12 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+														{#each ['AM', 'PM'] as period}
+															<button
+																type="button"
+																onclick={() => { const p = from24Hour(borrowTime); borrowTime = to24Hour(p.hour12, p.minute, period as 'AM' | 'PM'); }}
+																class="flex flex-1 items-center justify-center text-xs font-bold transition-colors {from24Hour(borrowTime).period === period ? 'bg-pink-600 text-white' : 'text-gray-500 hover:bg-gray-50'}"
+															>{period}</button>
+														{/each}
+													</div>
+												</div>
+											</div>
+											<button
+												type="button"
+												onclick={() => showBorrowPicker = false}
+												class="mt-3 w-full rounded-lg bg-pink-600 py-1.5 text-xs font-semibold text-white hover:bg-pink-700"
+											>Done</button>
+										</div>
+									{/if}
 								</div>
 								{#if errors.borrowTime}
 									<p class="mt-1 text-xs text-red-600">{errors.borrowTime}</p>
@@ -1768,49 +1931,85 @@
 
 							<!-- Return Time -->
 							<div>
-								<label for="returnHour" class="mb-1 block text-sm font-medium text-gray-700">
+								<label for="returnTimeBtn" class="mb-1 block text-sm font-medium text-gray-700">
 									Return Time <span class="text-red-500">*</span>
 								</label>
-								<div class="flex gap-1">
-									<select
-										id="returnHour"
-										value={from24Hour(returnTime).hour12}
-										onchange={(e) => {
-											const p = from24Hour(returnTime);
-											returnTime = to24Hour(Number((e.target as HTMLSelectElement).value), p.minute, p.period);
-										}}
-										class="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime ? 'border-red-500' : ''}"
-										aria-label="Return hour"
-									>
-										{#each HOURS_12 as h}
-											<option value={h}>{h}</option>
-										{/each}
-									</select>
-									<select
-										value={from24Hour(returnTime).minute}
-										onchange={(e) => {
-											const p = from24Hour(returnTime);
-											returnTime = to24Hour(p.hour12, Number((e.target as HTMLSelectElement).value), p.period);
-										}}
-										class="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime ? 'border-red-500' : ''}"
-										aria-label="Return minute"
-									>
-										{#each MINUTES as m}
-											<option value={m}>{String(m).padStart(2, '0')}</option>
-										{/each}
-									</select>
-									<select
-										value={from24Hour(returnTime).period}
-										onchange={(e) => {
-											const p = from24Hour(returnTime);
-											returnTime = to24Hour(p.hour12, p.minute, (e.target as HTMLSelectElement).value as 'AM' | 'PM');
-										}}
-										class="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime ? 'border-red-500' : ''}"
-										aria-label="Return AM/PM"
-									>
-										<option value="AM">AM</option>
-										<option value="PM">PM</option>
-									</select>
+								<div class="relative">
+									<input
+										id="returnTimeBtn"
+										type="text"
+										inputmode="text"
+										value={returnTimeInput}
+										oninput={(e) => { returnTimeInput = (e.target as HTMLInputElement).value; }}
+										onfocus={() => { showReturnPicker = true; showBorrowPicker = false; }}
+										onblur={commitReturnInput}
+										onkeydown={(e) => { if (e.key === 'Enter') { commitReturnInput(); showReturnPicker = false; (e.target as HTMLInputElement).blur(); } if (e.key === 'Escape') { showReturnPicker = false; returnTimeInput = formatTimeTo12Hour(returnTime); } }}
+										placeholder="e.g. 5:00 PM"
+										class="w-full rounded-lg border px-3 py-2 text-sm font-medium transition-colors {errors.returnTime ? 'border-red-400 bg-red-50 text-red-900' : 'border-gray-300 bg-white text-gray-900 hover:border-pink-400'} focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
+										autocomplete="off"
+									/>
+
+									{#if showReturnPicker}
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<div class="fixed inset-0 z-10" onclick={() => showReturnPicker = false} aria-hidden="true"></div>
+										<div class="absolute left-0 top-full z-20 mt-1 rounded-xl border border-gray-200 bg-white p-3 shadow-xl">
+											<p class="mb-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">Return Time</p>
+											<div class="flex items-stretch gap-2">
+												{#each [
+													{ label: 'Hour', values: HOURS_12, current: from24Hour(returnTime).hour12, set: (v: number) => { const p = from24Hour(returnTime); returnTime = to24Hour(v, p.minute, p.period); } },
+													{ label: 'Min',  values: MINUTES,  current: from24Hour(returnTime).minute,  set: (v: number) => { const p = from24Hour(returnTime); returnTime = to24Hour(p.hour12, v, p.period); } }
+												] as col}
+													<div class="flex flex-col items-center gap-1">
+														<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{col.label}</span>
+														<div class="relative h-[144px] w-12 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+															<div class="pointer-events-none absolute inset-x-0 top-1/2 h-9 -translate-y-1/2 rounded-lg bg-pink-50 ring-1 ring-pink-200"></div>
+															<div
+																class="relative z-10 h-full overflow-y-auto"
+																style="scroll-snap-type: y mandatory; scrollbar-width: none;"
+																use:drumScroll={{ values: col.values, current: col.current, set: col.set }}
+															>
+																{#each [col.values, col.values, col.values] as copy}
+																	{#each copy as v}
+																		<!-- svelte-ignore a11y_click_events_have_key_events -->
+																		<!-- svelte-ignore a11y_no_static_element_interactions -->
+																		<div
+																			class="flex h-9 shrink-0 cursor-pointer items-center justify-center text-sm transition-colors"
+																			style="scroll-snap-align: center;"
+																			class:font-bold={v === col.current}
+																			class:text-pink-700={v === col.current}
+																			class:text-gray-600={v !== col.current}
+																			onclick={() => col.set(v)}
+																			role="option"
+																			aria-selected={v === col.current}
+																			tabindex="0"
+																		>{String(v).padStart(2, '0')}</div>
+																	{/each}
+																{/each}
+															</div>
+														</div>
+													</div>
+												{/each}
+												<div class="flex flex-col items-center gap-1">
+													<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">AM/PM</span>
+													<div class="flex h-[144px] w-12 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+														{#each ['AM', 'PM'] as period}
+															<button
+																type="button"
+																onclick={() => { const p = from24Hour(returnTime); returnTime = to24Hour(p.hour12, p.minute, period as 'AM' | 'PM'); }}
+																class="flex flex-1 items-center justify-center text-xs font-bold transition-colors {from24Hour(returnTime).period === period ? 'bg-pink-600 text-white' : 'text-gray-500 hover:bg-gray-50'}"
+															>{period}</button>
+														{/each}
+													</div>
+												</div>
+											</div>
+											<button
+												type="button"
+												onclick={() => showReturnPicker = false}
+												class="mt-3 w-full rounded-lg bg-pink-600 py-1.5 text-xs font-semibold text-white hover:bg-pink-700"
+											>Done</button>
+										</div>
+									{/if}
 								</div>
 								{#if errors.returnTime}
 									<p class="mt-1 text-xs text-red-600">{errors.returnTime}</p>
@@ -1823,7 +2022,7 @@
 							<div>
 								<p class="mb-1 block text-sm font-medium text-gray-700">Duration</p>
 								<div
-									class="flex h-10 items-center rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-700"
+									class="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm font-semibold text-gray-700"
 								>
 									{#if borrowTime && returnTime}
 										{(() => {
