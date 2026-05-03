@@ -975,13 +975,23 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 					<div style="min-height: 600px;">
 						<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">
 							{#each filteredRequests as request}
-								<div class="relative overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}">
+								<!-- svelte-ignore a11y_click_events_have_key_events -->
+								<!-- svelte-ignore a11y_no_static_element_interactions -->
+								<div
+									class="relative overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}"
+									onclick={() => openDetailModal(request)}
+									role="button"
+									tabindex="0"
+									onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
+									aria-label="View details for {request.id}"
+								>
 									{#if activeTab === 'pending'}
 										<div class="absolute top-4 right-4 z-10">
 											<input
 												type="checkbox"
 												checked={selectedRequests.includes(request.rawId)}
-												onchange={() => toggleSelectRequest(request.rawId)}
+												onchange={(e) => { e.stopPropagation(); toggleSelectRequest(request.rawId); }}
+												onclick={(e) => e.stopPropagation()}
 												class="h-4 w-4 rounded border-gray-300 text-pink-600 shadow-sm focus:border-pink-500 focus:ring-pink-500"
 											/>
 										</div>
@@ -1041,13 +1051,6 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 													Reject
 												</button>
 											{/if}
-											<button
-												onclick={() => openDetailModal(request)}
-												class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1"
-											>
-												View Details
-												<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-											</button>
 										</div>
 									</div>
 								</div>
@@ -1078,13 +1081,23 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 							</div>
 							<div class="divide-y divide-gray-100">
 								{#each filteredRequests as request}
-									<div class="grid gap-3 p-4 md:grid-cols-[auto_1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3 hover:bg-gray-50 transition-colors">
+									<!-- svelte-ignore a11y_click_events_have_key_events -->
+									<!-- svelte-ignore a11y_no_static_element_interactions -->
+									<div
+										class="grid gap-3 p-4 md:grid-cols-[auto_1.1fr_1fr_1.5fr_1fr_auto] md:items-center md:gap-3 hover:bg-gray-50 transition-colors cursor-pointer"
+										onclick={() => openDetailModal(request)}
+										role="button"
+										tabindex="0"
+										onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
+										aria-label="View details for {request.id}"
+									>
 										<div class="w-6 flex justify-center">
 											{#if activeTab === 'pending'}
 												<input
 													type="checkbox"
 													checked={selectedRequests.includes(request.rawId)}
-													onchange={() => toggleSelectRequest(request.rawId)}
+													onchange={(e) => { e.stopPropagation(); toggleSelectRequest(request.rawId); }}
+													onclick={(e) => e.stopPropagation()}
 													class="h-4 w-4 rounded border-gray-300 text-pink-600 shadow-sm focus:border-pink-500 focus:ring-pink-500"
 												/>
 											{/if}
@@ -1134,22 +1147,16 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 										</div>
 
 										<div class="relative flex flex-wrap items-center gap-2 md:justify-end">
-											<button
-												onclick={() => openDetailModal(request)}
-												class="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50"
-											>
-												Details
-											</button>
 											{#if request.status === 'pending'}
 												<button
-													onclick={() => approveRequest(request.rawId)}
+													onclick={(e) => { e.stopPropagation(); approveRequest(request.rawId); }}
 													disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
 													class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
 												>
 													{isActionInFlight(request.rawId) ? 'Approving…' : 'Approve'}
 												</button>
 												<button
-													onclick={() => { selectedRequests = [request.rawId]; showBulkRejectModal = true; }}
+													onclick={(e) => { e.stopPropagation(); selectedRequests = [request.rawId]; showBulkRejectModal = true; }}
 													disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
 													class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
 												>
