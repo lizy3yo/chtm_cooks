@@ -20,6 +20,7 @@
 	import type { ReplacementObligation } from '$lib/api/replacementObligations';
 	import RequestsSkeletonLoader from '$lib/components/ui/RequestsSkeletonLoader.svelte';
 	import { replacementObligationsAPI } from '$lib/api/replacementObligations';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import { Package } from 'lucide-svelte';
 
 	type Tab = 'pending' | 'ready' | 'active' | 'unresolved' | 'history';
@@ -1653,70 +1654,14 @@
 					{/if}
 
 					{#if filteredRequests.length > 0 && totalPages > 1}
-						<div
-							class="flex flex-col gap-2 border-t border-gray-200 pt-4 sm:flex-row sm:items-center sm:justify-between"
-						>
-							<div class="text-sm text-gray-500">
-								Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(
-									currentPage * PAGE_SIZE,
-									filteredRequests.length
-								)} of {filteredRequests.length} requests
-							</div>
-							<nav class="flex items-center gap-1" aria-label="Requests pagination">
-								<button
-									onclick={() => (currentPage = Math.max(1, currentPage - 1))}
-									disabled={currentPage === 1}
-									class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-									aria-label="Previous page"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M15 19l-7-7 7-7"
-										/>
-									</svg>
-								</button>
-
-								{#each Array.from({ length: totalPages }, (_, i) => i + 1) as pageNum}
-									{#if totalPages <= 7 || pageNum === 1 || pageNum === totalPages || Math.abs(pageNum - currentPage) <= 1}
-										<button
-											onclick={() => (currentPage = pageNum)}
-											class="inline-flex h-8 w-8 items-center justify-center rounded-md text-sm font-medium transition-colors {currentPage ===
-											pageNum
-												? 'bg-pink-600 text-white shadow-sm'
-												: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'}"
-											aria-label="Page {pageNum}"
-											aria-current={currentPage === pageNum ? 'page' : undefined}
-										>
-											{pageNum}
-										</button>
-									{:else if (pageNum === currentPage - 2 || pageNum === currentPage + 2) && totalPages > 7}
-										<span
-											class="inline-flex h-8 w-8 items-center justify-center text-sm text-gray-400"
-											>...</span
-										>
-									{/if}
-								{/each}
-
-								<button
-									onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
-									disabled={currentPage === totalPages}
-									class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-sm text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-									aria-label="Next page"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M9 5l7 7-7 7"
-										/>
-									</svg>
-								</button>
-							</nav>
-						</div>
+						<Pagination
+							{currentPage}
+							{totalPages}
+							totalItems={filteredRequests.length}
+							itemsPerPage={PAGE_SIZE}
+							onPageChange={(p) => { currentPage = p; }}
+							class="mt-4"
+						/>
 					{/if}
 				</div>
 			</div>

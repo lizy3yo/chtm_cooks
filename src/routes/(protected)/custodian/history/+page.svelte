@@ -11,6 +11,7 @@
 	import { catalogAPI } from '$lib/api/catalog';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import HistorySkeletonLoader from '$lib/components/ui/HistorySkeletonLoader.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 
 	type Tab = 'activity-logs' | 'request-history' | 'archived' | 'deleted';
 	

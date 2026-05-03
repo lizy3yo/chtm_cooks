@@ -10,6 +10,7 @@
 	import { confirmStore } from '$lib/stores/confirm';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 	import ReplacementObligationModal from '$lib/components/custodian/ReplacementObligationModal.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import { Package, AlertCircle, CheckCircle2, TrendingUp } from 'lucide-svelte';
 
 	let activeTab = $state<'donations' | 'replacements' | 'history'>('donations');
@@ -1261,48 +1262,13 @@
 
 							<!-- Pagination -->
 							{#if totalDonationsPages > 1}
-								<div class="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-4 py-3">
-									<p class="text-xs text-gray-600">
-										Page <span class="font-semibold">{currentPage}</span> of <span class="font-semibold">{totalDonationsPages}</span>
-									</p>
-									<nav class="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-										<button
-											onclick={() => goToPage(currentPage - 1)}
-											disabled={currentPage === 1}
-											class="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-											aria-label="Previous page"
-										>
-											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-											</svg>
-										</button>
-
-										{#each Array(totalDonationsPages) as _, i}
-											{#if Math.abs(i + 1 - currentPage) <= 1 || i + 1 === 1 || i + 1 === totalDonationsPages}
-												<button
-													onclick={() => goToPage(i + 1)}
-													class="relative inline-flex items-center px-3 py-2 text-xs font-medium ring-1 ring-inset ring-gray-300 transition-colors {i + 1 === currentPage ? 'z-10 bg-pink-600 text-white ring-pink-600' : 'bg-white text-gray-900 hover:bg-gray-50'}"
-													aria-current={i + 1 === currentPage ? 'page' : undefined}
-												>
-													{i + 1}
-												</button>
-											{:else if Math.abs(i + 1 - currentPage) === 2}
-												<span class="relative inline-flex items-center px-3 py-2 text-xs text-gray-400 ring-1 ring-inset ring-gray-300">…</span>
-											{/if}
-										{/each}
-
-										<button
-											onclick={() => goToPage(currentPage + 1)}
-											disabled={currentPage === totalDonationsPages}
-											class="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-											aria-label="Next page"
-										>
-											<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-											</svg>
-										</button>
-									</nav>
-								</div>
+								<Pagination
+									{currentPage}
+									totalPages={totalDonationsPages}
+									totalItems={donations.length}
+									itemsPerPage={itemsPerPageDonations}
+									onPageChange={goToPage}
+								/>
 							{/if}
 						{/if}
 				</div>
