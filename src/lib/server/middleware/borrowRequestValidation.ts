@@ -269,9 +269,9 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 
 	const now = new Date();
 	const minimumBorrowDate = new Date(now);
-	minimumBorrowDate.setHours(0, 0, 0, 0);
+	minimumBorrowDate.setUTCHours(0, 0, 0, 0);
 	const maximumBorrowDate = new Date(minimumBorrowDate);
-	maximumBorrowDate.setDate(maximumBorrowDate.getDate() + 2);
+	maximumBorrowDate.setUTCDate(maximumBorrowDate.getUTCDate() + 2);
 	
 	// Check borrow date is within the allowed request window
 	if (borrow < minimumBorrowDate) {

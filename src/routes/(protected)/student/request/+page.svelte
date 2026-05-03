@@ -228,6 +228,27 @@
 		return `${hours12}:${String(minutes).padStart(2, '0')} ${period}`;
 	}
 
+	/** Convert 12-hour picker parts → HH:MM (24h) for internal state */
+	function to24Hour(hour12: number, minute: number, period: 'AM' | 'PM'): string {
+		let h = hour12 % 12;
+		if (period === 'PM') h += 12;
+		return `${String(h).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+	}
+
+	/** Parse HH:MM (24h) → { hour12, minute, period } for the picker */
+	function from24Hour(time24: string): { hour12: number; minute: number; period: 'AM' | 'PM' } {
+		if (!time24) return { hour12: 8, minute: 0, period: 'AM' };
+		const [h, m] = time24.split(':').map(Number);
+		return {
+			hour12: h % 12 || 12,
+			minute: m,
+			period: h >= 12 ? 'PM' : 'AM'
+		};
+	}
+
+	const HOURS_12 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+	const MINUTES = [0, 15, 30, 45];
+
 	function buildItemCode(item: CatalogItem): string {
 		return item.id.slice(-6).toUpperCase();
 	}
@@ -677,8 +698,8 @@
 				})),
 				purpose: buildPurposeText(),
 				usageLocation,
-				borrowDate: `${borrowDate}T${borrowTime}`,
-				returnDate: `${borrowDate}T${returnTime}`,
+				borrowDate: new Date(`${borrowDate}T${borrowTime}:00`).toISOString(),
+				returnDate: new Date(`${borrowDate}T${returnTime}:00`).toISOString(),
 				classCodeId: selectedClassCodeId // Required field
 			});
 
@@ -1694,17 +1715,50 @@
 						<div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
 							<!-- Borrow Time -->
 							<div>
-								<label for="borrowTime" class="mb-1 block text-sm font-medium text-gray-700">
+								<label for="borrowHour" class="mb-1 block text-sm font-medium text-gray-700">
 									Pickup Time <span class="text-red-500">*</span>
 								</label>
-								<input
-									type="time"
-									id="borrowTime"
-									bind:value={borrowTime}
-									class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime
-										? 'border-red-500'
-										: ''}"
-								/>
+								<div class="flex gap-1">
+									<select
+										id="borrowHour"
+										value={from24Hour(borrowTime).hour12}
+										onchange={(e) => {
+											const p = from24Hour(borrowTime);
+											borrowTime = to24Hour(Number((e.target as HTMLSelectElement).value), p.minute, p.period);
+										}}
+										class="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime ? 'border-red-500' : ''}"
+										aria-label="Pickup hour"
+									>
+										{#each HOURS_12 as h}
+											<option value={h}>{h}</option>
+										{/each}
+									</select>
+									<select
+										value={from24Hour(borrowTime).minute}
+										onchange={(e) => {
+											const p = from24Hour(borrowTime);
+											borrowTime = to24Hour(p.hour12, Number((e.target as HTMLSelectElement).value), p.period);
+										}}
+										class="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime ? 'border-red-500' : ''}"
+										aria-label="Pickup minute"
+									>
+										{#each MINUTES as m}
+											<option value={m}>{String(m).padStart(2, '0')}</option>
+										{/each}
+									</select>
+									<select
+										value={from24Hour(borrowTime).period}
+										onchange={(e) => {
+											const p = from24Hour(borrowTime);
+											borrowTime = to24Hour(p.hour12, p.minute, (e.target as HTMLSelectElement).value as 'AM' | 'PM');
+										}}
+										class="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.borrowTime ? 'border-red-500' : ''}"
+										aria-label="Pickup AM/PM"
+									>
+										<option value="AM">AM</option>
+										<option value="PM">PM</option>
+									</select>
+								</div>
 								{#if errors.borrowTime}
 									<p class="mt-1 text-xs text-red-600">{errors.borrowTime}</p>
 								{:else}
@@ -1714,17 +1768,50 @@
 
 							<!-- Return Time -->
 							<div>
-								<label for="returnTime" class="mb-1 block text-sm font-medium text-gray-700">
+								<label for="returnHour" class="mb-1 block text-sm font-medium text-gray-700">
 									Return Time <span class="text-red-500">*</span>
 								</label>
-								<input
-									type="time"
-									id="returnTime"
-									bind:value={returnTime}
-									class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime
-										? 'border-red-500'
-										: ''}"
-								/>
+								<div class="flex gap-1">
+									<select
+										id="returnHour"
+										value={from24Hour(returnTime).hour12}
+										onchange={(e) => {
+											const p = from24Hour(returnTime);
+											returnTime = to24Hour(Number((e.target as HTMLSelectElement).value), p.minute, p.period);
+										}}
+										class="flex-1 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime ? 'border-red-500' : ''}"
+										aria-label="Return hour"
+									>
+										{#each HOURS_12 as h}
+											<option value={h}>{h}</option>
+										{/each}
+									</select>
+									<select
+										value={from24Hour(returnTime).minute}
+										onchange={(e) => {
+											const p = from24Hour(returnTime);
+											returnTime = to24Hour(p.hour12, Number((e.target as HTMLSelectElement).value), p.period);
+										}}
+										class="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime ? 'border-red-500' : ''}"
+										aria-label="Return minute"
+									>
+										{#each MINUTES as m}
+											<option value={m}>{String(m).padStart(2, '0')}</option>
+										{/each}
+									</select>
+									<select
+										value={from24Hour(returnTime).period}
+										onchange={(e) => {
+											const p = from24Hour(returnTime);
+											returnTime = to24Hour(p.hour12, p.minute, (e.target as HTMLSelectElement).value as 'AM' | 'PM');
+										}}
+										class="w-16 rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.returnTime ? 'border-red-500' : ''}"
+										aria-label="Return AM/PM"
+									>
+										<option value="AM">AM</option>
+										<option value="PM">PM</option>
+									</select>
+								</div>
 								{#if errors.returnTime}
 									<p class="mt-1 text-xs text-red-600">{errors.returnTime}</p>
 								{:else}
