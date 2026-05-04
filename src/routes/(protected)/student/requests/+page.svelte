@@ -1,5 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import { page } from '$app/stores';
+import { replaceState } from '$app/navigation';
 import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestRealtimeEvent } from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
 import { confirmStore } from '$lib/stores/confirm';
@@ -25,6 +27,7 @@ const PAGE_SIZE_CARD = 5;
 const PAGE_SIZE_LIST = 10;
 
 let activeTab = $state<StudentTab>('my-request');
+let highlightedRequestId = $state<string | null>(null);
 let searchQuery = $state('');
 let sortBy = $state('newest');
 let requestViewMode = $state<RequestViewMode>('list');
@@ -231,15 +234,64 @@ function scheduleRefresh(forceRefresh = false): void {
 let _unsubscribeSSE: (() => void) | null = null;
 let _pollInterval: ReturnType<typeof setInterval> | null = null;
 
+// Reactively handle ?requestId= — fires on both fresh loads and same-page navigations.
+// Uses SvelteKit's replaceState so the page store is updated and the effect
+// sees rawId = null on the next run, preventing double-firing.
+$effect(() => {
+	const rawId = $page.url.searchParams.get('requestId');
+	if (!rawId || requests.length === 0) return;
+	// Update the page store immediately — this causes the effect to re-run
+	// with rawId = null, so it won't fire again for the same param.
+	replaceState($page.url.pathname, $page.state);
+	openDeepLinkedRequest(rawId);
+});
+
+/**
+ * Deep-link handler: called after requests load when ?requestId= is present.
+ * Switches to the correct tab, highlights the row with a pulse animation,
+ * scrolls it into view, then opens the detail modal after a brief pause
+ * so the user can see where the request lives.
+ */
+function openDeepLinkedRequest(rawId: string): void {
+	const target = requests.find(r => r.rawId === rawId);
+	if (!target) return;
+
+	// 1. Switch to the correct tab
+	if (target.status === 'pending') activeTab = 'my-request';
+	else if (['approved', 'ready'].includes(target.status)) activeTab = 'instructor-approved';
+	else if (['picked-up', 'pending-return', 'missing'].includes(target.status)) activeTab = 'active';
+	else activeTab = 'history';
+
+	// 2. Highlight the row immediately
+	highlightedRequestId = rawId;
+
+	// 3. After the DOM updates with the new tab, scroll the row into view
+	//    then open the modal after a short delay so the highlight is visible
+	setTimeout(() => {
+		const el = document.querySelector(`[data-request-id="${rawId}"]`);
+		if (el) {
+			el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		}
+		// Open modal after the scroll animation completes
+		setTimeout(() => {
+			openDetailModal(target);
+			// Keep highlight visible while modal is open, clear on close
+			// (highlightedRequestId is cleared when modal closes)
+		}, 600);
+	}, 80);
+}
+
 onMount(() => {
 	// If navigated here after a new submission, bypass all caches immediately.
 	const isPostSubmit = new URLSearchParams(window.location.search).get('new') === '1';
 
 	if (isPostSubmit) {
 		borrowRequestsAPI.invalidateCache();
-		// Clean the URL without triggering a navigation
-		const cleanUrl = window.location.pathname;
-		history.replaceState(null, '', cleanUrl);
+	}
+
+	// Clean the URL without triggering a navigation
+	if (isPostSubmit) {
+		history.replaceState(null, '', window.location.pathname);
 	}
 
 	// Instant paint from client memory cache (skipped on post-submit since cache was just cleared).
@@ -422,6 +474,7 @@ function closeDetailModal() {
 showDetailModal = false;
 selectedRequest = null;
 qrDataUrl = null;
+highlightedRequestId = null;
 }
 
 function getReadyPickupMessage(): string {
@@ -793,7 +846,8 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div
-								class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getStatusBorderColor(request.status)}"
+								class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getStatusBorderColor(request.status)} {highlightedRequestId === request.rawId ? 'ring-2 ring-pink-400 bg-pink-50/30' : ''}"
+								data-request-id={request.rawId}
 								onclick={() => openDetailModal(request)}
 								role="button"
 								tabindex="0"
@@ -932,7 +986,8 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
-									class="grid gap-3 p-4 md:grid-cols-[1.2fr_1.8fr_1fr_120px] md:items-start md:gap-4 hover:bg-gray-50 transition-colors cursor-pointer"
+									class="grid gap-3 p-4 md:grid-cols-[1.2fr_1.8fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
+									data-request-id={request.rawId}
 									onclick={() => openDetailModal(request)}
 									role="button"
 									tabindex="0"

@@ -30,6 +30,7 @@
 	let activeTab = $state<Tab>('pending');
 	let historySubTab = $state<HistorySubTab>('all');
 	let showDetailModal = $state(false);
+	let highlightedRequestId = $state<string | null>(null);
 	let showInspectionModal = $state(false);
 	let selectedRequest = $state<any>(null);
 	let activeRequestObligations = $state<ReplacementObligation[]>([]);
@@ -456,7 +457,14 @@
 			}
 
 			activeTab = target.status;
-			openDetailModal(target);
+
+			// Highlight the row, scroll it into view, then open the modal
+			highlightedRequestId = target.rawId;
+			setTimeout(() => {
+				const el = document.querySelector(`[data-request-id="${target.rawId}"]`);
+				if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				setTimeout(() => { openDetailModal(target); }, 600);
+			}, 80);
 		} catch {
 			toastStore.error('Scanned request could not be found.', 'QR Scan');
 		} finally {
@@ -751,6 +759,7 @@
 	function closeDetailModal() {
 		showDetailModal = false;
 		selectedRequest = null;
+		highlightedRequestId = null;
 	}
 
 	function toggleActionMenu(rawId: string): void {
@@ -1282,7 +1291,8 @@
 											request.status,
 											request.rawStatus,
 											request.rejectionReason
-										)}"
+										)} {highlightedRequestId === request.rawId ? 'ring-2 ring-pink-400 bg-pink-50/30' : ''}"
+										data-request-id={request.rawId}
 										onclick={() => openDetailModal(request)}
 										role="button"
 										tabindex="0"
@@ -1479,7 +1489,8 @@
 										<!-- svelte-ignore a11y_click_events_have_key_events -->
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
-											class="grid gap-3 p-4 md:grid-cols-[1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 hover:bg-gray-50 transition-colors cursor-pointer"
+											class="grid gap-3 p-4 md:grid-cols-[1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
+											data-request-id={request.rawId}
 											onclick={() => openDetailModal(request)}
 											role="button"
 											tabindex="0"

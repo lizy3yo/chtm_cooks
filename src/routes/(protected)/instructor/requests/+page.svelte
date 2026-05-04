@@ -1,5 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import { page } from '$app/stores';
+import { replaceState } from '$app/navigation';
 import { authStore } from '$lib/stores/auth';
 import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
@@ -24,6 +26,7 @@ import {
 } from 'lucide-svelte';
 
 let activeTab = $state<'pending' | 'fulfillment' | 'borrowed' | 'unresolved' | 'history'>('pending');
+let highlightedRequestId = $state<string | null>(null);
 let historySubTab = $state<'all' | 'completed' | 'resolved' | 'cancelled'>('all');
 let showDetailModal = $state(false);
 let selectedRequest = $state<any>(null);
@@ -242,6 +245,32 @@ async function backfillClassCodes(): Promise<void> {
 	}
 }
 
+/**
+ * Deep-link handler: switches to the correct tab, highlights the row,
+ * scrolls it into view, then opens the detail modal.
+ */
+function openDeepLinkedRequest(rawId: string): void {
+	const target = requests.find(r => r.rawId === rawId);
+	if (!target) return;
+
+	activeTab = target.status;
+	highlightedRequestId = rawId;
+
+	setTimeout(() => {
+		const el = document.querySelector(`[data-request-id="${rawId}"]`);
+		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		setTimeout(() => { openDetailModal(target); }, 600);
+	}, 80);
+}
+
+// Reactively handle ?requestId= on both fresh loads and same-page navigations
+$effect(() => {
+	const rawId = $page.url.searchParams.get('requestId');
+	if (!rawId || requests.length === 0) return;
+	replaceState($page.url.pathname, $page.state);
+	openDeepLinkedRequest(rawId);
+});
+
 onMount(() => {
 	let mounted = true;
 
@@ -334,6 +363,7 @@ showDetailModal = true;
 function closeDetailModal() {
 showDetailModal = false;
 selectedRequest = null;
+highlightedRequestId = null;
 }
 
 function toggleSelectRequest(requestId: string) {
@@ -978,7 +1008,8 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
-									class="relative overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}"
+									class="relative overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)} {highlightedRequestId === request.rawId ? 'ring-2 ring-pink-400 bg-pink-50/30' : ''}"
+									data-request-id={request.rawId}
 									onclick={() => openDetailModal(request)}
 									role="button"
 									tabindex="0"
@@ -1084,7 +1115,8 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div
-										class="grid gap-3 p-4 md:grid-cols-[auto_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 hover:bg-gray-50 transition-colors cursor-pointer"
+										class="grid gap-3 p-4 md:grid-cols-[auto_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
+										data-request-id={request.rawId}
 										onclick={() => openDetailModal(request)}
 										role="button"
 										tabindex="0"
