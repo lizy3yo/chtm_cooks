@@ -59,6 +59,14 @@ export interface AddDonationQuantityRequest {
 	notes?: string;
 }
 
+export interface UpdateDonationRequest {
+	donorName?: string;
+	purpose?: string;
+	date?: string;
+	notes?: string;
+	quantity?: number;
+}
+
 export interface DonationsListResponse {
 	donations: DonationResponse[];
 	total: number;
@@ -219,6 +227,16 @@ export const donationsAPI = {
 	 */
 	async addQuantity(id: string, payload: AddDonationQuantityRequest): Promise<DonationResponse> {
 		const res = await fetch(`/api/donations/${id}`, getFetchOptions('PATCH', payload));
+		const data = await handleResponse<DonationResponse>(res);
+		invalidateAllCaches();
+		return data;
+	},
+
+	/**
+	 * Update an existing donation record.
+	 */
+	async update(id: string, payload: UpdateDonationRequest): Promise<DonationResponse> {
+		const res = await fetch(`/api/donations/${id}`, getFetchOptions('PUT', payload));
 		const data = await handleResponse<DonationResponse>(res);
 		invalidateAllCaches();
 		return data;

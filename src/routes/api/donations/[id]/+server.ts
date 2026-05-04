@@ -177,6 +177,105 @@ export const PATCH: RequestHandler = async (event) => {
 	}
 };
 
+// ─── PUT ──────────────────────────────────────────────────────────────────────
+
+export const PUT: RequestHandler = async (event) => {
+	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
+	if (rateLimitResult instanceof Response) return rateLimitResult;
+
+	try {
+		const user = getAuthenticatedUser(event);
+		if (!user) return json({ error: 'Unauthorized' }, { status: 401 });
+		if (!ALLOWED_ROLES.includes(user.role))
+			return json({ error: 'Forbidden: Insufficient permissions' }, { status: 403 });
+
+		const id = event.params.id;
+		const objectId = parseObjectId(id);
+		if (!objectId) return json({ error: 'Invalid donation ID' }, { status: 400 });
+
+		const body = await event.request.json();
+		const db = await getDatabase();
+		const col = db.collection<Donation>(DONATIONS_COLLECTION);
+		
+		const existingDonation = await col.findOne({ _id: objectId });
+		if (!existingDonation) return json({ error: 'Donation not found' }, { status: 404 });
+
+		const now = new Date();
+		const updateFields: Partial<Donation> = { updatedAt: now };
+		
+		if (body.donorName !== undefined) updateFields.donorName = sanitizeInput(body.donorName.trim());
+		if (body.purpose !== undefined) updateFields.purpose = sanitizeInput(body.purpose.trim());
+		if (body.date !== undefined) updateFields.date = new Date(body.date);
+		if (body.notes !== undefined) updateFields.notes = sanitizeInput(body.notes.trim()).slice(0, MAX_NOTES_LENGTH);
+		
+		let quantityDelta = 0;
+		if (body.quantity !== undefined && Number.isInteger(body.quantity) && body.quantity >= 1) {
+			quantityDelta = body.quantity - existingDonation.quantity;
+			updateFields.quantity = body.quantity;
+		}
+
+		const result = await col.findOneAndUpdate(
+			{ _id: objectId },
+			{ $set: updateFields },
+			{ returnDocument: 'after' }
+		);
+
+		if (!result) return json({ error: 'Failed to update donation' }, { status: 500 });
+
+		if (quantityDelta !== 0 && result.inventoryItemId) {
+			const inventoryItemsCol = db.collection<InventoryItem>('inventory_items');
+			const linkedInventoryItem = await inventoryItemsCol.findOne({
+				_id: result.inventoryItemId,
+				archived: false
+			});
+
+			if (linkedInventoryItem) {
+				const newDonations = (linkedInventoryItem.donations ?? 0) + quantityDelta;
+				const newStatus: ItemStatus = getCurrentCount(linkedInventoryItem.quantity, newDonations) > 0
+					? 'In Stock' as ItemStatus
+					: 'Out of Stock' as ItemStatus;
+
+				await inventoryItemsCol.updateOne(
+					{ _id: result.inventoryItemId, archived: false },
+					{
+						$inc: { donations: quantityDelta },
+						$set: { updatedAt: now, status: newStatus }
+					}
+				);
+			}
+			
+			await cacheService.invalidateByTags(['inventory-items', 'inventory-catalog']);
+
+			publishInventoryChange([INVENTORY_CHANNEL], {
+				action: 'item_updated',
+				entityType: 'item',
+				entityId: result.inventoryItemId.toString(),
+				entityName: result.itemName,
+				occurredAt: now.toISOString()
+			});
+		}
+
+		await invalidateDonationCaches();
+
+		publishDonationChange([DONATION_CHANNEL], {
+			action: 'donation_updated',
+			entityId: id,
+			occurredAt: now.toISOString()
+		});
+
+		logger.info('donations', 'Donation updated', {
+			userId: user.userId,
+			donationId: id,
+			updates: Object.keys(updateFields)
+		});
+
+		return json(toDonationResponse(result));
+	} catch (error) {
+		logger.error('donations', 'Failed to update donation', { error });
+		return json({ error: 'Internal server error' }, { status: 500 });
+	}
+};
+
 // ─── DELETE ──────────────────────────────────────────────────────────────────
 
 export const DELETE: RequestHandler = async (event) => {
