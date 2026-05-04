@@ -732,12 +732,13 @@
 				</div>
 			</div>
 		{:else if viewMode === 'by-request'}
-			{#each paginatedLoans as loan}
+			{#each paginatedLoans as loan, i}
 				<div class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getLoanCardBorderClasses(loan)}">
 					<div class="p-4">
 						<!-- Header -->
 						<div class="flex flex-col gap-1">
 							<div class="flex flex-wrap items-center gap-1.5">
+								<span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * PAGE_SIZE_BY_REQUEST + i + 1}</span>
 								<span class="font-mono text-xs font-bold tracking-widest text-gray-500">{loan.requestCode}</span>
 								<span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 {getLoanBadgeClasses(loan)}">
 									{getLoanStateLabel(loan)}
@@ -843,6 +844,7 @@
 					<table class="min-w-160 w-full border-collapse text-sm">
 						<thead>
 							<tr class="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+								<th class="px-3 py-3 font-semibold text-center text-gray-400 w-8">#</th>
 								<th class="px-5 py-3 font-semibold">Request</th>
 								<th class="px-5 py-3 font-semibold">Item</th>
 								<th class="px-5 py-3 font-semibold">Qty</th>
@@ -855,11 +857,14 @@
 						<tbody>
 							{#if paginatedItemRows.length === 0}
 								<tr>
-									<td colspan="7" class="px-5 py-8 text-center text-sm text-gray-500">No items match the current search/filter.</td>
+									<td colspan="8" class="px-5 py-8 text-center text-sm text-gray-500">No items match the current search/filter.</td>
 								</tr>
 							{:else}
-								{#each paginatedItemRows as row}
+								{#each paginatedItemRows as row, i}
 									<tr class="border-b border-gray-100 last:border-b-0">
+										<td class="px-3 py-3 text-center">
+											<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * PAGE_SIZE_BY_ITEM + i + 1}</span>
+										</td>
 										<td class="px-5 py-3 font-mono text-xs font-semibold tracking-wide text-gray-700">{row.requestCode}</td>
 										<td class="px-5 py-3">
 											<div class="flex items-center gap-2 text-gray-900">

@@ -1092,7 +1092,7 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 					<!-- List View -->
 					<div style="min-height: 600px;">
 						<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-							<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[auto_1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4">
+							<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[auto_32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4">
 								<span class="w-6 text-center">
 									{#if activeTab === 'pending'}
 										<input
@@ -1104,6 +1104,7 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 										/>
 									{/if}
 								</span>
+								<span class="text-center text-gray-400">#</span>
 								<span>Request</span>
 								<span>Student</span>
 								<span>Items</span>
@@ -1111,11 +1112,11 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 								<span class="text-right">Actions</span>
 							</div>
 							<div class="divide-y divide-gray-100">
-								{#each filteredRequests as request}
+								{#each filteredRequests as request, i}
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div
-										class="grid gap-3 p-4 md:grid-cols-[auto_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
+										class="grid gap-3 p-4 md:grid-cols-[auto_32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
 										data-request-id={request.rawId}
 										onclick={() => openDetailModal(request)}
 										role="button"
@@ -1133,6 +1134,9 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 													class="h-4 w-4 rounded border-gray-300 text-pink-600 shadow-sm focus:border-pink-500 focus:ring-pink-500"
 												/>
 											{/if}
+										</div>
+										<div class="hidden md:flex items-center justify-center pt-0.5">
+											<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{i + 1}</span>
 										</div>
 
 										<div class="min-w-0">

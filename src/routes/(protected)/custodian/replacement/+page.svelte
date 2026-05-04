@@ -1205,15 +1205,19 @@
 							{:else}
 								<!-- Table list view -->
 								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" style="min-height: 600px;">
-									<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[1.5fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+									<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1.5fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+										<span class="text-center text-gray-400">#</span>
 										<span>Item</span>
 										<span>Donor</span>
 										<span>Date</span>
 										<span class="text-right">Actions</span>
 									</div>
 									<div class="divide-y divide-gray-100">
-										{#each paginatedDonations as donation}
-											<div class="grid gap-3 p-4 md:grid-cols-[1.5fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+										{#each paginatedDonations as donation, i}
+											<div class="grid gap-3 p-4 md:grid-cols-[32px_1.5fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+												<div class="hidden md:flex items-center justify-center">
+													<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * itemsPerPageDonations + i + 1}</span>
+												</div>
 												<!-- Item -->
 												<div class="flex items-center gap-3 min-w-0">
 													<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
@@ -1428,15 +1432,19 @@
 						<div class="space-y-4">
 							<!-- Table list view -->
 							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" style="min-height: 600px;">
-								<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[1.5fr_1fr_1fr_auto] md:items-center md:gap-3">
+								<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1.5fr_1fr_1fr_auto] md:items-center md:gap-3">
+									<span class="text-center text-gray-400">#</span>
 									<span>Student & Request</span>
 									<span>Item</span>
 									<span>Status</span>
 									<span class="text-right">Actions</span>
 								</div>
 								<div class="divide-y divide-gray-100">
-									{#each paginatedObligations as obligation}
-										<div class="grid gap-3 p-4 md:grid-cols-[1.5fr_1fr_1fr_auto] md:items-center md:gap-3">
+									{#each paginatedObligations as obligation, i}
+										<div class="grid gap-3 p-4 md:grid-cols-[32px_1.5fr_1fr_1fr_auto] md:items-center md:gap-3">
+											<div class="hidden md:flex items-center justify-center">
+												<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * itemsPerPageByItem + i + 1}</span>
+											</div>
 											<!-- Student & Request -->
 											<div class="flex items-center gap-3 min-w-0">
 												<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
@@ -1598,15 +1606,19 @@
 						{:else}
 							<!-- Table list view -->
 							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm" style="min-height: 600px;">
-								<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+								<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+									<span class="text-center text-gray-400">#</span>
 									<span>Receipt</span>
 									<span>Resolution</span>
 									<span>Date</span>
 									<span class="text-right">Actions</span>
 								</div>
 								<div class="divide-y divide-gray-100">
-									{#each paginatedHistory as transaction}
-										<div class="grid gap-3 p-4 md:grid-cols-[1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+									{#each paginatedHistory as transaction, i}
+										<div class="grid gap-3 p-4 md:grid-cols-[32px_1fr_1.5fr_1fr_auto] md:items-center md:gap-3">
+											<div class="hidden md:flex items-center justify-center">
+												<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * itemsPerPageHistory + i + 1}</span>
+											</div>
 											<!-- Receipt -->
 											<div class="min-w-0">
 												<p class="font-mono text-xs font-bold tracking-wider text-gray-900">{transaction.receiptNumber}</p>

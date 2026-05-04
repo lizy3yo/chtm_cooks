@@ -715,12 +715,15 @@
 	<!-- List View -->
 	{#if !isLoading && viewMode === 'list' && filteredItems.length > 0}
 		<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
-			{#each filteredItems as item (item.id)}
+			{#each filteredItems as item, i (item.id)}
 				<button
 					type="button"
 					onclick={() => openDetailModal(item)}
 					class="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-500 sm:px-4 sm:py-3.5"
 				>
+					<!-- Row number -->
+					<span class="hidden sm:inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * itemsPerPage + i + 1}</span>
+
 					<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14 flex items-center justify-center">
 						{#if item.picture}
 							<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />

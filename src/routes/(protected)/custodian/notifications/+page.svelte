@@ -96,16 +96,19 @@
 		</div>
 	{:else}
 		<div class="space-y-3">
-			{#each pagedNotifications as notification (notification.id)}
+			{#each pagedNotifications as notification, i (notification.id)}
 				<button
 					type="button"
 					onclick={() => openNotification(notification)}
 					class="w-full rounded-lg border px-4 py-3 text-left transition-colors hover:bg-gray-50 {notification.isRead ? 'border-gray-200 bg-white' : 'border-pink-200 bg-pink-50/40'}"
 				>
 					<div class="flex items-start justify-between gap-4">
-						<div>
-							<p class="text-sm font-semibold text-gray-900">{notification.title}</p>
-							<p class="mt-1 text-sm text-gray-600">{notification.message}</p>
+						<div class="flex items-start gap-3 min-w-0">
+							<span class="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * PAGE_SIZE + i + 1}</span>
+							<div class="min-w-0">
+								<p class="text-sm font-semibold text-gray-900">{notification.title}</p>
+								<p class="mt-1 text-sm text-gray-600">{notification.message}</p>
+							</div>
 						</div>
 						{#if !notification.isRead}
 							<span class="mt-1 inline-block h-2.5 w-2.5 rounded-full bg-pink-600"></span>

@@ -974,19 +974,21 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 				<!-- List View -->
 				<div style="min-height: 600px;">
 					<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-						<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.2fr_1.8fr_1fr_120px] md:items-center md:gap-4">
+						<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[32px_1.2fr_1.8fr_1fr_120px] md:items-center md:gap-4">
+							<span class="text-center text-gray-400">#</span>
 							<span>Request</span>
 							<span>Items & Purpose</span>
 							<span>Status</span>
 							<span class="text-right">Actions</span>
 						</div>
 						<div class="divide-y divide-gray-100">
-							{#each paginatedRequests as request}
+							{#each paginatedRequests as request, i}
 								{@const StatusIcon = getStatusIconComponent(request.status)}
+								{@const rowNum = (currentPage - 1) * PAGE_SIZE_LIST + i + 1}
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
-									class="grid gap-3 p-4 md:grid-cols-[1.2fr_1.8fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
+									class="grid gap-3 p-4 md:grid-cols-[32px_1.2fr_1.8fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
 									data-request-id={request.rawId}
 									onclick={() => openDetailModal(request)}
 									role="button"
@@ -994,6 +996,11 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 									onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
 									aria-label="View details for {request.id}"
 								>
+									<!-- Row number -->
+									<div class="hidden md:flex items-center justify-center pt-0.5">
+										<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{rowNum}</span>
+									</div>
+
 									<!-- Request ID + dates -->
 									<div class="min-w-0 pt-0.5">
 										<p class="font-mono text-xs font-bold tracking-wider text-gray-900 truncate">{request.id}</p>

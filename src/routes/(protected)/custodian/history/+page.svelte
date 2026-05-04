@@ -808,6 +808,7 @@
 						<table class="w-full">
 							<thead>
 								<tr class="border-b border-gray-200 bg-gray-50">
+									<th class="w-10 px-3 py-3 text-center text-xs font-semibold text-gray-400">#</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Timestamp</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Action</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Type</th>
@@ -818,8 +819,11 @@
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-200">
-								{#each filteredActivityLogs as log}
+								{#each filteredActivityLogs as log, i}
 									<tr class="hover:bg-gray-50 transition-colors">
+										<td class="px-3 py-4 text-center">
+											<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(activityPage - 1) * activityLimit + i + 1}</span>
+										</td>
 										<td class="px-6 py-4 text-sm text-gray-600">{formatTimestamp(log.timestamp)}</td>
 										<td class="px-6 py-4">
 											<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {getActionColor(log.action)}">
@@ -971,6 +975,7 @@
 						<table class="w-full">
 							<thead>
 								<tr class="border-b border-gray-200 bg-gray-50">
+									<th class="w-10 px-3 py-3 text-center text-xs font-semibold text-gray-400">#</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Request ID</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Student</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Items</th>
@@ -979,11 +984,14 @@
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-200">
-								{#each filteredRequestHistory as request}
+								{#each filteredRequestHistory as request, i}
 									<tr 
 										onclick={() => openRequestDetailModal(request)}
 										class="cursor-pointer hover:bg-gray-50 transition-colors"
 									>
+										<td class="px-3 py-4 text-center">
+											<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(requestHistoryPage - 1) * requestHistoryLimit + i + 1}</span>
+										</td>
 										<td class="px-6 py-4 text-sm font-medium text-gray-900">{formatRequestId(request.id)}</td>
 										<td class="px-6 py-4">
 											{#if request.student}
@@ -1161,6 +1169,7 @@
 						<table class="w-full">
 							<thead>
 								<tr class="border-b border-gray-200 bg-gray-50">
+									<th class="w-10 px-3 py-3 text-center text-xs font-semibold text-gray-400">#</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Item Name</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Category</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Last Quantity</th>
@@ -1170,8 +1179,11 @@
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-200">
-								{#each filteredArchivedItems as item}
+								{#each filteredArchivedItems as item, i}
 									<tr class="hover:bg-gray-50 transition-colors">
+										<td class="px-3 py-4 text-center">
+											<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(archivedPage - 1) * archivedLimit + i + 1}</span>
+										</td>
 										<td class="px-6 py-4 text-sm font-medium text-gray-900">{item.name}</td>
 										<td class="px-6 py-4 text-sm text-gray-600">{item.category || 'N/A'}</td>
 										<td class="px-6 py-4 text-sm text-gray-600">{item.quantity}</td>
@@ -1321,6 +1333,7 @@
 						<table class="w-full">
 							<thead>
 								<tr class="border-b border-gray-200 bg-gray-50">
+									<th class="w-10 px-3 py-3 text-center text-xs font-semibold text-gray-400">#</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Type</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Name</th>
 									<th class="px-6 py-3 text-left text-sm font-semibold text-gray-900">Category</th>
@@ -1331,9 +1344,12 @@
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-200">
-								{#each filteredDeletedItems as item}
+								{#each filteredDeletedItems as item, i}
 									{@const data = item.type === 'category' ? item.categoryData : item.itemData}
 									<tr class="hover:bg-gray-50 transition-colors">
+										<td class="px-3 py-4 text-center">
+											<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(deletedPage - 1) * deletedLimit + i + 1}</span>
+										</td>
 										<td class="px-6 py-4 text-sm">
 											<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {item.type === 'category' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'}">
 												{item.type === 'category' ? 'Category' : 'Item'}
