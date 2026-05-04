@@ -5,9 +5,9 @@
 	import { get } from 'svelte/store';
 	import { browser } from '$app/environment';
 	import type { InventoryItem, InventoryCategory } from '$lib/api/inventory';
-	import { 
-		inventoryItemsAPI, 
-		inventoryCategoriesAPI, 
+	import {
+		inventoryItemsAPI,
+		inventoryCategoriesAPI,
 		uploadInventoryImage,
 		subscribeToInventoryChanges
 	} from '$lib/api/inventory';
@@ -19,30 +19,31 @@
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import { Package, FolderTree, AlertTriangle, Star } from 'lucide-svelte';
-	
+
 	type Tab = 'all-items' | 'constant-items' | 'categories' | 'low-stock';
-	
+
 	let activeTab = $state<Tab>('all-items');
 	let showAddItemModal = $state(false);
-	
+
 	// Check for cached data before mounting to avoid unnecessary loading states
 	const cachedStore = browser ? get(inventoryStore) : null;
-	const hasCachedData = cachedStore && cachedStore.items.length > 0 && inventoryStore.isItemsCacheValid();
-	
+	const hasCachedData =
+		cachedStore && cachedStore.items.length > 0 && inventoryStore.isItemsCacheValid();
+
 	// Data from store with client-side caching
 	let items = $state<InventoryItem[]>(hasCachedData ? cachedStore!.items : []);
 	let categories = $state<InventoryCategory[]>(hasCachedData ? cachedStore!.categories : []);
 	let loading = $state(!hasCachedData); // Only show skeleton if no cached data
 	let uploadingImage = $state(false);
 	let initialLoadComplete = $state(hasCachedData); // Mark as complete if we have cached data
-	
+
 	// Real-time refresh state
 	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
 	let refreshInFlight = $state(false);
 	let pendingRefresh = $state(false);
 	let lastEventReceived = $state<string | null>(null);
 	let lastRefreshTime = $state<string | null>(null);
-	
+
 	// Form state for adding new item
 	let newItem = $state({
 		name: '',
@@ -89,33 +90,32 @@
 	onMount(() => {
 		console.log('[INVENTORY-SSE]  Component mounted, loading data...');
 		console.log('[INVENTORY-SSE]  Has cached data:', hasCachedData);
-		
+
 		// Check if we should force refresh based on navigation
 		const shouldForceRefresh = !inventoryStore.isItemsCacheValid();
-		
+
 		if (shouldForceRefresh) {
 			console.log('[INVENTORY-SSE]  Cache invalid, forcing refresh');
 			inventoryStore.invalidateAll();
 		} else {
 			console.log('[INVENTORY-SSE]  Cache valid, using cached data');
 		}
-		
+
 		// Load data asynchronously with proper loading state management
-		Promise.all([
-			loadCategories(shouldForceRefresh),
-			loadItems(shouldForceRefresh)
-		]).then(() => {
-			console.log('[INVENTORY-SSE] ✅ Initial data load complete');
-			// Wait for next tick to ensure derived states are updated
-			setTimeout(() => {
+		Promise.all([loadCategories(shouldForceRefresh), loadItems(shouldForceRefresh)])
+			.then(() => {
+				console.log('[INVENTORY-SSE] ✅ Initial data load complete');
+				// Wait for next tick to ensure derived states are updated
+				setTimeout(() => {
+					loading = false;
+					initialLoadComplete = true;
+				}, 150); // Slightly longer delay to ensure displayItems is populated
+			})
+			.catch((err) => {
+				console.error('[INVENTORY-SSE] ❌ Initial data load failed:', err);
 				loading = false;
 				initialLoadComplete = true;
-			}, 150); // Slightly longer delay to ensure displayItems is populated
-		}).catch(err => {
-			console.error('[INVENTORY-SSE] ❌ Initial data load failed:', err);
-			loading = false;
-			initialLoadComplete = true;
-		});
+			});
 
 		// Keyboard event handler for Escape key
 		const handleKeydown = (e: KeyboardEvent) => {
@@ -129,7 +129,7 @@
 				closeAddItemModal();
 			}
 		};
-		
+
 		// Click handler to close dropdown when clicking outside
 		const handleClickOutside = (e: MouseEvent) => {
 			if (openDropdownId) {
@@ -139,7 +139,7 @@
 				}
 			}
 		};
-		
+
 		window.addEventListener('keydown', handleKeydown);
 		document.addEventListener('click', handleClickOutside);
 		return () => {
@@ -155,7 +155,7 @@
 	async function refreshInventory(): Promise<void> {
 		console.log('[INVENTORY-SSE] 🔄 refreshInventory called, refreshInFlight:', refreshInFlight);
 		console.log('[INVENTORY-SSE] 📊 Current items count BEFORE refresh:', items.length);
-		
+
 		if (refreshInFlight) {
 			console.log('[INVENTORY-SSE] ⏸️ Already refreshing, setting pendingRefresh=true');
 			pendingRefresh = true;
@@ -167,34 +167,34 @@
 			console.log('[INVENTORY-SSE] 🗑️ Invalidating cache...');
 			// Invalidate store cache to force fresh data
 			inventoryStore.invalidateAll();
-			
+
 			const stats = inventoryStore.getStats();
 			console.log('[INVENTORY-SSE] 📊 Cache stats after invalidation:', stats);
-			
+
 			console.log('[INVENTORY-SSE] 📥 Fetching fresh data from API (bypassing all caches)...');
-			
+
 			// Fetch fresh data directly without using cache
 			const freshItems = await fetchAllInventoryItems(true, true);
 			const categoriesResponse = await inventoryCategoriesAPI.getAll({ includeArchived: true });
-			
+
 			console.log('[INVENTORY-SSE] ✅ Fresh data received from API');
 			console.log('[INVENTORY-SSE] 📦 Fresh items count:', freshItems.length);
 			console.log('[INVENTORY-SSE] 📦 Current items count BEFORE assignment:', items.length);
-			
+
 			// Update reactive state immediately
 			// This triggers Svelte's reactivity system
 			items = freshItems;
 			categories = categoriesResponse.categories;
-			
+
 			console.log('[INVENTORY-SSE] 📦 Current items count AFTER assignment:', items.length);
-			
+
 			// Update cache with fresh data
 			inventoryStore.setItems(freshItems);
 			inventoryStore.setCategories(categoriesResponse.categories);
-			
+
 			// Update last refresh time
 			lastRefreshTime = new Date().toLocaleTimeString();
-			
+
 			console.log('[INVENTORY-SSE] ✅ Reactive state and cache updated');
 			if (items.length > 0) {
 				const firstItem = items[0];
@@ -206,11 +206,10 @@
 					id: firstItem.id
 				});
 			}
-			
+
 			// Force a small delay to ensure reactivity propagates
-			await new Promise(resolve => setTimeout(resolve, 50));
+			await new Promise((resolve) => setTimeout(resolve, 50));
 			console.log('[INVENTORY-SSE] ✅ Reactivity propagation complete');
-			
 		} catch (error) {
 			console.error('[INVENTORY-SSE] ❌ Failed to refresh inventory:', error);
 		} finally {
@@ -229,14 +228,14 @@
 	 */
 	async function updateSingleItem(itemId: string): Promise<void> {
 		console.log('[INVENTORY-SSE] 🎯 Updating single item:', itemId);
-		
+
 		try {
 			// Fetch just the updated item
 			const updatedItem = await inventoryItemsAPI.getById(itemId);
 			console.log('[INVENTORY-SSE] ✅ Fetched updated item:', updatedItem.name);
-			
+
 			// Find and update the item in the array
-			const index = items.findIndex(item => item.id === itemId);
+			const index = items.findIndex((item) => item.id === itemId);
 			if (index !== -1) {
 				console.log('[INVENTORY-SSE] 📝 Updating item at index:', index);
 				console.log('[INVENTORY-SSE] 📊 Old values:', {
@@ -249,17 +248,13 @@
 					donations: updatedItem.donations,
 					currentCount: updatedItem.currentCount
 				});
-				
+
 				// Create new array with updated item to trigger reactivity
-				items = [
-					...items.slice(0, index),
-					updatedItem,
-					...items.slice(index + 1)
-				];
-				
+				items = [...items.slice(0, index), updatedItem, ...items.slice(index + 1)];
+
 				// Update cache
 				inventoryStore.setItems(items);
-				
+
 				console.log('[INVENTORY-SSE] ✅ Item updated successfully');
 			} else {
 				console.log('[INVENTORY-SSE] ⚠️ Item not found in current list, doing full refresh');
@@ -291,7 +286,7 @@
 	}
 
 	// ─── TEST FUNCTIONS (for debugging) ───────────────────────────────────────
-	
+
 	/**
 	 * Test function: Manually trigger a refresh
 	 * Usage in browser console: window.testInventoryRefresh()
@@ -300,7 +295,7 @@
 		console.log('[TEST] 🧪 Manual refresh triggered');
 		refreshInventory();
 	}
-	
+
 	/**
 	 * Test function: Check current inventory state
 	 * Usage in browser console: window.testInventoryState()
@@ -314,15 +309,18 @@
 		console.log('[TEST] PendingRefresh:', pendingRefresh);
 		console.log('[TEST] Cache stats:', inventoryStore.getStats());
 		if (items.length > 0) {
-			console.log('[TEST] First 3 items:', items.slice(0, 3).map(i => ({
-				name: i.name,
-				quantity: i.quantity,
-				donations: i.donations,
-				currentCount: i.currentCount
-			})));
+			console.log(
+				'[TEST] First 3 items:',
+				items.slice(0, 3).map((i) => ({
+					name: i.name,
+					quantity: i.quantity,
+					donations: i.donations,
+					currentCount: i.currentCount
+				}))
+			);
 		}
 	}
-	
+
 	/**
 	 * Test function: Force invalidate cache
 	 * Usage in browser console: window.testInvalidateCache()
@@ -332,7 +330,7 @@
 		inventoryStore.invalidateAll();
 		console.log('[TEST] Cache stats after invalidation:', inventoryStore.getStats());
 	}
-	
+
 	/**
 	 * Test function: Test single item update
 	 * Usage in browser console: window.testUpdateItem('ITEM_ID')
@@ -341,7 +339,7 @@
 		console.log('[TEST] 🎯 Testing single item update for:', itemId);
 		updateSingleItem(itemId);
 	}
-	
+
 	// Expose test functions to window for debugging
 	if (typeof window !== 'undefined') {
 		(window as any).testInventoryRefresh = testInventoryRefresh;
@@ -353,7 +351,7 @@
 	// Real-time inventory updates via SSE
 	onMount(() => {
 		console.log('[INVENTORY-SSE] 🚀 Setting up SSE subscriptions...');
-		
+
 		const unsub = subscribeToInventoryChanges(
 			(event) => {
 				const timestamp = new Date().toLocaleTimeString();
@@ -366,9 +364,12 @@
 					entityName: event.entityName,
 					occurredAt: event.occurredAt
 				});
-				
+
 				// For item updates, do optimistic single-item update
-				if (event.entityType === 'item' && (event.action === 'item_updated' || event.action === 'item_created')) {
+				if (
+					event.entityType === 'item' &&
+					(event.action === 'item_updated' || event.action === 'item_created')
+				) {
 					console.log('[INVENTORY-SSE] 🎯 Performing optimistic single-item update');
 					updateSingleItem(event.entityId);
 				} else {
@@ -410,13 +411,15 @@
 		return () => {
 			console.log('[INVENTORY-SSE] 🛑 Cleaning up SSE subscriptions');
 			unsub();
-			try { unsubDonations(); } catch {}
+			try {
+				unsubDonations();
+			} catch {}
 			if (refreshTimer !== null) clearTimeout(refreshTimer);
 		};
 	});
 
 	function delay(ms: number): Promise<void> {
-		return new Promise(resolve => setTimeout(resolve, ms));
+		return new Promise((resolve) => setTimeout(resolve, ms));
 	}
 
 	async function yieldToMainThread(): Promise<void> {
@@ -454,15 +457,18 @@
 		return quantity + donations;
 	}
 
-	async function fetchAllInventoryItems(includeArchived = true, forceRefresh = false): Promise<InventoryItem[]> {
+	async function fetchAllInventoryItems(
+		includeArchived = true,
+		forceRefresh = false
+	): Promise<InventoryItem[]> {
 		console.log('[INVENTORY-SSE] 🔄 fetchAllInventoryItems called, forceRefresh:', forceRefresh);
-		
+
 		const allItems: InventoryItem[] = [];
 		let page = 1;
 
 		while (true) {
 			console.log('[INVENTORY-SSE] 📄 Fetching page', page, 'with forceRefresh:', forceRefresh);
-			
+
 			const response = await inventoryItemsAPI.getAll({
 				page,
 				limit: INVENTORY_FETCH_PAGE_SIZE,
@@ -484,7 +490,10 @@
 		return allItems;
 	}
 
-	async function createInventoryItemWithRetry(itemData: any, maxRetries = 5): Promise<InventoryItem> {
+	async function createInventoryItemWithRetry(
+		itemData: any,
+		maxRetries = 5
+	): Promise<InventoryItem> {
 		let attempt = 0;
 
 		while (true) {
@@ -505,7 +514,11 @@
 		}
 	}
 
-	async function updateInventoryItemWithRetry(itemId: string, itemData: any, maxRetries = 5): Promise<InventoryItem> {
+	async function updateInventoryItemWithRetry(
+		itemId: string,
+		itemData: any,
+		maxRetries = 5
+	): Promise<InventoryItem> {
 		let attempt = 0;
 
 		while (true) {
@@ -533,12 +546,12 @@
 	 */
 	async function loadItems(forceRefresh = false) {
 		console.log('[INVENTORY-SSE] 📥 loadItems called, forceRefresh:', forceRefresh);
-		
+
 		try {
 			// Use cached items when still fresh to avoid refetching on route return.
 			const cacheValid = inventoryStore.isItemsCacheValid();
 			console.log('[INVENTORY-SSE] 🔍 Cache valid:', cacheValid);
-			
+
 			if (!forceRefresh && cacheValid) {
 				console.log('[INVENTORY-SSE]  Using cached items');
 				const storeData = get(inventoryStore);
@@ -546,19 +559,28 @@
 				console.log('[INVENTORY-SSE]  Loaded from cache:', items.length, 'items');
 				return;
 			}
-			
+
 			console.log('[INVENTORY-SSE]  Fetching fresh items from API...');
 			inventoryStore.setLoading(true);
 
 			const freshItems = await fetchAllInventoryItems(true, forceRefresh);
-			
+
 			console.log('[INVENTORY-SSE]  Loaded items from API:', freshItems.length);
-			
+
 			// Update reactive state immediately
 			items = freshItems;
-			
+
 			if (items.length > 0) {
-				console.log('[INVENTORY-SSE]  First item:', items[0].name, 'quantity:', items[0].quantity, 'donations:', items[0].donations, 'currentCount:', items[0].currentCount);
+				console.log(
+					'[INVENTORY-SSE]  First item:',
+					items[0].name,
+					'quantity:',
+					items[0].quantity,
+					'donations:',
+					items[0].donations,
+					'currentCount:',
+					items[0].currentCount
+				);
 			}
 
 			// Update cache with fresh data
@@ -579,12 +601,12 @@
 	 */
 	async function loadCategories(forceRefresh = false) {
 		console.log('[INVENTORY-SSE]  loadCategories called, forceRefresh:', forceRefresh);
-		
+
 		try {
 			// Check if cache is still valid (unless force refresh)
 			const cacheValid = inventoryStore.isCategoriesCacheValid();
 			console.log('[INVENTORY-SSE]  Categories cache valid:', cacheValid);
-			
+
 			if (!forceRefresh && cacheValid) {
 				console.log('[INVENTORY-SSE]  Using cached categories');
 				// Use cached data
@@ -613,7 +635,7 @@
 		const target = e?.target as HTMLInputElement;
 		const file = target?.files?.[0];
 		if (!file) return;
-		
+
 		if (!file.type.startsWith('image/')) {
 			toastStore.error('Please select an image file');
 			return;
@@ -627,9 +649,11 @@
 
 		// Revoke previous preview if any
 		if (newItem.picture && newItem.picture.startsWith('blob:')) {
-			try { URL.revokeObjectURL(newItem.picture); } catch (err) {}
+			try {
+				URL.revokeObjectURL(newItem.picture);
+			} catch (err) {}
 		}
-		
+
 		newItem.pictureFile = file;
 		newItem.picture = URL.createObjectURL(file);
 	}
@@ -638,7 +662,7 @@
 		const target = e?.target as HTMLInputElement;
 		const file = target?.files?.[0];
 		if (!file) return;
-		
+
 		if (!file.type.startsWith('image/')) {
 			toastStore.error('Please select an image file');
 			return;
@@ -652,17 +676,21 @@
 
 		// Revoke previous preview if any
 		if (newCategoryPicture && newCategoryPicture.startsWith('blob:')) {
-			try { URL.revokeObjectURL(newCategoryPicture); } catch (err) {}
+			try {
+				URL.revokeObjectURL(newCategoryPicture);
+			} catch (err) {}
 		}
-		
+
 		newCategoryPictureFile = file;
 		newCategoryPicture = URL.createObjectURL(file);
 	}
-	
-	const activeItems = $derived(items.filter(item => !item.archived));
-	const lowStockItems = $derived(activeItems.filter(item => item.status === 'Low Stock' || item.status === 'Out of Stock'));
-	const constantItems = $derived(activeItems.filter(item => item.isConstant === true));
-	
+
+	const activeItems = $derived(items.filter((item) => !item.archived));
+	const lowStockItems = $derived(
+		activeItems.filter((item) => item.status === 'Low Stock' || item.status === 'Out of Stock')
+	);
+	const constantItems = $derived(activeItems.filter((item) => item.isConstant === true));
+
 	function switchTab(tab: Tab) {
 		activeTab = tab;
 		// Note: Don't auto-clear category filter - use clearCategoryFilter() explicitly
@@ -677,62 +705,71 @@
 		resetForm();
 		showAddItemModal = false;
 	}
-	
+
 	// Modal state for item details
 	let selectedItem = $state<InventoryItem | null>(null);
 	let showMenu = $state(false);
 	let showFullImage = $state(false);
 	let pictureInput = $state<HTMLInputElement | null>(null);
 
-// Selected category filter for viewing category-specific items
-let selectedCategory = $state<InventoryCategory | null>(null);
-// sort order for items list: 'az' or 'za'
-let sortOrder = $state('az');
-// search query
-let query = $state('');
+	// Selected category filter for viewing category-specific items
+	let selectedCategory = $state<InventoryCategory | null>(null);
+	// sort order for items list: 'az' or 'za'
+	let sortOrder = $state('az');
+	// search query
+	let query = $state('');
 
-// reactive filtered + sorted items for display (use rune-style $derived)
-const PAGE_SIZE = 10;
-let currentPage = $state(1);
+	// reactive filtered + sorted items for display (use rune-style $derived)
+	const PAGE_SIZE = 10;
+	let currentPage = $state(1);
 
-const filteredItems = $derived(items.filter(item => {
-	const isActive = !item.archived;
-	
-	// Case-insensitive category matching with trim for robustness
-	const matchesCategory = !selectedCategory || 
-		(item.category?.toLowerCase().trim() === selectedCategory.name?.toLowerCase().trim());
-	
-	const q = (query || '').toLowerCase();
-	const matchesQuery = !q || (item.name || '').toLowerCase().includes(q);
-	return isActive && matchesCategory && matchesQuery;
-}));
-const sortedItems = $derived([...filteredItems].sort((a, b) => sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)));
-const totalPages = $derived(Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE)));
-const displayItems = $derived(sortedItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE));
+	const filteredItems = $derived(
+		items.filter((item) => {
+			const isActive = !item.archived;
 
-// Debug logging for display items
-$effect(() => {
-	if (displayItems.length > 0) {
-		console.log('[DEBUG] Display items count:', displayItems.length);
-		try {
-			// Snapshot to avoid logging $state proxies in devtools
-			const first = displayItems[0] ? JSON.parse(JSON.stringify(displayItems[0])) : null;
-			console.log('[DEBUG] First display item:', first);
-			console.log('[DEBUG] First display item picture:', first?.picture ?? null);
-			console.log('[DEBUG] Picture type:', typeof (first?.picture));
-			console.log('[DEBUG] Picture value:', JSON.stringify(first?.picture));
-		} catch (err) {
-			console.warn('[DEBUG] Failed to snapshot display item for logging', err);
+			// Case-insensitive category matching with trim for robustness
+			const matchesCategory =
+				!selectedCategory ||
+				item.category?.toLowerCase().trim() === selectedCategory.name?.toLowerCase().trim();
+
+			const q = (query || '').toLowerCase();
+			const matchesQuery = !q || (item.name || '').toLowerCase().includes(q);
+			return isActive && matchesCategory && matchesQuery;
+		})
+	);
+	const sortedItems = $derived(
+		[...filteredItems].sort((a, b) =>
+			sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+		)
+	);
+	const totalPages = $derived(Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE)));
+	const displayItems = $derived(
+		sortedItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+	);
+
+	// Debug logging for display items
+	$effect(() => {
+		if (displayItems.length > 0) {
+			console.log('[DEBUG] Display items count:', displayItems.length);
+			try {
+				// Snapshot to avoid logging $state proxies in devtools
+				const first = displayItems[0] ? JSON.parse(JSON.stringify(displayItems[0])) : null;
+				console.log('[DEBUG] First display item:', first);
+				console.log('[DEBUG] First display item picture:', first?.picture ?? null);
+				console.log('[DEBUG] Picture type:', typeof first?.picture);
+				console.log('[DEBUG] Picture value:', JSON.stringify(first?.picture));
+			} catch (err) {
+				console.warn('[DEBUG] Failed to snapshot display item for logging', err);
+			}
 		}
-	}
-});
+	});
 
-// Reset to page 1 when filters change
-$effect(() => {
-	filteredItems;
-	sortOrder;
-	currentPage = 1;
-});
+	// Reset to page 1 when filters change
+	$effect(() => {
+		filteredItems;
+		sortOrder;
+		currentPage = 1;
+	});
 
 	function openModal(item: InventoryItem) {
 		selectedItem = item;
@@ -772,14 +809,14 @@ $effect(() => {
 			const updatedItem = await inventoryItemsAPI.update(item.id, { archived: true });
 
 			// Optimistic update: Remove archived item from local array immediately
-			const itemIndex = items.findIndex(i => i.id === item.id);
+			const itemIndex = items.findIndex((i) => i.id === item.id);
 			if (itemIndex !== -1) {
 				items.splice(itemIndex, 1);
 			}
 
 			// Update category count
 			if (item.categoryId) {
-				const categoryIndex = categories.findIndex(c => c.id === item.categoryId);
+				const categoryIndex = categories.findIndex((c) => c.id === item.categoryId);
 				if (categoryIndex !== -1) {
 					categories[categoryIndex] = {
 						...categories[categoryIndex],
@@ -794,7 +831,7 @@ $effect(() => {
 
 			closeModal();
 			toastStore.success('Item archived successfully');
-			
+
 			// Restore loading state if it wasn't loading before
 			if (!operationLoading) {
 				loading = false;
@@ -808,7 +845,7 @@ $effect(() => {
 
 	async function handleAddItem(e: Event) {
 		e.preventDefault();
-		
+
 		try {
 			const operationLoading = loading; // Store current loading state
 			loading = true;
@@ -836,31 +873,32 @@ $effect(() => {
 				quantity: newItem.quantity,
 				eomCount: newItem.eomCount,
 				isConstant: newItem.isConstant,
-				maxQuantityPerRequest: newItem.isConstant && newItem.maxQuantityPerRequest 
-					? Number(newItem.maxQuantityPerRequest) 
-					: undefined
+				maxQuantityPerRequest:
+					newItem.isConstant && newItem.maxQuantityPerRequest
+						? Number(newItem.maxQuantityPerRequest)
+						: undefined
 			};
 
 			let savedItem: InventoryItem;
 			if (wasEditing) {
 				// Update existing item
 				savedItem = await inventoryItemsAPI.update(editingItemId!, itemData);
-				
+
 				// Optimistic update: Update item in local array
-				const itemIndex = items.findIndex(i => i.id === editingItemId);
+				const itemIndex = items.findIndex((i) => i.id === editingItemId);
 				if (itemIndex !== -1) {
 					items[itemIndex] = savedItem;
 				}
 			} else {
 				// Create new item
 				savedItem = await inventoryItemsAPI.create(itemData);
-				
+
 				// Optimistic update: Add new item to local array immediately
 				items = [...items, savedItem];
-				
+
 				// Update category count
 				if (savedItem.categoryId) {
-					const categoryIndex = categories.findIndex(c => c.id === savedItem.categoryId);
+					const categoryIndex = categories.findIndex((c) => c.id === savedItem.categoryId);
 					if (categoryIndex !== -1) {
 						categories[categoryIndex] = {
 							...categories[categoryIndex],
@@ -870,13 +908,13 @@ $effect(() => {
 				}
 			}
 
-		// Update store with current arrays
-		inventoryStore.setItems(items);
-		inventoryStore.setCategories(categories);
+			// Update store with current arrays
+			inventoryStore.setItems(items);
+			inventoryStore.setCategories(categories);
 
 			closeAddItemModal();
 			toastStore.success(wasEditing ? 'Item updated successfully' : 'Item created successfully');
-			
+
 			// Restore loading state if it wasn't loading before
 			if (!operationLoading) {
 				loading = false;
@@ -893,7 +931,9 @@ $effect(() => {
 	function resetForm() {
 		// Revoke object URL if exists
 		if (newItem.picture && newItem.picture.startsWith('blob:')) {
-			try { URL.revokeObjectURL(newItem.picture); } catch (err) {}
+			try {
+				URL.revokeObjectURL(newItem.picture);
+			} catch (err) {}
 		}
 
 		newItem = {
@@ -937,14 +977,21 @@ $effect(() => {
 		selectedCategory = category;
 		selectedItem = null;
 		console.log('Category filter set to:', category.name);
-		console.log('Items in this category:', items.filter(item => 
-			!item.archived && item.category?.toLowerCase().trim() === category.name?.toLowerCase().trim()
-		).map(i => i.name));
+		console.log(
+			'Items in this category:',
+			items
+				.filter(
+					(item) =>
+						!item.archived &&
+						item.category?.toLowerCase().trim() === category.name?.toLowerCase().trim()
+				)
+				.map((i) => i.name)
+		);
 	}
 
 	async function toggleConstantStatus(item: InventoryItem) {
 		const newStatus = !item.isConstant;
-		
+
 		// Confirm action with user
 		const confirmed = await confirmStore.confirm({
 			type: newStatus ? 'info' : 'warning',
@@ -966,7 +1013,7 @@ $effect(() => {
 			const updatedItem = await inventoryItemsAPI.update(item.id, { isConstant: newStatus });
 
 			// Optimistic update: Update item in local array
-			const itemIndex = items.findIndex(i => i.id === item.id);
+			const itemIndex = items.findIndex((i) => i.id === item.id);
 			if (itemIndex !== -1) {
 				items[itemIndex] = updatedItem;
 			}
@@ -975,21 +1022,18 @@ $effect(() => {
 			inventoryStore.setItems(items);
 
 			toastStore.success(
-				newStatus 
-					? `"${item.name}" is now a constant item and will always appear on student request forms` 
+				newStatus
+					? `"${item.name}" is now a constant item and will always appear on student request forms`
 					: `"${item.name}" removed from constant items`,
 				'Constant Item Updated'
 			);
-			
+
 			// Restore loading state if it wasn't loading before
 			if (!operationLoading) {
 				loading = false;
 			}
 		} catch (err: any) {
-			toastStore.error(
-				err.message || 'Failed to update constant status',
-				'Update Failed'
-			);
+			toastStore.error(err.message || 'Failed to update constant status', 'Update Failed');
 			console.error('Error updating constant status:', err);
 			loading = false;
 		}
@@ -1012,23 +1056,23 @@ $effect(() => {
 		try {
 			const operationLoading = loading; // Store current loading state
 			loading = true;
-			
+
 			// Delete from API
 			await inventoryItemsAPI.delete(item.id);
 
 			// Optimistic update: Immediately remove from arrays
-			const itemIndex = items.findIndex(i => i.id === item.id);
+			const itemIndex = items.findIndex((i) => i.id === item.id);
 			if (itemIndex !== -1) {
 				items.splice(itemIndex, 1); // Modify array in place for reactivity
 			}
-			
+
 			// Update category counts
 			if (item.categoryId) {
-				const categoryIndex = categories.findIndex(c => c.id === item.categoryId);
+				const categoryIndex = categories.findIndex((c) => c.id === item.categoryId);
 				if (categoryIndex !== -1) {
-					categories[categoryIndex] = { 
-						...categories[categoryIndex], 
-						itemCount: Math.max(0, categories[categoryIndex].itemCount - 1) 
+					categories[categoryIndex] = {
+						...categories[categoryIndex],
+						itemCount: Math.max(0, categories[categoryIndex].itemCount - 1)
 					};
 				}
 			}
@@ -1040,7 +1084,7 @@ $effect(() => {
 			// Update store with current items array (without deleted item)
 			inventoryStore.setItems(items);
 			inventoryStore.setCategories(categories);
-			
+
 			// Restore loading state if it wasn't loading before
 			if (!operationLoading) {
 				loading = false;
@@ -1161,7 +1205,7 @@ $effect(() => {
 			});
 
 			// Optimistic update: Update category in local array immediately
-			const categoryIndex = categories.findIndex(c => c.id === editingCategory?.id);
+			const categoryIndex = categories.findIndex((c) => c.id === editingCategory?.id);
 			if (categoryIndex !== -1) {
 				categories[categoryIndex] = updatedCategory;
 			}
@@ -1190,7 +1234,9 @@ $effect(() => {
 		closeDropdown();
 
 		if (category.itemCount > 0) {
-			toastStore.error(`Cannot delete "${category.name}" - it contains ${category.itemCount} item(s). Please reassign or delete items first.`);
+			toastStore.error(
+				`Cannot delete "${category.name}" - it contains ${category.itemCount} item(s). Please reassign or delete items first.`
+			);
 			return;
 		}
 
@@ -1208,16 +1254,17 @@ $effect(() => {
 			await inventoryCategoriesAPI.delete(category.id);
 
 			// Optimistic update: Immediately remove from array
-			const categoryIndex = categories.findIndex(c => c.id === category.id);
+			const categoryIndex = categories.findIndex((c) => c.id === category.id);
 			if (categoryIndex !== -1) {
 				categories.splice(categoryIndex, 1); // Modify array in place for reactivity
 			}
 
-			toastStore.success('Category deleted successfully. Recoverable for 30 days from History page.');
+			toastStore.success(
+				'Category deleted successfully. Recoverable for 30 days from History page.'
+			);
 
 			// Update store with current categories
 			inventoryStore.setCategories(categories);
-			
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to delete category');
 			console.error('Error deleting category:', err);
@@ -1271,7 +1318,10 @@ $effect(() => {
 	function closeImportModal() {
 		if (importing) {
 			showImportModal = false;
-			toastStore.info('Import continues in the background. Reopen Import Items to view progress.', 'Import Running');
+			toastStore.info(
+				'Import continues in the background. Reopen Import Items to view progress.',
+				'Import Running'
+			);
 			return;
 		}
 
@@ -1334,7 +1384,9 @@ $effect(() => {
 			);
 
 			if (!proceed) {
-				toastStore.info(`Import cancelled. Recommended size is ${IMPORT_RECOMMENDED_FILE_SIZE_LABEL} for faster processing.`);
+				toastStore.info(
+					`Import cancelled. Recommended size is ${IMPORT_RECOMMENDED_FILE_SIZE_LABEL} for faster processing.`
+				);
 				return false;
 			}
 		}
@@ -1353,7 +1405,7 @@ $effect(() => {
 	async function handleImportFileSelect(e: Event) {
 		const target = e.target as HTMLInputElement;
 		const file = target.files?.[0];
-		
+
 		if (!file) return;
 		if (!(await validateImportFile(file))) return;
 
@@ -1393,7 +1445,12 @@ $effect(() => {
 			let dataFileName = '';
 
 			for (const [fileName, zipEntry] of Object.entries(contents.files)) {
-				if (!zipEntry.dir && (fileName.toLowerCase().endsWith('.csv') || fileName.toLowerCase().endsWith('.xlsx') || fileName.toLowerCase().endsWith('.xls'))) {
+				if (
+					!zipEntry.dir &&
+					(fileName.toLowerCase().endsWith('.csv') ||
+						fileName.toLowerCase().endsWith('.xlsx') ||
+						fileName.toLowerCase().endsWith('.xls'))
+				) {
 					dataFile = zipEntry;
 					dataFileName = fileName;
 					break;
@@ -1467,14 +1524,15 @@ $effect(() => {
 				}
 
 				if (isImportSessionActive(sessionId) && importPreviewData.length > 0) {
-					toastStore.success(`Parsed ${importPreviewData.length} items from ${workbook.SheetNames.length} sheet(s). ${importErrors.length > 0 ? `${importErrors.length} rows have errors.` : 'Click Continue to preview.'}`);
+					toastStore.success(
+						`Parsed ${importPreviewData.length} items from ${workbook.SheetNames.length} sheet(s). ${importErrors.length > 0 ? `${importErrors.length} rows have errors.` : 'Click Continue to preview.'}`
+					);
 				}
 			}
 
 			if (isImportSessionActive(sessionId)) {
 				toastStore.success(`Found ${importImageFiles.size} image(s) in ZIP file`);
 			}
-
 		} catch (err: any) {
 			if (!isImportSessionActive(sessionId)) return;
 			importErrors = [`Failed to parse ZIP file: ${err.message}`];
@@ -1502,7 +1560,10 @@ $effect(() => {
 		return [...xlsxRowSet].sort((a, b) => a - b);
 	}
 
-	async function extractEmbeddedImagesFromExcel(data: ArrayBuffer, sheetName: string): Promise<Map<number, File>> {
+	async function extractEmbeddedImagesFromExcel(
+		data: ArrayBuffer,
+		sheetName: string
+	): Promise<Map<number, File>> {
 		// Returns Map<1-based Excel row number, File>
 		// Keyed by the actual row number, NOT a CSV line index.
 		// The caller is responsible for correlating to CSV line indices.
@@ -1543,13 +1604,14 @@ $effect(() => {
 				if (!imageData?.buffer) continue;
 
 				const ext = String(imageData.extension || 'png').toLowerCase();
-				const mime = ext === 'jpg' || ext === 'jpeg'
-					? 'image/jpeg'
-					: ext === 'gif'
-						? 'image/gif'
-						: ext === 'webp'
-							? 'image/webp'
-							: 'image/png';
+				const mime =
+					ext === 'jpg' || ext === 'jpeg'
+						? 'image/jpeg'
+						: ext === 'gif'
+							? 'image/gif'
+							: ext === 'webp'
+								? 'image/webp'
+								: 'image/png';
 
 				let bytes: Uint8Array | null = null;
 				if (imageData.buffer instanceof Uint8Array) {
@@ -1563,8 +1625,11 @@ $effect(() => {
 				if (!bytes) continue;
 
 				// Convert to proper ArrayBuffer for File constructor
-				const arrayBuffer = bytes.buffer instanceof ArrayBuffer ? bytes.buffer : bytes.slice().buffer;
-				const embeddedFile = new File([arrayBuffer], `excel-row-${excelRowNumber}.${ext}`, { type: mime });
+				const arrayBuffer =
+					bytes.buffer instanceof ArrayBuffer ? bytes.buffer : bytes.slice().buffer;
+				const embeddedFile = new File([arrayBuffer], `excel-row-${excelRowNumber}.${ext}`, {
+					type: mime
+				});
 				imagesByRow.set(excelRowNumber, embeddedFile);
 			}
 		} catch (err) {
@@ -1618,7 +1683,9 @@ $effect(() => {
 				}
 
 				if (isImportSessionActive(sessionId) && importPreviewData.length > 0) {
-					toastStore.success(`Parsed ${importPreviewData.length} items from ${workbook.SheetNames.length} sheet(s). ${importErrors.length > 0 ? `${importErrors.length} rows have errors.` : 'Click Continue to preview.'}`);
+					toastStore.success(
+						`Parsed ${importPreviewData.length} items from ${workbook.SheetNames.length} sheet(s). ${importErrors.length > 0 ? `${importErrors.length} rows have errors.` : 'Click Continue to preview.'}`
+					);
 				}
 			} else {
 				// Handle CSV files
@@ -1689,7 +1756,12 @@ $effect(() => {
 		text: string,
 		categoryFromSheet?: string,
 		embeddedImagesByExcelRow?: Map<number, File>,
-		options?: { append?: boolean; silent?: boolean; csvLineToExcelRows?: number[]; sessionId?: number }
+		options?: {
+			append?: boolean;
+			silent?: boolean;
+			csvLineToExcelRows?: number[];
+			sessionId?: number;
+		}
 	) {
 		try {
 			const sessionId = options?.sessionId;
@@ -1706,9 +1778,7 @@ $effect(() => {
 				importPreviewData = [];
 			}
 
-			const lines = text
-				.split(/\r?\n/)
-				.map(line => line.replace(/^\uFEFF/, ''));
+			const lines = text.split(/\r?\n/).map((line) => line.replace(/^\uFEFF/, ''));
 
 			if (lines.length < 2) {
 				if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
@@ -1720,8 +1790,7 @@ $effect(() => {
 			// Parse CSV (handle both comma and semicolon separators)
 			const separator = text.includes(';') && !text.includes(',') ? ';' : ',';
 
-			const normalizeHeader = (value: string) =>
-				value.trim().toLowerCase().replace(/\s+/g, ' ');
+			const normalizeHeader = (value: string) => value.trim().toLowerCase().replace(/\s+/g, ' ');
 
 			const isNameHeader = (value: string) => {
 				const v = normalizeHeader(value);
@@ -1785,8 +1854,10 @@ $effect(() => {
 				}
 			}
 
-				if (headerLineIndex === -1) {
-					importErrors = ['Could not detect the header row. Ensure one row contains columns like Name, Specification, Current Count, and Donations.'];
+			if (headerLineIndex === -1) {
+				importErrors = [
+					'Could not detect the header row. Ensure one row contains columns like Name, Specification, Current Count, and Donations.'
+				];
 				toastStore.error('Could not detect header row in file');
 				return;
 			}
@@ -1794,14 +1865,17 @@ $effect(() => {
 			const dataLineIndexes = Array.from(
 				{ length: lines.length - (headerLineIndex + 1) },
 				(_, offset) => headerLineIndex + 1 + offset
-			).filter(lineIndex => {
+			).filter((lineIndex) => {
 				const values = parseCSVLine(lines[lineIndex], separator);
-				return values.length > 0 && values.some(v => v.trim() !== '');
+				return values.length > 0 && values.some((v) => v.trim() !== '');
 			});
 
-			const nonEmptyLineIndexes = Array.from({ length: lines.length }, (_, lineIndex) => lineIndex).filter(lineIndex => {
+			const nonEmptyLineIndexes = Array.from(
+				{ length: lines.length },
+				(_, lineIndex) => lineIndex
+			).filter((lineIndex) => {
 				const values = parseCSVLine(lines[lineIndex], separator);
-				return values.length > 0 && values.some(v => v.trim() !== '');
+				return values.length > 0 && values.some((v) => v.trim() !== '');
 			});
 
 			const lineIndexToNonEmptyPosition = new Map<number, number>();
@@ -1819,32 +1893,66 @@ $effect(() => {
 			headers.forEach((header, index) => {
 				if (isNameHeader(header) && headerMap.name === undefined) {
 					headerMap.name = index;
-				} else if ((header === 'category' || header.includes('category')) && headerMap.category === undefined) {
+				} else if (
+					(header === 'category' || header.includes('category')) &&
+					headerMap.category === undefined
+				) {
 					headerMap.category = index;
-				} else if ((header === 'eom count' || header.replace(/\s+/g, '') === 'eomcount') && headerMap.eomcount === undefined) {
+				} else if (
+					(header === 'eom count' || header.replace(/\s+/g, '') === 'eomcount') &&
+					headerMap.eomcount === undefined
+				) {
 					headerMap.eomcount = index;
-				} else if ((header === 'donations' || header === 'donation') && headerMap.donations === undefined) {
+				} else if (
+					(header === 'donations' || header === 'donation') &&
+					headerMap.donations === undefined
+				) {
 					headerMap.donations = index;
 				} else if (
-					(header === 'current count' || header.replace(/\s+/g, '') === 'currentcount' || header === 'quantity' || header === 'qty' || header === 'count') &&
+					(header === 'current count' ||
+						header.replace(/\s+/g, '') === 'currentcount' ||
+						header === 'quantity' ||
+						header === 'qty' ||
+						header === 'count') &&
 					headerMap.quantity === undefined
 				) {
 					headerMap.quantity = index;
-				} else if ((header === 'specification' || header === 'spec') && headerMap.specification === undefined) {
+				} else if (
+					(header === 'specification' || header === 'spec') &&
+					headerMap.specification === undefined
+				) {
 					headerMap.specification = index;
 				} else if (
-					(header === 'tools or equipment' || header === 'tools/equipment' || header === 'tools' || header === 'equipment') &&
+					(header === 'tools or equipment' ||
+						header === 'tools/equipment' ||
+						header === 'tools' ||
+						header === 'equipment') &&
 					headerMap.toolsorequipment === undefined
 				) {
 					headerMap.toolsorequipment = index;
-				} else if ((header === 'picture' || header === 'image' || header === 'photo') && headerMap.picture === undefined) {
+				} else if (
+					(header === 'picture' || header === 'image' || header === 'photo') &&
+					headerMap.picture === undefined
+				) {
 					headerMap.picture = index;
-				} else if ((header === 'remarks' || header === 'remark' || header === 'notes' || header === 'note') && headerMap.remarks === undefined) {
+				} else if (
+					(header === 'remarks' ||
+						header === 'remark' ||
+						header === 'notes' ||
+						header === 'note') &&
+					headerMap.remarks === undefined
+				) {
 					headerMap.remarks = index;
-				} else if ((header === 'location' || header === 'storage location' || header === 'storage') && headerMap.location === undefined) {
+				} else if (
+					(header === 'location' || header === 'storage location' || header === 'storage') &&
+					headerMap.location === undefined
+				) {
 					headerMap.location = index;
 				} else if (
-					(header === 'min stock' || header === 'minimum stock' || header === 'reorder point' || header === 'reorder level') &&
+					(header === 'min stock' ||
+						header === 'minimum stock' ||
+						header === 'reorder point' ||
+						header === 'reorder level') &&
 					headerMap.minstock === undefined
 				) {
 					headerMap.minstock = index;
@@ -1856,172 +1964,178 @@ $effect(() => {
 				toastStore.error('Missing required column: Name');
 				return;
 			}
-		
-		const parsedData: any[] = [...existingPreview];
-		const errors: string[] = [...existingErrors];
-		const consumedEmbeddedImageRows = new Set<number>();
-		const categoryNameSet = new Set(categories.map((c) => normalizeKeyPart(c.name)));
-		const existingInventoryByCompositeKey = new Map<string, InventoryItem>();
-		for (const existingItem of items) {
-			existingInventoryByCompositeKey.set(
-				getItemCompositeKey(existingItem.name, existingItem.specification),
-				existingItem
-			);
-		}
-		const seenKeys = new Set<string>(
-			existingPreview.map((row: any) => getItemCompositeKey(row.name, row.specification))
-		); // track name+specification composites across the full import preview
 
-		// Start from the line after the header row
-		for (let i = headerLineIndex + 1; i < lines.length; i++) {
-			if ((i - headerLineIndex) % IMPORT_PARSE_YIELD_EVERY === 0) {
-				if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
-				await yieldToMainThread();
+			const parsedData: any[] = [...existingPreview];
+			const errors: string[] = [...existingErrors];
+			const consumedEmbeddedImageRows = new Set<number>();
+			const categoryNameSet = new Set(categories.map((c) => normalizeKeyPart(c.name)));
+			const existingInventoryByCompositeKey = new Map<string, InventoryItem>();
+			for (const existingItem of items) {
+				existingInventoryByCompositeKey.set(
+					getItemCompositeKey(existingItem.name, existingItem.specification),
+					existingItem
+				);
 			}
+			const seenKeys = new Set<string>(
+				existingPreview.map((row: any) => getItemCompositeKey(row.name, row.specification))
+			); // track name+specification composites across the full import preview
 
-			const values = parseCSVLine(lines[i], separator);
-			const nonEmptyPosition = lineIndexToNonEmptyPosition.get(i);
-			const sourceRowNumber =
-				typeof nonEmptyPosition === 'number'
-					? options?.csvLineToExcelRows?.[nonEmptyPosition] ?? i + 1
-					: i + 1;
-			
-			// Skip completely empty lines
-			if (values.length === 0 || values.every(v => !v.trim())) {
-				continue;
-			}
-
-			// Extract values using header map
-			const valueAt = (key: string) => {
-				const idx = headerMap[key];
-				return idx !== undefined ? values[idx]?.trim() || '' : '';
-			};
-
-			const name = valueAt('name');
-			const rawCategory = valueAt('category');
-			const quantityValue = valueAt('quantity');
-			const specification = valueAt('specification');
-			const toolsorequipment = valueAt('toolsorequipment');
-			const eomcount = valueAt('eomcount');
-			const donationsValue = valueAt('donations');
-			const minStockValue = valueAt('minstock');
-			const locationValue = valueAt('location');
-			let pictureRef = valueAt('picture');
-			const rawPictureRef = pictureRef;
-			const remarks = valueAt('remarks');
-			const category = categoryFromSheet || rawCategory;
-
-			const providedFlags = {
-				category: !!categoryFromSheet || (headerMap['category'] !== undefined && rawCategory !== ''),
-				quantity: headerMap['quantity'] !== undefined && quantityValue !== '',
-				specification: headerMap['specification'] !== undefined && specification !== '',
-				toolsOrEquipment: headerMap['toolsorequipment'] !== undefined && toolsorequipment !== '',
-				eomCount: headerMap['eomcount'] !== undefined && eomcount !== '',
-				donations: headerMap['donations'] !== undefined && donationsValue !== '',
-				minStock: headerMap['minstock'] !== undefined && minStockValue !== '',
-				location: headerMap['location'] !== undefined && locationValue !== '',
-				picture: headerMap['picture'] !== undefined && pictureRef !== '',
-				remarks: headerMap['remarks'] !== undefined && remarks !== ''
-			};
-
-			// Skip rows without a name - they're not valid items
-			if (!name || name.trim() === '') {
-				errors.push(`Row ${sourceRowNumber}: Name is required`);
-				continue;
-			}
-
-			// Validate row
-			const rowErrors: string[] = [];
-			if (!category) rowErrors.push('Category is required (use sheet name or Category column)');
-
-			if (rawPictureRef) {
-				const normalizedPictureRef = rawPictureRef.replace(/\\/g, '/').toLowerCase();
-				const pictureBaseName = normalizedPictureRef.split('/').pop() || normalizedPictureRef;
-				if (importAmbiguousImageNames.has(pictureBaseName) && !normalizedPictureRef.includes('/')) {
-					rowErrors.push('Picture filename is duplicated in ZIP. Use folder-qualified path in Picture column or unique filenames.');
+			// Start from the line after the header row
+			for (let i = headerLineIndex + 1; i < lines.length; i++) {
+				if ((i - headerLineIndex) % IMPORT_PARSE_YIELD_EVERY === 0) {
+					if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
+					await yieldToMainThread();
 				}
-			}
 
-			// Check for duplicate using name+specification composite (same name with different spec = different item)
-			const nameLower = normalizeKeyPart(name);
-			const specLower = normalizeKeyPart(specification);
-			const compositeKey = getItemCompositeKey(name, specification);
-			const isDuplicateInFile = seenKeys.has(compositeKey);
-			if (isDuplicateInFile) {
-				rowErrors.push('Duplicate: same name and specification appears earlier in this file');
-			}
-			seenKeys.add(compositeKey);
+				const values = parseCSVLine(lines[i], separator);
+				const nonEmptyPosition = lineIndexToNonEmptyPosition.get(i);
+				const sourceRowNumber =
+					typeof nonEmptyPosition === 'number'
+						? (options?.csvLineToExcelRows?.[nonEmptyPosition] ?? i + 1)
+						: i + 1;
 
-			// Check if item already exists in inventory (same name + same spec, case-insensitive).
-			// Existing items are allowed and will be updated during import.
-			const existingInventoryItem = existingInventoryByCompositeKey.get(compositeKey);
-			const alreadyExistsInInventory = !!existingInventoryItem;
+				// Skip completely empty lines
+				if (values.length === 0 || values.every((v) => !v.trim())) {
+					continue;
+				}
 
-			// Parse quantity - default to 1 if not provided
-			const quantity = providedFlags.quantity ? parseInt(quantityValue, 10) : 1;
-			if (providedFlags.quantity && (isNaN(quantity) || quantity < 0)) {
-				rowErrors.push('Quantity/Current Count must be a valid number');
-			}
+				// Extract values using header map
+				const valueAt = (key: string) => {
+					const idx = headerMap[key];
+					return idx !== undefined ? values[idx]?.trim() || '' : '';
+				};
 
-			const parsedEomCount = providedFlags.eomCount ? parseInt(eomcount, 10) : 0;
-			if (providedFlags.eomCount && (isNaN(parsedEomCount) || parsedEomCount < 0)) {
-				rowErrors.push('EOM Count must be a valid number');
-			}
+				const name = valueAt('name');
+				const rawCategory = valueAt('category');
+				const quantityValue = valueAt('quantity');
+				const specification = valueAt('specification');
+				const toolsorequipment = valueAt('toolsorequipment');
+				const eomcount = valueAt('eomcount');
+				const donationsValue = valueAt('donations');
+				const minStockValue = valueAt('minstock');
+				const locationValue = valueAt('location');
+				let pictureRef = valueAt('picture');
+				const rawPictureRef = pictureRef;
+				const remarks = valueAt('remarks');
+				const category = categoryFromSheet || rawCategory;
 
-			const parsedDonations = providedFlags.donations ? parseInt(donationsValue, 10) : 0;
-			if (providedFlags.donations && (isNaN(parsedDonations) || parsedDonations < 0)) {
-				rowErrors.push('Donations must be a valid number');
-			}
+				const providedFlags = {
+					category:
+						!!categoryFromSheet || (headerMap['category'] !== undefined && rawCategory !== ''),
+					quantity: headerMap['quantity'] !== undefined && quantityValue !== '',
+					specification: headerMap['specification'] !== undefined && specification !== '',
+					toolsOrEquipment: headerMap['toolsorequipment'] !== undefined && toolsorequipment !== '',
+					eomCount: headerMap['eomcount'] !== undefined && eomcount !== '',
+					donations: headerMap['donations'] !== undefined && donationsValue !== '',
+					minStock: headerMap['minstock'] !== undefined && minStockValue !== '',
+					location: headerMap['location'] !== undefined && locationValue !== '',
+					picture: headerMap['picture'] !== undefined && pictureRef !== '',
+					remarks: headerMap['remarks'] !== undefined && remarks !== ''
+				};
 
-			const parsedMinStock = providedFlags.minStock ? parseInt(minStockValue, 10) : 0;
-			if (providedFlags.minStock && (isNaN(parsedMinStock) || parsedMinStock < 0)) {
-				// Min Stock validation removed - property not in InventoryItem type
-			}
+				// Skip rows without a name - they're not valid items
+				if (!name || name.trim() === '') {
+					errors.push(`Row ${sourceRowNumber}: Name is required`);
+					continue;
+				}
 
-			const parsedLocation = providedFlags.location ? locationValue : '';
+				// Validate row
+				const rowErrors: string[] = [];
+				if (!category) rowErrors.push('Category is required (use sheet name or Category column)');
 
-			// Handle Picture column - support URL or filename
-			let hasImage = false;
-			let imageSource = '';
-
-			// Check for embedded Excel images using actual Excel row numbers.
-			const excelRowForLine =
-				typeof nonEmptyPosition === 'number'
-					? options?.csvLineToExcelRows?.[nonEmptyPosition]
-					: undefined;
-			if (!pictureRef && embeddedImagesByExcelRow && typeof excelRowForLine === 'number') {
-				let resolvedImageRow: number | null = null;
-				const candidateRows = [excelRowForLine];
-
-				for (const candidateRow of candidateRows) {
+				if (rawPictureRef) {
+					const normalizedPictureRef = rawPictureRef.replace(/\\/g, '/').toLowerCase();
+					const pictureBaseName = normalizedPictureRef.split('/').pop() || normalizedPictureRef;
 					if (
-						embeddedImagesByExcelRow.has(candidateRow) &&
-						!consumedEmbeddedImageRows.has(candidateRow)
+						importAmbiguousImageNames.has(pictureBaseName) &&
+						!normalizedPictureRef.includes('/')
 					) {
-						resolvedImageRow = candidateRow;
-						break;
+						rowErrors.push(
+							'Picture filename is duplicated in ZIP. Use folder-qualified path in Picture column or unique filenames.'
+						);
 					}
 				}
 
-				if (resolvedImageRow !== null) {
-					const embeddedFile = embeddedImagesByExcelRow.get(resolvedImageRow);
-					if (embeddedFile) {
-						const embeddedKey = `excel_row_${excelRowForLine}_${embeddedFile.name}`;
-						importImageFiles.set(embeddedKey.toLowerCase(), embeddedFile);
-						pictureRef = embeddedKey;
-						hasImage = true;
-						imageSource = 'excel';
-						consumedEmbeddedImageRows.add(resolvedImageRow);
+				// Check for duplicate using name+specification composite (same name with different spec = different item)
+				const nameLower = normalizeKeyPart(name);
+				const specLower = normalizeKeyPart(specification);
+				const compositeKey = getItemCompositeKey(name, specification);
+				const isDuplicateInFile = seenKeys.has(compositeKey);
+				if (isDuplicateInFile) {
+					rowErrors.push('Duplicate: same name and specification appears earlier in this file');
+				}
+				seenKeys.add(compositeKey);
+
+				// Check if item already exists in inventory (same name + same spec, case-insensitive).
+				// Existing items are allowed and will be updated during import.
+				const existingInventoryItem = existingInventoryByCompositeKey.get(compositeKey);
+				const alreadyExistsInInventory = !!existingInventoryItem;
+
+				// Parse quantity - default to 1 if not provided
+				const quantity = providedFlags.quantity ? parseInt(quantityValue, 10) : 1;
+				if (providedFlags.quantity && (isNaN(quantity) || quantity < 0)) {
+					rowErrors.push('Quantity/Current Count must be a valid number');
+				}
+
+				const parsedEomCount = providedFlags.eomCount ? parseInt(eomcount, 10) : 0;
+				if (providedFlags.eomCount && (isNaN(parsedEomCount) || parsedEomCount < 0)) {
+					rowErrors.push('EOM Count must be a valid number');
+				}
+
+				const parsedDonations = providedFlags.donations ? parseInt(donationsValue, 10) : 0;
+				if (providedFlags.donations && (isNaN(parsedDonations) || parsedDonations < 0)) {
+					rowErrors.push('Donations must be a valid number');
+				}
+
+				const parsedMinStock = providedFlags.minStock ? parseInt(minStockValue, 10) : 0;
+				if (providedFlags.minStock && (isNaN(parsedMinStock) || parsedMinStock < 0)) {
+					// Min Stock validation removed - property not in InventoryItem type
+				}
+
+				const parsedLocation = providedFlags.location ? locationValue : '';
+
+				// Handle Picture column - support URL or filename
+				let hasImage = false;
+				let imageSource = '';
+
+				// Check for embedded Excel images using actual Excel row numbers.
+				const excelRowForLine =
+					typeof nonEmptyPosition === 'number'
+						? options?.csvLineToExcelRows?.[nonEmptyPosition]
+						: undefined;
+				if (!pictureRef && embeddedImagesByExcelRow && typeof excelRowForLine === 'number') {
+					let resolvedImageRow: number | null = null;
+					const candidateRows = [excelRowForLine];
+
+					for (const candidateRow of candidateRows) {
+						if (
+							embeddedImagesByExcelRow.has(candidateRow) &&
+							!consumedEmbeddedImageRows.has(candidateRow)
+						) {
+							resolvedImageRow = candidateRow;
+							break;
+						}
+					}
+
+					if (resolvedImageRow !== null) {
+						const embeddedFile = embeddedImagesByExcelRow.get(resolvedImageRow);
+						if (embeddedFile) {
+							const embeddedKey = `excel_row_${excelRowForLine}_${embeddedFile.name}`;
+							importImageFiles.set(embeddedKey.toLowerCase(), embeddedFile);
+							pictureRef = embeddedKey;
+							hasImage = true;
+							imageSource = 'excel';
+							consumedEmbeddedImageRows.add(resolvedImageRow);
+						}
 					}
 				}
-			}
 
 				if (pictureRef) {
 					// Check if it's a URL
 					if (pictureRef.startsWith('http://') || pictureRef.startsWith('https://')) {
 						hasImage = true;
 						imageSource = 'url';
-					} 
+					}
 					// Check if it matches an uploaded image file
 					else if (importImageFiles.has(pictureRef.toLowerCase())) {
 						hasImage = true;
@@ -2030,85 +2144,99 @@ $effect(() => {
 					// Check with common extensions
 					else {
 						const withExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp']
-							.map(ext => pictureRef + ext)
-						.find(fileName => importImageFiles.has(fileName.toLowerCase()));
-					
-					if (withExt) {
-						pictureRef = withExt;
-						hasImage = true;
-						imageSource = 'zip';
-					}
-				}
-			}
+							.map((ext) => pictureRef + ext)
+							.find((fileName) => importImageFiles.has(fileName.toLowerCase()));
 
-			const normalizedCategory = normalizeKeyPart(category);
-			const normalizedTools = normalizeKeyPart(toolsorequipment || '');
-			const normalizedLocation = normalizeKeyPart(parsedLocation);
-
-			const changedFields: string[] = [];
-			let importAction: 'create' | 'update' | 'no-change' | 'error' = rowErrors.length > 0 ? 'error' : 'create';
-
-			if (existingInventoryItem && rowErrors.length === 0) {
-				if (providedFlags.category && normalizeKeyPart(existingInventoryItem.category) !== normalizedCategory) changedFields.push('category');
-				if (providedFlags.toolsOrEquipment && normalizeKeyPart(existingInventoryItem.toolsOrEquipment || '') !== normalizedTools) changedFields.push('tools/equipment');
-				if (providedFlags.quantity && (existingInventoryItem.quantity ?? 0) !== quantity) changedFields.push('quantity');
-				if (providedFlags.eomCount && (existingInventoryItem.eomCount ?? 0) !== parsedEomCount) changedFields.push('eomCount');
-				if (providedFlags.donations && (existingInventoryItem.donations ?? 0) !== parsedDonations) changedFields.push('donations');
-				if (existingInventoryItem.archived) changedFields.push('archived->active');
-
-				if (hasImage) {
-					if (imageSource === 'url') {
-						if ((existingInventoryItem.picture || '') !== pictureRef) changedFields.push('picture');
-					} else {
-						// ZIP/Excel images are uploaded to a new URL, so treat as a picture update.
-						changedFields.push('picture');
+						if (withExt) {
+							pictureRef = withExt;
+							hasImage = true;
+							imageSource = 'zip';
+						}
 					}
 				}
 
-				importAction = changedFields.length > 0 ? 'update' : 'no-change';
+				const normalizedCategory = normalizeKeyPart(category);
+				const normalizedTools = normalizeKeyPart(toolsorequipment || '');
+				const normalizedLocation = normalizeKeyPart(parsedLocation);
+
+				const changedFields: string[] = [];
+				let importAction: 'create' | 'update' | 'no-change' | 'error' =
+					rowErrors.length > 0 ? 'error' : 'create';
+
+				if (existingInventoryItem && rowErrors.length === 0) {
+					if (
+						providedFlags.category &&
+						normalizeKeyPart(existingInventoryItem.category) !== normalizedCategory
+					)
+						changedFields.push('category');
+					if (
+						providedFlags.toolsOrEquipment &&
+						normalizeKeyPart(existingInventoryItem.toolsOrEquipment || '') !== normalizedTools
+					)
+						changedFields.push('tools/equipment');
+					if (providedFlags.quantity && (existingInventoryItem.quantity ?? 0) !== quantity)
+						changedFields.push('quantity');
+					if (providedFlags.eomCount && (existingInventoryItem.eomCount ?? 0) !== parsedEomCount)
+						changedFields.push('eomCount');
+					if (providedFlags.donations && (existingInventoryItem.donations ?? 0) !== parsedDonations)
+						changedFields.push('donations');
+					if (existingInventoryItem.archived) changedFields.push('archived->active');
+
+					if (hasImage) {
+						if (imageSource === 'url') {
+							if ((existingInventoryItem.picture || '') !== pictureRef)
+								changedFields.push('picture');
+						} else {
+							// ZIP/Excel images are uploaded to a new URL, so treat as a picture update.
+							changedFields.push('picture');
+						}
+					}
+
+					importAction = changedFields.length > 0 ? 'update' : 'no-change';
+				}
+
+				const rowData: any = {
+					name: name,
+					category: category,
+					quantity: quantity,
+					donations: parsedDonations,
+					specification: specification || '',
+					toolsOrEquipment: toolsorequipment || '',
+					eomCount: providedFlags.eomCount ? parsedEomCount : undefined,
+					remarks: remarks || '',
+					currentCount: getCurrentCount(quantity, parsedDonations),
+					_rowNumber: sourceRowNumber,
+					_errors: rowErrors,
+					_valid: rowErrors.length === 0,
+					_pictureRef: pictureRef,
+					_hasImage: hasImage,
+					_imageSource: imageSource,
+					_categoryExists: categoryNameSet.has(normalizedCategory),
+					_isDuplicateInFile: isDuplicateInFile,
+					_alreadyExists: alreadyExistsInInventory,
+					_existingItemId: existingInventoryItem?.id,
+					_importAction: importAction,
+					_changedFields: changedFields,
+					_provided: providedFlags
+				};
+
+				parsedData.push(rowData);
+
+				if (rowErrors.length > 0) {
+					errors.push(`Row ${sourceRowNumber}: ${rowErrors.join(', ')}`);
+				}
 			}
 
-			const rowData: any = {
-				name: name,
-				category: category,
-				quantity: quantity,
-				donations: parsedDonations,
-				specification: specification || '',
-				toolsOrEquipment: toolsorequipment || '',
-				eomCount: providedFlags.eomCount ? parsedEomCount : undefined,
-				remarks: remarks || '',
-				currentCount: getCurrentCount(quantity, parsedDonations),
-				_rowNumber: sourceRowNumber,
-				_errors: rowErrors,
-				_valid: rowErrors.length === 0,
-				_pictureRef: pictureRef,
-				_hasImage: hasImage,
-				_imageSource: imageSource,
-				_categoryExists: categoryNameSet.has(normalizedCategory),
-				_isDuplicateInFile: isDuplicateInFile,
-				_alreadyExists: alreadyExistsInInventory,
-				_existingItemId: existingInventoryItem?.id,
-				_importAction: importAction,
-				_changedFields: changedFields,
-				_provided: providedFlags
-			};
+			if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
+			importPreviewData = parsedData;
+			importErrors = errors;
 
-			parsedData.push(rowData);
-
-			if (rowErrors.length > 0) {
-				errors.push(`Row ${sourceRowNumber}: ${rowErrors.join(', ')}`);
+			// Show success toast
+			if (parsedData.length > 0 && !silent) {
+				toastStore.success(
+					`Parsed ${parsedData.length} items. ${errors.length > 0 ? `${errors.length} rows have errors.` : 'Click Continue to preview.'}`
+				);
 			}
-		}
-
-		if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
-		importPreviewData = parsedData;
-		importErrors = errors;
-
-		// Show success toast
-		if (parsedData.length > 0 && !silent) {
-			toastStore.success(`Parsed ${parsedData.length} items. ${errors.length > 0 ? `${errors.length} rows have errors.` : 'Click Continue to preview.'}`);
-		}
-
 		} catch (err: any) {
 			const sessionId = options?.sessionId;
 			if (typeof sessionId === 'number' && !isImportSessionActive(sessionId)) return;
@@ -2151,11 +2279,13 @@ $effect(() => {
 	}
 
 	async function handleImportConfirm() {
-		const validItems = importPreviewData.filter(item => item._valid);
+		const validItems = importPreviewData.filter((item) => item._valid);
 		const actionableItems = importPreviewData.filter(
-			item => item._importAction === 'create' || item._importAction === 'update'
+			(item) => item._importAction === 'create' || item._importAction === 'update'
 		);
-		const noChangeCount = importPreviewData.filter(item => item._importAction === 'no-change').length;
+		const noChangeCount = importPreviewData.filter(
+			(item) => item._importAction === 'no-change'
+		).length;
 
 		if (validItems.length === 0) {
 			toastStore.error('No valid items to import');
@@ -2185,12 +2315,12 @@ $effect(() => {
 			let failCount = 0;
 
 			// Collect unique categories from import data
-			const uniqueCategories = [...new Set(validItems.map(item => item.category))];
+			const uniqueCategories = [...new Set(validItems.map((item) => item.category))];
 			const categoriesByName = new Map(categories.map((c) => [normalizeKeyPart(c.name), c]));
 
 			// Create missing categories first
 			const categoryMap = new Map<string, InventoryCategory>();
-			
+
 			for (const categoryName of uniqueCategories) {
 				const normalizedCategoryName = normalizeKeyPart(categoryName);
 				const existing = categoriesByName.get(normalizedCategoryName);
@@ -2200,7 +2330,7 @@ $effect(() => {
 					// Create new category
 					try {
 						importProgress.message = `Creating category: ${categoryName}...`;
-						const newCategory = await inventoryCategoriesAPI.create({ 
+						const newCategory = await inventoryCategoriesAPI.create({
 							name: categoryName,
 							description: `Auto-created from import`
 						});
@@ -2224,7 +2354,8 @@ $effect(() => {
 			}
 
 			const preparedCreateItems: Array<{ rowNumber: number; name: string; data: any }> = [];
-			const preparedUpdateItems: Array<{ rowNumber: number; name: string; id: string; data: any }> = [];
+			const preparedUpdateItems: Array<{ rowNumber: number; name: string; id: string; data: any }> =
+				[];
 
 			for (const item of validItems) {
 				try {
@@ -2236,7 +2367,7 @@ $effect(() => {
 
 					// Handle image upload
 					let pictureUrl = '';
-					
+
 					if (item._hasImage) {
 						if (item._imageSource === 'url') {
 							// Validate URL format
@@ -2281,12 +2412,24 @@ $effect(() => {
 						const updateData: any = {};
 						const provided = item._provided || {};
 
-						if (provided.category && (existingItem.category || '') !== (itemData.category || '')) updateData.category = itemData.category;
-						if (provided.category && (existingItem.categoryId || '') !== (itemData.categoryId || '')) updateData.categoryId = itemData.categoryId;
-						if (provided.toolsOrEquipment && (existingItem.toolsOrEquipment || '') !== (itemData.toolsOrEquipment || '')) updateData.toolsOrEquipment = itemData.toolsOrEquipment;
-						if (provided.quantity && (existingItem.quantity ?? 0) !== (itemData.quantity ?? 0)) updateData.quantity = itemData.quantity;
-						if (provided.eomCount && (existingItem.eomCount ?? 0) !== (itemData.eomCount ?? 0)) updateData.eomCount = itemData.eomCount;
-						if (provided.donations && (existingItem.donations ?? 0) !== (itemData.donations ?? 0)) updateData.donations = itemData.donations;
+						if (provided.category && (existingItem.category || '') !== (itemData.category || ''))
+							updateData.category = itemData.category;
+						if (
+							provided.category &&
+							(existingItem.categoryId || '') !== (itemData.categoryId || '')
+						)
+							updateData.categoryId = itemData.categoryId;
+						if (
+							provided.toolsOrEquipment &&
+							(existingItem.toolsOrEquipment || '') !== (itemData.toolsOrEquipment || '')
+						)
+							updateData.toolsOrEquipment = itemData.toolsOrEquipment;
+						if (provided.quantity && (existingItem.quantity ?? 0) !== (itemData.quantity ?? 0))
+							updateData.quantity = itemData.quantity;
+						if (provided.eomCount && (existingItem.eomCount ?? 0) !== (itemData.eomCount ?? 0))
+							updateData.eomCount = itemData.eomCount;
+						if (provided.donations && (existingItem.donations ?? 0) !== (itemData.donations ?? 0))
+							updateData.donations = itemData.donations;
 
 						if (existingItem.archived) {
 							updateData.archived = false;
@@ -2322,16 +2465,20 @@ $effect(() => {
 				}
 			}
 
-			await runWithConcurrency(preparedUpdateItems, IMPORT_UPDATE_CONCURRENCY, async (entry, index) => {
-				try {
-					importProgress.message = `Updating items (${index + 1}/${preparedUpdateItems.length})`;
-					await updateInventoryItemWithRetry(entry.id, entry.data);
-					updatedCount++;
-				} catch (updateErr: any) {
-					console.error(`Failed to update row ${entry.rowNumber} (${entry.name}):`, updateErr);
-					failCount++;
+			await runWithConcurrency(
+				preparedUpdateItems,
+				IMPORT_UPDATE_CONCURRENCY,
+				async (entry, index) => {
+					try {
+						importProgress.message = `Updating items (${index + 1}/${preparedUpdateItems.length})`;
+						await updateInventoryItemWithRetry(entry.id, entry.data);
+						updatedCount++;
+					} catch (updateErr: any) {
+						console.error(`Failed to update row ${entry.rowNumber} (${entry.name}):`, updateErr);
+						failCount++;
+					}
 				}
-			});
+			);
 
 			for (let i = 0; i < preparedCreateItems.length; i += IMPORT_BATCH_SIZE) {
 				const batch = preparedCreateItems.slice(i, i + IMPORT_BATCH_SIZE);
@@ -2341,7 +2488,7 @@ $effect(() => {
 
 				try {
 					const response = await inventoryItemsAPI.bulkCreate({
-						items: batch.map(entry => entry.data)
+						items: batch.map((entry) => entry.data)
 					});
 
 					createdCount += response.createdCount;
@@ -2356,14 +2503,20 @@ $effect(() => {
 						}
 					}
 				} catch (batchErr: any) {
-					console.error(`Bulk batch ${batchNumber} failed, falling back to per-item import`, batchErr);
+					console.error(
+						`Bulk batch ${batchNumber} failed, falling back to per-item import`,
+						batchErr
+					);
 
 					await runWithConcurrency(batch, IMPORT_UPDATE_CONCURRENCY, async (entry) => {
 						try {
 							await createInventoryItemWithRetry(entry.data);
 							createdCount++;
 						} catch (singleErr: any) {
-							console.error(`Fallback failed for row ${entry.rowNumber} (${entry.name}):`, singleErr);
+							console.error(
+								`Fallback failed for row ${entry.rowNumber} (${entry.name}):`,
+								singleErr
+							);
 							failCount++;
 						}
 					});
@@ -2375,27 +2528,27 @@ $effect(() => {
 			if (successCount > 0) {
 				// Complete cache reset
 				inventoryStore.reset();
-				
+
 				// Clear all filters
 				selectedCategory = null;
 				query = '';
-				
+
 				// Delay to ensure database writes are fully committed
-				await new Promise(resolve => setTimeout(resolve, 150));
-				
+				await new Promise((resolve) => setTimeout(resolve, 150));
+
 				// Force complete reload with direct API calls
 				try {
 					loading = true;
-					
+
 					// Direct API calls bypassing cache
 					const [allFetchedItems, categoriesResponse] = await Promise.all([
 						fetchAllInventoryItems(true),
 						inventoryCategoriesAPI.getAll({ includeArchived: true })
 					]);
-					
+
 					items = allFetchedItems;
 					categories = categoriesResponse.categories;
-					
+
 					// Update store cache
 					inventoryStore.setItems(allFetchedItems);
 					inventoryStore.setCategories(categoriesResponse.categories);
@@ -2409,11 +2562,13 @@ $effect(() => {
 
 			importStep = 'complete';
 			importProgress.message = 'Import complete!';
-			
+
 			if (failCount === 0) {
 				toastStore.success(`Import complete: ${createdCount} created, ${updatedCount} updated`);
 			} else {
-				toastStore.warning(`Import complete: ${createdCount} created, ${updatedCount} updated, ${failCount} failed`);
+				toastStore.warning(
+					`Import complete: ${createdCount} created, ${updatedCount} updated, ${failCount} failed`
+				);
 			}
 
 			// Switch to all items tab to show results
@@ -2423,7 +2578,6 @@ $effect(() => {
 			setTimeout(() => {
 				closeImportModal();
 			}, 2000);
-
 		} catch (err: any) {
 			toastStore.error('Import failed: ' + err.message);
 			console.error('Import error:', err);
@@ -2445,8 +2599,10 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		link.download = 'inventory_import_template.csv';
 		link.click();
 		URL.revokeObjectURL(link.href);
-		
-		toastStore.success('Template downloaded! Name your Excel sheet tab as the category (e.g., "Hot Kitchen")');
+
+		toastStore.success(
+			'Template downloaded! Name your Excel sheet tab as the category (e.g., "Hot Kitchen")'
+		);
 	}
 </script>
 
@@ -2465,10 +2621,17 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		<!-- Item Details Modal -->
 		{#if selectedItem}
 			<div class="fixed inset-0 z-50 overflow-y-auto">
-				<button type="button" class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onclick={closeModal} aria-label="Close modal" tabindex="-1"></button>
+				<button
+					type="button"
+					class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+					onclick={closeModal}
+					aria-label="Close modal"
+					tabindex="-1"
+				></button>
 				<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
-					<div class="relative w-full max-w-2xl sm:max-w-4xl rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl animate-scaleIn overflow-hidden mx-0 sm:mx-auto">
-						
+					<div
+						class="animate-scaleIn relative mx-0 w-full max-w-2xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:mx-auto sm:max-w-4xl sm:rounded-3xl"
+					>
 						<!-- Header -->
 						<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
 							<div class="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
@@ -2478,192 +2641,394 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										<button
 											type="button"
 											onclick={openFullImage}
-											class="relative cursor-zoom-in transition-all group shrink-0"
+											class="group relative shrink-0 cursor-zoom-in transition-all"
 											title="Click to view full size"
 										>
 											<div class="relative h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16">
-												<img 
-													src={selectedItem.picture} 
-													alt={selectedItem.name} 
-													class="h-full w-full rounded-xl sm:rounded-2xl object-cover shadow-lg ring-2 ring-pink-200" 
-													loading="lazy" 
+												<img
+													src={selectedItem.picture}
+													alt={selectedItem.name}
+													class="h-full w-full rounded-xl object-cover shadow-lg ring-2 ring-pink-200 sm:rounded-2xl"
+													loading="lazy"
 												/>
-												<div class="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors rounded-xl sm:rounded-2xl">
-													<svg class="h-4 w-4 sm:h-5 sm:w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"/>
+												<div
+													class="absolute inset-0 flex items-center justify-center rounded-xl bg-black/0 transition-colors group-hover:bg-black/30 sm:rounded-2xl"
+												>
+													<svg
+														class="h-4 w-4 text-white opacity-0 drop-shadow-lg transition-opacity group-hover:opacity-100 sm:h-5 sm:w-5"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2.5"
+															d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7"
+														/>
 													</svg>
 												</div>
 											</div>
 										</button>
 									{:else}
-										<div class="flex h-12 w-12 sm:h-14 sm:w-14 lg:h-16 lg:w-16 shrink-0 items-center justify-center rounded-xl sm:rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30">
-											<svg class="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+										<div
+											class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30 sm:h-14 sm:w-14 sm:rounded-2xl lg:h-16 lg:w-16"
+										>
+											<svg
+												class="h-6 w-6 text-white sm:h-7 sm:w-7 lg:h-8 lg:w-8"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2.5"
+													d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+												/>
 											</svg>
 										</div>
 									{/if}
-									
+
 									<div class="min-w-0 flex-1">
-										<h2 class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">{selectedItem.name}</h2>
+										<h2 class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">
+											{selectedItem.name}
+										</h2>
 										<p class="mt-0.5 text-xs text-gray-500 sm:text-sm">{selectedItem.category}</p>
 										<div class="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
-											<span class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1 shadow-sm ring-1 ring-black/5 {
-												selectedItem.status === 'In Stock' ? 'bg-green-100 text-green-800' :
-												selectedItem.status === 'Low Stock' ? 'bg-amber-100 text-amber-800' :
-												'bg-red-100 text-red-800'
-											}">
+											<span
+												class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 shadow-sm ring-1 ring-black/5 sm:px-2.5 sm:py-1 {selectedItem.status ===
+												'In Stock'
+													? 'bg-green-100 text-green-800'
+													: selectedItem.status === 'Low Stock'
+														? 'bg-amber-100 text-amber-800'
+														: 'bg-red-100 text-red-800'}"
+											>
 												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
 												<span class="text-[10px] font-bold sm:text-xs">{selectedItem.status}</span>
 											</span>
 											{#if selectedItem.isConstant}
-												<span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 sm:px-2.5 sm:py-1 text-purple-800 shadow-sm ring-1 ring-purple-200">
-													<Star class="h-2.5 w-2.5 sm:h-3 sm:w-3 fill-current" />
+												<span
+													class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-purple-800 shadow-sm ring-1 ring-purple-200 sm:px-2.5 sm:py-1"
+												>
+													<Star class="h-2.5 w-2.5 fill-current sm:h-3 sm:w-3" />
 													<span class="text-[10px] font-bold sm:text-xs">Constant</span>
 												</span>
 											{/if}
 										</div>
 									</div>
 
-									<button 
+									<button
 										onclick={closeModal}
 										aria-label="Close modal"
-										class="rounded-lg sm:rounded-xl p-1.5 sm:p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95 shrink-0"
+										class="shrink-0 rounded-lg p-1.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95 sm:rounded-xl sm:p-2"
 									>
-										<svg class="h-5 w-5 sm:h-6 sm:w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+										<svg
+											class="h-5 w-5 sm:h-6 sm:w-6"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M6 18L18 6M6 6l12 12"
+											/>
 										</svg>
 									</button>
 								</div>
 							</div>
 						</div>
-						
+
 						<!-- Content -->
-						<div class="max-h-[calc(100vh-180px)] sm:max-h-[70vh] overflow-y-auto">
+						<div class="max-h-[calc(100vh-180px)] overflow-y-auto sm:max-h-[70vh]">
 							<div class="px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
 								<div class="space-y-5 sm:space-y-6 lg:space-y-8">
-									
 									<!-- Item Details -->
 									<div>
-										<h3 class="mb-3 sm:mb-4 flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-gray-900">
+										<h3
+											class="mb-3 flex items-center gap-2 text-xs font-bold tracking-wider text-gray-900 uppercase sm:mb-4 sm:text-sm"
+										>
 											<div class="h-1 w-1 rounded-full bg-pink-500"></div>
 											Item Details
 										</h3>
 										<div class="grid grid-cols-2 gap-2 lg:gap-3">
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
-													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+											<div
+												class="group rounded-lg border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:rounded-xl sm:p-4"
+											>
+												<div class="mb-1.5 flex items-center gap-1.5 sm:mb-2">
+													<svg
+														class="h-3 w-3 text-pink-500 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+														/>
 													</svg>
-													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Category</p>
+													<p
+														class="text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:text-xs"
+													>
+														Category
+													</p>
 												</div>
-												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.category}</p>
+												<p class="truncate text-xs font-bold text-gray-900 sm:text-sm">
+													{selectedItem.category}
+												</p>
 											</div>
 
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
-													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+											<div
+												class="group rounded-lg border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:rounded-xl sm:p-4"
+											>
+												<div class="mb-1.5 flex items-center gap-1.5 sm:mb-2">
+													<svg
+														class="h-3 w-3 text-pink-500 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+														/>
 													</svg>
-													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Specification</p>
+													<p
+														class="text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:text-xs"
+													>
+														Specification
+													</p>
 												</div>
-												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.specification || '—'}</p>
+												<p class="truncate text-xs font-bold text-gray-900 sm:text-sm">
+													{selectedItem.specification || '—'}
+												</p>
 											</div>
 
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
-													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+											<div
+												class="group rounded-lg border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:rounded-xl sm:p-4"
+											>
+												<div class="mb-1.5 flex items-center gap-1.5 sm:mb-2">
+													<svg
+														class="h-3 w-3 text-pink-500 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"
+														/>
 													</svg>
-													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Tools / Equipment</p>
+													<p
+														class="text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:text-xs"
+													>
+														Tools / Equipment
+													</p>
 												</div>
-												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.toolsOrEquipment || '—'}</p>
+												<p class="truncate text-xs font-bold text-gray-900 sm:text-sm">
+													{selectedItem.toolsOrEquipment || '—'}
+												</p>
 											</div>
 
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-												<div class="flex items-center gap-1.5 mb-1.5 sm:mb-2">
-													<svg class="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+											<div
+												class="group rounded-lg border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:rounded-xl sm:p-4"
+											>
+												<div class="mb-1.5 flex items-center gap-1.5 sm:mb-2">
+													<svg
+														class="h-3 w-3 text-pink-500 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+														/>
 													</svg>
-													<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Status</p>
+													<p
+														class="text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:text-xs"
+													>
+														Status
+													</p>
 												</div>
-												<p class="text-xs sm:text-sm font-bold text-gray-900 truncate">{selectedItem.status}</p>
+												<p class="truncate text-xs font-bold text-gray-900 sm:text-sm">
+													{selectedItem.status}
+												</p>
 											</div>
 										</div>
 									</div>
 
 									<!-- Stock Information -->
 									<div>
-										<h3 class="mb-3 sm:mb-4 flex items-center gap-2 text-xs sm:text-sm font-bold uppercase tracking-wider text-gray-900">
+										<h3
+											class="mb-3 flex items-center gap-2 text-xs font-bold tracking-wider text-gray-900 uppercase sm:mb-4 sm:text-sm"
+										>
 											<div class="h-1 w-1 rounded-full bg-pink-500"></div>
 											Stock Information
 										</h3>
 										<div class="grid grid-cols-2 gap-2 lg:gap-3">
-<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-											<div class="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
-												<div class="flex h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 shrink-0 items-center justify-center rounded-md sm:rounded-lg bg-blue-100">
-													<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-													</svg>
-												</div>
-												<p class="text-[8px] sm:text-[9px] lg:text-xs font-bold uppercase tracking-tight text-gray-500 leading-tight">Current</p>
-											</div>
-											<p class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{selectedItem.currentCount ?? getCurrentCount(selectedItem.quantity, selectedItem.donations ?? 0)}</p>
-											</div>
-
-<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-											<div class="flex items-center gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
-												<div class="flex h-5 w-5 sm:h-6 sm:w-6 lg:h-8 lg:w-8 shrink-0 items-center justify-center rounded-md sm:rounded-lg bg-purple-100">
-													<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-													</svg>
-												</div>
-												<p class="text-[8px] sm:text-[9px] lg:text-xs font-bold uppercase tracking-tight text-gray-500 leading-tight">EOM</p>
-											</div>
-											<p class="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900">{selectedItem.eomCount}</p>
-											</div>
-
-											<div class="group rounded-lg sm:rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 sm:p-3 lg:p-4 transition-all hover:border-pink-200 hover:shadow-md">
-												<div class="flex items-center gap-1.5 sm:gap-2 mb-1.5 sm:mb-2">
-													<div class="flex h-7 w-7 sm:h-8 sm:w-8 lg:h-10 lg:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl {
-														selectedItem.variance > 0 ? 'bg-green-100' :
-														selectedItem.variance < 0 ? 'bg-red-100' :
-														'bg-gray-100'
-													}">
-														<svg class="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 {
-															selectedItem.variance > 0 ? 'text-green-600' :
-															selectedItem.variance < 0 ? 'text-red-600' :
-															'text-gray-600'
-														}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+											<div
+												class="group rounded-lg border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 transition-all hover:border-pink-200 hover:shadow-md sm:rounded-xl sm:p-3 lg:p-4"
+											>
+												<div class="mb-1 flex items-center gap-1 sm:mb-1.5 sm:gap-1.5">
+													<div
+														class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-blue-100 sm:h-6 sm:w-6 sm:rounded-lg lg:h-8 lg:w-8"
+													>
+														<svg
+															class="h-2.5 w-2.5 text-blue-600 sm:h-3 sm:w-3 lg:h-4 lg:w-4"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+															/>
 														</svg>
 													</div>
-													<p class="text-[8px] sm:text-[9px] lg:text-xs font-bold uppercase tracking-tight text-gray-500 leading-tight">Variance</p>
+													<p
+														class="text-[8px] leading-tight font-bold tracking-tight text-gray-500 uppercase sm:text-[9px] lg:text-xs"
+													>
+														Current
+													</p>
 												</div>
-												<p class="text-lg sm:text-xl lg:text-2xl font-bold {
-													selectedItem.variance > 0 ? 'text-green-600' :
-													selectedItem.variance < 0 ? 'text-red-600' :
-													'text-gray-900'
-												}">{selectedItem.variance > 0 ? '+' : ''}{selectedItem.variance}</p>
+												<p class="text-lg font-bold text-gray-900 sm:text-xl lg:text-2xl">
+													{selectedItem.currentCount ??
+														getCurrentCount(selectedItem.quantity, selectedItem.donations ?? 0)}
+												</p>
+											</div>
+
+											<div
+												class="group rounded-lg border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 transition-all hover:border-pink-200 hover:shadow-md sm:rounded-xl sm:p-3 lg:p-4"
+											>
+												<div class="mb-1 flex items-center gap-1 sm:mb-1.5 sm:gap-1.5">
+													<div
+														class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-purple-100 sm:h-6 sm:w-6 sm:rounded-lg lg:h-8 lg:w-8"
+													>
+														<svg
+															class="h-2.5 w-2.5 text-purple-600 sm:h-3 sm:w-3 lg:h-4 lg:w-4"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+															/>
+														</svg>
+													</div>
+													<p
+														class="text-[8px] leading-tight font-bold tracking-tight text-gray-500 uppercase sm:text-[9px] lg:text-xs"
+													>
+														EOM
+													</p>
+												</div>
+												<p class="text-lg font-bold text-gray-900 sm:text-xl lg:text-2xl">
+													{selectedItem.eomCount}
+												</p>
+											</div>
+
+											<div
+												class="group rounded-lg border border-gray-200 bg-linear-to-br from-white to-gray-50 p-2.5 transition-all hover:border-pink-200 hover:shadow-md sm:rounded-xl sm:p-3 lg:p-4"
+											>
+												<div class="mb-1.5 flex items-center gap-1.5 sm:mb-2 sm:gap-2">
+													<div
+														class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-8 sm:w-8 sm:rounded-xl lg:h-10 lg:w-10 {selectedItem.variance >
+														0
+															? 'bg-green-100'
+															: selectedItem.variance < 0
+																? 'bg-red-100'
+																: 'bg-gray-100'}"
+													>
+														<svg
+															class="h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-4 lg:w-4 {selectedItem.variance >
+															0
+																? 'text-green-600'
+																: selectedItem.variance < 0
+																	? 'text-red-600'
+																	: 'text-gray-600'}"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"
+															/>
+														</svg>
+													</div>
+													<p
+														class="text-[8px] leading-tight font-bold tracking-tight text-gray-500 uppercase sm:text-[9px] lg:text-xs"
+													>
+														Variance
+													</p>
+												</div>
+												<p
+													class="text-lg font-bold sm:text-xl lg:text-2xl {selectedItem.variance > 0
+														? 'text-green-600'
+														: selectedItem.variance < 0
+															? 'text-red-600'
+															: 'text-gray-900'}"
+												>
+													{selectedItem.variance > 0 ? '+' : ''}{selectedItem.variance}
+												</p>
 											</div>
 										</div>
 									</div>
 
 									<!-- Low Stock Warning -->
 									{#if selectedItem.status === 'Low Stock' || selectedItem.status === 'Out of Stock'}
-										<div class="rounded-xl sm:rounded-2xl border-2 border-amber-200 bg-linear-to-br from-amber-50 to-amber-100/50 p-4 sm:p-5">
+										<div
+											class="rounded-xl border-2 border-amber-200 bg-linear-to-br from-amber-50 to-amber-100/50 p-4 sm:rounded-2xl sm:p-5"
+										>
 											<div class="flex gap-2.5 sm:gap-3">
-												<div class="flex h-8 w-8 sm:h-10 sm:w-10 shrink-0 items-center justify-center rounded-lg sm:rounded-xl {selectedItem.status === 'Out of Stock' ? 'bg-red-500' : 'bg-amber-500'}">
-													<AlertTriangle class="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+												<div
+													class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl {selectedItem.status ===
+													'Out of Stock'
+														? 'bg-red-500'
+														: 'bg-amber-500'}"
+												>
+													<AlertTriangle class="h-4 w-4 text-white sm:h-5 sm:w-5" />
 												</div>
-												<div class="flex-1 min-w-0">
-													<p class="text-xs sm:text-sm font-bold {selectedItem.status === 'Out of Stock' ? 'text-red-900' : 'text-amber-900'}">
-														{selectedItem.status === 'Out of Stock' ? 'Out of Stock' : 'Low Stock Alert'}
+												<div class="min-w-0 flex-1">
+													<p
+														class="text-xs font-bold sm:text-sm {selectedItem.status ===
+														'Out of Stock'
+															? 'text-red-900'
+															: 'text-amber-900'}"
+													>
+														{selectedItem.status === 'Out of Stock'
+															? 'Out of Stock'
+															: 'Low Stock Alert'}
 													</p>
-													<p class="mt-1 sm:mt-1.5 text-xs sm:text-sm {selectedItem.status === 'Out of Stock' ? 'text-red-800' : 'text-amber-800'} leading-relaxed">
+													<p
+														class="mt-1 text-xs sm:mt-1.5 sm:text-sm {selectedItem.status ===
+														'Out of Stock'
+															? 'text-red-800'
+															: 'text-amber-800'} leading-relaxed"
+													>
 														{#if selectedItem.status === 'Out of Stock'}
-															This item is currently out of stock. Consider restocking or marking as unavailable for requests.
+															This item is currently out of stock. Consider restocking or marking as
+															unavailable for requests.
 														{:else}
-															Stock levels are running low. Consider restocking this item soon to maintain availability.
+															Stock levels are running low. Consider restocking this item soon to
+															maintain availability.
 														{/if}
 													</p>
 												</div>
@@ -2673,21 +3038,23 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 								</div>
 							</div>
 						</div>
-						
+
 						<!-- Footer -->
 						<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm">
 							<div class="px-4 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-5">
 								<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
 									<button
 										onclick={closeModal}
-										class="order-3 sm:order-1 rounded-lg sm:rounded-xl border border-gray-300 bg-white px-4 py-2 sm:px-4 sm:py-2 lg:px-4 lg:py-2 text-sm sm:text-xs lg:text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] whitespace-nowrap"
+										class="order-3 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] sm:order-1 sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
 									>
 										Close
 									</button>
-									<div class="order-1 sm:order-2 flex flex-row gap-2 sm:gap-2">
+									<div class="order-1 flex flex-row gap-2 sm:order-2 sm:gap-2">
 										<button
-											onclick={() => { if (selectedItem) toggleConstantStatus(selectedItem); }}
-											class="flex-1 sm:flex-none rounded-md sm:rounded-xl border border-purple-300 bg-white px-3 py-1.5 sm:px-4 sm:py-2 lg:px-4 lg:py-2 text-xs sm:text-xs lg:text-sm font-semibold text-purple-700 shadow-sm transition-all hover:bg-purple-50 active:scale-[0.98] whitespace-nowrap"
+											onclick={() => {
+												if (selectedItem) toggleConstantStatus(selectedItem);
+											}}
+											class="flex-1 rounded-md border border-purple-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-purple-700 shadow-sm transition-all hover:bg-purple-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
 										>
 											{#if selectedItem.isConstant}
 												<span class="hidden sm:inline">Remove Constant</span>
@@ -2698,8 +3065,10 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											{/if}
 										</button>
 										<button
-											onclick={() => { if (selectedItem) editItem(selectedItem); }}
-											class="flex-1 sm:flex-none rounded-md sm:rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-3 py-1.5 sm:px-4 sm:py-2 lg:px-4 lg:py-2 text-xs sm:text-xs lg:text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] whitespace-nowrap"
+											onclick={() => {
+												if (selectedItem) editItem(selectedItem);
+											}}
+											class="flex-1 rounded-md bg-linear-to-r from-pink-600 to-pink-700 px-3 py-1.5 text-xs font-bold whitespace-nowrap text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
 										>
 											Edit Item
 										</button>
@@ -2731,11 +3100,16 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				<div class="relative z-61 max-h-[90vh] max-w-[90vw]">
 					<button
 						onclick={closeFullImage}
-						class="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors"
+						class="absolute -top-12 right-0 text-white transition-colors hover:text-gray-300"
 						title="Close (Esc)"
 					>
 						<svg class="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
 						</svg>
 					</button>
 					<img
@@ -2748,24 +3122,34 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		{/if}
 
 		<div class="flex flex-wrap gap-2">
-			<button 
+			<button
 				onclick={openImportModal}
-				class="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:px-4"
+				class="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:outline-none sm:px-4"
 				disabled={loading}
 			>
 				<svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+					/>
 				</svg>
 				<span class="hidden sm:inline">Import Items</span>
 				<span class="sm:hidden">Import</span>
 			</button>
-			<button 
+			<button
 				onclick={openAddItemModal}
-				class="inline-flex items-center rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 sm:px-4"
+				class="inline-flex items-center rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:outline-none sm:px-4"
 				disabled={loading}
 			>
 				<svg class="mr-1.5 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+					<path
+						stroke-linecap="round"
+						stroke-linejoin="round"
+						stroke-width="2"
+						d="M12 4v16m8-8H4"
+					/>
 				</svg>
 				<span class="hidden sm:inline">Add New Item</span>
 				<span class="sm:hidden">Add Item</span>
@@ -2775,867 +3159,1369 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 	<!-- Global Skeleton Loading State -->
 	{#if loading || !initialLoadComplete}
-		<InventorySkeletonLoader view={activeTab === 'categories' ? 'categories' : activeTab === 'low-stock' ? 'low-stock' : activeTab === 'constant-items' ? 'all-items' : 'all-items'} />
+		<InventorySkeletonLoader
+			view={activeTab === 'categories'
+				? 'categories'
+				: activeTab === 'low-stock'
+					? 'low-stock'
+					: activeTab === 'constant-items'
+						? 'all-items'
+						: 'all-items'}
+		/>
 	{:else}
-	
-	<!-- Stats Overview -->
-	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Items</p>
-					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{activeItems.length}</p>
-				</div>
-				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
-					<Package size={18} class="text-blue-600 sm:hidden" />
-					<Package size={24} class="hidden text-blue-600 sm:block" />
-				</div>
-			</div>
-		</div>
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Categories</p>
-					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{categories.length}</p>
-				</div>
-				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
-					<FolderTree size={18} class="text-purple-600 sm:hidden" />
-					<FolderTree size={24} class="hidden text-purple-600 sm:block" />
-				</div>
-			</div>
-		</div>
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Low Stock</p>
-					<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">{lowStockItems.length}</p>
-				</div>
-				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
-					<AlertTriangle size={18} class="text-red-600 sm:hidden" />
-					<AlertTriangle size={24} class="hidden text-red-600 sm:block" />
-				</div>
-			</div>
-		</div>
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Constant Items</p>
-					<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">{constantItems.length}</p>
-				</div>
-				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
-					<Star size={18} class="text-amber-600 sm:hidden" />
-					<Star size={24} class="hidden text-amber-600 sm:block" />
-				</div>
-			</div>
-		</div>
-	</div>
-	
-	<!-- Tabs Navigation -->
-	<div class="border-b border-gray-200 bg-white">
-		<nav class="-mb-px flex" aria-label="Inventory tabs">
-			<button
-				onclick={() => switchTab('all-items')}
-				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:text-sm
-					{activeTab === 'all-items' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				Items
-				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'all-items' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
-					{selectedCategory ? filteredItems.length : activeItems.length}
-				</span>
-			</button>
-
-			<button
-				onclick={() => switchTab('constant-items')}
-				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:text-sm
-					{activeTab === 'constant-items' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				Constant
-				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'constant-items' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-600'}">
-					{constantItems.length}
-				</span>
-			</button>
-
-			<button
-				onclick={() => switchTab('categories')}
-				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:text-sm
-					{activeTab === 'categories' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				Categories
-				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'categories' ? 'bg-pink-100 text-pink-600' : 'bg-gray-100 text-gray-600'}">
-					{categories.length}
-				</span>
-			</button>
-
-			<button
-				onclick={() => switchTab('low-stock')}
-				class="flex flex-1 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-1 py-3 text-[11px] font-medium transition-colors sm:text-sm
-					{activeTab === 'low-stock' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				Low Stock
-				<span class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'low-stock' ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'}">
-					{lowStockItems.length}
-				</span>
-			</button>
-		</nav>
-	</div>
-	
-	<!-- Tab Content -->
-	<div class="rounded-b-lg bg-white shadow">
-		{#if activeTab === 'all-items'}
-			<!-- All Items View -->
-			<div class="p-4 sm:p-6">
-				<div class="mb-4 flex flex-col gap-3">
-					{#if selectedCategory}
-						<div class="flex items-center gap-2">
-							<span class="inline-flex items-center rounded-full bg-pink-100 px-3 py-1 text-sm font-medium text-pink-800">Showing: {selectedCategory.name}</span>
-							<button onclick={clearCategoryFilter} class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50">Clear</button>
-						</div>
-					{/if}
-					<!-- Search + Sort row -->
-					<div class="flex gap-2">
-						<div class="relative flex-1">
-							<input
-								type="text"
-								placeholder="Search items..."
-								bind:value={query}
-								class="w-full rounded-lg border border-gray-300 py-2 pl-9 pr-3 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-							/>
-							<svg class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-							</svg>
-						</div>
-						<select bind:value={sortOrder} class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500">
-							<option value="az">A – Z</option>
-							<option value="za">Z – A</option>
-						</select>
+		<!-- Stats Overview -->
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Items</p>
+						<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
+							{activeItems.length}
+						</p>
 					</div>
-				</div>
-				
-				{#if displayItems.length === 0}
-					<div class="flex items-center justify-center bg-gray-50" style="min-height: 600px;">
-						<div class="text-center px-4">
-							<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-pink-100">
-								<svg class="h-8 w-8 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"/>
-								</svg>
-							</div>
-							<h3 class="mt-6 text-lg font-semibold text-gray-900">No items found</h3>
-							<p class="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
-								{#if selectedCategory}
-									No items in this category. Try selecting a different category or clear the filter.
-								{:else if query}
-									No items match your search. Try adjusting your search terms.
-								{:else}
-									Get started by adding your first inventory item to begin tracking your stock.
-								{/if}
-							</p>
-							{#if !selectedCategory && !query}
-								<button 
-									onclick={openAddItemModal}
-									class="mt-6 inline-flex items-center gap-2 rounded-lg bg-pink-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-									</svg>
-									Add Your First Item
-								</button>
-							{/if}
-							{#if selectedCategory}
-								<button 
-									onclick={clearCategoryFilter}
-									class="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
-								>
-									Clear Filter
-								</button>
-							{/if}
-						</div>
-					</div>
-				{:else}
-					<!-- Mobile card list — hidden on sm+ -->
-					<div class="divide-y divide-gray-100 sm:hidden">
-						{#each displayItems as item, i}
-							<button
-								class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
-								onclick={() => openModal(item)}
-							>
-								<div class="flex items-center gap-3">
-									<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
-										{(currentPage - 1) * PAGE_SIZE + i + 1}
-									</span>
-									<div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-										{#if item.picture}
-											<img 
-												src={item.picture} 
-												alt={item.name} 
-												class="h-full w-full object-cover" 
-												loading="lazy"
-											/>
-										{:else}
-											<ItemImagePlaceholder size="sm" />
-										{/if}
-									</div>
-									<div class="min-w-0 flex-1">
-										<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-										<p class="truncate text-xs text-gray-500">{item.specification || item.category}</p>
-										<div class="mt-1 flex flex-wrap items-center gap-1">
-											{#if item.isConstant}
-												<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Constant</span>
-											{/if}
-											<span class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">{item.category}</span>
-											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-												<span class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">{item.status}</span>
-											{:else}
-												<span class="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">{item.status}</span>
-											{/if}
-											<span class="text-[10px] text-gray-400">Qty: {item.quantity} · EOM: {item.eomCount}</span>
-										</div>
-									</div>
-									<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-									</svg>
-								</div>
-							</button>
-						{/each}
-					</div>
-
-					<!-- Desktop table — hidden on mobile -->
-					<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
-						<table class="min-w-full divide-y divide-gray-200">
-							<thead class="bg-gray-50">
-								<tr>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item Name</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Specification</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Tools / Equipment</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Current Count</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-								</tr>
-							</thead>
-							<tbody class="divide-y divide-gray-200 bg-white">
-								{#each displayItems as item, i}
-									<tr class="cursor-pointer hover:bg-gray-50 transition-colors" onclick={() => openModal(item)}>
-										<td class="whitespace-nowrap px-6 py-4">
-											<div class="flex items-center gap-3">
-												<span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700">{(currentPage - 1) * PAGE_SIZE + i + 1}</span>
-												<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-													{#if item.picture}
-														<img 
-															src={item.picture} 
-															alt={item.name} 
-															class="h-full w-full object-cover" 
-															loading="lazy"
-														/>
-													{:else}
-														<ItemImagePlaceholder size="sm" />
-													{/if}
-												</div>
-												<div class="flex flex-col gap-0.5">
-													{#if item.isConstant}
-														<span class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-800 ring-1 ring-purple-200">
-															<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-															Constant
-														</span>
-													{/if}
-													<div class="text-sm font-medium text-gray-900">{item.name}</div>
-												</div>
-											</div>
-										</td>
-										<td class="whitespace-nowrap px-6 py-4">
-											<span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
-										</td>
-										<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
-										<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment || '—'}</td>
-										<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{item.currentCount ?? getCurrentCount(item.quantity, item.donations ?? 0)}</td>
-										<td class="whitespace-nowrap px-6 py-4">
-											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-												<span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
-													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-													{item.status}
-												</span>
-											{:else}
-												<span class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
-													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-													{item.status}
-												</span>
-											{/if}
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-
-					<!-- Pagination -->
-					{#if totalPages > 1}
-						<Pagination
-							{currentPage}
-							{totalPages}
-							totalItems={sortedItems.length}
-							itemsPerPage={PAGE_SIZE}
-							onPageChange={(p) => { currentPage = p; }}
-						/>
-					{/if}
-				{/if}
-			</div>
-			
-		{:else if activeTab === 'categories'}
-			<!-- Categories View -->
-			<div class="p-4 sm:p-6">
-				<div class="mb-4 flex items-center justify-between gap-3">
-					<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Item Categories</h3>
-					<button 
-						onclick={() => showCategoryModal = true}
-						class="inline-flex shrink-0 items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 sm:px-4 sm:py-2 sm:text-sm"
-						disabled={loading}
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
 					>
-						<svg class="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-						</svg>
-						Add Category
-					</button>
-				</div>
-				
-				{#if categories.length === 0}
-					<div class="py-12 text-center">
-						<svg class="mx-auto h-24 w-24 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-						</svg>
-						<h3 class="mt-4 text-lg font-medium text-gray-900">No categories yet</h3>
-						<p class="mt-2 text-sm text-gray-500">Get started by creating your first category to organize your inventory items.</p>
-						<button 
-							onclick={() => showCategoryModal = true}
-							class="mt-4 inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-						>
-							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-							</svg>
-							Add Your First Category
-						</button>
+						<Package size={18} class="text-blue-600 sm:hidden" />
+						<Package size={24} class="hidden text-blue-600 sm:block" />
 					</div>
-				{:else}
-					<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-						{#each categories as category}
-						<div
-							onclick={() => openCategory(category)}
-							onkeydown={(e) => {
-								if (e.key === 'Enter' || e.key === ' ') {
-									e.preventDefault();
-									openCategory(category);
-								}
-							}}
-							role="button"
-							tabindex="0"
-							aria-label={`Open category ${category.name}`}
-							class="relative cursor-pointer rounded-lg border border-gray-200 p-3 transition-all hover:border-emerald-500 hover:shadow-md sm:p-4"
-						>
-							<div class="flex items-center justify-between gap-2">
-								<div class="min-w-0 flex-1">
-									<h4 class="truncate text-sm font-semibold text-gray-900 sm:text-base">{category.name}</h4>
-									<p class="mt-0.5 text-xs text-gray-500">{category.itemCount} items</p>
-									{#if category.description}
-										<p class="mt-0.5 truncate text-xs text-gray-400">{category.description}</p>
-									{/if}
-								</div>
-								<div class="flex shrink-0 items-center gap-2">
-									{#if category.picture}
-										<img src={category.picture} alt={category.name} class="h-9 w-9 rounded-full object-cover sm:h-10 sm:w-10" />
-									{:else}
-										<span class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 sm:h-10 sm:w-10">
-											<svg class="h-4 w-4 sm:h-5 sm:w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-											</svg>
-										</span>
-									{/if}
-									<!-- Ellipsis Menu -->
-									<div class="relative">
-										<button
-											onclick={(e) => toggleDropdown(category.id, e)}
-											class="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-											aria-label="Category options"
-										>
-											<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-												<path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-											</svg>
-										</button>
-										{#if openDropdownId === category.id}
-											<div class="absolute right-0 mt-2 w-48 rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5 z-30 origin-top-right">
-												<div class="py-1">
-													<button
-														onclick={(e) => openEditCategory(category, e)}
-														class="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors text-left"
-													>
-														<svg class="h-4 w-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-														</svg>
-														Edit Category
-													</button>
-													<button
-														onclick={(e) => deleteCategory(category, e)}
-														class="w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors text-left {category.itemCount > 0 ? 'text-gray-400 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'}"
-														disabled={category.itemCount > 0}
-													>
-														<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-														</svg>
-														Delete Category
-														{#if category.itemCount > 0}
-															<span class="ml-auto text-xs">(has items)</span>
-														{/if}
-													</button>
-												</div>
-											</div>
-										{/if}
-									</div>
-								</div>
-							</div>
-						</div>
-					{/each}
 				</div>
-				{/if}
 			</div>
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Categories</p>
+						<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
+							{categories.length}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12"
+					>
+						<FolderTree size={18} class="text-purple-600 sm:hidden" />
+						<FolderTree size={24} class="hidden text-purple-600 sm:block" />
+					</div>
+				</div>
+			</div>
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Low Stock</p>
+						<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">
+							{lowStockItems.length}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12"
+					>
+						<AlertTriangle size={18} class="text-red-600 sm:hidden" />
+						<AlertTriangle size={24} class="hidden text-red-600 sm:block" />
+					</div>
+				</div>
+			</div>
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Constant Items</p>
+						<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
+							{constantItems.length}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12"
+					>
+						<Star size={18} class="text-amber-600 sm:hidden" />
+						<Star size={24} class="hidden text-amber-600 sm:block" />
+					</div>
+				</div>
+			</div>
+		</div>
 
-		<!-- Category Creation Modal -->
-		{#if showCategoryModal}
-			<div class="fixed inset-0 z-50 overflow-y-auto">
-				<div
-					class="fixed inset-0 bg-black/40 backdrop-blur-sm"
-					role="button"
-					tabindex="0"
-					aria-label="Close add category modal"
-					onclick={() => showCategoryModal = false}
-					onkeydown={(e) => {
-						if (e.key === 'Enter' || e.key === ' ') {
-							e.preventDefault();
-							showCategoryModal = false;
-						}
-					}}
-				></div>
-				<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
-					<div class="relative z-50 w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-gray-100 bg-white shadow-2xl">
-						<div class="border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4">
-							<h3 class="text-base sm:text-lg font-semibold text-gray-900">Add New Category</h3>
-							<p class="mt-1 text-xs text-gray-500">Create a category to organize inventory items.</p>
-						</div>
-						<div class="max-h-[70vh] overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
-							<form onsubmit={handleCreateCategory} class="space-y-3">
-						<div>
-							<label for="categoryName" class="block text-sm font-medium text-gray-700">Category Name *</label>
-							<input
-								type="text"
-								id="categoryName"
-								bind:value={newCategoryName}
-								required
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-								placeholder="e.g., Cookware"
-							/>
-						</div>
-						<div>
-							<label for="categoryDescription" class="block text-sm font-medium text-gray-700">Description</label>
-							<input
-								type="text"
-								id="categoryDescription"
-								bind:value={newCategoryDescription}
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-								placeholder="Optional description"
-							/>
-						</div>
-						<div>
-							<label for="categoryImageInput" class="block text-sm font-medium text-gray-700 mb-2">Category Image</label>
-							<div class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5">
-								<button
-									type="button"
-									onclick={() => categoryPictureInput?.click()}
-									class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
-									disabled={uploadingCategoryImage || loading}
-								>
-									{#if uploadingCategoryImage}
-										<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-									{:else}
-										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3l-4 4-4-4"/></svg>
-									{/if}
-									Upload Image
-								</button>
-								<span class="min-w-0 flex-1 truncate text-xs text-gray-600">{newCategoryPictureFile ? newCategoryPictureFile.name : 'No file chosen'}</span>
-								{#if newCategoryPicture}
-									<img src={newCategoryPicture} alt="preview" class="h-14 w-14 rounded-lg object-cover border border-gray-200" />
-									<button type="button" onclick={() => { try { URL.revokeObjectURL(newCategoryPicture) } catch(e){}; newCategoryPicture=''; newCategoryPictureFile=null }} class="text-xs sm:text-sm text-red-500 hover:text-red-700">Remove</button>
-								{/if}
-								<input id="categoryImageInput" type="file" accept="image/*" onchange={handleCategoryPictureChange} bind:this={categoryPictureInput} class="hidden" />
-							</div>
-						</div>
-						<div class="flex flex-col-reverse gap-1.5 pt-1.5 sm:flex-row sm:justify-end">
-							<button
-								type="button"
-								onclick={() => {
-									showCategoryModal = false;
-									newCategoryName = '';
-									newCategoryDescription = '';
-									if (newCategoryPicture && newCategoryPicture.startsWith('blob:')) {
-										try { URL.revokeObjectURL(newCategoryPicture); } catch(e){}
-									}
-									newCategoryPicture = '';
-									newCategoryPictureFile = null;
-								}}
-								class="inline-flex min-w-27 items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-							>
-								Cancel
-							</button>
-							<button
-								type="submit"
-								class="inline-flex min-w-27 items-center justify-center rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
-								disabled={loading}
-							>
-								Create Category
-							</button>
-						</div>
-					</form>
-						</div>
-					</div>
-				</div>
-			</div>
-		{/if}
-			
-		<!-- Category Edit Modal -->
-		{#if showEditCategoryModal && editingCategory}
-			<div class="fixed inset-0 z-50 overflow-y-auto">
-				<div
-					class="fixed inset-0 bg-black/40 backdrop-blur-sm"
-					role="button"
-					tabindex="0"
-					aria-label="Close edit category modal"
-					onclick={() => showEditCategoryModal = false}
-					onkeydown={(e) => {
-						if (e.key === 'Enter' || e.key === ' ') {
-							e.preventDefault();
-							showEditCategoryModal = false;
-						}
-					}}
-				></div>
-				<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
-					<div class="relative z-50 w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-gray-100 bg-white shadow-2xl">
-						<div class="border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4">
-							<h3 class="text-base sm:text-lg font-semibold text-gray-900">Edit Category</h3>
-							<p class="mt-1 text-xs text-gray-500">Update category details and media.</p>
-						</div>
-						<div class="max-h-[70vh] overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
-							<form onsubmit={handleEditCategory} class="space-y-3">
-						<div>
-							<label for="editCategoryName" class="block text-sm font-medium text-gray-700">Category Name *</label>
-							<input
-								type="text"
-								id="editCategoryName"
-								bind:value={newCategoryName}
-								required
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-								placeholder="e.g., Cookware"
-							/>
-						</div>
-						<div>
-							<label for="editCategoryDescription" class="block text-sm font-medium text-gray-700">Description</label>
-							<input
-								type="text"
-								id="editCategoryDescription"
-								bind:value={newCategoryDescription}
-								class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
-								placeholder="Optional description"
-							/>
-						</div>
-						<div>
-							<label for="editCategoryImageInput" class="block text-sm font-medium text-gray-700 mb-2">Category Image</label>
-							<div class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5">
-								<button
-									type="button"
-									onclick={() => editCategoryPictureInput?.click()}
-									class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
-									disabled={uploadingCategoryImage || loading}
-								>
-									{#if uploadingCategoryImage}
-										<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-									{:else}
-										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3l-4 4-4-4"/></svg>
-									{/if}
-									Upload Image
-								</button>
-								<span class="min-w-0 flex-1 truncate text-xs text-gray-600">{newCategoryPictureFile ? newCategoryPictureFile.name : 'No file chosen'}</span>
-								{#if newCategoryPicture}
-									<img src={newCategoryPicture} alt="preview" class="h-14 w-14 rounded-lg object-cover border border-gray-200" />
-									<button type="button" onclick={() => { try { if(newCategoryPicture.startsWith('blob:')) URL.revokeObjectURL(newCategoryPicture) } catch(e){}; newCategoryPicture=editingCategory?.picture || ''; newCategoryPictureFile=null }} class="text-xs sm:text-sm text-red-500 hover:text-red-700">Remove</button>
-								{/if}
-								<input id="editCategoryImageInput" type="file" accept="image/*" onchange={handleCategoryPictureChange} bind:this={editCategoryPictureInput} class="hidden" />
-							</div>
-						</div>
-						<div class="flex flex-col-reverse gap-1.5 pt-1.5 sm:flex-row sm:justify-end">
-							<button
-								type="button"
-								onclick={() => {
-									showEditCategoryModal = false;
-									editingCategory = null;
-									newCategoryName = '';
-									newCategoryDescription = '';
-									if (newCategoryPicture && newCategoryPicture.startsWith('blob:')) {
-										try { URL.revokeObjectURL(newCategoryPicture); } catch(e){}
-									}
-									newCategoryPicture = '';
-									newCategoryPictureFile = null;
-								}}
-								class="inline-flex min-w-27 items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-							>
-								Cancel
-							</button>
-							<button
-								type="submit"
-								class="inline-flex min-w-27 items-center justify-center rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
-								disabled={loading}
-							>
-								Update Category
-							</button>
-						</div>
-					</form>
-						</div>
-					</div>
-				</div>
-			</div>
-		{/if}
+		<!-- Tabs Navigation -->
+		<div class="border-b border-gray-200 bg-white">
+			<nav class="-mb-px flex" aria-label="Inventory tabs">
+				<button
+					onclick={() => switchTab('all-items')}
+					class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap transition-colors sm:text-sm
+					{activeTab === 'all-items'
+						? 'border-pink-500 text-pink-600'
+						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				>
+					Items
+					<span
+						class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'all-items'
+							? 'bg-pink-100 text-pink-600'
+							: 'bg-gray-100 text-gray-600'}"
+					>
+						{selectedCategory ? filteredItems.length : activeItems.length}
+					</span>
+				</button>
 
-		{:else if activeTab === 'constant-items'}
-			<!-- Constant Items View -->
-			<div class="p-4 sm:p-6">
-				<div class="mb-4">
-					<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Constant Items</h3>
-					<p class="mt-1 text-sm text-gray-500">Items that always appear on student request forms regardless of availability</p>
-				</div>
-				
-				{#if constantItems.length === 0}
-					<div class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white" style="min-height: 600px;">
-						<div class="text-center px-4">
-							<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
-								<svg class="h-8 w-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
+				<button
+					onclick={() => switchTab('constant-items')}
+					class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap transition-colors sm:text-sm
+					{activeTab === 'constant-items'
+						? 'border-emerald-500 text-emerald-600'
+						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				>
+					Constant
+					<span
+						class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'constant-items'
+							? 'bg-emerald-100 text-emerald-600'
+							: 'bg-gray-100 text-gray-600'}"
+					>
+						{constantItems.length}
+					</span>
+				</button>
+
+				<button
+					onclick={() => switchTab('categories')}
+					class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap transition-colors sm:text-sm
+					{activeTab === 'categories'
+						? 'border-pink-500 text-pink-600'
+						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				>
+					Categories
+					<span
+						class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'categories'
+							? 'bg-pink-100 text-pink-600'
+							: 'bg-gray-100 text-gray-600'}"
+					>
+						{categories.length}
+					</span>
+				</button>
+
+				<button
+					onclick={() => switchTab('low-stock')}
+					class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap transition-colors sm:text-sm
+					{activeTab === 'low-stock'
+						? 'border-pink-500 text-pink-600'
+						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				>
+					Low Stock
+					<span
+						class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'low-stock'
+							? 'bg-red-100 text-red-600'
+							: 'bg-gray-100 text-gray-600'}"
+					>
+						{lowStockItems.length}
+					</span>
+				</button>
+			</nav>
+		</div>
+
+		<!-- Tab Content -->
+		<div class="rounded-b-lg bg-white shadow">
+			{#if activeTab === 'all-items'}
+				<!-- All Items View -->
+				<div class="p-4 sm:p-6">
+					<div class="mb-4 flex flex-col gap-3">
+						{#if selectedCategory}
+							<div class="flex items-center gap-2">
+								<span
+									class="inline-flex items-center rounded-full bg-pink-100 px-3 py-1 text-sm font-medium text-pink-800"
+									>Showing: {selectedCategory.name}</span
+								>
+								<button
+									onclick={clearCategoryFilter}
+									class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
+									>Clear</button
+								>
+							</div>
+						{/if}
+						<!-- Search + Sort row -->
+						<div class="flex gap-2">
+							<div class="relative flex-1">
+								<input
+									type="text"
+									placeholder="Search items..."
+									bind:value={query}
+									class="w-full rounded-lg border border-gray-300 py-2 pr-3 pl-9 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+								/>
+								<svg
+									class="absolute top-2.5 left-3 h-4 w-4 text-gray-400"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+									/>
 								</svg>
 							</div>
-							<h3 class="mt-6 text-lg font-semibold text-gray-900">No constant items configured</h3>
-							<p class="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
-								Mark items as constant from the Items tab to have them always appear on student request forms, regardless of stock availability.
-							</p>
-							<div class="mt-6 flex items-center justify-center gap-3">
-								<button 
-									onclick={() => switchTab('all-items')}
-									class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
-								>
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-									</svg>
-									Go to Items
-								</button>
-							</div>
+							<select
+								bind:value={sortOrder}
+								class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+							>
+								<option value="az">A – Z</option>
+								<option value="za">Z – A</option>
+							</select>
 						</div>
 					</div>
-				{:else}
-					<!-- Mobile card list -->
-					<div class="divide-y divide-gray-100 sm:hidden">
-						{#each constantItems as item, i}
-							<button
-								class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
-								onclick={() => openModal(item)}
-							>
-								<div class="flex items-center gap-3">
-									<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
-										{i + 1}
-									</span>
-									<div class="min-w-0 flex-1">
-										<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-										<p class="truncate text-xs text-gray-500">{item.specification || item.category}</p>
-										<div class="mt-1 flex flex-wrap items-center gap-1">
-											<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Constant</span>
-											<span class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">{item.category}</span>
-											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-												<span class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">{item.status}</span>
-											{:else}
-												<span class="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">{item.status}</span>
-											{/if}
-											<span class="text-[10px] text-gray-400">Qty: {item.quantity} · EOM: {item.eomCount}</span>
-										</div>
-									</div>
-									<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+
+					{#if displayItems.length === 0}
+						<div class="flex items-center justify-center bg-gray-50" style="min-height: 600px;">
+							<div class="px-4 text-center">
+								<div
+									class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-pink-100"
+								>
+									<svg
+										class="h-8 w-8 text-pink-600"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
+										/>
 									</svg>
 								</div>
-							</button>
-						{/each}
-					</div>
-
-					<!-- Desktop table -->
-					<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
-						<table class="min-w-full divide-y divide-gray-200">
-							<thead class="bg-gray-50">
-								<tr>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Item Name</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Category</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Specification</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Current Count</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Max Per Request</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Status</th>
-									<th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
-								</tr>
-							</thead>
-							<tbody class="divide-y divide-gray-200 bg-white">
-								{#each constantItems as item, i}
-									<tr class="hover:bg-gray-50 transition-colors">
-										<td class="whitespace-nowrap px-6 py-4">
-											<div class="flex items-center gap-3">
-												{#if item.picture}
-													<img src={item.picture} alt={item.name} class="h-9 w-9 shrink-0 rounded object-cover" loading="lazy" />
-												{:else}
-													<div class="h-9 w-9 shrink-0 overflow-hidden rounded bg-gray-100">
-														<ItemImagePlaceholder size="sm" />
-													</div>
-												{/if}
-												<div class="flex flex-col gap-0.5">
-													<span class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-800 ring-1 ring-purple-200">
-														<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-														Constant
-													</span>
-													<div class="text-sm font-medium text-gray-900">{item.name}</div>
-												</div>
-											</div>
-										</td>
-										<td class="whitespace-nowrap px-6 py-4">
-											<span class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800">{item.category}</span>
-										</td>
-										<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
-										<td class="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{item.quantity}</td>
-										<td class="whitespace-nowrap px-6 py-4">
-											{#if item.maxQuantityPerRequest}
-												<span class="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-800">
-													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-													</svg>
-													{item.maxQuantityPerRequest}
-												</span>
-											{:else}
-												<span class="text-xs text-gray-400">No limit</span>
-											{/if}
-										</td>
-										<td class="whitespace-nowrap px-6 py-4">
-											{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-												<span class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800">
-													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-													{item.status}
-												</span>
-											{:else}
-												<span class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800">
-													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-													{item.status}
-												</span>
-											{/if}
-										</td>
-										<td class="whitespace-nowrap px-6 py-4 text-sm">
-											<div class="flex items-center gap-2">
-												<button
-													onclick={() => editItem(item)}
-													class="rounded p-1 text-pink-600 transition-colors hover:bg-pink-50 hover:text-pink-800"
-													title="Edit item"
-												>
-													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-													</svg>
-												</button>
-												<button
-													onclick={() => toggleConstantStatus(item)}
-													class="rounded p-1 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-800"
-													title="Remove from constant items"
-												>
-													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-													</svg>
-												</button>
-											</div>
-										</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-				{/if}
-			</div>
-
-		{:else if activeTab === 'low-stock'}
-			<!-- Low Stock View -->
-			<div class="p-6">
-				<div class="mb-6">
-					<h3 class="text-lg font-semibold text-gray-900">Low Stock Alerts</h3>
-					<p class="mt-1 text-sm text-gray-500">Items that need restocking</p>
-				</div>
-				
-				{#if lowStockItems.length === 0}
-					<div class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white" style="min-height: 600px;">
-						<div class="text-center px-4">
-							<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-								<svg class="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-								</svg>
-							</div>
-							<h3 class="mt-6 text-lg font-semibold text-gray-900">All items adequately stocked</h3>
-							<p class="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
-								No items require immediate restocking. Your inventory levels are healthy.
-							</p>
-							<div class="mt-6 flex items-center justify-center gap-3">
-								<button 
-									onclick={() => switchTab('all-items')}
-									class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2"
-								>
-									View All Items
-								</button>
+								<h3 class="mt-6 text-lg font-semibold text-gray-900">No items found</h3>
+								<p class="mx-auto mt-2 max-w-sm text-sm text-gray-600">
+									{#if selectedCategory}
+										No items in this category. Try selecting a different category or clear the
+										filter.
+									{:else if query}
+										No items match your search. Try adjusting your search terms.
+									{:else}
+										Get started by adding your first inventory item to begin tracking your stock.
+									{/if}
+								</p>
+								{#if !selectedCategory && !query}
+									<button
+										onclick={openAddItemModal}
+										class="mt-6 inline-flex items-center gap-2 rounded-lg bg-pink-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none"
+									>
+										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M12 4v16m8-8H4"
+											/>
+										</svg>
+										Add Your First Item
+									</button>
+								{/if}
+								{#if selectedCategory}
+									<button
+										onclick={clearCategoryFilter}
+										class="mt-4 inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none"
+									>
+										Clear Filter
+									</button>
+								{/if}
 							</div>
 						</div>
-					</div>
-				{:else}
-					<div class="space-y-3">
-						{#each lowStockItems as item}
-							<div class="rounded-xl border border-red-200 bg-red-50 p-4">
-								<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					{:else}
+						<!-- Mobile card list — hidden on sm+ -->
+						<div class="divide-y divide-gray-100 sm:hidden">
+							{#each displayItems as item, i}
+								<button
+									class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+									onclick={() => openModal(item)}
+								>
 									<div class="flex items-center gap-3">
-										<div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+										<span
+											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600"
+										>
+											{(currentPage - 1) * PAGE_SIZE + i + 1}
+										</span>
+										<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
 											{#if item.picture}
-												<img 
-													src={item.picture} 
-													alt={item.name} 
-													class="h-full w-full object-cover" 
+												<img
+													src={item.picture}
+													alt={item.name}
+													class="h-full w-full object-cover"
 													loading="lazy"
 												/>
 											{:else}
 												<ItemImagePlaceholder size="sm" />
 											{/if}
 										</div>
-										<div>
-											<h4 class="text-sm font-semibold text-gray-900">{item.name}</h4>
-											<p class="text-xs text-gray-500">{item.category}</p>
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+											<p class="truncate text-xs text-gray-500">
+												{item.specification || item.category}
+											</p>
+											<div class="mt-1 flex flex-wrap items-center gap-1">
+												{#if item.isConstant}
+													<span
+														class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
+														>Constant</span
+													>
+												{/if}
+												<span
+													class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800"
+													>{item.category}</span
+												>
+												{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+													<span
+														class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700"
+														>{item.status}</span
+													>
+												{:else}
+													<span
+														class="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700"
+														>{item.status}</span
+													>
+												{/if}
+												<span class="text-[10px] text-gray-400"
+													>Qty: {item.quantity} · EOM: {item.eomCount}</span
+												>
+											</div>
+										</div>
+										<svg
+											class="h-4 w-4 shrink-0 text-gray-300"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M9 5l7 7-7 7"
+											/>
+										</svg>
+									</div>
+								</button>
+							{/each}
+						</div>
+
+						<!-- Desktop table — hidden on mobile -->
+						<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
+							<table class="min-w-full divide-y divide-gray-200">
+								<thead class="bg-gray-50">
+									<tr>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Item Name</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Category</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Specification</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Tools / Equipment</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Current Count</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Status</th
+										>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-200 bg-white">
+									{#each displayItems as item, i}
+										<tr
+											class="cursor-pointer transition-colors hover:bg-gray-50"
+											onclick={() => openModal(item)}
+										>
+											<td class="px-6 py-4 whitespace-nowrap">
+												<div class="flex items-center gap-3">
+													<span
+														class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700"
+														>{(currentPage - 1) * PAGE_SIZE + i + 1}</span
+													>
+													<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
+														{#if item.picture}
+															<img
+																src={item.picture}
+																alt={item.name}
+																class="h-full w-full object-cover"
+																loading="lazy"
+															/>
+														{:else}
+															<ItemImagePlaceholder size="sm" />
+														{/if}
+													</div>
+													<div class="flex flex-col gap-0.5">
+														{#if item.isConstant}
+															<span
+																class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-purple-800 uppercase ring-1 ring-purple-200"
+															>
+																<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"
+																	><path
+																		d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+																	/></svg
+																>
+																Constant
+															</span>
+														{/if}
+														<div class="text-sm font-medium text-gray-900">{item.name}</div>
+													</div>
+												</div>
+											</td>
+											<td class="px-6 py-4 whitespace-nowrap">
+												<span
+													class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800"
+													>{item.category}</span
+												>
+											</td>
+											<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
+											<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment || '—'}</td
+											>
+											<td class="px-6 py-4 text-sm font-medium whitespace-nowrap text-gray-900"
+												>{item.currentCount ??
+													getCurrentCount(item.quantity, item.donations ?? 0)}</td
+											>
+											<td class="px-6 py-4 whitespace-nowrap">
+												{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+													<span
+														class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800"
+													>
+														<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
+															><path
+																fill-rule="evenodd"
+																d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+																clip-rule="evenodd"
+															/></svg
+														>
+														{item.status}
+													</span>
+												{:else}
+													<span
+														class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800"
+													>
+														<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
+															><path
+																fill-rule="evenodd"
+																d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+																clip-rule="evenodd"
+															/></svg
+														>
+														{item.status}
+													</span>
+												{/if}
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+
+						<!-- Pagination -->
+						{#if totalPages > 1}
+							<Pagination
+								{currentPage}
+								{totalPages}
+								totalItems={sortedItems.length}
+								itemsPerPage={PAGE_SIZE}
+								onPageChange={(p) => {
+									currentPage = p;
+								}}
+							/>
+						{/if}
+					{/if}
+				</div>
+			{:else if activeTab === 'categories'}
+				<!-- Categories View -->
+				<div class="p-4 sm:p-6">
+					<div class="mb-4 flex items-center justify-between gap-3">
+						<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Item Categories</h3>
+						<button
+							onclick={() => (showCategoryModal = true)}
+							class="inline-flex shrink-0 items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 sm:px-4 sm:py-2 sm:text-sm"
+							disabled={loading}
+						>
+							<svg class="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 4v16m8-8H4"
+								/>
+							</svg>
+							Add Category
+						</button>
+					</div>
+
+					{#if categories.length === 0}
+						<div class="py-12 text-center">
+							<svg
+								class="mx-auto h-24 w-24 text-pink-600"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+								/>
+							</svg>
+							<h3 class="mt-4 text-lg font-medium text-gray-900">No categories yet</h3>
+							<p class="mt-2 text-sm text-gray-500">
+								Get started by creating your first category to organize your inventory items.
+							</p>
+							<button
+								onclick={() => (showCategoryModal = true)}
+								class="mt-4 inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+							>
+								<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M12 4v16m8-8H4"
+									/>
+								</svg>
+								Add Your First Category
+							</button>
+						</div>
+					{:else}
+						<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+							{#each categories as category}
+								<div
+									onclick={() => openCategory(category)}
+									onkeydown={(e) => {
+										if (e.key === 'Enter' || e.key === ' ') {
+											e.preventDefault();
+											openCategory(category);
+										}
+									}}
+									role="button"
+									tabindex="0"
+									aria-label={`Open category ${category.name}`}
+									class="relative cursor-pointer rounded-lg border border-gray-200 p-3 transition-all hover:border-emerald-500 hover:shadow-md sm:p-4"
+								>
+									<div class="flex items-center justify-between gap-2">
+										<div class="min-w-0 flex-1">
+											<h4 class="truncate text-sm font-semibold text-gray-900 sm:text-base">
+												{category.name}
+											</h4>
+											<p class="mt-0.5 text-xs text-gray-500">{category.itemCount} items</p>
+											{#if category.description}
+												<p class="mt-0.5 truncate text-xs text-gray-400">{category.description}</p>
+											{/if}
+										</div>
+										<div class="flex shrink-0 items-center gap-2">
+											{#if category.picture}
+												<img
+													src={category.picture}
+													alt={category.name}
+													class="h-9 w-9 rounded-full object-cover sm:h-10 sm:w-10"
+												/>
+											{:else}
+												<span
+													class="inline-flex h-9 w-9 items-center justify-center rounded-full bg-gray-100 text-gray-600 sm:h-10 sm:w-10"
+												>
+													<svg
+														class="h-4 w-4 sm:h-5 sm:w-5"
+														fill="none"
+														stroke="currentColor"
+														viewBox="0 0 24 24"
+													>
+														<path
+															stroke-linecap="round"
+															stroke-linejoin="round"
+															stroke-width="2"
+															d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
+														/>
+													</svg>
+												</span>
+											{/if}
+											<!-- Ellipsis Menu -->
+											<div class="relative">
+												<button
+													onclick={(e) => toggleDropdown(category.id, e)}
+													class="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+													aria-label="Category options"
+												>
+													<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
+														<path
+															d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"
+														/>
+													</svg>
+												</button>
+												{#if openDropdownId === category.id}
+													<div
+														class="ring-opacity-5 absolute right-0 z-30 mt-2 w-48 origin-top-right rounded-lg bg-white shadow-lg ring-1 ring-black"
+													>
+														<div class="py-1">
+															<button
+																onclick={(e) => openEditCategory(category, e)}
+																class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-100"
+															>
+																<svg
+																	class="h-4 w-4 text-gray-500"
+																	fill="none"
+																	stroke="currentColor"
+																	viewBox="0 0 24 24"
+																>
+																	<path
+																		stroke-linecap="round"
+																		stroke-linejoin="round"
+																		stroke-width="2"
+																		d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+																	/>
+																</svg>
+																Edit Category
+															</button>
+															<button
+																onclick={(e) => deleteCategory(category, e)}
+																class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors {category.itemCount >
+																0
+																	? 'cursor-not-allowed text-gray-400'
+																	: 'text-red-600 hover:bg-red-50'}"
+																disabled={category.itemCount > 0}
+															>
+																<svg
+																	class="h-4 w-4"
+																	fill="none"
+																	stroke="currentColor"
+																	viewBox="0 0 24 24"
+																>
+																	<path
+																		stroke-linecap="round"
+																		stroke-linejoin="round"
+																		stroke-width="2"
+																		d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+																	/>
+																</svg>
+																Delete Category
+																{#if category.itemCount > 0}
+																	<span class="ml-auto text-xs">(has items)</span>
+																{/if}
+															</button>
+														</div>
+													</div>
+												{/if}
+											</div>
 										</div>
 									</div>
-									<div class="flex items-center justify-between gap-3 sm:justify-end">
-										<span class="text-sm text-gray-600">Qty: <span class="font-semibold text-red-600">{item.quantity}</span></span>
-										<button
-											onclick={() => editItem(item)}
-											class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 sm:px-4 sm:py-2 sm:text-sm"
-										>
-											Update Stock
-										</button>
-									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+
+				<!-- Category Creation Modal -->
+				{#if showCategoryModal}
+					<div class="fixed inset-0 z-50 overflow-y-auto">
+						<div
+							class="fixed inset-0 bg-black/40 backdrop-blur-sm"
+							role="button"
+							tabindex="0"
+							aria-label="Close add category modal"
+							onclick={() => (showCategoryModal = false)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									showCategoryModal = false;
+								}
+							}}
+						></div>
+						<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+							<div
+								class="relative z-50 w-full max-w-md rounded-t-2xl border border-gray-100 bg-white shadow-2xl sm:rounded-2xl"
+							>
+								<div class="border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4">
+									<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Add New Category</h3>
+									<p class="mt-1 text-xs text-gray-500">
+										Create a category to organize inventory items.
+									</p>
+								</div>
+								<div class="max-h-[70vh] overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+									<form onsubmit={handleCreateCategory} class="space-y-3">
+										<div>
+											<label for="categoryName" class="block text-sm font-medium text-gray-700"
+												>Category Name *</label
+											>
+											<input
+												type="text"
+												id="categoryName"
+												bind:value={newCategoryName}
+												required
+												class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+												placeholder="e.g., Cookware"
+											/>
+										</div>
+										<div>
+											<label
+												for="categoryDescription"
+												class="block text-sm font-medium text-gray-700">Description</label
+											>
+											<input
+												type="text"
+												id="categoryDescription"
+												bind:value={newCategoryDescription}
+												class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+												placeholder="Optional description"
+											/>
+										</div>
+										<div>
+											<label
+												for="categoryImageInput"
+												class="mb-2 block text-sm font-medium text-gray-700">Category Image</label
+											>
+											<div
+												class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5"
+											>
+												<button
+													type="button"
+													onclick={() => categoryPictureInput?.click()}
+													class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
+													disabled={uploadingCategoryImage || loading}
+												>
+													{#if uploadingCategoryImage}
+														<div
+															class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+														></div>
+													{:else}
+														<svg
+															class="h-4 w-4"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+															><path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3l-4 4-4-4"
+															/></svg
+														>
+													{/if}
+													Upload Image
+												</button>
+												<span class="min-w-0 flex-1 truncate text-xs text-gray-600"
+													>{newCategoryPictureFile
+														? newCategoryPictureFile.name
+														: 'No file chosen'}</span
+												>
+												{#if newCategoryPicture}
+													<img
+														src={newCategoryPicture}
+														alt="preview"
+														class="h-14 w-14 rounded-lg border border-gray-200 object-cover"
+													/>
+													<button
+														type="button"
+														onclick={() => {
+															try {
+																URL.revokeObjectURL(newCategoryPicture);
+															} catch (e) {}
+															newCategoryPicture = '';
+															newCategoryPictureFile = null;
+														}}
+														class="text-xs text-red-500 hover:text-red-700 sm:text-sm"
+														>Remove</button
+													>
+												{/if}
+												<input
+													id="categoryImageInput"
+													type="file"
+													accept="image/*"
+													onchange={handleCategoryPictureChange}
+													bind:this={categoryPictureInput}
+													class="hidden"
+												/>
+											</div>
+										</div>
+										<div class="flex flex-col-reverse gap-1.5 pt-1.5 sm:flex-row sm:justify-end">
+											<button
+												type="button"
+												onclick={() => {
+													showCategoryModal = false;
+													newCategoryName = '';
+													newCategoryDescription = '';
+													if (newCategoryPicture && newCategoryPicture.startsWith('blob:')) {
+														try {
+															URL.revokeObjectURL(newCategoryPicture);
+														} catch (e) {}
+													}
+													newCategoryPicture = '';
+													newCategoryPictureFile = null;
+												}}
+												class="inline-flex min-w-27 items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+											>
+												Cancel
+											</button>
+											<button
+												type="submit"
+												class="inline-flex min-w-27 items-center justify-center rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
+												disabled={loading}
+											>
+												Create Category
+											</button>
+										</div>
+									</form>
 								</div>
 							</div>
-						{/each}
+						</div>
 					</div>
 				{/if}
-			</div>
-			
-		{/if}
-	</div>
-{/if}
+
+				<!-- Category Edit Modal -->
+				{#if showEditCategoryModal && editingCategory}
+					<div class="fixed inset-0 z-50 overflow-y-auto">
+						<div
+							class="fixed inset-0 bg-black/40 backdrop-blur-sm"
+							role="button"
+							tabindex="0"
+							aria-label="Close edit category modal"
+							onclick={() => (showEditCategoryModal = false)}
+							onkeydown={(e) => {
+								if (e.key === 'Enter' || e.key === ' ') {
+									e.preventDefault();
+									showEditCategoryModal = false;
+								}
+							}}
+						></div>
+						<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+							<div
+								class="relative z-50 w-full max-w-md rounded-t-2xl border border-gray-100 bg-white shadow-2xl sm:rounded-2xl"
+							>
+								<div class="border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4">
+									<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Edit Category</h3>
+									<p class="mt-1 text-xs text-gray-500">Update category details and media.</p>
+								</div>
+								<div class="max-h-[70vh] overflow-y-auto px-4 py-3 sm:px-5 sm:py-4">
+									<form onsubmit={handleEditCategory} class="space-y-3">
+										<div>
+											<label for="editCategoryName" class="block text-sm font-medium text-gray-700"
+												>Category Name *</label
+											>
+											<input
+												type="text"
+												id="editCategoryName"
+												bind:value={newCategoryName}
+												required
+												class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+												placeholder="e.g., Cookware"
+											/>
+										</div>
+										<div>
+											<label
+												for="editCategoryDescription"
+												class="block text-sm font-medium text-gray-700">Description</label
+											>
+											<input
+												type="text"
+												id="editCategoryDescription"
+												bind:value={newCategoryDescription}
+												class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 shadow-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+												placeholder="Optional description"
+											/>
+										</div>
+										<div>
+											<label
+												for="editCategoryImageInput"
+												class="mb-2 block text-sm font-medium text-gray-700">Category Image</label
+											>
+											<div
+												class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2.5"
+											>
+												<button
+													type="button"
+													onclick={() => editCategoryPictureInput?.click()}
+													class="inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-2.5 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
+													disabled={uploadingCategoryImage || loading}
+												>
+													{#if uploadingCategoryImage}
+														<div
+															class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+														></div>
+													{:else}
+														<svg
+															class="h-4 w-4"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+															><path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3l-4 4-4-4"
+															/></svg
+														>
+													{/if}
+													Upload Image
+												</button>
+												<span class="min-w-0 flex-1 truncate text-xs text-gray-600"
+													>{newCategoryPictureFile
+														? newCategoryPictureFile.name
+														: 'No file chosen'}</span
+												>
+												{#if newCategoryPicture}
+													<img
+														src={newCategoryPicture}
+														alt="preview"
+														class="h-14 w-14 rounded-lg border border-gray-200 object-cover"
+													/>
+													<button
+														type="button"
+														onclick={() => {
+															try {
+																if (newCategoryPicture.startsWith('blob:'))
+																	URL.revokeObjectURL(newCategoryPicture);
+															} catch (e) {}
+															newCategoryPicture = editingCategory?.picture || '';
+															newCategoryPictureFile = null;
+														}}
+														class="text-xs text-red-500 hover:text-red-700 sm:text-sm"
+														>Remove</button
+													>
+												{/if}
+												<input
+													id="editCategoryImageInput"
+													type="file"
+													accept="image/*"
+													onchange={handleCategoryPictureChange}
+													bind:this={editCategoryPictureInput}
+													class="hidden"
+												/>
+											</div>
+										</div>
+										<div class="flex flex-col-reverse gap-1.5 pt-1.5 sm:flex-row sm:justify-end">
+											<button
+												type="button"
+												onclick={() => {
+													showEditCategoryModal = false;
+													editingCategory = null;
+													newCategoryName = '';
+													newCategoryDescription = '';
+													if (newCategoryPicture && newCategoryPicture.startsWith('blob:')) {
+														try {
+															URL.revokeObjectURL(newCategoryPicture);
+														} catch (e) {}
+													}
+													newCategoryPicture = '';
+													newCategoryPictureFile = null;
+												}}
+												class="inline-flex min-w-27 items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+											>
+												Cancel
+											</button>
+											<button
+												type="submit"
+												class="inline-flex min-w-27 items-center justify-center rounded-md bg-pink-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm hover:bg-pink-700"
+												disabled={loading}
+											>
+												Update Category
+											</button>
+										</div>
+									</form>
+								</div>
+							</div>
+						</div>
+					</div>
+				{/if}
+			{:else if activeTab === 'constant-items'}
+				<!-- Constant Items View -->
+				<div class="p-4 sm:p-6">
+					<div class="mb-4">
+						<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Constant Items</h3>
+						<p class="mt-1 text-sm text-gray-500">
+							Items that always appear on student request forms regardless of availability
+						</p>
+					</div>
+
+					{#if constantItems.length === 0}
+						<div
+							class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white"
+							style="min-height: 600px;"
+						>
+							<div class="px-4 text-center">
+								<div
+									class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100"
+								>
+									<svg
+										class="h-8 w-8 text-emerald-600"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+										/>
+									</svg>
+								</div>
+								<h3 class="mt-6 text-lg font-semibold text-gray-900">
+									No constant items configured
+								</h3>
+								<p class="mx-auto mt-2 max-w-sm text-sm text-gray-600">
+									Mark items as constant from the Items tab to have them always appear on student
+									request forms, regardless of stock availability.
+								</p>
+								<div class="mt-6 flex items-center justify-center gap-3">
+									<button
+										onclick={() => switchTab('all-items')}
+										class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none"
+									>
+										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M15 19l-7-7 7-7"
+											/>
+										</svg>
+										Go to Items
+									</button>
+								</div>
+							</div>
+						</div>
+					{:else}
+						<!-- Mobile card list -->
+						<div class="divide-y divide-gray-100 sm:hidden">
+							{#each constantItems as item, i}
+								<button
+									class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+									onclick={() => openModal(item)}
+								>
+									<div class="flex items-center gap-3">
+										<span
+											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600"
+										>
+											{i + 1}
+										</span>
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+											<p class="truncate text-xs text-gray-500">
+												{item.specification || item.category}
+											</p>
+											<div class="mt-1 flex flex-wrap items-center gap-1">
+												<span
+													class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
+													>Constant</span
+												>
+												<span
+													class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800"
+													>{item.category}</span
+												>
+												{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+													<span
+														class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700"
+														>{item.status}</span
+													>
+												{:else}
+													<span
+														class="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700"
+														>{item.status}</span
+													>
+												{/if}
+												<span class="text-[10px] text-gray-400"
+													>Qty: {item.quantity} · EOM: {item.eomCount}</span
+												>
+											</div>
+										</div>
+										<svg
+											class="h-4 w-4 shrink-0 text-gray-300"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M9 5l7 7-7 7"
+											/>
+										</svg>
+									</div>
+								</button>
+							{/each}
+						</div>
+
+						<!-- Desktop table -->
+						<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
+							<table class="min-w-full divide-y divide-gray-200">
+								<thead class="bg-gray-50">
+									<tr>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Item Name</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Category</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Specification</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Current Count</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Max Per Request</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Status</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Actions</th
+										>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-200 bg-white">
+									{#each constantItems as item, i}
+										<tr class="transition-colors hover:bg-gray-50">
+											<td class="px-6 py-4 whitespace-nowrap">
+												<div class="flex items-center gap-3">
+													{#if item.picture}
+														<img
+															src={item.picture}
+															alt={item.name}
+															class="h-9 w-9 shrink-0 rounded object-cover"
+															loading="lazy"
+														/>
+													{:else}
+														<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded bg-gray-100">
+															<ItemImagePlaceholder size="sm" />
+														</div>
+													{/if}
+													<div class="flex flex-col gap-0.5">
+														<span
+															class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-purple-800 uppercase ring-1 ring-purple-200"
+														>
+															<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"
+																><path
+																	d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+																/></svg
+															>
+															Constant
+														</span>
+														<div class="text-sm font-medium text-gray-900">{item.name}</div>
+													</div>
+												</div>
+											</td>
+											<td class="px-6 py-4 whitespace-nowrap">
+												<span
+													class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800"
+													>{item.category}</span
+												>
+											</td>
+											<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
+											<td class="px-6 py-4 text-sm font-medium whitespace-nowrap text-gray-900"
+												>{item.quantity}</td
+											>
+											<td class="px-6 py-4 whitespace-nowrap">
+												{#if item.maxQuantityPerRequest}
+													<span
+														class="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-800"
+													>
+														<svg
+															class="h-3.5 w-3.5"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+															/>
+														</svg>
+														{item.maxQuantityPerRequest}
+													</span>
+												{:else}
+													<span class="text-xs text-gray-400">No limit</span>
+												{/if}
+											</td>
+											<td class="px-6 py-4 whitespace-nowrap">
+												{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+													<span
+														class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800"
+													>
+														<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
+															><path
+																fill-rule="evenodd"
+																d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+																clip-rule="evenodd"
+															/></svg
+														>
+														{item.status}
+													</span>
+												{:else}
+													<span
+														class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800"
+													>
+														<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
+															><path
+																fill-rule="evenodd"
+																d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+																clip-rule="evenodd"
+															/></svg
+														>
+														{item.status}
+													</span>
+												{/if}
+											</td>
+											<td class="px-6 py-4 text-sm whitespace-nowrap">
+												<div class="flex items-center gap-2">
+													<button
+														onclick={() => editItem(item)}
+														class="rounded p-1 text-pink-600 transition-colors hover:bg-pink-50 hover:text-pink-800"
+														title="Edit item"
+													>
+														<svg
+															class="h-4 w-4"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+															/>
+														</svg>
+													</button>
+													<button
+														onclick={() => toggleConstantStatus(item)}
+														class="rounded p-1 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-800"
+														title="Remove from constant items"
+													>
+														<svg
+															class="h-4 w-4"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+														>
+															<path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M6 18L18 6M6 6l12 12"
+															/>
+														</svg>
+													</button>
+												</div>
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+					{/if}
+				</div>
+			{:else if activeTab === 'low-stock'}
+				<!-- Low Stock View -->
+				<div class="p-6">
+					<div class="mb-6">
+						<h3 class="text-lg font-semibold text-gray-900">Low Stock Alerts</h3>
+						<p class="mt-1 text-sm text-gray-500">Items that need restocking</p>
+					</div>
+
+					{#if lowStockItems.length === 0}
+						<div
+							class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white"
+							style="min-height: 600px;"
+						>
+							<div class="px-4 text-center">
+								<div
+									class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100"
+								>
+									<svg
+										class="h-8 w-8 text-green-600"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+										/>
+									</svg>
+								</div>
+								<h3 class="mt-6 text-lg font-semibold text-gray-900">
+									All items adequately stocked
+								</h3>
+								<p class="mx-auto mt-2 max-w-sm text-sm text-gray-600">
+									No items require immediate restocking. Your inventory levels are healthy.
+								</p>
+								<div class="mt-6 flex items-center justify-center gap-3">
+									<button
+										onclick={() => switchTab('all-items')}
+										class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none"
+									>
+										View All Items
+									</button>
+								</div>
+							</div>
+						</div>
+					{:else}
+						<div class="space-y-3">
+							{#each lowStockItems as item}
+								<div class="rounded-xl border border-red-200 bg-red-50 p-4">
+									<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+										<div class="flex items-center gap-3">
+											<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
+												{#if item.picture}
+													<img
+														src={item.picture}
+														alt={item.name}
+														class="h-full w-full object-cover"
+														loading="lazy"
+													/>
+												{:else}
+													<ItemImagePlaceholder size="sm" />
+												{/if}
+											</div>
+											<div>
+												<h4 class="text-sm font-semibold text-gray-900">{item.name}</h4>
+												<p class="text-xs text-gray-500">{item.category}</p>
+											</div>
+										</div>
+										<div class="flex items-center justify-between gap-3 sm:justify-end">
+											<span class="text-sm text-gray-600"
+												>Qty: <span class="font-semibold text-red-600">{item.quantity}</span></span
+											>
+											<button
+												onclick={() => editItem(item)}
+												class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 sm:px-4 sm:py-2 sm:text-sm"
+											>
+												Update Stock
+											</button>
+										</div>
+									</div>
+								</div>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
+	{/if}
 </div>
 
 <!-- Add New Item / Edit Item Modal -->
 {#if showAddItemModal}
-	<div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="add-item-modal-title">
+	<div
+		class="fixed inset-0 z-50 overflow-y-auto"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="add-item-modal-title"
+	>
 		<div
 			class="fixed inset-0 bg-black/40 transition-opacity"
 			role="button"
@@ -3654,49 +4540,62 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				<!-- Modal Header -->
 				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
 					<div>
-						<h2 id="add-item-modal-title" class="text-lg font-semibold text-gray-900">{editingItemId ? 'Edit Item' : 'Add New Item'}</h2>
-						<p class="mt-0.5 text-sm text-gray-500">Enter details for the {editingItemId ? 'updated' : 'new'} inventory item</p>
+						<h2 id="add-item-modal-title" class="text-lg font-semibold text-gray-900">
+							{editingItemId ? 'Edit Item' : 'Add New Item'}
+						</h2>
+						<p class="mt-0.5 text-sm text-gray-500">
+							Enter details for the {editingItemId ? 'updated' : 'new'} inventory item
+						</p>
 					</div>
 					<button
 						onclick={closeAddItemModal}
-						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+						class="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
 						aria-label="Close modal"
 						disabled={loading}
 					>
 						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
 						</svg>
 					</button>
 				</div>
 
 				<!-- Modal Body -->
-				<div class="px-6 py-6 max-h-[75vh] overflow-y-auto">
+				<div class="max-h-[75vh] overflow-y-auto px-6 py-6">
 					<form id="add-item-form" onsubmit={handleAddItem} class="space-y-5">
 						<div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
 							<div>
-								<label for="itemName" class="block text-sm font-medium text-gray-700">Item Name *</label>
+								<label for="itemName" class="block text-sm font-medium text-gray-700"
+									>Item Name *</label
+								>
 								<input
 									type="text"
 									id="itemName"
 									bind:value={newItem.name}
 									required
-									class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+									class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
 									placeholder="e.g., Chef Knife Set"
 								/>
 							</div>
 
 							<div>
-								<label for="modalCategory" class="block text-sm font-medium text-gray-700">Category *</label>
+								<label for="modalCategory" class="block text-sm font-medium text-gray-700"
+									>Category *</label
+								>
 								<select
 									id="modalCategory"
 									bind:value={newItem.categoryId}
 									onchange={(e) => {
 										const target = e.target as HTMLSelectElement;
-										const selectedCat = categories.find(c => c.id === target.value);
+										const selectedCat = categories.find((c) => c.id === target.value);
 										if (selectedCat) newItem.category = selectedCat.name;
 									}}
 									required
-									class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500"
+									class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
 								>
 									<option value="">Select a category</option>
 									{#each categories as category}
@@ -3706,29 +4605,64 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							</div>
 
 							<div>
-								<label for="modalSpecification" class="block text-sm font-medium text-gray-700">Specification</label>
-								<input type="text" id="modalSpecification" bind:value={newItem.specification} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="e.g., Stainless steel, 8-piece" />
+								<label for="modalSpecification" class="block text-sm font-medium text-gray-700"
+									>Specification</label
+								>
+								<input
+									type="text"
+									id="modalSpecification"
+									bind:value={newItem.specification}
+									class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+									placeholder="e.g., Stainless steel, 8-piece"
+								/>
 							</div>
 
 							<div>
-								<label for="modalToolsOrEquipment" class="block text-sm font-medium text-gray-700">Tools / Equipment</label>
-								<input type="text" id="modalToolsOrEquipment" bind:value={newItem.toolsOrEquipment} class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="e.g., Power adapter, Sheath" />
+								<label for="modalToolsOrEquipment" class="block text-sm font-medium text-gray-700"
+									>Tools / Equipment</label
+								>
+								<input
+									type="text"
+									id="modalToolsOrEquipment"
+									bind:value={newItem.toolsOrEquipment}
+									class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+									placeholder="e.g., Power adapter, Sheath"
+								/>
 							</div>
 
 							<div>
-								<label for="modalQuantity" class="block text-sm font-medium text-gray-700">Current Count *</label>
-								<input type="number" id="modalQuantity" bind:value={newItem.quantity} required min="0" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="0" />
+								<label for="modalQuantity" class="block text-sm font-medium text-gray-700"
+									>Current Count *</label
+								>
+								<input
+									type="number"
+									id="modalQuantity"
+									bind:value={newItem.quantity}
+									required
+									min="0"
+									class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+									placeholder="0"
+								/>
 							</div>
 
 							<div>
-								<label for="modalEomCount" class="block text-sm font-medium text-gray-700">EOM Count</label>
-								<input type="number" id="modalEomCount" bind:value={newItem.eomCount} min="0" class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:outline-none focus:ring-1 focus:ring-pink-500" placeholder="0" />
+								<label for="modalEomCount" class="block text-sm font-medium text-gray-700"
+									>EOM Count</label
+								>
+								<input
+									type="number"
+									id="modalEomCount"
+									bind:value={newItem.eomCount}
+									min="0"
+									class="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+									placeholder="0"
+								/>
 							</div>
 						</div>
 
 						<!-- Constant Item Checkbox -->
 						<div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
-							<label class="flex items-start gap-3 cursor-pointer">
+							<label class="flex cursor-pointer items-start gap-3">
 								<input
 									type="checkbox"
 									bind:checked={newItem.isConstant}
@@ -3741,10 +4675,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									</p>
 								</div>
 							</label>
-							
+
 							{#if newItem.isConstant}
 								<div class="mt-3 border-t border-emerald-200 pt-3">
-									<label for="maxQuantityPerRequest" class="block text-sm font-medium text-gray-900 mb-1">
+									<label
+										for="maxQuantityPerRequest"
+										class="mb-1 block text-sm font-medium text-gray-900"
+									>
 										Maximum Quantity Per Request
 										<span class="text-xs font-normal text-gray-500">(Optional)</span>
 									</label>
@@ -3755,48 +4692,87 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										min="1"
 										step="1"
 										placeholder="e.g., 5 (leave empty for unlimited)"
-										class="block w-full rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+										class="block w-full rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 focus:outline-none"
 									/>
 									<p class="mt-1 text-xs text-gray-600">
-										Set the maximum quantity students can request per transaction. Leave empty for unlimited requests.
+										Set the maximum quantity students can request per transaction. Leave empty for
+										unlimited requests.
 									</p>
 								</div>
 							{/if}
 						</div>
 
 						<!-- Image Upload -->
-						<div class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3" aria-live="polite">
+						<div
+							class="flex items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3"
+							aria-live="polite"
+						>
 							<button
 								type="button"
 								onclick={() => pictureInput?.click()}
 								aria-label="Upload item image"
-								class="inline-flex items-center gap-2 rounded-lg bg-gray-700 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+								class="inline-flex items-center gap-2 rounded-lg bg-gray-700 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 focus:ring-2 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
 								disabled={uploadingImage || loading}
 							>
 								{#if uploadingImage}
-									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+									<div
+										class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+									></div>
 									Uploading...
 								{:else}
-									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3l-4 4-4-4"/></svg>
+									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"
+										><path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7M16 3l-4 4-4-4"
+										/></svg
+									>
 									Upload Image
 								{/if}
 							</button>
-							<span class="flex-1 truncate text-sm text-gray-500">{newItem.pictureFile ? newItem.pictureFile.name : 'No file chosen'}</span>
+							<span class="flex-1 truncate text-sm text-gray-500"
+								>{newItem.pictureFile ? newItem.pictureFile.name : 'No file chosen'}</span
+							>
 							{#if newItem.picture}
-								<img src={newItem.picture} alt="preview" class="h-12 w-12 rounded-lg object-cover border border-gray-200" />
-								<button type="button" onclick={() => { try { URL.revokeObjectURL(newItem.picture) } catch(e){}; newItem.picture=''; newItem.pictureFile=null }} class="text-sm text-red-500 hover:text-red-700" aria-label="Remove image">Remove</button>
+								<img
+									src={newItem.picture}
+									alt="preview"
+									class="h-12 w-12 rounded-lg border border-gray-200 object-cover"
+								/>
+								<button
+									type="button"
+									onclick={() => {
+										try {
+											URL.revokeObjectURL(newItem.picture);
+										} catch (e) {}
+										newItem.picture = '';
+										newItem.pictureFile = null;
+									}}
+									class="text-sm text-red-500 hover:text-red-700"
+									aria-label="Remove image">Remove</button
+								>
 							{/if}
-							<input id="modalPicture" type="file" accept="image/*" onchange={handlePictureChange} bind:this={pictureInput} class="hidden" />
+							<input
+								id="modalPicture"
+								type="file"
+								accept="image/*"
+								onchange={handlePictureChange}
+								bind:this={pictureInput}
+								class="hidden"
+							/>
 						</div>
 					</form>
 				</div>
 
 				<!-- Modal Footer -->
-				<div class="flex items-center justify-end gap-2 sm:gap-3 border-t border-gray-200 px-4 py-3 sm:px-6 sm:py-4">
+				<div
+					class="flex items-center justify-end gap-2 border-t border-gray-200 px-4 py-3 sm:gap-3 sm:px-6 sm:py-4"
+				>
 					<button
 						type="button"
 						onclick={closeAddItemModal}
-						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:opacity-50 whitespace-nowrap"
+						class="rounded-lg border border-gray-300 bg-white px-4 py-2 text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50 sm:text-sm"
 						disabled={loading}
 					>
 						Cancel
@@ -3804,14 +4780,21 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					<button
 						type="submit"
 						form="add-item-form"
-						class="inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-xs sm:text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:opacity-50 whitespace-nowrap"
+						class="inline-flex items-center rounded-lg bg-pink-600 px-4 py-2 text-xs font-medium whitespace-nowrap text-white shadow-sm hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none disabled:opacity-50 sm:text-sm"
 						disabled={loading || uploadingImage}
 					>
 						{#if loading}
-							<div class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+							<div
+								class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+							></div>
 						{:else}
 							<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M5 13l4 4L19 7"
+								/>
 							</svg>
 						{/if}
 						{editingItemId ? 'Update Item' : 'Add Item'}
@@ -3826,7 +4809,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 {#if showImportModal}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
 		<div
-			class="fixed inset-0 bg-black/40"
+			class="fixed inset-0 cursor-default bg-black/40 backdrop-blur-sm transition-opacity"
 			role="button"
 			tabindex="0"
 			aria-label="Close import modal"
@@ -3838,125 +4821,251 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				}
 			}}
 		></div>
-		<div class="flex min-h-full items-center justify-center p-4">
-			<div class="relative z-50 w-full max-w-4xl rounded-lg bg-white shadow-xl">
+		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
+			<div
+				class="animate-scaleIn relative w-full max-w-4xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+			>
 				<!-- Header -->
-				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-					<div>
-						<h2 class="text-xl font-semibold text-gray-900">Import Inventory Items</h2>
-						<p class="mt-1 text-sm text-gray-500">
-							{#if importStep === 'upload'}
-								Upload a CSV or Excel file to bulk import items. Use sheet tab name for category (e.g., "Hot Kitchen")
-							{:else if importStep === 'preview'}
-								Review and confirm import
-							{:else}
-								Import complete
-							{/if}
-						</p>
+				<div
+					class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8 sm:py-6"
+				>
+					<div class="flex items-start justify-between gap-3">
+						<div class="flex min-w-0 flex-1 items-start gap-3">
+							<div
+								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30 sm:h-12 sm:w-12"
+							>
+								<svg
+									class="h-5 w-5 text-white sm:h-6 sm:w-6"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2.5"
+										d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+									/>
+								</svg>
+							</div>
+							<div class="min-w-0 flex-1">
+								<h2
+									id="import-modal-title"
+									class="text-lg font-bold text-gray-900 sm:text-xl md:text-2xl"
+								>
+									Import Inventory Items
+								</h2>
+								<p class="mt-0.5 text-xs font-medium text-gray-500 sm:text-sm">
+									{#if importStep === 'upload'}
+										Upload a CSV or Excel file to bulk import items. Use sheet tab name for category
+										(e.g., "Hot Kitchen")
+									{:else if importStep === 'preview'}
+										Review and confirm import
+									{:else}
+										Import complete
+									{/if}
+								</p>
+							</div>
+						</div>
+						<button
+							onclick={closeImportModal}
+							aria-label="Close modal"
+							class="rounded-xl p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95 sm:p-2.5"
+						>
+							<svg
+								class="h-5 w-5 sm:h-6 sm:w-6"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M6 18L18 6M6 6l12 12"
+								/>
+							</svg>
+						</button>
 					</div>
-					<button
-						onclick={closeImportModal}
-						class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-						aria-label="Close import modal"
-						title="Close import modal"
-					>
-						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-						</svg>
-					</button>
 				</div>
 
 				<!-- Content -->
-				<div class="px-6 py-6">
+				<div class="max-h-[70vh] overflow-y-auto px-4 py-5 sm:px-8 sm:py-8">
 					{#if importStep === 'upload'}
 						<!-- Upload Step -->
 						<div class="space-y-6">
 							<!-- Collapsible Format Guide -->
-							<div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+							<div class="overflow-hidden rounded-lg border border-gray-200 bg-white">
 								<!-- Accordion Header -->
 								<button
 									type="button"
-									onclick={() => { showFormatGuide = !showFormatGuide; }}
-									class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+									onclick={() => {
+										showFormatGuide = !showFormatGuide;
+									}}
+									class="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-gray-50"
 								>
 									<div class="flex items-center gap-2.5">
-										<span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-blue-100 text-blue-600 shrink-0">
+										<span
+											class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-600"
+										>
 											<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
-												<path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
+												<path
+													fill-rule="evenodd"
+													d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
+													clip-rule="evenodd"
+												/>
 											</svg>
 										</span>
 										<span class="text-sm font-semibold text-gray-800">File Format Guide</span>
-										<span class="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 border border-blue-200">Required reading</span>
+										<span
+											class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700"
+											>Required reading</span
+										>
 									</div>
 									<svg
-										class="h-4 w-4 text-gray-400 transition-transform duration-200 {showFormatGuide ? 'rotate-180' : ''}"
-										fill="none" stroke="currentColor" viewBox="0 0 24 24"
+										class="h-4 w-4 text-gray-400 transition-transform duration-200 {showFormatGuide
+											? 'rotate-180'
+											: ''}"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
 									>
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M19 9l-7 7-7-7"
+										/>
 									</svg>
 								</button>
 
 								<!-- Accordion Body -->
 								{#if showFormatGuide}
-									<div class="border-t border-gray-100 px-4 py-4 bg-gray-50 space-y-4 text-sm text-gray-700">
-
+									<div
+										class="space-y-4 border-t border-gray-100 bg-gray-50 px-4 py-4 text-sm text-gray-700"
+									>
 										<!-- Column reference -->
 										<div>
-											<p class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">Column Reference — Excel / CSV</p>
-											<div class="rounded-md border border-gray-200 overflow-hidden">
+											<p class="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+												Column Reference — Excel / CSV
+											</p>
+											<div class="overflow-hidden rounded-md border border-gray-200">
 												<table class="min-w-full divide-y divide-gray-200 text-xs">
 													<thead class="bg-gray-100">
 														<tr>
-															<th class="px-3 py-2 text-left font-semibold text-gray-600">Column</th>
-															<th class="px-3 py-2 text-left font-semibold text-gray-600">Required</th>
+															<th class="px-3 py-2 text-left font-semibold text-gray-600">Column</th
+															>
+															<th class="px-3 py-2 text-left font-semibold text-gray-600"
+																>Required</th
+															>
 															<th class="px-3 py-2 text-left font-semibold text-gray-600">Notes</th>
 														</tr>
 													</thead>
-													<tbody class="bg-white divide-y divide-gray-100">
+													<tbody class="divide-y divide-gray-100 bg-white">
 														<tr>
 															<td class="px-3 py-2 font-medium text-gray-800">Name</td>
-															<td class="px-3 py-2"><span class="inline-block rounded-full bg-red-100 text-red-700 px-2 py-0.5 text-xs font-medium">Required</span></td>
+															<td class="px-3 py-2"
+																><span
+																	class="inline-block rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700"
+																	>Required</span
+																></td
+															>
 															<td class="px-3 py-2 text-gray-600">Item name — must be unique</td>
 														</tr>
 														<tr class="bg-gray-50">
 															<td class="px-3 py-2 font-medium text-gray-800">Category</td>
-															<td class="px-3 py-2"><span class="inline-block rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-medium">Auto / Column</span></td>
-															<td class="px-3 py-2 text-gray-600">Uses sheet tab name automatically, or add a Category column</td>
+															<td class="px-3 py-2"
+																><span
+																	class="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+																	>Auto / Column</span
+																></td
+															>
+															<td class="px-3 py-2 text-gray-600"
+																>Uses sheet tab name automatically, or add a Category column</td
+															>
 														</tr>
 														<tr>
 															<td class="px-3 py-2 font-medium text-gray-800">Specification</td>
-															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
-															<td class="px-3 py-2 text-gray-600">Item specifications / description</td>
+															<td class="px-3 py-2"
+																><span
+																	class="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500"
+																	>Optional</span
+																></td
+															>
+															<td class="px-3 py-2 text-gray-600"
+																>Item specifications / description</td
+															>
 														</tr>
 														<tr class="bg-gray-50">
-															<td class="px-3 py-2 font-medium text-gray-800">Tools or Equipment</td>
-															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
-															<td class="px-3 py-2 text-gray-600">Associated tools or companion equipment</td>
+															<td class="px-3 py-2 font-medium text-gray-800">Tools or Equipment</td
+															>
+															<td class="px-3 py-2"
+																><span
+																	class="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500"
+																	>Optional</span
+																></td
+															>
+															<td class="px-3 py-2 text-gray-600"
+																>Associated tools or companion equipment</td
+															>
 														</tr>
 														<tr>
 															<td class="px-3 py-2 font-medium text-gray-800">Current Count</td>
-															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
-															<td class="px-3 py-2 text-gray-600">Current stock quantity before donations — defaults to 1</td>
+															<td class="px-3 py-2"
+																><span
+																	class="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500"
+																	>Optional</span
+																></td
+															>
+															<td class="px-3 py-2 text-gray-600"
+																>Current stock quantity before donations — defaults to 1</td
+															>
 														</tr>
 														<tr class="bg-gray-50">
 															<td class="px-3 py-2 font-medium text-gray-800">Donations</td>
-															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
-															<td class="px-3 py-2 text-gray-600">Donated quantity added to the current count — defaults to 0</td>
+															<td class="px-3 py-2"
+																><span
+																	class="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500"
+																	>Optional</span
+																></td
+															>
+															<td class="px-3 py-2 text-gray-600"
+																>Donated quantity added to the current count — defaults to 0</td
+															>
 														</tr>
 														<tr class="bg-gray-50">
 															<td class="px-3 py-2 font-medium text-gray-800">EOM Count</td>
-															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
-															<td class="px-3 py-2 text-gray-600">End-of-month count — defaults to 0</td>
+															<td class="px-3 py-2"
+																><span
+																	class="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500"
+																	>Optional</span
+																></td
+															>
+															<td class="px-3 py-2 text-gray-600"
+																>End-of-month count — defaults to 0</td
+															>
 														</tr>
 														<tr>
 															<td class="px-3 py-2 font-medium text-gray-800">Remarks</td>
-															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
+															<td class="px-3 py-2"
+																><span
+																	class="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500"
+																	>Optional</span
+																></td
+															>
 															<td class="px-3 py-2 text-gray-600">Additional notes</td>
 														</tr>
 														<tr class="bg-gray-50">
 															<td class="px-3 py-2 font-medium text-gray-800">Picture</td>
-															<td class="px-3 py-2"><span class="inline-block rounded-full bg-gray-100 text-gray-500 px-2 py-0.5 text-xs font-medium">Optional</span></td>
-															<td class="px-3 py-2 text-gray-600">Image URL (https://…) or filename from ZIP</td>
+															<td class="px-3 py-2"
+																><span
+																	class="inline-block rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500"
+																	>Optional</span
+																></td
+															>
+															<td class="px-3 py-2 text-gray-600"
+																>Image URL (https://…) or filename from ZIP</td
+															>
 														</tr>
 													</tbody>
 												</table>
@@ -3966,29 +5075,47 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										<!-- Tips row -->
 										<div class="grid grid-cols-2 gap-3">
 											<div class="rounded-md border border-purple-200 bg-purple-50 p-3">
-												<p class="text-xs font-semibold text-purple-800 mb-1">💡 Pro Tip — Categories</p>
-												<p class="text-xs text-purple-700">Name your Excel sheet tab as the category (e.g., "Hot Kitchen", "Baking Lab"). The sheet name is used automatically — no Category column needed.</p>
+												<p class="mb-1 text-xs font-semibold text-purple-800">
+													💡 Pro Tip — Categories
+												</p>
+												<p class="text-xs text-purple-700">
+													Name your Excel sheet tab as the category (e.g., "Hot Kitchen", "Baking
+													Lab"). The sheet name is used automatically — no Category column needed.
+												</p>
 											</div>
 											<div class="rounded-md border border-blue-200 bg-blue-50 p-3">
-												<p class="text-xs font-semibold text-blue-800 mb-1">🖼 Image Support</p>
-												<ul class="text-xs text-blue-700 space-y-1 mt-1">
-													<li><strong>Embedded:</strong> Insert images directly into Excel cells</li>
+												<p class="mb-1 text-xs font-semibold text-blue-800">🖼 Image Support</p>
+												<ul class="mt-1 space-y-1 text-xs text-blue-700">
+													<li>
+														<strong>Embedded:</strong> Insert images directly into Excel cells
+													</li>
 													<li><strong>URL:</strong> Paste a direct image link (https://…)</li>
 													<li><strong>ZIP:</strong> Bundle your Excel + image files in a .zip</li>
 													<li class="text-blue-500">Supported: JPG, PNG, GIF, WebP</li>
 												</ul>
 											</div>
 										</div>
-
 									</div>
 								{/if}
 							</div>
 
 							<!-- Template Download -->
-							<div class="flex items-center justify-between rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4">
+							<div
+								class="flex items-center justify-between rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 p-4"
+							>
 								<div class="flex items-center gap-3">
-									<svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+									<svg
+										class="h-8 w-8 text-gray-400"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+										/>
 									</svg>
 									<div>
 										<p class="font-medium text-gray-900">Need a template?</p>
@@ -4000,7 +5127,12 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									class="inline-flex items-center gap-2 rounded-lg bg-gray-600 px-4 py-2 text-sm font-medium text-white hover:bg-gray-700"
 								>
 									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+										/>
 									</svg>
 									Download Template
 								</button>
@@ -4008,14 +5140,14 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 							<!-- File Upload -->
 							<div>
-								<label for="importFileInput" class="block text-sm font-medium text-gray-700 mb-2">
+								<label for="importFileInput" class="mb-2 block text-sm font-medium text-gray-700">
 									Upload File
 								</label>
-								
+
 								{#if !importFile}
 									<!-- Upload Drop Zone -->
-									<label 
-										class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 cursor-pointer transition-all duration-200"
+									<label
+										class="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-12 transition-all duration-200"
 										class:border-emerald-500={isDraggingOver}
 										class:bg-emerald-50={isDraggingOver}
 										class:border-gray-300={!isDraggingOver}
@@ -4027,17 +5159,22 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										ondragleave={handleDragLeave}
 										ondrop={handleDrop}
 									>
-										<svg 
-											class="h-12 w-12 mb-3 transition-colors"
+										<svg
+											class="mb-3 h-12 w-12 transition-colors"
 											class:text-emerald-500={isDraggingOver}
 											class:text-gray-400={!isDraggingOver}
-											fill="none" 
-											stroke="currentColor" 
+											fill="none"
+											stroke="currentColor"
 											viewBox="0 0 24 24"
 										>
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+											/>
 										</svg>
-										<span 
+										<span
 											class="text-sm font-medium transition-colors"
 											class:text-emerald-700={isDraggingOver}
 											class:text-gray-700={!isDraggingOver}
@@ -4048,7 +5185,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												Click to upload or drag and drop
 											{/if}
 										</span>
-										<span class="text-xs text-gray-500 mt-1">CSV, XLSX, XLS, or ZIP files (with images)</span>
+										<span class="mt-1 text-xs text-gray-500"
+											>CSV, XLSX, XLS, or ZIP files (with images)</span
+										>
 										<input
 											id="importFileInput"
 											type="file"
@@ -4059,77 +5198,131 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									</label>
 								{:else}
 									<!-- File Preview Card -->
-									<div class="bg-white border-2 border-emerald-500 rounded-lg p-4 transition-all">
+									<div class="rounded-lg border-2 border-emerald-500 bg-white p-4 transition-all">
 										<div class="flex items-start gap-4">
 											<!-- File Icon -->
 											<div class="shrink-0">
 												{#if getFileIcon(importFile.name) === 'csv'}
-													<div class="h-12 w-12 rounded-lg bg-green-100 flex items-center justify-center">
-														<svg class="h-7 w-7 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-															<path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/>
+													<div
+														class="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100"
+													>
+														<svg
+															class="h-7 w-7 text-green-600"
+															fill="currentColor"
+															viewBox="0 0 20 20"
+														>
+															<path
+																fill-rule="evenodd"
+																d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+																clip-rule="evenodd"
+															/>
 														</svg>
 													</div>
 												{:else if getFileIcon(importFile.name) === 'excel'}
-													<div class="h-12 w-12 rounded-lg bg-emerald-100 flex items-center justify-center">
-														<svg class="h-7 w-7 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
-															<path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/>
+													<div
+														class="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-100"
+													>
+														<svg
+															class="h-7 w-7 text-emerald-600"
+															fill="currentColor"
+															viewBox="0 0 20 20"
+														>
+															<path
+																fill-rule="evenodd"
+																d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z"
+																clip-rule="evenodd"
+															/>
 														</svg>
 													</div>
 												{:else if getFileIcon(importFile.name) === 'zip'}
-													<div class="h-12 w-12 rounded-lg bg-purple-100 flex items-center justify-center">
-														<svg class="h-7 w-7 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-															<path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-5L9 4H4z"/>
+													<div
+														class="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100"
+													>
+														<svg
+															class="h-7 w-7 text-purple-600"
+															fill="currentColor"
+															viewBox="0 0 20 20"
+														>
+															<path
+																d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-5L9 4H4z"
+															/>
 														</svg>
 													</div>
 												{/if}
 											</div>
 
 											<!-- File Info -->
-											<div class="flex-1 min-w-0">
+											<div class="min-w-0 flex-1">
 												<div class="flex items-start justify-between gap-4">
-													<div class="flex-1 min-w-0">
-														<p class="text-sm font-medium text-gray-900 truncate" title={importFile.name}>
+													<div class="min-w-0 flex-1">
+														<p
+															class="truncate text-sm font-medium text-gray-900"
+															title={importFile.name}
+														>
 															{importFile.name}
 														</p>
-														<p class="text-xs text-gray-500 mt-1">
+														<p class="mt-1 text-xs text-gray-500">
 															{formatFileSize(importFile.size)}
 														</p>
 													</div>
 													<button
 														onclick={removeImportFile}
-														class="shrink-0 text-gray-400 hover:text-red-600 transition-colors"
+														class="shrink-0 text-gray-400 transition-colors hover:text-red-600"
 														title="Remove file"
 													>
 														<svg class="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-															<path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/>
+															<path
+																fill-rule="evenodd"
+																d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+																clip-rule="evenodd"
+															/>
 														</svg>
 													</button>
 												</div>
-												
+
 												<!-- Success Indicator -->
-												<div class="flex items-center gap-2 mt-3">
-													<div class="flex-1 bg-emerald-100 rounded-full h-1.5">
-														<div class="bg-emerald-600 h-1.5 rounded-full" style="width: 100%"></div>
+												<div class="mt-3 flex items-center gap-2">
+													<div class="h-1.5 flex-1 rounded-full bg-emerald-100">
+														<div
+															class="h-1.5 rounded-full bg-emerald-600"
+															style="width: 100%"
+														></div>
 													</div>
-													<svg class="h-5 w-5 text-emerald-600 shrink-0" fill="currentColor" viewBox="0 0 20 20">
-														<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+													<svg
+														class="h-5 w-5 shrink-0 text-emerald-600"
+														fill="currentColor"
+														viewBox="0 0 20 20"
+													>
+														<path
+															fill-rule="evenodd"
+															d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+															clip-rule="evenodd"
+														/>
 													</svg>
 												</div>
 
 												{#if importImageFiles.size > 0}
-													<div class="flex items-center gap-2 mt-2 text-xs text-emerald-600">
+													<div class="mt-2 flex items-center gap-2 text-xs text-emerald-600">
 														<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-															<path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
+															<path
+																fill-rule="evenodd"
+																d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+																clip-rule="evenodd"
+															/>
 														</svg>
 														<span>{importImageFiles.size} image(s) found in ZIP</span>
 													</div>
 												{/if}
 
 												{#if importPreviewData.length > 0}
-													<div class="flex items-center gap-2 mt-2 text-xs text-blue-600">
+													<div class="mt-2 flex items-center gap-2 text-xs text-blue-600">
 														<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-															<path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-															<path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/>
+															<path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+															<path
+																fill-rule="evenodd"
+																d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
+																clip-rule="evenodd"
+															/>
 														</svg>
 														<span>{importPreviewData.length} item(s) ready to import</span>
 													</div>
@@ -4142,30 +5335,33 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 							{#if importing}
 								<div class="flex items-center justify-center gap-3 py-8">
-									<div class="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent"></div>
+									<div
+										class="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent"
+									></div>
 									<span class="text-sm text-gray-600">Processing file...</span>
 								</div>
 							{/if}
 						</div>
-
 					{:else if importStep === 'preview'}
 						<!-- Preview Step -->
 						<div class="space-y-4">
 							<!-- Import Progress (shown during import) -->
 							{#if importing && importProgress.total > 0}
-								<div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-									<div class="flex items-center gap-3 mb-3">
-										<div class="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+								<div class="rounded-lg border border-blue-200 bg-blue-50 p-4">
+									<div class="mb-3 flex items-center gap-3">
+										<div
+											class="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"
+										></div>
 										<div class="flex-1">
 											<p class="text-sm font-medium text-blue-900">{importProgress.message}</p>
-											<p class="text-xs text-blue-600 mt-1">
+											<p class="mt-1 text-xs text-blue-600">
 												Progress: {importProgress.current} of {importProgress.total} items
 											</p>
 										</div>
 									</div>
-									<div class="w-full bg-blue-200 rounded-full h-2">
-										<div 
-											class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+									<div class="h-2 w-full rounded-full bg-blue-200">
+										<div
+											class="h-2 rounded-full bg-blue-600 transition-all duration-300"
 											style="width: {(importProgress.current / importProgress.total) * 100}%"
 										></div>
 									</div>
@@ -4174,43 +5370,67 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 							<!-- Summary -->
 							<div class="grid grid-cols-4 gap-4">
-								<div class="rounded-lg bg-blue-50 p-4">
-									<p class="text-sm text-blue-600 font-medium">Total Rows</p>
-									<p class="text-2xl font-bold text-blue-900 mt-1">{importPreviewData.length}</p>
+								<div class="rounded-2xl border border-pink-100 bg-linear-to-br from-pink-50 to-pink-100/50 p-5 shadow-sm">
+									<p class="text-xs font-bold uppercase tracking-wide text-pink-600">Total Rows</p>
+									<p class="mt-1.5 text-3xl font-black text-pink-900">{importPreviewData.length}</p>
 								</div>
-								<div class="rounded-lg bg-green-50 p-4">
-									<p class="text-sm text-green-600 font-medium">Create</p>
-									<p class="text-2xl font-bold text-green-900 mt-1">{importPreviewData.filter(i => i._importAction === 'create').length}</p>
+								<div class="rounded-2xl border border-green-100 bg-linear-to-br from-green-50 to-green-100/50 p-5 shadow-sm">
+									<p class="text-xs font-bold uppercase tracking-wide text-green-600">Create</p>
+									<p class="mt-1.5 text-3xl font-black text-green-900">
+										{importPreviewData.filter((i) => i._importAction === 'create').length}
+									</p>
 								</div>
-								<div class="rounded-lg bg-emerald-50 p-4">
-									<p class="text-sm text-emerald-600 font-medium">Update</p>
-									<p class="text-2xl font-bold text-emerald-900 mt-1">{importPreviewData.filter(i => i._importAction === 'update').length}</p>
+								<div class="rounded-2xl border border-emerald-100 bg-linear-to-br from-emerald-50 to-emerald-100/50 p-5 shadow-sm">
+									<p class="text-xs font-bold uppercase tracking-wide text-emerald-600">Update</p>
+									<p class="mt-1.5 text-3xl font-black text-emerald-900">
+										{importPreviewData.filter((i) => i._importAction === 'update').length}
+									</p>
 								</div>
-								<div class="rounded-lg bg-amber-50 p-4">
-									<p class="text-sm text-amber-600 font-medium">No Change</p>
-									<p class="text-2xl font-bold text-amber-900 mt-1">{importPreviewData.filter(i => i._importAction === 'no-change').length}</p>
+								<div class="rounded-2xl border border-amber-100 bg-linear-to-br from-amber-50 to-amber-100/50 p-5 shadow-sm">
+									<p class="text-xs font-bold uppercase tracking-wide text-amber-600">No Change</p>
+									<p class="mt-1.5 text-3xl font-black text-amber-900">
+										{importPreviewData.filter((i) => i._importAction === 'no-change').length}
+									</p>
 								</div>
 							</div>
-							<div class="mt-3 rounded-lg bg-red-50 p-4">
-								<p class="text-sm text-red-600 font-medium">Errors</p>
-								<p class="text-2xl font-bold text-red-900 mt-1">{importPreviewData.filter(i => i._importAction === 'error').length}</p>
+							{#if importPreviewData.filter((i) => i._importAction === 'error').length > 0}
+								<div class="mt-4 rounded-2xl border border-red-100 bg-linear-to-br from-red-50 to-red-100/50 p-5 shadow-sm">
+									<p class="text-xs font-bold uppercase tracking-wide text-red-600">Errors</p>
+									<p class="mt-1.5 text-3xl font-black text-red-900">
+										{importPreviewData.filter((i) => i._importAction === 'error').length}
+									</p>
 								</div>
+							{/if}
 
 							{#if importErrors.length > 0}
-								<div class="rounded-lg bg-yellow-50 border border-yellow-200 p-4">
-									<div class="flex">
-										<svg class="h-5 w-5 text-yellow-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-										</svg>
-										<div class="ml-3">
-											<h3 class="text-sm font-medium text-yellow-900">Validation Errors</h3>
-											<div class="mt-2 text-sm text-yellow-800 max-h-32 overflow-y-auto">
-												<ul class="list-disc list-inside space-y-1">
+								<div class="mt-4 rounded-2xl border border-yellow-200 bg-linear-to-br from-yellow-50 to-yellow-100/50 p-5 shadow-sm">
+									<div class="flex items-start">
+										<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-yellow-200/60">
+											<svg
+												class="h-5 w-5 text-yellow-700"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+												/>
+											</svg>
+										</div>
+										<div class="ml-4">
+											<h3 class="text-sm font-bold text-yellow-900">Validation Errors</h3>
+											<div class="mt-2 max-h-32 overflow-y-auto text-sm text-yellow-800">
+												<ul class="list-inside list-disc space-y-1">
 													{#each importErrors.slice(0, 10) as error}
 														<li>{error}</li>
 													{/each}
 													{#if importErrors.length > 10}
-														<li class="text-yellow-700">...and {importErrors.length - 10} more errors</li>
+														<li class="font-semibold text-yellow-700">
+															...and {importErrors.length - 10} more errors
+														</li>
 													{/if}
 												</ul>
 											</div>
@@ -4220,53 +5440,93 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							{/if}
 
 							<!-- Preview Table -->
-							<div class="border rounded-lg overflow-hidden">
+							<div class="mt-4 overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
 								<div class="max-h-96 overflow-y-auto">
 									<table class="min-w-full divide-y divide-gray-200">
-										<thead class="bg-gray-50 sticky top-0">
+										<thead class="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm">
 											<tr>
-												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Current Count</th>
-												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Donations</th>
-												<th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Image</th>
+												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+													>Status</th
+												>
+												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+													>Name</th
+												>
+												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+													>Category</th
+												>
+												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+													>Current Count</th
+												>
+												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+													>Donations</th
+												>
+												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+													>Image</th
+												>
 											</tr>
 										</thead>
-										<tbody class="bg-white divide-y divide-gray-200">
+										<tbody class="divide-y divide-gray-100 bg-white">
 											{#each importPreviewData as item}
-												<tr class={
-													item._importAction === 'create' ? 'bg-green-50/40 hover:bg-green-50' :
-													item._importAction === 'update' ? 'bg-emerald-50/40 hover:bg-emerald-50' :
-													item._importAction === 'no-change' ? 'bg-amber-50/40 hover:bg-amber-50' :
-													'bg-red-50'
-												}>
+												<tr
+													class={item._importAction === 'create'
+														? 'bg-green-50/40 hover:bg-green-50'
+														: item._importAction === 'update'
+															? 'bg-emerald-50/40 hover:bg-emerald-50'
+															: item._importAction === 'no-change'
+																? 'bg-amber-50/40 hover:bg-amber-50'
+																: 'bg-red-50'}
+												>
 													<td class="px-4 py-3 whitespace-nowrap">
 														{#if item._importAction === 'create'}
-															<span class="inline-flex items-center gap-1 text-green-600 text-xs">
+															<span class="inline-flex items-center gap-1 text-xs text-green-600">
 																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-																	<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+																	<path
+																		fill-rule="evenodd"
+																		d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+																		clip-rule="evenodd"
+																	/>
 																</svg>
 																Create
 															</span>
 														{:else if item._importAction === 'update'}
-															<span class="inline-flex items-center gap-1 text-emerald-700 text-xs" title={`Will update: ${item._changedFields?.join(', ') || 'changed fields'}`}>
+															<span
+																class="inline-flex items-center gap-1 text-xs text-emerald-700"
+																title={`Will update: ${item._changedFields?.join(', ') || 'changed fields'}`}
+															>
 																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-																	<path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.778 7.778a1 1 0 01-1.414 0L3.293 10.26a1 1 0 111.414-1.414l3.515 3.515 7.071-7.071a1 1 0 011.414 0z" clip-rule="evenodd"/>
+																	<path
+																		fill-rule="evenodd"
+																		d="M16.707 5.293a1 1 0 010 1.414l-7.778 7.778a1 1 0 01-1.414 0L3.293 10.26a1 1 0 111.414-1.414l3.515 3.515 7.071-7.071a1 1 0 011.414 0z"
+																		clip-rule="evenodd"
+																	/>
 																</svg>
 																Update
 															</span>
 														{:else if item._importAction === 'no-change'}
-															<span class="inline-flex items-center gap-1 text-amber-700 text-xs" title="Existing item matches imported values">
+															<span
+																class="inline-flex items-center gap-1 text-xs text-amber-700"
+																title="Existing item matches imported values"
+															>
 																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-																	<path fill-rule="evenodd" d="M18 10A8 8 0 114 3.08V7a1 1 0 11-2 0V2a1 1 0 011-1h5a1 1 0 110 2H4.415A6 6 0 1016 10a1 1 0 112 0z" clip-rule="evenodd"/>
+																	<path
+																		fill-rule="evenodd"
+																		d="M18 10A8 8 0 114 3.08V7a1 1 0 11-2 0V2a1 1 0 011-1h5a1 1 0 110 2H4.415A6 6 0 1016 10a1 1 0 112 0z"
+																		clip-rule="evenodd"
+																	/>
 																</svg>
 																No Change
 															</span>
 														{:else}
-															<span class="inline-flex items-center gap-1 text-red-600 text-xs" title={item._errors.join(', ')}>
+															<span
+																class="inline-flex items-center gap-1 text-xs text-red-600"
+																title={item._errors.join(', ')}
+															>
 																<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-																	<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+																	<path
+																		fill-rule="evenodd"
+																		d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+																		clip-rule="evenodd"
+																	/>
 																</svg>
 																Error
 															</span>
@@ -4274,35 +5534,67 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													</td>
 													<td class="px-4 py-3 text-sm text-gray-900">{item.name}</td>
 													<td class="px-4 py-3 text-sm text-gray-600">
-												{item.category}
-												{#if item._categoryExists}
-													<span class="ml-1 text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">exists</span>
-												{:else if item.category}
-													<span class="ml-1 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">new</span>
-												{/if}
-											</td>
-													<td class="px-4 py-3 text-sm text-gray-900">{getCurrentCount(item.quantity, item.donations ?? 0)}</td>
+														{item.category}
+														{#if item._categoryExists}
+															<span
+																class="ml-1 rounded bg-green-100 px-1.5 py-0.5 text-xs text-green-700"
+																>exists</span
+															>
+														{:else if item.category}
+															<span
+																class="ml-1 rounded bg-blue-100 px-1.5 py-0.5 text-xs text-blue-700"
+																>new</span
+															>
+														{/if}
+													</td>
+													<td class="px-4 py-3 text-sm text-gray-900"
+														>{getCurrentCount(item.quantity, item.donations ?? 0)}</td
+													>
 													<td class="px-4 py-3 text-sm text-gray-900">{item.donations ?? 0}</td>
 													<td class="px-4 py-3 whitespace-nowrap">
 														{#if item._hasImage}
 															{#if item._imageSource === 'url'}
-																<button onclick={() => openImagePreview(item)} class="inline-flex items-center gap-1 text-blue-600 text-xs hover:text-blue-800 hover:underline cursor-pointer" title="Click to preview">
+																<button
+																	onclick={() => openImagePreview(item)}
+																	class="inline-flex cursor-pointer items-center gap-1 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+																	title="Click to preview"
+																>
 																	<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-																		<path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
+																		<path
+																			fill-rule="evenodd"
+																			d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+																			clip-rule="evenodd"
+																		/>
 																	</svg>
 																	URL
 																</button>
 															{:else if item._imageSource === 'zip'}
-																<button onclick={() => openImagePreview(item)} class="inline-flex items-center gap-1 text-purple-600 text-xs hover:text-purple-800 hover:underline cursor-pointer" title="Click to preview">
+																<button
+																	onclick={() => openImagePreview(item)}
+																	class="inline-flex cursor-pointer items-center gap-1 text-xs text-purple-600 hover:text-purple-800 hover:underline"
+																	title="Click to preview"
+																>
 																	<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-																		<path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
+																		<path
+																			fill-rule="evenodd"
+																			d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+																			clip-rule="evenodd"
+																		/>
 																	</svg>
 																	File
 																</button>
 															{:else if item._imageSource === 'excel'}
-																<button onclick={() => openImagePreview(item)} class="inline-flex items-center gap-1 text-emerald-600 text-xs hover:text-emerald-800 hover:underline cursor-pointer" title="Click to preview">
+																<button
+																	onclick={() => openImagePreview(item)}
+																	class="inline-flex cursor-pointer items-center gap-1 text-xs text-emerald-600 hover:text-emerald-800 hover:underline"
+																	title="Click to preview"
+																>
 																	<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-																		<path fill-rule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clip-rule="evenodd"/>
+																		<path
+																			fill-rule="evenodd"
+																			d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
+																			clip-rule="evenodd"
+																		/>
 																	</svg>
 																	Excel
 																</button>
@@ -4318,24 +5610,33 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 								</div>
 							</div>
 						</div>
-
 					{:else if importStep === 'complete'}
 						<!-- Complete Step -->
-						<div class="text-center py-12">
-							<svg class="mx-auto h-16 w-16 text-green-500 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+						<div class="py-12 text-center">
+							<svg
+								class="mx-auto mb-4 h-16 w-16 text-green-500"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
 							</svg>
-							<h3 class="text-lg font-medium text-gray-900 mb-2">Import Successful!</h3>
+							<h3 class="mb-2 text-lg font-medium text-gray-900">Import Successful!</h3>
 							<p class="text-sm text-gray-500">Items have been added to your inventory</p>
 						</div>
 					{/if}
 				</div>
 
 				<!-- Footer -->
-				<div class="flex items-center justify-between border-t border-gray-200 px-6 py-4 bg-gray-50">
+				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8 flex items-center justify-between">
 					<button
 						onclick={closeImportModal}
-						class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+						class="rounded-xl border-2 border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-400 hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none active:scale-95"
 					>
 						{importing ? 'Hide' : importStep === 'complete' ? 'Close' : 'Cancel'}
 					</button>
@@ -4344,7 +5645,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						<!-- Next button for upload step -->
 						<button
 							onclick={() => { importStep = 'preview'; }}
-							class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+							class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-emerald-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-500/40 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
 							disabled={importing}
 						>
 							Continue to Preview
@@ -4355,19 +5656,19 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					{:else if importStep === 'preview'}
 						<div class="flex gap-3">
 							<button
-								onclick={() => { importStep = 'upload'; importPreviewData = []; importErrors = []; }}
-								class="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+								onclick={() => { importStep = 'upload'; }}
+								class="inline-flex items-center gap-2 rounded-xl border-2 border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-400 hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
 								disabled={importing}
 							>
 								Back
 							</button>
 							<button
 								onclick={handleImportConfirm}
-								class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+								class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-emerald-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-500/40 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
 								disabled={importing || importPreviewData.filter(i => i._importAction === 'create' || i._importAction === 'update').length === 0}
 							>
 								{#if importing}
-									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white"></div>
 									Importing...
 								{:else}
 									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -4400,7 +5701,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		}}
 	>
 		<div
-			class="relative max-w-2xl w-full mx-4"
+			class="relative mx-4 w-full max-w-2xl"
 			role="button"
 			tabindex="0"
 			aria-label="Image preview content"
@@ -4408,30 +5709,33 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 			onkeydown={(e) => e.stopPropagation()}
 		>
 			<!-- Header -->
-			<div class="flex items-center justify-between bg-white rounded-t-xl px-4 py-3">
-				<p class="text-sm font-medium text-gray-800 truncate">{importPreviewImageName}</p>
+			<div class="flex items-center justify-between rounded-t-xl bg-white px-4 py-3">
+				<p class="truncate text-sm font-medium text-gray-800">{importPreviewImageName}</p>
 				<button
 					onclick={closeImagePreview}
 					class="ml-4 rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
 					aria-label="Close preview"
 				>
 					<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+						<path
+							stroke-linecap="round"
+							stroke-linejoin="round"
+							stroke-width="2"
+							d="M6 18L18 6M6 6l12 12"
+						/>
 					</svg>
 				</button>
 			</div>
 			<!-- Image -->
-			<div class="bg-gray-50 rounded-b-xl flex items-center justify-center p-4 max-h-[70vh] overflow-hidden">
+			<div
+				class="flex max-h-[70vh] items-center justify-center overflow-hidden rounded-b-xl bg-gray-50 p-4"
+			>
 				<img
 					src={importPreviewImageUrl}
 					alt={importPreviewImageName}
-					class="max-h-[65vh] max-w-full object-contain rounded"
+					class="max-h-[65vh] max-w-full rounded object-contain"
 				/>
 			</div>
 		</div>
 	</div>
 {/if}
-
-
-
-
