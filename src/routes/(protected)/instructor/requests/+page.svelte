@@ -1,5 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import { page } from '$app/stores';
+import { replaceState, afterNavigate } from '$app/navigation';
 import { authStore } from '$lib/stores/auth';
 import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
@@ -24,6 +26,7 @@ import {
 } from 'lucide-svelte';
 
 let activeTab = $state<'pending' | 'fulfillment' | 'borrowed' | 'unresolved' | 'history'>('pending');
+let highlightedRequestId = $state<string | null>(null);
 let historySubTab = $state<'all' | 'completed' | 'resolved' | 'cancelled'>('all');
 let showDetailModal = $state(false);
 let selectedRequest = $state<any>(null);
@@ -242,6 +245,53 @@ async function backfillClassCodes(): Promise<void> {
 	}
 }
 
+/**
+ * Deep-link handler: switches to the correct tab based on the request's CURRENT
+ * status, highlights the row, scrolls it into view, then opens the detail modal.
+ * This handles older notifications where the request has since progressed tabs.
+ */
+function openDeepLinkedRequest(rawId: string): void {
+	const target = requests.find(r => r.rawId === rawId);
+	if (!target) return;
+
+	// Close any previously opened modal before switching context
+	closeDetailModal();
+
+	activeTab = target.status;
+	highlightedRequestId = rawId;
+
+	setTimeout(() => {
+		const el = document.querySelector(`[data-request-id="${rawId}"]`);
+		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		setTimeout(() => { openDetailModal(target); }, 600);
+	}, 80);
+}
+
+// Use afterNavigate (fires once per navigation, after page settles) to detect
+// ?requestId= deep links from notification clicks. Avoids $effect timing races.
+let _pendingDeepLinkId = $state<string | null>(null);
+
+afterNavigate(({ to }) => {
+	const rawId = to?.url.searchParams.get('requestId') ?? null;
+	if (!rawId) return;
+	// Strip the param from the URL immediately
+	replaceState(to?.url.pathname ?? '', {});
+	// If data is ready, open right away; otherwise queue for when requests load
+	if (requests.length > 0) {
+		openDeepLinkedRequest(rawId);
+	} else {
+		_pendingDeepLinkId = rawId;
+	}
+});
+
+// Flush the pending deep-link once request data arrives (handles cold load)
+$effect(() => {
+	if (!_pendingDeepLinkId || requests.length === 0) return;
+	const id = _pendingDeepLinkId;
+	_pendingDeepLinkId = null;
+	openDeepLinkedRequest(id);
+});
+
 onMount(() => {
 	let mounted = true;
 
@@ -334,6 +384,7 @@ showDetailModal = true;
 function closeDetailModal() {
 showDetailModal = false;
 selectedRequest = null;
+highlightedRequestId = null;
 }
 
 function toggleSelectRequest(requestId: string) {
@@ -978,7 +1029,8 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
-									class="relative overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)}"
+									class="relative overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getCardBorderColor(request.status, request.rawStatus, request.rejectionReason)} {highlightedRequestId === request.rawId ? 'ring-2 ring-pink-400 bg-pink-50/30' : ''}"
+									data-request-id={request.rawId}
 									onclick={() => openDetailModal(request)}
 									role="button"
 									tabindex="0"
@@ -1061,7 +1113,7 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 					<!-- List View -->
 					<div style="min-height: 600px;">
 						<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-							<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[auto_1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4">
+							<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[auto_32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4">
 								<span class="w-6 text-center">
 									{#if activeTab === 'pending'}
 										<input
@@ -1073,6 +1125,7 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 										/>
 									{/if}
 								</span>
+								<span class="text-center text-gray-400">#</span>
 								<span>Request</span>
 								<span>Student</span>
 								<span>Items</span>
@@ -1080,11 +1133,12 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 								<span class="text-right">Actions</span>
 							</div>
 							<div class="divide-y divide-gray-100">
-								{#each filteredRequests as request}
+								{#each filteredRequests as request, i}
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div
-										class="grid gap-3 p-4 md:grid-cols-[auto_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 hover:bg-gray-50 transition-colors cursor-pointer"
+										class="grid gap-3 p-4 md:grid-cols-[auto_32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
+										data-request-id={request.rawId}
 										onclick={() => openDetailModal(request)}
 										role="button"
 										tabindex="0"
@@ -1101,6 +1155,9 @@ function getEmptyState(tab: 'pending' | 'fulfillment' | 'borrowed' | 'unresolved
 													class="h-4 w-4 rounded border-gray-300 text-pink-600 shadow-sm focus:border-pink-500 focus:ring-pink-500"
 												/>
 											{/if}
+										</div>
+										<div class="hidden md:flex items-center justify-center pt-0.5">
+											<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{i + 1}</span>
 										</div>
 
 										<div class="min-w-0">

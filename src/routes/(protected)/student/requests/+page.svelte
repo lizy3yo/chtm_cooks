@@ -1,5 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
+import { page } from '$app/stores';
+import { replaceState, afterNavigate } from '$app/navigation';
 import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestRealtimeEvent } from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
 import { confirmStore } from '$lib/stores/confirm';
@@ -25,6 +27,7 @@ const PAGE_SIZE_CARD = 5;
 const PAGE_SIZE_LIST = 10;
 
 let activeTab = $state<StudentTab>('my-request');
+let highlightedRequestId = $state<string | null>(null);
 let searchQuery = $state('');
 let sortBy = $state('newest');
 let requestViewMode = $state<RequestViewMode>('list');
@@ -231,15 +234,71 @@ function scheduleRefresh(forceRefresh = false): void {
 let _unsubscribeSSE: (() => void) | null = null;
 let _pollInterval: ReturnType<typeof setInterval> | null = null;
 
+// Use afterNavigate (fires once per navigation, after page settles) to detect
+// ?requestId= deep links from notification clicks. Avoids $effect timing races.
+let _pendingDeepLinkId = $state<string | null>(null);
+
+afterNavigate(({ to }) => {
+	const rawId = to?.url.searchParams.get('requestId') ?? null;
+	if (!rawId) return;
+	// Strip the param from the URL immediately
+	replaceState(to?.url.pathname ?? '', {});
+	// If data is ready, open right away; otherwise queue for when requests load
+	if (requests.length > 0) {
+		openDeepLinkedRequest(rawId);
+	} else {
+		_pendingDeepLinkId = rawId;
+	}
+});
+
+// Flush the pending deep-link once request data arrives (handles cold load)
+$effect(() => {
+	if (!_pendingDeepLinkId || requests.length === 0) return;
+	const id = _pendingDeepLinkId;
+	_pendingDeepLinkId = null;
+	openDeepLinkedRequest(id);
+});
+
+/**
+ * Deep-link handler: called after requests load when ?requestId= is present.
+ * Switches to the correct tab, highlights the row with a pulse animation,
+ * scrolls it into view, then opens the detail modal after a brief pause
+ * so the user can see where the request lives.
+ */
+function openDeepLinkedRequest(rawId: string): void {
+	const target = requests.find(r => r.rawId === rawId);
+	if (!target) return;
+
+	// Close any previously opened modal before switching context
+	closeDetailModal();
+
+	// Switch to the correct tab for this request's CURRENT status
+	if (target.status === 'pending') activeTab = 'my-request';
+	else if (['approved', 'ready'].includes(target.status)) activeTab = 'instructor-approved';
+	else if (['picked-up', 'pending-return', 'missing'].includes(target.status)) activeTab = 'active';
+	else activeTab = 'history';
+
+	currentPage = 1;
+	highlightedRequestId = rawId;
+
+	setTimeout(() => {
+		const el = document.querySelector(`[data-request-id="${rawId}"]`);
+		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		setTimeout(() => { openDetailModal(target); }, 600);
+	}, 80);
+}
+
 onMount(() => {
 	// If navigated here after a new submission, bypass all caches immediately.
 	const isPostSubmit = new URLSearchParams(window.location.search).get('new') === '1';
 
 	if (isPostSubmit) {
 		borrowRequestsAPI.invalidateCache();
-		// Clean the URL without triggering a navigation
-		const cleanUrl = window.location.pathname;
-		history.replaceState(null, '', cleanUrl);
+	}
+
+	// Clean the URL without triggering a navigation
+	if (isPostSubmit) {
+		history.replaceState(null, '', window.location.pathname);
 	}
 
 	// Instant paint from client memory cache (skipped on post-submit since cache was just cleared).
@@ -422,6 +481,7 @@ function closeDetailModal() {
 showDetailModal = false;
 selectedRequest = null;
 qrDataUrl = null;
+highlightedRequestId = null;
 }
 
 function getReadyPickupMessage(): string {
@@ -793,7 +853,8 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div
-								class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getStatusBorderColor(request.status)}"
+								class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getStatusBorderColor(request.status)} {highlightedRequestId === request.rawId ? 'ring-2 ring-pink-400 bg-pink-50/30' : ''}"
+								data-request-id={request.rawId}
 								onclick={() => openDetailModal(request)}
 								role="button"
 								tabindex="0"
@@ -920,25 +981,33 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 				<!-- List View -->
 				<div style="min-height: 600px;">
 					<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-						<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[1.2fr_1.8fr_1fr_120px] md:items-center md:gap-4">
+						<div class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 md:grid md:grid-cols-[32px_1.2fr_1.8fr_1fr_120px] md:items-center md:gap-4">
+							<span class="text-center text-gray-400">#</span>
 							<span>Request</span>
 							<span>Items & Purpose</span>
 							<span>Status</span>
 							<span class="text-right">Actions</span>
 						</div>
 						<div class="divide-y divide-gray-100">
-							{#each paginatedRequests as request}
+							{#each paginatedRequests as request, i}
 								{@const StatusIcon = getStatusIconComponent(request.status)}
+								{@const rowNum = (currentPage - 1) * PAGE_SIZE_LIST + i + 1}
 								<!-- svelte-ignore a11y_click_events_have_key_events -->
 								<!-- svelte-ignore a11y_no_static_element_interactions -->
 								<div
-									class="grid gap-3 p-4 md:grid-cols-[1.2fr_1.8fr_1fr_120px] md:items-start md:gap-4 hover:bg-gray-50 transition-colors cursor-pointer"
+									class="grid gap-3 p-4 md:grid-cols-[32px_1.2fr_1.8fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
+									data-request-id={request.rawId}
 									onclick={() => openDetailModal(request)}
 									role="button"
 									tabindex="0"
 									onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
 									aria-label="View details for {request.id}"
 								>
+									<!-- Row number -->
+									<div class="hidden md:flex items-center justify-center pt-0.5">
+										<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{rowNum}</span>
+									</div>
+
 									<!-- Request ID + dates -->
 									<div class="min-w-0 pt-0.5">
 										<p class="font-mono text-xs font-bold tracking-wider text-gray-900 truncate">{request.id}</p>

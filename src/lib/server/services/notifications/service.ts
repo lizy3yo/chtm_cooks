@@ -68,6 +68,90 @@ export async function listNotificationsForUser(
 		collection.countDocuments({ userId: objectUserId, isRead: false })
 	]);
 
+	// Enrich notifications with actor's profile photo
+	const borrowRequestIds = notifications
+		.map((n) => n.borrowRequestId)
+		.filter((id): id is ObjectId => id !== undefined);
+
+	let borrowRequests: any[] = [];
+	if (borrowRequestIds.length > 0) {
+		borrowRequests = await db
+			.collection('borrow_requests')
+			.find(
+				{ _id: { $in: borrowRequestIds } },
+				{ projection: { studentId: 1, instructorId: 1, custodianId: 1 } }
+			)
+			.toArray();
+	}
+
+	const requestMap = new Map(borrowRequests.map((r) => [r._id.toString(), r]));
+
+	// Pre-calculate actorId for each notification so we can fetch all necessary users
+	const notifActorIds = new Map<string, ObjectId>();
+	const userIds = new Set<string>();
+
+	for (const notif of notifications) {
+		const req = notif.borrowRequestId ? requestMap.get(notif.borrowRequestId.toString()) : undefined;
+
+		let actorId: ObjectId | undefined;
+		const event = notif.metadata?.event as string | undefined;
+
+		if (!req) {
+			actorId = notif.userId;
+		} else {
+			if (event) {
+				if (['submitted', 'cancelled', 'return_initiated'].includes(event)) {
+					actorId = req.studentId;
+				} else if (['approved', 'rejected'].includes(event)) {
+					actorId = req.instructorId;
+				} else if (['ready_for_pickup', 'picked_up', 'returned', 'missing', 'item_issue'].includes(event)) {
+					actorId = req.custodianId;
+				}
+			} else {
+				if (notif.type.includes('submitted') || notif.type.includes('cancelled') || notif.type.includes('return_initiated')) {
+					actorId = req.studentId;
+				} else if (notif.type.includes('approved') || notif.type.includes('rejected')) {
+					actorId = req.instructorId;
+				} else if (notif.type.includes('ready_for_pickup') || notif.type.includes('picked_up') || notif.type.includes('returned') || notif.type.includes('missing') || notif.type.includes('item_issue')) {
+					actorId = req.custodianId;
+				}
+			}
+		}
+
+		if (!actorId) actorId = notif.userId;
+
+		if (actorId) {
+			notifActorIds.set(notif._id!.toString(), actorId);
+			userIds.add(actorId.toString());
+		}
+	}
+
+	if (userIds.size > 0) {
+		const users = await db
+			.collection('users')
+			.find(
+				{ _id: { $in: Array.from(userIds).map((id) => new ObjectId(id)) } },
+				{ projection: { profilePhotoUrl: 1, firstName: 1, lastName: 1 } }
+			)
+			.toArray();
+
+		const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+
+		for (const notif of notifications) {
+			const actorId = notifActorIds.get(notif._id!.toString());
+			if (actorId) {
+				const user = userMap.get(actorId.toString());
+				if (user) {
+					if (!notif.metadata) notif.metadata = {};
+					if (user.profilePhotoUrl) {
+						notif.metadata.actorPhotoUrl = user.profilePhotoUrl;
+					}
+					notif.metadata.actorName = `${user.firstName || ''} ${user.lastName || ''}`.trim();
+				}
+			}
+		}
+	}
+
 	return {
 		notifications: notifications.map((notification) => toNotificationResponse(notification)),
 		unreadCount

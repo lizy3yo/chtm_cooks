@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { goto, afterNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { browser } from '$app/environment';
 	import {
@@ -30,6 +30,7 @@
 	let activeTab = $state<Tab>('pending');
 	let historySubTab = $state<HistorySubTab>('all');
 	let showDetailModal = $state(false);
+	let highlightedRequestId = $state<string | null>(null);
 	let showInspectionModal = $state(false);
 	let selectedRequest = $state<any>(null);
 	let activeRequestObligations = $state<ReplacementObligation[]>([]);
@@ -455,8 +456,21 @@
 				return;
 			}
 
+			// Close any previously opened modal before switching context
+			closeDetailModal();
+
 			activeTab = target.status;
-			openDetailModal(target);
+
+			// Reset to page 1 so the highlighted row is always visible
+			currentPage = 1;
+
+			// Highlight the row, scroll it into view, then open the modal
+			highlightedRequestId = target.rawId;
+			setTimeout(() => {
+				const el = document.querySelector(`[data-request-id="${target.rawId}"]`);
+				if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+				setTimeout(() => { openDetailModal(target); }, 600);
+			}, 80);
 		} catch {
 			toastStore.error('Scanned request could not be found.', 'QR Scan');
 		} finally {
@@ -473,6 +487,8 @@
 		url.searchParams.delete('scan');
 		const search = url.searchParams.toString();
 		const next = `${url.pathname}${search ? `?${search}` : ''}${url.hash}`;
+		// Reset the token BEFORE navigating so the $effect doesn't block re-opens
+		handledScanToken = '';
 		void goto(next, {
 			replaceState: true,
 			noScroll: true,
@@ -480,18 +496,13 @@
 		});
 	}
 
-	$effect(() => {
+	afterNavigate(({ to }) => {
 		const scanId =
-			$page.url.searchParams.get('requestId')?.trim() ??
-			$page.url.searchParams.get('scan')?.trim() ??
+			to?.url.searchParams.get('requestId')?.trim() ??
+			to?.url.searchParams.get('scan')?.trim() ??
 			'';
 
-		if (!scanId) {
-			handledScanToken = '';
-			return;
-		}
-
-		if (handledScanToken === scanId) return;
+		if (!scanId || handledScanToken === scanId) return;
 
 		void maybeOpenScannedRequestFromUrl();
 	});
@@ -751,6 +762,7 @@
 	function closeDetailModal() {
 		showDetailModal = false;
 		selectedRequest = null;
+		highlightedRequestId = null;
 	}
 
 	function toggleActionMenu(rawId: string): void {
@@ -1282,7 +1294,8 @@
 											request.status,
 											request.rawStatus,
 											request.rejectionReason
-										)}"
+										)} {highlightedRequestId === request.rawId ? 'ring-2 ring-pink-400 bg-pink-50/30' : ''}"
+										data-request-id={request.rawId}
 										onclick={() => openDetailModal(request)}
 										role="button"
 										tabindex="0"
@@ -1466,8 +1479,9 @@
 							{#if paginatedRequests.length > 0}
 								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 								<div
-									class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4"
+									class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4"
 								>
+									<span class="text-center text-gray-400">#</span>
 									<span>Request</span>
 									<span>Student</span>
 									<span>Items</span>
@@ -1475,17 +1489,21 @@
 									<span class="text-right">Actions</span>
 								</div>
 								<div class="divide-y divide-gray-100">
-									{#each paginatedRequests as request}
+									{#each paginatedRequests as request, i}
 										<!-- svelte-ignore a11y_click_events_have_key_events -->
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
-											class="grid gap-3 p-4 md:grid-cols-[1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 hover:bg-gray-50 transition-colors cursor-pointer"
+											class="grid gap-3 p-4 md:grid-cols-[32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
+											data-request-id={request.rawId}
 											onclick={() => openDetailModal(request)}
 											role="button"
 											tabindex="0"
 											onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
 											aria-label="View details for {request.id}"
 										>
+											<div class="hidden md:flex items-center justify-center pt-0.5">
+												<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * PAGE_SIZE_LIST + i + 1}</span>
+											</div>
 											<div class="min-w-0">
 												<p class="font-mono text-xs font-bold tracking-wider text-gray-900">
 													{request.id}

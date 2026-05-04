@@ -621,7 +621,7 @@
 	<!-- Equipment List View -->
 	{#if !isLoading && viewMode === 'list' && filteredItems.length > 0}
 		<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
-			{#each filteredItems as item (item.id)}
+			{#each filteredItems as item, i (item.id)}
 				<!-- svelte-ignore a11y_click_events_have_key_events -->
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
@@ -632,6 +632,9 @@
 					onkeydown={(e) => e.key === 'Enter' && openDetailsModal(item)}
 					aria-label="View details for {item.name}"
 				>
+					<!-- Row number -->
+					<span class="hidden sm:inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * itemsPerPage + i + 1}</span>
+
 					<!-- Thumbnail -->
 					<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14">
 						{#if item.picture}

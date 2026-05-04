@@ -281,7 +281,7 @@ function getApprovalTimeline(request: any) {
 		
 		<div class="divide-y divide-gray-200">
 			{#if viewMode === 'by-request'}
-				{#each history as req}
+				{#each history as req, i}
 					{@const uiStatus = toUiStatus(req.status, req.rejectReason)}
 					{@const Icon = statusIcon(uiStatus)}
 					<button
@@ -289,6 +289,9 @@ function getApprovalTimeline(request: any) {
 						class="group w-full p-5 text-left transition-colors hover:bg-gray-50"
 					>
 						<div class="flex items-start gap-4">
+							<!-- Row number -->
+							<span class="hidden sm:inline-flex mt-1 h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(page - 1) * limit + i + 1}</span>
+
 							<!-- Item Images -->
 							<div class="hidden shrink-0 sm:flex sm:-space-x-3">
 								{#each req.items.slice(0, 3) as item}
@@ -362,15 +365,18 @@ function getApprovalTimeline(request: any) {
 					</button>
 				{/each}
 			{:else}
-				{#each history as req}
+				{#each history as req, i}
 					{@const uiStatus = toUiStatus(req.status, req.rejectReason)}
 					{@const Icon = statusIcon(uiStatus)}
-					{#each req.items as item}
+					{#each req.items as item, j}
 						<button
 							onclick={() => openDetailModal({ ...req, rawId: req.id, id: formatRequestCode(req.id), items: req.items, status: uiStatus, requestDate: req.createdAt, purpose: req.purpose, instructor: req.instructor?.fullName || 'N/A', rejectionReason: req.rejectReason, returnedAt: req.returnedAt })}
 							class="group w-full p-5 text-left transition-colors hover:bg-gray-50"
 						>
 							<div class="flex items-start gap-4">
+								<!-- Row number -->
+								<span class="hidden sm:inline-flex mt-1 h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(page - 1) * limit + i + 1}.{j + 1}</span>
+
 								<!-- Item Image -->
 								<div class="shrink-0">
 									{#if item.picture}
