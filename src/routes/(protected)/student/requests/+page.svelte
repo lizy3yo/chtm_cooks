@@ -1,7 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { page } from '$app/stores';
-import { replaceState } from '$app/navigation';
+import { replaceState, afterNavigate } from '$app/navigation';
 import { borrowRequestsAPI, type BorrowRequestRecord, type BorrowRequestRealtimeEvent } from '$lib/api/borrowRequests';
 import { catalogAPI } from '$lib/api/catalog';
 import { confirmStore } from '$lib/stores/confirm';
@@ -234,16 +234,29 @@ function scheduleRefresh(forceRefresh = false): void {
 let _unsubscribeSSE: (() => void) | null = null;
 let _pollInterval: ReturnType<typeof setInterval> | null = null;
 
-// Reactively handle ?requestId= — fires on both fresh loads and same-page navigations.
-// Uses SvelteKit's replaceState so the page store is updated and the effect
-// sees rawId = null on the next run, preventing double-firing.
+// Use afterNavigate (fires once per navigation, after page settles) to detect
+// ?requestId= deep links from notification clicks. Avoids $effect timing races.
+let _pendingDeepLinkId = $state<string | null>(null);
+
+afterNavigate(({ to }) => {
+	const rawId = to?.url.searchParams.get('requestId') ?? null;
+	if (!rawId) return;
+	// Strip the param from the URL immediately
+	replaceState(to?.url.pathname ?? '', {});
+	// If data is ready, open right away; otherwise queue for when requests load
+	if (requests.length > 0) {
+		openDeepLinkedRequest(rawId);
+	} else {
+		_pendingDeepLinkId = rawId;
+	}
+});
+
+// Flush the pending deep-link once request data arrives (handles cold load)
 $effect(() => {
-	const rawId = $page.url.searchParams.get('requestId');
-	if (!rawId || requests.length === 0) return;
-	// Update the page store immediately — this causes the effect to re-run
-	// with rawId = null, so it won't fire again for the same param.
-	replaceState($page.url.pathname, $page.state);
-	openDeepLinkedRequest(rawId);
+	if (!_pendingDeepLinkId || requests.length === 0) return;
+	const id = _pendingDeepLinkId;
+	_pendingDeepLinkId = null;
+	openDeepLinkedRequest(id);
 });
 
 /**
@@ -256,28 +269,22 @@ function openDeepLinkedRequest(rawId: string): void {
 	const target = requests.find(r => r.rawId === rawId);
 	if (!target) return;
 
-	// 1. Switch to the correct tab
+	// Close any previously opened modal before switching context
+	closeDetailModal();
+
+	// Switch to the correct tab for this request's CURRENT status
 	if (target.status === 'pending') activeTab = 'my-request';
 	else if (['approved', 'ready'].includes(target.status)) activeTab = 'instructor-approved';
 	else if (['picked-up', 'pending-return', 'missing'].includes(target.status)) activeTab = 'active';
 	else activeTab = 'history';
 
-	// 2. Highlight the row immediately
+	currentPage = 1;
 	highlightedRequestId = rawId;
 
-	// 3. After the DOM updates with the new tab, scroll the row into view
-	//    then open the modal after a short delay so the highlight is visible
 	setTimeout(() => {
 		const el = document.querySelector(`[data-request-id="${rawId}"]`);
-		if (el) {
-			el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-		}
-		// Open modal after the scroll animation completes
-		setTimeout(() => {
-			openDetailModal(target);
-			// Keep highlight visible while modal is open, clear on close
-			// (highlightedRequestId is cleared when modal closes)
-		}, 600);
+		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		setTimeout(() => { openDetailModal(target); }, 600);
 	}, 80);
 }
 

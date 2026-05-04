@@ -1,7 +1,7 @@
 <script lang="ts">
 import { onMount } from 'svelte';
 import { page } from '$app/stores';
-import { replaceState } from '$app/navigation';
+import { replaceState, afterNavigate } from '$app/navigation';
 import { authStore } from '$lib/stores/auth';
 import { confirmStore } from '$lib/stores/confirm';
 import { toastStore } from '$lib/stores/toast';
@@ -246,12 +246,16 @@ async function backfillClassCodes(): Promise<void> {
 }
 
 /**
- * Deep-link handler: switches to the correct tab, highlights the row,
- * scrolls it into view, then opens the detail modal.
+ * Deep-link handler: switches to the correct tab based on the request's CURRENT
+ * status, highlights the row, scrolls it into view, then opens the detail modal.
+ * This handles older notifications where the request has since progressed tabs.
  */
 function openDeepLinkedRequest(rawId: string): void {
 	const target = requests.find(r => r.rawId === rawId);
 	if (!target) return;
+
+	// Close any previously opened modal before switching context
+	closeDetailModal();
 
 	activeTab = target.status;
 	highlightedRequestId = rawId;
@@ -263,12 +267,29 @@ function openDeepLinkedRequest(rawId: string): void {
 	}, 80);
 }
 
-// Reactively handle ?requestId= on both fresh loads and same-page navigations
+// Use afterNavigate (fires once per navigation, after page settles) to detect
+// ?requestId= deep links from notification clicks. Avoids $effect timing races.
+let _pendingDeepLinkId = $state<string | null>(null);
+
+afterNavigate(({ to }) => {
+	const rawId = to?.url.searchParams.get('requestId') ?? null;
+	if (!rawId) return;
+	// Strip the param from the URL immediately
+	replaceState(to?.url.pathname ?? '', {});
+	// If data is ready, open right away; otherwise queue for when requests load
+	if (requests.length > 0) {
+		openDeepLinkedRequest(rawId);
+	} else {
+		_pendingDeepLinkId = rawId;
+	}
+});
+
+// Flush the pending deep-link once request data arrives (handles cold load)
 $effect(() => {
-	const rawId = $page.url.searchParams.get('requestId');
-	if (!rawId || requests.length === 0) return;
-	replaceState($page.url.pathname, $page.state);
-	openDeepLinkedRequest(rawId);
+	if (!_pendingDeepLinkId || requests.length === 0) return;
+	const id = _pendingDeepLinkId;
+	_pendingDeepLinkId = null;
+	openDeepLinkedRequest(id);
 });
 
 onMount(() => {

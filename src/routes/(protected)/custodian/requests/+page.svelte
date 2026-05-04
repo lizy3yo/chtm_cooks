@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
+	import { goto, afterNavigate } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { browser } from '$app/environment';
 	import {
@@ -456,7 +456,13 @@
 				return;
 			}
 
+			// Close any previously opened modal before switching context
+			closeDetailModal();
+
 			activeTab = target.status;
+
+			// Reset to page 1 so the highlighted row is always visible
+			currentPage = 1;
 
 			// Highlight the row, scroll it into view, then open the modal
 			highlightedRequestId = target.rawId;
@@ -481,6 +487,8 @@
 		url.searchParams.delete('scan');
 		const search = url.searchParams.toString();
 		const next = `${url.pathname}${search ? `?${search}` : ''}${url.hash}`;
+		// Reset the token BEFORE navigating so the $effect doesn't block re-opens
+		handledScanToken = '';
 		void goto(next, {
 			replaceState: true,
 			noScroll: true,
@@ -488,18 +496,13 @@
 		});
 	}
 
-	$effect(() => {
+	afterNavigate(({ to }) => {
 		const scanId =
-			$page.url.searchParams.get('requestId')?.trim() ??
-			$page.url.searchParams.get('scan')?.trim() ??
+			to?.url.searchParams.get('requestId')?.trim() ??
+			to?.url.searchParams.get('scan')?.trim() ??
 			'';
 
-		if (!scanId) {
-			handledScanToken = '';
-			return;
-		}
-
-		if (handledScanToken === scanId) return;
+		if (!scanId || handledScanToken === scanId) return;
 
 		void maybeOpenScannedRequestFromUrl();
 	});
