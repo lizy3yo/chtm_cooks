@@ -471,7 +471,9 @@
 			setTimeout(() => {
 				const el = document.querySelector(`[data-request-id="${target.rawId}"]`);
 				if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-				setTimeout(() => { openDetailModal(target); }, 600);
+				setTimeout(() => {
+					openDetailModal(target);
+				}, 600);
 			}, 80);
 		} catch {
 			toastStore.error('Scanned request could not be found.', 'QR Scan');
@@ -1268,19 +1270,6 @@
 									</svg>
 								</button>
 							</div>
-							<button
-								class="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl bg-pink-600 px-3 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700 sm:gap-2 sm:px-4 sm:text-sm"
-							>
-								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-									/>
-								</svg>
-								<span class="hidden sm:inline">Export</span>
-							</button>
 						</div>
 					</div>
 
@@ -1289,136 +1278,192 @@
 							{#if paginatedRequests.length > 0}
 								<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">
 									{#each paginatedRequests as request}
-									<!-- svelte-ignore a11y_click_events_have_key_events -->
-									<!-- svelte-ignore a11y_no_static_element_interactions -->
-									<div
-										class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md cursor-pointer {getCardBorderColor(
-											request.status,
-											request.rawStatus,
-											request.rejectionReason
-										)} {highlightedRequestId === request.rawId ? 'ring-2 ring-pink-400 bg-pink-50/30' : ''}"
-										data-request-id={request.rawId}
-										onclick={() => openDetailModal(request)}
-										role="button"
-										tabindex="0"
-										onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
-										aria-label="View details for {request.id}"
-									>
-										<div class="p-4 sm:p-5">
-											<!-- Header: Student, Request ID, Status -->
-											<div class="mb-3 flex items-start justify-between gap-3">
-												<div class="flex min-w-0 flex-1 items-center gap-3">
-													<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
-														{#if request.student.avatarUrl}
-															<img src={request.student.avatarUrl} alt={request.student.name} class="h-full w-full object-cover" loading="lazy" />
-														{:else}
-															{request.student.avatar}
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div
+											class="cursor-pointer overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {getCardBorderColor(
+												request.status,
+												request.rawStatus,
+												request.rejectionReason
+											)} {highlightedRequestId === request.rawId
+												? 'bg-pink-50/30 ring-2 ring-pink-400'
+												: ''}"
+											data-request-id={request.rawId}
+											onclick={() => openDetailModal(request)}
+											role="button"
+											tabindex="0"
+											onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
+											aria-label="View details for {request.id}"
+										>
+											<div class="p-4 sm:p-5">
+												<!-- Header: Student, Request ID, Status -->
+												<div class="mb-3 flex items-start justify-between gap-3">
+													<div class="flex min-w-0 flex-1 items-center gap-3">
+														<div
+															class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700"
+														>
+															{#if request.student.avatarUrl}
+																<img
+																	src={request.student.avatarUrl}
+																	alt={request.student.name}
+																	class="h-full w-full object-cover"
+																	loading="lazy"
+																/>
+															{:else}
+																{request.student.avatar}
+															{/if}
+														</div>
+														<div class="flex min-w-0 flex-col gap-1">
+															<span class="truncate font-semibold text-gray-900"
+																>{request.student.name}</span
+															>
+															<span class="truncate font-mono text-xs text-gray-500"
+																>{request.id}</span
+															>
+														</div>
+													</div>
+													<span
+														class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getStatusBadge(
+															request.status,
+															request.rawStatus,
+															request.rejectionReason
+														).color}"
+													>
+														{getStatusBadge(
+															request.status,
+															request.rawStatus,
+															request.rejectionReason
+														).text}
+													</span>
+												</div>
+
+												<!-- Qty & Date -->
+												<div class="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+													<div class="flex items-center gap-1.5">
+														<Package class="h-4 w-4" />
+														<span class="font-medium text-gray-900"
+															>Qty: {request.items.reduce(
+																(sum: number, item: any) => sum + item.quantity,
+																0
+															)}</span
+														>
+													</div>
+													<div class="flex items-center gap-1.5">
+														<svg
+															class="h-4 w-4"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+															><path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+															/></svg
+														>
+														<span
+															>{new Date(request.requestDate).toLocaleDateString('en-US', {
+																month: 'short',
+																day: 'numeric',
+																year: 'numeric'
+															})}</span
+														>
+													</div>
+												</div>
+
+												<!-- Missing / Damaged Badges -->
+												{#if request.status === 'unresolved' && (request.missingItemCount > 0 || request.damagedItemCount > 0)}
+													<div
+														class="mt-3 flex gap-2 border-t border-gray-100 pt-3 text-xs text-gray-500"
+													>
+														{#if request.missingItemCount > 0}
+															<span
+																class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-800"
+															>
+																<span class="h-1 w-1 rounded-full bg-red-500"></span>
+																{request.missingItemCount} Missing
+															</span>
+														{/if}
+														{#if request.damagedItemCount > 0}
+															<span
+																class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-800"
+															>
+																<span class="h-1 w-1 rounded-full bg-rose-500"></span>
+																{request.damagedItemCount} Damaged
+															</span>
 														{/if}
 													</div>
-													<div class="flex min-w-0 flex-col gap-1">
-														<span class="font-semibold text-gray-900 truncate">{request.student.name}</span>
-														<span class="text-xs font-mono text-gray-500 truncate">{request.id}</span>
-													</div>
-												</div>
-												<span
-													class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getStatusBadge(
-														request.status,
-														request.rawStatus,
-														request.rejectionReason
-													).color}"
-												>
-													{getStatusBadge(
-														request.status,
-														request.rawStatus,
-														request.rejectionReason
-													).text}
-												</span>
+												{/if}
 											</div>
 
-											<!-- Qty & Date -->
-											<div class="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500">
-												<div class="flex items-center gap-1.5">
-													<Package class="h-4 w-4" />
-													<span class="font-medium text-gray-900">Qty: {request.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}</span>
-												</div>
-												<div class="flex items-center gap-1.5">
-													<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-													<span>{new Date(request.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-												</div>
-											</div>
-
-											<!-- Missing / Damaged Badges -->
-											{#if request.status === 'unresolved' && (request.missingItemCount > 0 || request.damagedItemCount > 0)}
-												<div class="mt-3 flex gap-2 border-t border-gray-100 pt-3 text-xs text-gray-500">
-													{#if request.missingItemCount > 0}
-														<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 font-medium text-red-800">
-															<span class="h-1 w-1 rounded-full bg-red-500"></span>
-															{request.missingItemCount} Missing
-														</span>
+											<!-- Card Footer -->
+											<div
+												class="flex justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:px-5"
+											>
+												<div class="relative flex flex-wrap items-center gap-2">
+													{#if request.status === 'unresolved'}
+														<button
+															onclick={() => openResolveModal(request.rawId)}
+															disabled={resolvingRequestId === request.rawId}
+															class="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+														>
+															{#if resolvingRequestId === request.rawId}
+																<svg
+																	class="h-4 w-4 animate-spin text-white"
+																	fill="none"
+																	viewBox="0 0 24 24"
+																>
+																	<circle
+																		class="opacity-25"
+																		cx="12"
+																		cy="12"
+																		r="10"
+																		stroke="currentColor"
+																		stroke-width="4"
+																	></circle>
+																	<path
+																		class="opacity-75"
+																		fill="currentColor"
+																		d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+																	></path>
+																</svg>
+																Loading...
+															{:else}
+																Resolve Obligation
+															{/if}
+														</button>
 													{/if}
-													{#if request.damagedItemCount > 0}
-														<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2 py-0.5 font-medium text-rose-800">
-															<span class="h-1 w-1 rounded-full bg-rose-500"></span>
-															{request.damagedItemCount} Damaged
-														</span>
+													{#if request.status === 'pending'}
+														<button
+															onclick={() => markReady(request.rawId)}
+															class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
+														>
+															Mark Ready
+														</button>
+													{/if}
+													{#if request.status === 'ready'}
+														<button
+															onclick={() => confirmPickup(request.rawId)}
+															class="rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700"
+														>
+															Confirm Pickup
+														</button>
+													{/if}
+													{#if request.status === 'active' && request.rawStatus === 'pending_return'}
+														<button
+															onclick={() => {
+																closeActionMenu();
+																confirmReturn(request.rawId);
+															}}
+															class="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-700"
+														>
+															Confirm Return
+														</button>
 													{/if}
 												</div>
-											{/if}
-										</div>
-
-										<!-- Card Footer -->
-										<div class="flex justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:px-5">
-											<div class="relative flex flex-wrap items-center gap-2">
-												{#if request.status === 'unresolved'}
-													<button
-														onclick={() => openResolveModal(request.rawId)}
-														disabled={resolvingRequestId === request.rawId}
-														class="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
-													>
-														{#if resolvingRequestId === request.rawId}
-															<svg class="h-4 w-4 animate-spin text-white" fill="none" viewBox="0 0 24 24">
-																<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-																<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-															</svg>
-															Loading...
-														{:else}
-															Resolve Obligation
-														{/if}
-													</button>
-												{/if}
-												{#if request.status === 'pending'}
-													<button
-														onclick={() => markReady(request.rawId)}
-														class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
-													>
-														Mark Ready
-													</button>
-												{/if}
-												{#if request.status === 'ready'}
-													<button
-														onclick={() => confirmPickup(request.rawId)}
-														class="rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700"
-													>
-														Confirm Pickup
-													</button>
-												{/if}
-												{#if request.status === 'active' && request.rawStatus === 'pending_return'}
-													<button
-														onclick={() => {
-															closeActionMenu();
-															confirmReturn(request.rawId);
-														}}
-														class="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-700"
-													>
-														Confirm Return
-													</button>
-												{/if}
-
-
 											</div>
 										</div>
-									</div>
-								{/each}
+									{/each}
 								</div>
 							{:else}
 								<!-- Completely empty state -->
@@ -1480,194 +1525,228 @@
 						<div style="min-height: 600px;">
 							{#if paginatedRequests.length > 0}
 								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-								<div
-									class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4"
-								>
-									<span class="text-center text-gray-400">#</span>
-									<span>Request</span>
-									<span>Student</span>
-									<span>Items</span>
-									<span>Status</span>
-									<span class="text-right">Actions</span>
-								</div>
-								<div class="divide-y divide-gray-100">
-									{#each paginatedRequests as request, i}
-										<!-- svelte-ignore a11y_click_events_have_key_events -->
-										<!-- svelte-ignore a11y_no_static_element_interactions -->
-										<div
-											class="grid gap-3 p-4 md:grid-cols-[32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer {highlightedRequestId === request.rawId ? 'bg-pink-50/50 ring-1 ring-inset ring-pink-300' : 'hover:bg-gray-50'}"
-											data-request-id={request.rawId}
-											onclick={() => openDetailModal(request)}
-											role="button"
-											tabindex="0"
-											onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
-											aria-label="View details for {request.id}"
-										>
-											<div class="hidden md:flex items-center justify-center pt-0.5">
-												<span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * PAGE_SIZE_LIST + i + 1}</span>
-											</div>
-											<div class="min-w-0">
-												<p class="font-mono text-xs font-bold tracking-wider text-gray-900">
-													{request.id}
-												</p>
-												<p class="mt-1 text-xs text-gray-500">
-													{new Date(request.requestDate).toLocaleDateString('en-US', {
-														month: 'short',
-														day: 'numeric',
-														year: 'numeric'
-													})}
-												</p>
-												{#if request.isOverdue}
-													<p class="mt-1 text-xs font-semibold text-red-600">
-														{request.daysOverdue}
-														{request.daysOverdue === 1 ? 'day' : 'days'} overdue
-													</p>
-												{/if}
-											</div>
-
-											<div class="flex min-w-0 items-center gap-3">
-												<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700">
-													{#if request.student.avatarUrl}
-														<img src={request.student.avatarUrl} alt={request.student.name} class="h-full w-full object-cover" loading="lazy" />
-													{:else}
-														{request.student.avatar}
-													{/if}
+									<div
+										class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4"
+									>
+										<span class="text-center text-gray-400">#</span>
+										<span>Request</span>
+										<span>Student</span>
+										<span>Items</span>
+										<span>Status</span>
+										<span class="text-right">Actions</span>
+									</div>
+									<div class="divide-y divide-gray-100">
+										{#each paginatedRequests as request, i}
+											<!-- svelte-ignore a11y_click_events_have_key_events -->
+											<!-- svelte-ignore a11y_no_static_element_interactions -->
+											<div
+												class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
+												request.rawId
+													? 'bg-pink-50/50 ring-1 ring-pink-300 ring-inset'
+													: 'hover:bg-gray-50'}"
+												data-request-id={request.rawId}
+												onclick={() => openDetailModal(request)}
+												role="button"
+												tabindex="0"
+												onkeydown={(e) => e.key === 'Enter' && openDetailModal(request)}
+												aria-label="View details for {request.id}"
+											>
+												<div class="hidden items-center justify-center pt-0.5 md:flex">
+													<span
+														class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500"
+														>{(currentPage - 1) * PAGE_SIZE_LIST + i + 1}</span
+													>
 												</div>
 												<div class="min-w-0">
-													<p class="truncate text-sm font-semibold text-gray-900">
-														{request.student.name}
+													<p class="font-mono text-xs font-bold tracking-wider text-gray-900">
+														{request.id}
 													</p>
-													<p class="truncate text-xs text-gray-500">
-														{request.student.yearLevel} • Block {request.student.block}
+													<p class="mt-1 text-xs text-gray-500">
+														{new Date(request.requestDate).toLocaleDateString('en-US', {
+															month: 'short',
+															day: 'numeric',
+															year: 'numeric'
+														})}
 													</p>
-												</div>
-											</div>
-
-											<div class="min-w-0">
-												<div class="flex flex-wrap gap-1.5">
-													{#each request.items.slice(0, 3) as item}
-														{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-														<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700">
-															{#if pic}
-																<img src={pic} alt={item.name} class="h-3.5 w-3.5 rounded object-cover shrink-0" loading="lazy" />
-															{:else}
-																<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
-															{/if}
-															<span class="max-w-[100px] truncate">{item.name}</span>
-														</span>
-													{/each}
-													{#if request.items.length > 3}
-														<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">+{request.items.length - 3} more</span>
+													{#if request.isOverdue}
+														<p class="mt-1 text-xs font-semibold text-red-600">
+															{request.daysOverdue}
+															{request.daysOverdue === 1 ? 'day' : 'days'} overdue
+														</p>
 													{/if}
 												</div>
-												<p class="mt-1 truncate text-xs text-gray-500">{request.purpose}</p>
-											</div>
 
-											<div class="min-w-0">
-												<span
-													class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusBadge(
-														request.status,
-														request.rawStatus,
-														request.rejectionReason
-													).color}"
-												>
-													<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-													{getStatusBadge(
-														request.status,
-														request.rawStatus,
-														request.rejectionReason
-													).text}
-												</span>
-												<p class="mt-1 text-xs text-gray-500">
-													Due {formatDate(request.returnDate)}
-												</p>
-											</div>
+												<div class="flex min-w-0 items-center gap-3">
+													<div
+														class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700"
+													>
+														{#if request.student.avatarUrl}
+															<img
+																src={request.student.avatarUrl}
+																alt={request.student.name}
+																class="h-full w-full object-cover"
+																loading="lazy"
+															/>
+														{:else}
+															{request.student.avatar}
+														{/if}
+													</div>
+													<div class="min-w-0">
+														<p class="truncate text-sm font-semibold text-gray-900">
+															{request.student.name}
+														</p>
+														<p class="truncate text-xs text-gray-500">
+															{request.student.yearLevel} • Block {request.student.block}
+														</p>
+													</div>
+												</div>
 
-											<div class="relative flex flex-wrap items-center gap-2 md:justify-end">
-												{#if request.status === 'pending'}
-													<button
-														onclick={(e) => { e.stopPropagation(); markReady(request.rawId); }}
-														class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
-													>
-														Mark Ready
-													</button>
-												{/if}
-												{#if request.status === 'ready'}
-													<button
-														onclick={(e) => { e.stopPropagation(); confirmPickup(request.rawId); }}
-														class="rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700"
-													>
-														Confirm Pickup
-													</button>
-												{/if}
-												{#if request.status === 'active' && request.rawStatus === 'pending_return'}
-													<button
-														onclick={(e) => { e.stopPropagation(); closeActionMenu(); confirmReturn(request.rawId); }}
-														class="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-700"
-													>
-														Confirm Return
-													</button>
-												{/if}
+												<div class="min-w-0">
+													<div class="flex flex-wrap gap-1.5">
+														{#each request.items.slice(0, 3) as item}
+															{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+															<span
+																class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700"
+															>
+																{#if pic}
+																	<img
+																		src={pic}
+																		alt={item.name}
+																		class="h-3.5 w-3.5 shrink-0 rounded object-cover"
+																		loading="lazy"
+																	/>
+																{:else}
+																	<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"
+																		><ItemImagePlaceholder size="xs" /></span
+																	>
+																{/if}
+																<span class="max-w-[100px] truncate">{item.name}</span>
+															</span>
+														{/each}
+														{#if request.items.length > 3}
+															<span
+																class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600"
+																>+{request.items.length - 3} more</span
+															>
+														{/if}
+													</div>
+													<p class="mt-1 truncate text-xs text-gray-500">{request.purpose}</p>
+												</div>
 
+												<div class="min-w-0">
+													<span
+														class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {getStatusBadge(
+															request.status,
+															request.rawStatus,
+															request.rejectionReason
+														).color}"
+													>
+														<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+														{getStatusBadge(
+															request.status,
+															request.rawStatus,
+															request.rejectionReason
+														).text}
+													</span>
+													<p class="mt-1 text-xs text-gray-500">
+														Due {formatDate(request.returnDate)}
+													</p>
+												</div>
+
+												<div class="relative flex flex-wrap items-center gap-2 md:justify-end">
+													{#if request.status === 'pending'}
+														<button
+															onclick={(e) => {
+																e.stopPropagation();
+																markReady(request.rawId);
+															}}
+															class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
+														>
+															Mark Ready
+														</button>
+													{/if}
+													{#if request.status === 'ready'}
+														<button
+															onclick={(e) => {
+																e.stopPropagation();
+																confirmPickup(request.rawId);
+															}}
+															class="rounded-lg bg-pink-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-pink-700"
+														>
+															Confirm Pickup
+														</button>
+													{/if}
+													{#if request.status === 'active' && request.rawStatus === 'pending_return'}
+														<button
+															onclick={(e) => {
+																e.stopPropagation();
+																closeActionMenu();
+																confirmReturn(request.rawId);
+															}}
+															class="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-orange-700"
+														>
+															Confirm Return
+														</button>
+													{/if}
+												</div>
 											</div>
-										</div>
-									{/each}
-								</div>
-							</div>
-						{:else}
-							<!-- Completely empty state -->
-							<div
-								class="py-16 text-center"
-								style="min-height: 600px; display: flex; align-items: center; justify-content: center;"
-							>
-								<div>
-									<div
-										class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100"
-									>
-										<svg
-											class="h-10 w-10 text-pink-600"
-											fill="none"
-											stroke="currentColor"
-											viewBox="0 0 24 24"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-											/>
-										</svg>
+										{/each}
 									</div>
-									<h3 class="mt-6 text-base font-semibold text-gray-900">
-										{#if activeTab === 'pending'}
-											No pending requests
-										{:else if activeTab === 'ready'}
-											No items ready for pickup
-										{:else if activeTab === 'active'}
-											No active loans
-										{:else if activeTab === 'unresolved'}
-											No unresolved items
-										{:else}
-											No request history
-										{/if}
-									</h3>
-									<p class="mx-auto mt-2 max-w-md text-sm text-gray-600">
-										{#if activeTab === 'pending'}
-											Requests approved by instructors will appear here for your action.
-										{:else if activeTab === 'ready'}
-											Items that have been released and are ready for student pickup will appear
-											here.
-										{:else if activeTab === 'active'}
-											Currently borrowed items will be listed here when students pick them up.
-										{:else if activeTab === 'unresolved'}
-											Items reported as missing or damaged will be tracked here.
-										{:else}
-											Completed, cancelled, returned, and rejected requests will be archived here.
-										{/if}
-									</p>
 								</div>
-							</div>
-						{/if}
+							{:else}
+								<!-- Completely empty state -->
+								<div
+									class="py-16 text-center"
+									style="min-height: 600px; display: flex; align-items: center; justify-content: center;"
+								>
+									<div>
+										<div
+											class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100"
+										>
+											<svg
+												class="h-10 w-10 text-pink-600"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24"
+											>
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+												/>
+											</svg>
+										</div>
+										<h3 class="mt-6 text-base font-semibold text-gray-900">
+											{#if activeTab === 'pending'}
+												No pending requests
+											{:else if activeTab === 'ready'}
+												No items ready for pickup
+											{:else if activeTab === 'active'}
+												No active loans
+											{:else if activeTab === 'unresolved'}
+												No unresolved items
+											{:else}
+												No request history
+											{/if}
+										</h3>
+										<p class="mx-auto mt-2 max-w-md text-sm text-gray-600">
+											{#if activeTab === 'pending'}
+												Requests approved by instructors will appear here for your action.
+											{:else if activeTab === 'ready'}
+												Items that have been released and are ready for student pickup will appear
+												here.
+											{:else if activeTab === 'active'}
+												Currently borrowed items will be listed here when students pick them up.
+											{:else if activeTab === 'unresolved'}
+												Items reported as missing or damaged will be tracked here.
+											{:else}
+												Completed, cancelled, returned, and rejected requests will be archived here.
+											{/if}
+										</p>
+									</div>
+								</div>
+							{/if}
 						</div>
 					{/if}
 
@@ -1677,7 +1756,9 @@
 							{totalPages}
 							totalItems={filteredRequests.length}
 							itemsPerPage={PAGE_SIZE}
-							onPageChange={(p) => { currentPage = p; }}
+							onPageChange={(p) => {
+								currentPage = p;
+							}}
 							class="mt-4"
 						/>
 					{/if}
@@ -2120,7 +2201,9 @@
 									{#if selectedRequest.classCodeId}
 										{@const classCode = classCodeCache.get(selectedRequest.classCodeId)}
 										{#if classCode}
-											<p class="text-sm font-bold text-gray-900 sm:text-base">{classCode.courseCode}</p>
+											<p class="text-sm font-bold text-gray-900 sm:text-base">
+												{classCode.courseCode}
+											</p>
 											<p class="mt-1 text-xs text-gray-600">{classCode.courseName}</p>
 											<p class="mt-0.5 text-xs text-gray-500">
 												{classCode.semester}
@@ -2187,17 +2270,28 @@
 									</div>
 									{#if selectedRequest.instructorData}
 										<div class="flex items-center gap-2.5">
-											<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200">
+											<div
+												class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200"
+											>
 												{#if selectedRequest.instructorData.profilePhotoUrl}
-													<img src={selectedRequest.instructorData.profilePhotoUrl} alt={selectedRequest.instructorData.fullName} class="h-full w-full object-cover" loading="lazy" />
+													<img
+														src={selectedRequest.instructorData.profilePhotoUrl}
+														alt={selectedRequest.instructorData.fullName}
+														class="h-full w-full object-cover"
+														loading="lazy"
+													/>
 												{:else}
 													{(selectedRequest.instructorData.fullName ?? 'I').charAt(0).toUpperCase()}
 												{/if}
 											</div>
 											<div>
-												<p class="text-sm font-bold text-gray-900 sm:text-base">{selectedRequest.instructorData.fullName}</p>
+												<p class="text-sm font-bold text-gray-900 sm:text-base">
+													{selectedRequest.instructorData.fullName}
+												</p>
 												{#if selectedRequest.approvedDate}
-													<p class="mt-0.5 text-xs text-gray-500">Approved on {selectedRequest.approvedDate}</p>
+													<p class="mt-0.5 text-xs text-gray-500">
+														Approved on {selectedRequest.approvedDate}
+													</p>
 												{/if}
 											</div>
 										</div>
