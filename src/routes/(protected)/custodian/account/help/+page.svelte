@@ -299,7 +299,7 @@
 </script>
 
 <svelte:head>
-	<title>Help & Support - Student Portal</title>
+	<title>Help & Support - Custodian Portal</title>
 </svelte:head>
 
 <div class="space-y-6">
@@ -409,7 +409,7 @@
 					<!-- Messages -->
 					<div bind:this={chatContainer} class="flex-1 overflow-y-auto px-5 py-4 space-y-4 bg-gray-50">
 						{#each selectedTicket.messages as msg}
-							{@const isMe = msg.sender === 'student'}
+							{@const isMe = msg.sender === 'custodian'}
 							{@const isAria = msg.sender === 'superadmin' && msg.senderName === 'ARIA'}
 							<div class="flex {isMe ? 'justify-end' : 'justify-start'}">
 								{#if isMe}

@@ -563,14 +563,33 @@
 					{:else}
 						<div class="max-h-80 overflow-y-auto py-2">
 							{#each recentNotifications as notification (notification.id)}
+								{@const photoUrl = notification.metadata?.actorPhotoUrl as string | undefined}
+								{@const actorName = notification.metadata?.actorName as string | undefined}
 								<button
 									type="button"
 									onclick={() => openNotification(notification)}
-									class="w-full border-l-2 px-4 py-2 text-left transition-colors hover:bg-gray-50 {notification.isRead ? 'border-transparent' : 'border-pink-500 bg-pink-50/40'}"
+									class="flex w-full items-start gap-3 border-l-2 px-4 py-3 text-left transition-colors hover:bg-gray-50 {notification.isRead ? 'border-transparent' : 'border-pink-500 bg-pink-50/40'}"
 								>
-									<p class="text-sm font-medium text-gray-900">{notification.title}</p>
-									<p class="mt-0.5 line-clamp-2 text-xs text-gray-600">{notification.message}</p>
-									<p class="mt-1 text-[11px] text-gray-400">{formatRelativeTime(notification.createdAt)}</p>
+									<!-- Avatar -->
+									<div class="mt-0.5 shrink-0">
+										{#if photoUrl}
+											<img src={photoUrl} alt={actorName ?? 'User'} class="h-8 w-8 rounded-full object-cover" />
+										{:else}
+											<div class="flex h-8 w-8 items-center justify-center rounded-full bg-pink-100 text-xs font-semibold text-pink-600">
+												{(actorName ?? notification.title).charAt(0).toUpperCase()}
+											</div>
+										{/if}
+									</div>
+									<!-- Content -->
+									<div class="min-w-0 flex-1">
+										<p class="text-sm font-medium text-gray-900 leading-snug">{notification.title}</p>
+										<p class="mt-0.5 line-clamp-2 text-xs text-gray-600">{notification.message}</p>
+										<p class="mt-1 text-[11px] text-gray-400">{formatRelativeTime(notification.createdAt)}</p>
+									</div>
+									<!-- Unread dot -->
+									{#if !notification.isRead}
+										<span class="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-pink-500"></span>
+									{/if}
 								</button>
 							{/each}
 						</div>

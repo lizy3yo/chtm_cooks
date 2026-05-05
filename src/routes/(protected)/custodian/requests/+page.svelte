@@ -207,6 +207,8 @@
 			approvedBy: record.instructor?.fullName || 'Instructor',
 			rejectionReason: record.rejectReason,
 			approvedDate: formatDateTime(record.approvedAt),
+			instructorData: record.instructor ?? null,
+			custodianData: record.custodian ?? null,
 			damagedItemCount,
 			missingItemCount
 		};
@@ -2183,13 +2185,31 @@
 											Approved By
 										</p>
 									</div>
-									<p class="text-sm font-bold text-gray-900 sm:text-base">
-										{selectedRequest.approvedBy}
-									</p>
-									{#if selectedRequest.approvedDate}
-										<p class="mt-1 text-xs text-gray-500">
-											Approved on {selectedRequest.approvedDate}
+									{#if selectedRequest.instructorData}
+										<div class="flex items-center gap-2.5">
+											<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200">
+												{#if selectedRequest.instructorData.profilePhotoUrl}
+													<img src={selectedRequest.instructorData.profilePhotoUrl} alt={selectedRequest.instructorData.fullName} class="h-full w-full object-cover" loading="lazy" />
+												{:else}
+													{(selectedRequest.instructorData.fullName ?? 'I').charAt(0).toUpperCase()}
+												{/if}
+											</div>
+											<div>
+												<p class="text-sm font-bold text-gray-900 sm:text-base">{selectedRequest.instructorData.fullName}</p>
+												{#if selectedRequest.approvedDate}
+													<p class="mt-0.5 text-xs text-gray-500">Approved on {selectedRequest.approvedDate}</p>
+												{/if}
+											</div>
+										</div>
+									{:else}
+										<p class="text-sm font-bold text-gray-900 sm:text-base">
+											{selectedRequest.approvedBy}
 										</p>
+										{#if selectedRequest.approvedDate}
+											<p class="mt-1 text-xs text-gray-500">
+												Approved on {selectedRequest.approvedDate}
+											</p>
+										{/if}
 									{/if}
 								</div>
 							</div>

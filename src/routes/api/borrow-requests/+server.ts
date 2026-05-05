@@ -205,6 +205,7 @@ export const GET: RequestHandler = async (event) => {
 					email: instructor.email,
 					firstName: instructor.firstName,
 					lastName: instructor.lastName,
+					profilePhotoUrl: instructor.profilePhotoUrl ?? null,
 					fullName: `${instructor.firstName} ${instructor.lastName}`.trim()
 				} : undefined,
 				custodian: custodian ? {
@@ -212,6 +213,7 @@ export const GET: RequestHandler = async (event) => {
 					email: custodian.email,
 					firstName: custodian.firstName,
 					lastName: custodian.lastName,
+					profilePhotoUrl: custodian.profilePhotoUrl ?? null,
 					fullName: `${custodian.firstName} ${custodian.lastName}`.trim()
 				} : undefined,
 				classCode: classCode ? {

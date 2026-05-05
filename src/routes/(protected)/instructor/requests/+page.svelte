@@ -145,6 +145,8 @@ urgent: false,
 daysUntil: 0,
 approvedBy: record.instructor?.fullName || user?.firstName || 'Instructor',
 approvedDate: formatDateTime(record.approvedAt),
+instructorData: record.instructor ?? null,
+custodianData: record.custodian ?? null,
 custodianStatus:
 record.status === 'approved_instructor'
 ? 'Preparing'

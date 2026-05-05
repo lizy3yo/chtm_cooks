@@ -109,6 +109,8 @@ borrowDate: request.borrowDate,
 returnDate: request.returnDate,
 purpose: request.purpose,
 instructor: request.instructor?.fullName || 'Pending Assignment',
+instructorData: request.instructor ?? null,
+custodianData: request.custodian ?? null,
 classCodeId: request.classCodeId,
 classCode: (request as any).classCode, // Populated class code data from API
 approvedDate: request.approvedAt,
@@ -1380,8 +1382,40 @@ const QrStatusIcon = $derived.by(() => selectedRequest ? getStatusIconComponent(
 										<UserCircle size={16} class="text-pink-500 hidden sm:block" />
 										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Instructor</p>
 									</div>
-									<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.instructor}</p>
+									{#if selectedRequest.instructorData}
+										<div class="flex items-center gap-2.5">
+											<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200">
+												{#if selectedRequest.instructorData.profilePhotoUrl}
+													<img src={selectedRequest.instructorData.profilePhotoUrl} alt={selectedRequest.instructorData.fullName} class="h-full w-full object-cover" loading="lazy" />
+												{:else}
+													{(selectedRequest.instructorData.fullName ?? 'I').charAt(0).toUpperCase()}
+												{/if}
+											</div>
+											<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.instructorData.fullName}</p>
+										</div>
+									{:else}
+										<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.instructor}</p>
+									{/if}
 								</div>
+								{#if selectedRequest.custodianData}
+									<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md">
+										<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+											<UserCircle size={14} class="text-pink-500 sm:hidden" />
+											<UserCircle size={16} class="text-pink-500 hidden sm:block" />
+											<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Custodian</p>
+										</div>
+										<div class="flex items-center gap-2.5">
+											<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200">
+												{#if selectedRequest.custodianData.profilePhotoUrl}
+													<img src={selectedRequest.custodianData.profilePhotoUrl} alt={selectedRequest.custodianData.fullName} class="h-full w-full object-cover" loading="lazy" />
+												{:else}
+													{(selectedRequest.custodianData.fullName ?? 'C').charAt(0).toUpperCase()}
+												{/if}
+											</div>
+											<p class="text-sm sm:text-base font-bold text-gray-900">{selectedRequest.custodianData.fullName}</p>
+										</div>
+									</div>
+								{/if}
 								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-2">
 									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
 										<FileText size={14} class="text-pink-500 sm:hidden" />
