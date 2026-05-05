@@ -99,7 +99,23 @@
 	let loadingClassCodes = $state(false);
 	let hasNoEnrollment = $state(false); // Track if student has no class enrollment
 
-	// Auto-update return time to ensure it's after borrow time
+	// Operating hours: 7:00 AM – 8:00 PM (07:00–20:00)
+	const OPERATING_START = '07:00'; // 7:00 AM
+	const OPERATING_END   = '20:00'; // 8:00 PM
+
+	/** Clamp a HH:MM string to the operating window [07:00, 20:00] */
+	function clampToOperatingHours(time: string): string {
+		if (!time) return OPERATING_START;
+		const [h, m] = time.split(':').map(Number);
+		const minutes = h * 60 + m;
+		const startMinutes = 7 * 60;   // 420
+		const endMinutes   = 20 * 60;  // 1200
+		if (minutes < startMinutes) return OPERATING_START;
+		if (minutes > endMinutes)   return OPERATING_END;
+		return time;
+	}
+
+	// Auto-update return time to ensure it's after borrow time and within operating hours
 	$effect(() => {
 		if (borrowDate && borrowTime && returnTime) {
 			const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
@@ -107,18 +123,17 @@
 
 			const borrowMinutes = borrowHour * 60 + borrowMinute;
 			const returnMinutes = returnHour * 60 + returnMinute;
+			const endMinutes    = 20 * 60; // 8:00 PM
 
 			// If return time is not at least 1 hour after borrow time, auto-adjust
 			if (returnMinutes <= borrowMinutes + 60) {
-				let newHour = borrowHour + 1;
-				let newMinute = borrowMinute;
+				let newMinutes = borrowMinutes + 60;
 
-				// Handle hour overflow
-				if (newHour >= 24) {
-					newHour = 23;
-					newMinute = 59;
-				}
+				// Cap at 8:00 PM (operating hours end)
+				if (newMinutes > endMinutes) newMinutes = endMinutes;
 
+				const newHour   = Math.floor(newMinutes / 60);
+				const newMinute = newMinutes % 60;
 				returnTime = `${String(newHour).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}`;
 			}
 		}
@@ -274,8 +289,9 @@
 	function commitBorrowInput() {
 		const parsed = parseTypedTime(borrowTimeInput);
 		if (parsed) {
-			borrowTime = parsed;
-			borrowTimeInput = formatTimeTo12Hour(parsed);
+			const clamped = clampToOperatingHours(parsed);
+			borrowTime = clamped;
+			borrowTimeInput = formatTimeTo12Hour(clamped);
 		} else {
 			borrowTimeInput = formatTimeTo12Hour(borrowTime);
 		}
@@ -284,8 +300,9 @@
 	function commitReturnInput() {
 		const parsed = parseTypedTime(returnTimeInput);
 		if (parsed) {
-			returnTime = parsed;
-			returnTimeInput = formatTimeTo12Hour(parsed);
+			const clamped = clampToOperatingHours(parsed);
+			returnTime = clamped;
+			returnTimeInput = formatTimeTo12Hour(clamped);
 		} else {
 			returnTimeInput = formatTimeTo12Hour(returnTime);
 		}
@@ -764,10 +781,22 @@
 
 		if (!borrowTime) {
 			errors.borrowTime = 'Borrow time is required';
+		} else {
+			const [bh, bm] = borrowTime.split(':').map(Number);
+			const bMinutes = bh * 60 + bm;
+			if (bMinutes < 7 * 60 || bMinutes > 20 * 60) {
+				errors.borrowTime = 'Pickup time must be between 7:00 AM and 8:00 PM';
+			}
 		}
 
 		if (!returnTime) {
 			errors.returnTime = 'Return time is required';
+		} else {
+			const [rh, rm] = returnTime.split(':').map(Number);
+			const rMinutes = rh * 60 + rm;
+			if (rMinutes < 7 * 60 || rMinutes > 20 * 60) {
+				errors.returnTime = 'Return time must be between 7:00 AM and 8:00 PM';
+			}
 		}
 
 		// Validate that return time is after borrow time (same day)
@@ -1868,8 +1897,8 @@
 											<p class="mb-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">Pickup Time</p>
 											<div class="flex items-stretch gap-2">
 												{#each [
-													{ label: 'Hour', values: HOURS_12, current: from24Hour(borrowTime).hour12, set: (v: number) => { const p = from24Hour(borrowTime); borrowTime = to24Hour(v, p.minute, p.period); } },
-													{ label: 'Min',  values: MINUTES,  current: from24Hour(borrowTime).minute,  set: (v: number) => { const p = from24Hour(borrowTime); borrowTime = to24Hour(p.hour12, v, p.period); } }
+													{ label: 'Hour', values: HOURS_12, current: from24Hour(borrowTime).hour12, set: (v: number) => { const p = from24Hour(borrowTime); borrowTime = clampToOperatingHours(to24Hour(v, p.minute, p.period)); } },
+													{ label: 'Min',  values: MINUTES,  current: from24Hour(borrowTime).minute,  set: (v: number) => { const p = from24Hour(borrowTime); borrowTime = clampToOperatingHours(to24Hour(p.hour12, v, p.period)); } }
 												] as col}
 													<div class="flex flex-col items-center gap-1">
 														<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{col.label}</span>
@@ -1907,7 +1936,7 @@
 														{#each ['AM', 'PM'] as period}
 															<button
 																type="button"
-																onclick={() => { const p = from24Hour(borrowTime); borrowTime = to24Hour(p.hour12, p.minute, period as 'AM' | 'PM'); }}
+																onclick={() => { const p = from24Hour(borrowTime); borrowTime = clampToOperatingHours(to24Hour(p.hour12, p.minute, period as 'AM' | 'PM')); }}
 																class="flex flex-1 items-center justify-center text-xs font-bold transition-colors {from24Hour(borrowTime).period === period ? 'bg-pink-600 text-white' : 'text-gray-500 hover:bg-gray-50'}"
 															>{period}</button>
 														{/each}
@@ -1925,7 +1954,7 @@
 								{#if errors.borrowTime}
 									<p class="mt-1 text-xs text-red-600">{errors.borrowTime}</p>
 								{:else}
-									<p class="mt-1 text-xs text-gray-500">When you'll pick up</p>
+									<p class="mt-1 text-xs text-gray-500">7:00 AM – 8:00 PM only</p>
 								{/if}
 							</div>
 
@@ -1957,8 +1986,8 @@
 											<p class="mb-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">Return Time</p>
 											<div class="flex items-stretch gap-2">
 												{#each [
-													{ label: 'Hour', values: HOURS_12, current: from24Hour(returnTime).hour12, set: (v: number) => { const p = from24Hour(returnTime); returnTime = to24Hour(v, p.minute, p.period); } },
-													{ label: 'Min',  values: MINUTES,  current: from24Hour(returnTime).minute,  set: (v: number) => { const p = from24Hour(returnTime); returnTime = to24Hour(p.hour12, v, p.period); } }
+													{ label: 'Hour', values: HOURS_12, current: from24Hour(returnTime).hour12, set: (v: number) => { const p = from24Hour(returnTime); returnTime = clampToOperatingHours(to24Hour(v, p.minute, p.period)); } },
+													{ label: 'Min',  values: MINUTES,  current: from24Hour(returnTime).minute,  set: (v: number) => { const p = from24Hour(returnTime); returnTime = clampToOperatingHours(to24Hour(p.hour12, v, p.period)); } }
 												] as col}
 													<div class="flex flex-col items-center gap-1">
 														<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{col.label}</span>
@@ -1996,7 +2025,7 @@
 														{#each ['AM', 'PM'] as period}
 															<button
 																type="button"
-																onclick={() => { const p = from24Hour(returnTime); returnTime = to24Hour(p.hour12, p.minute, period as 'AM' | 'PM'); }}
+																onclick={() => { const p = from24Hour(returnTime); returnTime = clampToOperatingHours(to24Hour(p.hour12, p.minute, period as 'AM' | 'PM')); }}
 																class="flex flex-1 items-center justify-center text-xs font-bold transition-colors {from24Hour(returnTime).period === period ? 'bg-pink-600 text-white' : 'text-gray-500 hover:bg-gray-50'}"
 															>{period}</button>
 														{/each}
@@ -2014,7 +2043,7 @@
 								{#if errors.returnTime}
 									<p class="mt-1 text-xs text-red-600">{errors.returnTime}</p>
 								{:else}
-									<p class="mt-1 text-xs text-gray-500">When you'll return</p>
+									<p class="mt-1 text-xs text-gray-500">7:00 AM – 8:00 PM only</p>
 								{/if}
 							</div>
 
