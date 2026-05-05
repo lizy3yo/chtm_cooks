@@ -52,7 +52,7 @@
 <!-- Backdrop -->
 <button
 	type="button"
-	class="fixed inset-0 z-9998 min-h-dvh w-screen bg-black/50 backdrop-blur-sm"
+	class="fixed inset-0 z-9998 min-h-dvh w-screen bg-black/50 backdrop-blur-sm dark:bg-black/30"
 	transition:fade={{ duration: 200 }}
 	onclick={dialog.onCancel}
 	aria-label="Close dialog"

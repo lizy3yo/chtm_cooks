@@ -416,6 +416,618 @@ html.dark .border-red-300, html.dark .bg-red-50 {
 
 html.dark .text-red-700 { color: #ff9ca8 !important; }
 
+/* ── Request List dropdown (top nav) dark mode ──────────────────────────── */
+
+/* Constant Items section header (bg-blue-50/50) */
+html.dark [aria-label="Request List"] .bg-blue-50\/50 {
+	background-color: rgba(59,130,246,0.08) !important;
+}
+html.dark [aria-label="Request List"] .text-blue-900 {
+	color: #93c5fd !important;
+}
+html.dark [aria-label="Request List"] .text-blue-600 {
+	color: #60a5fa !important;
+}
+
+/* Constant item rows (border-blue-500 bg-blue-50/30) */
+html.dark [aria-label="Request List"] .bg-blue-50\/30 {
+	background-color: rgba(59,130,246,0.05) !important;
+}
+html.dark [aria-label="Request List"] .hover\:bg-blue-50:hover {
+	background-color: rgba(59,130,246,0.10) !important;
+}
+
+/* "Constant" badge (bg-blue-100 text-blue-700) */
+html.dark [aria-label="Request List"] .bg-blue-100 {
+	background-color: rgba(59,130,246,0.20) !important;
+}
+html.dark [aria-label="Request List"] .text-blue-700 {
+	color: #93c5fd !important;
+}
+
+/* Qty stepper border (border-blue-300 bg-white) */
+html.dark [aria-label="Request List"] .border-blue-300.bg-white {
+	background-color: rgba(255,255,255,0.04) !important;
+	border-color: rgba(59,130,246,0.30) !important;
+}
+
+/* Image border for constant items (border-blue-200) */
+html.dark [aria-label="Request List"] .border-blue-200 {
+	border-color: rgba(59,130,246,0.20) !important;
+}
+
+/* Additional Items section header (bg-gray-50) */
+html.dark [aria-label="Request List"] .bg-gray-50 {
+	background-color: rgba(255,255,255,0.03) !important;
+}
+
+/* Qty stepper for additional items (border-gray-300 bg-white) */
+html.dark [aria-label="Request List"] .border-gray-300.bg-white {
+	background-color: rgba(255,255,255,0.04) !important;
+	border-color: rgba(255,255,255,0.12) !important;
+}
+
+/* Profile dropdown (top nav): sign out hover */
+html.dark .absolute.right-0.top-full.rounded-xl.border.bg-white button.text-red-600:hover,
+html.dark .absolute.right-0.top-full.rounded-xl.border.bg-white button.hover\:bg-red-50:hover {
+	background-color: rgba(239,68,68,0.08) !important;
+	color: #fca5a5 !important;
+}
+
+/* ── Student Dashboard: Item Health stat mini-cards ─────────────────────── */
+html.dark .rounded-xl.bg-white.shadow-sm .rounded-lg.bg-emerald-50 {
+	background-color: rgba(16,185,129,0.12) !important;
+}
+html.dark .rounded-xl.bg-white.shadow-sm .rounded-lg.bg-orange-50 {
+	background-color: rgba(249,115,22,0.12) !important;
+}
+html.dark .rounded-xl.bg-white.shadow-sm .rounded-lg.bg-red-50 {
+	background-color: rgba(239,68,68,0.12) !important;
+}
+
+/* ── Student Dashboard: Recent History list item text ───────────────────── */
+html.dark .overflow-hidden.rounded-xl.bg-white.shadow-sm .text-gray-800 {
+	color: var(--color-text) !important;
+}
+html.dark .overflow-hidden.rounded-xl.bg-white.shadow-sm .divide-y li .text-gray-400 {
+	color: rgba(255,255,255,0.40) !important;
+}
+
+/* ── Help & Support page dark mode ──────────────────────────────────────── */
+
+/* Info banner (border-blue-100 bg-blue-50 text-blue-700) */
+html.dark .rounded-xl.border.border-blue-100.bg-blue-50 {
+	background-color: rgba(59,130,246,0.08) !important;
+	border-color: rgba(59,130,246,0.18) !important;
+	color: #93c5fd !important;
+}
+html.dark .rounded-xl.border.border-blue-100.bg-blue-50 strong {
+	color: #bfdbfe !important;
+}
+html.dark .rounded-xl.border.border-blue-100.bg-blue-50 button {
+	color: #93c5fd !important;
+}
+
+/* FAQ accordion question text (text-gray-800) */
+html.dark .overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm button .text-gray-800 {
+	color: var(--color-text) !important;
+}
+/* FAQ accordion answer text */
+html.dark .overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .border-t.border-gray-100 p {
+	color: rgba(255,255,255,0.65) !important;
+}
+
+/* Chat panel outer container */
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm {
+	background-color: var(--color-surface) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+/* Left panel divider */
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .border-r.border-gray-200 {
+	border-color: rgba(255,255,255,0.06) !important;
+}
+/* Active conversation row (bg-pink-50) */
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .bg-pink-50 {
+	background-color: rgba(219,39,119,0.10) !important;
+}
+/* Messages area (bg-gray-50) */
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .flex-1.overflow-y-auto.bg-gray-50 {
+	background-color: rgba(255,255,255,0.02) !important;
+}
+/* Incoming message bubble (bg-white border-gray-200) */
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .rounded-2xl.border.border-gray-200.bg-white {
+	background-color: rgba(255,255,255,0.05) !important;
+	border-color: rgba(255,255,255,0.08) !important;
+	color: var(--color-text) !important;
+}
+/* Status bar (bg-blue-50 text-blue-600) */
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .bg-blue-50 {
+	background-color: rgba(59,130,246,0.06) !important;
+}
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .bg-blue-50 .text-blue-600 {
+	color: #93c5fd !important;
+}
+/* Input bar (bg-white) */
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .border-t.border-gray-100.bg-white {
+	background-color: var(--color-surface) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .rounded-full.border.border-gray-300.bg-white,
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .rounded-full.border.border-pink-400.bg-white {
+	background-color: rgba(255,255,255,0.04) !important;
+	border-color: rgba(255,255,255,0.12) !important;
+}
+/* Welcome panel bot avatar (bg-pink-100) */
+html.dark .flex.overflow-hidden.rounded-xl.border.border-gray-200.bg-white.shadow-sm .bg-pink-100 {
+	background-color: rgba(219,39,119,0.15) !important;
+}
+html.dark .from-emerald-100.to-teal-100 {
+	background: rgba(16,185,129,0.1) !important;
+}
+html.dark .ring-emerald-200 { --tw-ring-color: rgba(16,185,129,0.2) !important; }
+
+/* Constant item quantity input (bg-emerald-50 border-emerald-300) */
+html.dark .border-emerald-300.bg-emerald-50 {
+	background-color: rgba(16,185,129,0.06) !important;
+	border-color: rgba(16,185,129,0.2) !important;
+}
+html.dark .border-emerald-300.bg-emerald-50.text-emerald-900 {
+	color: #6ee7b7 !important;
+}
+
+/* Out-of-stock warning pill (bg-amber-100 text-amber-800) */
+html.dark .bg-amber-100 {
+	background-color: rgba(245,158,11,0.08) !important;
+}
+html.dark .text-amber-800 { color: #fcd34d !important; }
+
+/* Out-of-stock item card (border-amber-300 bg-amber-50) */
+html.dark .border-amber-300.bg-amber-50 {
+	background-color: rgba(245,158,11,0.05) !important;
+	border-color: rgba(245,158,11,0.2) !important;
+}
+
+/* Quantity +/- buttons (border-gray-300 bg-white) */
+html.dark .border-gray-300.bg-white.text-gray-700 {
+	background-color: rgba(255,255,255,0.04) !important;
+	border-color: rgba(255,255,255,0.1) !important;
+	color: #d1d5db !important;
+}
+
+/* Search dropdown panel */
+html.dark .rounded-xl.border.border-gray-200.bg-white.shadow-2xl {
+	background-color: var(--color-gray-200) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-white.shadow-2xl .border-b.border-gray-200 {
+	border-color: rgba(255,255,255,0.06) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-white.shadow-2xl .border-t.border-gray-200.bg-gray-50 {
+	background-color: rgba(255,255,255,0.02) !important;
+	border-color: rgba(255,255,255,0.04) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-white.shadow-2xl input {
+	background-color: rgba(255,255,255,0.04) !important;
+	border-color: rgba(255,255,255,0.08) !important;
+	color: var(--color-text) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-white.shadow-2xl select {
+	background-color: rgba(255,255,255,0.04) !important;
+	border-color: rgba(255,255,255,0.08) !important;
+	color: var(--color-text) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-white.shadow-2xl .divide-y.divide-gray-100 > * + * {
+	border-color: rgba(255,255,255,0.04) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-white.shadow-2xl .hover\:bg-gray-50:hover {
+	background-color: rgba(255,255,255,0.03) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-white.shadow-2xl .text-gray-900 {
+	color: var(--color-text) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-white.shadow-2xl .text-gray-500 {
+	color: rgba(255,255,255,0.45) !important;
+}
+
+/* ── Student Requests Detail Modal & QR Modal dark mode ─────────────────── */
+
+/* Main modal panel (detail + QR) — rounded-t-3xl bg-white shadow-2xl */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl {
+	background-color: var(--color-gray-200) !important;
+	color: var(--color-text) !important;
+}
+
+/* Sticky header / footer with bg-white/95 backdrop */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .bg-white\/95,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .bg-white\/95 {
+	background-color: rgba(17,24,39,0.97) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Info/detail cards: from-white to-gray-50 gradient */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .bg-linear-to-br.from-white.to-gray-50,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .bg-linear-to-br.from-white.to-gray-50,
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .bg-gradient-to-br.from-white.to-gray-50,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .bg-gradient-to-br.from-white.to-gray-50 {
+	background: rgba(255,255,255,0.03) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Requested items cards (bg-white with border) */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .rounded-xl.border.border-gray-200.bg-white,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .rounded-xl.border.border-gray-200.bg-white {
+	background-color: rgba(255,255,255,0.03) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Timeline step circles (bg-white with border) */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .rounded-full.border-2.bg-white,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .rounded-full.border-2.bg-white {
+	background-color: var(--color-gray-200) !important;
+}
+
+/* Rejection reason card */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .border-red-200.from-red-50,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .border-red-200.from-red-50 {
+	background: rgba(239,68,68,0.06) !important;
+	border-color: rgba(239,68,68,0.15) !important;
+}
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .text-red-900,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .text-red-900 { color: #fca5a5 !important; }
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .text-red-800,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .text-red-800 { color: #fca5a5 !important; }
+
+/* Ready-for-pickup info box (blue) */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .border-blue-200.from-blue-50,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .border-blue-200.from-blue-50 {
+	background: rgba(59,130,246,0.06) !important;
+	border-color: rgba(59,130,246,0.15) !important;
+}
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .text-blue-900,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .text-blue-900 { color: #93c5fd !important; }
+
+/* Section headings and body text */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .text-gray-900,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .text-gray-900 { color: var(--color-text) !important; }
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .text-gray-700,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .text-gray-700 { color: #d1d5db !important; }
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .text-gray-600,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .text-gray-600 { color: rgba(255,255,255,0.55) !important; }
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .text-gray-500,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .text-gray-500 { color: rgba(255,255,255,0.45) !important; }
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .text-gray-400,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .text-gray-400 { color: rgba(255,255,255,0.3) !important; }
+
+/* Dividers */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .border-gray-200,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .border-gray-200 { border-color: rgba(255,255,255,0.06) !important; }
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .border-gray-100,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .border-gray-100 { border-color: rgba(255,255,255,0.04) !important; }
+
+/* Close / hover buttons */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .hover\:bg-gray-100:hover,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .hover\:bg-gray-100:hover {
+	background-color: rgba(255,255,255,0.06) !important;
+}
+
+/* ── QR Modal specific ── */
+
+/* QR modal header gradient (from-pink-50 via-white to-purple-50) */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .from-pink-50.via-white.to-purple-50,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .from-pink-50.via-white.to-purple-50 {
+	background: rgba(255,255,255,0.03) !important;
+}
+
+/* QR code white frame */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .rounded-2xl.bg-white.p-4,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .rounded-2xl.bg-white.p-4,
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .rounded-2xl.bg-white.p-6,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .rounded-2xl.bg-white.p-6 {
+	background-color: #ffffff !important;
+}
+
+/* QR request ID badge (from-gray-50 to-gray-100/50) */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .from-gray-50.to-gray-100\/50,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .from-gray-50.to-gray-100\/50 {
+	background: rgba(255,255,255,0.04) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* QR footer (from-gray-50 to-white) */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .from-gray-50.to-white,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .from-gray-50.to-white {
+	background: rgba(255,255,255,0.02) !important;
+	border-color: rgba(255,255,255,0.04) !important;
+}
+
+/* QR badge pill (bg-white/80 ring) */
+html.dark .rounded-t-3xl.bg-white.shadow-2xl .bg-white\/80,
+html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .bg-white\/80 {
+	background-color: rgba(255,255,255,0.06) !important;
+}
+
+/* ── CatalogItemModal dark mode ─────────────────────────────────────────── */
+
+/* Main modal container */
+html.dark [role="dialog"].bg-white {
+	background-color: var(--color-gray-200) !important;
+	color: var(--color-text) !important;
+}
+
+/* Sticky header and footer (bg-white/95 backdrop) */
+html.dark [role="dialog"] .bg-white\/95 {
+	background-color: rgba(17,24,39,0.97) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Image card and details card (from-white to-gray-50 gradient panels) */
+html.dark [role="dialog"] .bg-linear-to-br.from-white.to-gray-50,
+html.dark [role="dialog"] .bg-gradient-to-br.from-white.to-gray-50 {
+	background: rgba(255,255,255,0.03) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Image placeholder area inside the modal */
+html.dark [role="dialog"] .bg-gray-100 {
+	background-color: rgba(255,255,255,0.04) !important;
+}
+
+/* Detail grid dividers */
+html.dark [role="dialog"] .border-t.border-gray-200 {
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Description text block */
+html.dark [role="dialog"] .bg-gray-50.rounded-lg {
+	background-color: rgba(255,255,255,0.03) !important;
+}
+
+/* Label text */
+html.dark [role="dialog"] .text-gray-500 {
+	color: rgba(255,255,255,0.45) !important;
+}
+html.dark [role="dialog"] .text-gray-700 {
+	color: #d1d5db !important;
+}
+html.dark [role="dialog"] .text-gray-900 {
+	color: var(--color-text) !important;
+}
+
+/* Close button hover */
+html.dark [role="dialog"] .hover\:bg-gray-100:hover {
+	background-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Footer Close button */
+html.dark [role="dialog"] .border-gray-300.bg-white {
+	background-color: rgba(255,255,255,0.04) !important;
+	border-color: rgba(255,255,255,0.1) !important;
+	color: #d1d5db !important;
+}
+html.dark [role="dialog"] .border-gray-300.bg-white:hover {
+	background-color: rgba(255,255,255,0.07) !important;
+}
+
+/* Qty badge (gray-100 border-gray-300) */
+html.dark [role="dialog"] .border-gray-300.bg-gray-100 {
+	background-color: rgba(255,255,255,0.06) !important;
+	border-color: rgba(255,255,255,0.1) !important;
+	color: #d1d5db !important;
+}
+
+/* Constant badge (purple) */
+html.dark [role="dialog"] .bg-purple-100 {
+	background-color: rgba(139,92,246,0.1) !important;
+}
+html.dark [role="dialog"] .text-purple-800 { color: #c4b5fd !important; }
+html.dark [role="dialog"] .ring-purple-200 { --tw-ring-color: rgba(139,92,246,0.15) !important; }
+
+/* Save error / success banners inside modal */
+html.dark [role="dialog"] .border-rose-200.bg-rose-50 {
+	background-color: rgba(244,63,94,0.06) !important;
+	border-color: rgba(244,63,94,0.15) !important;
+}
+html.dark [role="dialog"] .border-emerald-200.bg-emerald-50 {
+	background-color: rgba(16,185,129,0.06) !important;
+	border-color: rgba(16,185,129,0.15) !important;
+}
+
+/* ── Dashboard colored-tint cards (student dashboard KPI / trust score) ── */
+
+/* Violet (Active Loans card) */
+html.dark .bg-violet-50 {
+	background-color: rgba(139,92,246,0.06) !important;
+}
+html.dark .border-violet-200 {
+	border-color: rgba(139,92,246,0.12) !important;
+}
+html.dark .text-violet-700 { color: #c4b5fd !important; }
+html.dark .text-violet-500 { color: rgba(196,181,253,0.6) !important; }
+
+/* Amber (Pending card) */
+html.dark .bg-amber-50 {
+	background-color: rgba(245,158,11,0.05) !important;
+}
+html.dark .border-amber-200 {
+	border-color: rgba(245,158,11,0.12) !important;
+}
+html.dark .text-amber-700 { color: #fcd34d !important; }
+html.dark .text-amber-500 { color: rgba(252,211,77,0.6) !important; }
+
+/* Pink (Trust Score hero / Good Standing) */
+html.dark .bg-pink-50 {
+	background-color: rgba(236,72,153,0.05) !important;
+}
+html.dark .border-pink-200 {
+	border-color: rgba(236,72,153,0.12) !important;
+}
+html.dark .text-pink-700 { color: #f9a8d4 !important; }
+html.dark .text-pink-500 { color: rgba(249,168,212,0.6) !important; }
+
+/* Unread count badge (rounded-full bg-pink-100 text-pink-700) in notification filter tabs */
+html.dark .rounded-full.bg-pink-100 {
+	background-color: rgba(219,39,119,0.75) !important;
+}
+html.dark .rounded-full.bg-pink-100.text-pink-700 {
+	color: #ffffff !important;
+}
+
+/* View mode toggle (card/list) active state in catalog pages */
+html.dark .rounded-lg.border.border-gray-300.overflow-hidden button.bg-pink-100 {
+	background-color: rgba(219,39,119,0.20) !important;
+	color: #f9a8d4 !important;
+}
+
+/* Tab count badges (rounded-full bg-pink-100 text-pink-600) when active */
+html.dark nav .rounded-full.bg-pink-100 {
+	background-color: rgba(219,39,119,0.75) !important;
+	color: #ffffff !important;
+}
+
+/* ── Borrowed Items / Request status badges (inline-flex rounded-full) ── */
+/* These use bg-*-100 text-*-700 ring-*-200 combos that become invisible in dark mode */
+
+html.dark .inline-flex.rounded-full.bg-red-100 {
+	background-color: rgba(239,68,68,0.18) !important;
+	color: #fca5a5 !important;
+}
+html.dark .inline-flex.rounded-full.bg-amber-100 {
+	background-color: rgba(245,158,11,0.18) !important;
+	color: #fcd34d !important;
+}
+html.dark .inline-flex.rounded-full.bg-emerald-100 {
+	background-color: rgba(16,185,129,0.18) !important;
+	color: #6ee7b7 !important;
+}
+html.dark .inline-flex.rounded-full.bg-slate-100 {
+	background-color: rgba(100,116,139,0.20) !important;
+	color: #cbd5e1 !important;
+}
+html.dark .inline-flex.rounded-full.bg-rose-100 {
+	background-color: rgba(244,63,94,0.18) !important;
+	color: #fda4af !important;
+}
+html.dark .inline-flex.rounded-full.bg-orange-100 {
+	background-color: rgba(249,115,22,0.18) !important;
+	color: #fdba74 !important;
+}
+html.dark .inline-flex.rounded-full.bg-cyan-100 {
+	background-color: rgba(6,182,212,0.18) !important;
+	color: #67e8f9 !important;
+}
+html.dark .inline-flex.rounded-full.bg-blue-100 {
+	background-color: rgba(59,130,246,0.18) !important;
+	color: #93c5fd !important;
+}
+
+/* Unread notification row highlight (border-pink-200 bg-pink-50/30) */
+html.dark .border-pink-200.bg-pink-50\/30 {
+	background-color: rgba(236,72,153,0.08) !important;
+	border-color: rgba(236,72,153,0.25) !important;
+}
+html.dark .border-pink-200.bg-pink-50\/30:hover,
+html.dark .border-pink-200.hover\:border-pink-300:hover {
+	background-color: rgba(236,72,153,0.12) !important;
+	border-color: rgba(236,72,153,0.35) !important;
+}
+/* Text inside unread notification rows */
+html.dark .border-pink-200.bg-pink-50\/30 .text-gray-900,
+html.dark .border-pink-200.bg-pink-50\/30 .text-gray-800 {
+	color: var(--color-text) !important;
+}
+html.dark .border-pink-200.bg-pink-50\/30 .text-gray-600 {
+	color: rgba(255,255,255,0.65) !important;
+}
+
+/* Top nav notification dropdown: unread row (border-pink-500 bg-pink-50/40) */
+html.dark [aria-label="Notifications"] button.border-pink-500 {
+	background-color: rgba(236,72,153,0.08) !important;
+}
+html.dark [aria-label="Notifications"] button:hover {
+	background-color: rgba(255,255,255,0.03) !important;
+}
+/* Avatar initials circle (bg-pink-100 text-pink-600) inside notification dropdown */
+html.dark [aria-label="Notifications"] .bg-pink-100 {
+	background-color: rgba(219,39,119,0.20) !important;
+}
+/* Notification title text */
+html.dark [aria-label="Notifications"] .text-gray-900 {
+	color: var(--color-text) !important;
+}
+/* Notification message text */
+html.dark [aria-label="Notifications"] .text-gray-600 {
+	color: rgba(255,255,255,0.55) !important;
+}
+
+/* Teal (Returned status badge) */
+html.dark .bg-teal-100 {
+	background-color: rgba(20,184,166,0.08) !important;
+}
+html.dark .text-teal-800 { color: #5eead4 !important; }
+html.dark .text-teal-500 { color: rgba(94,234,212,0.6) !important; }
+
+/* Orange (Pending-return status badge) */
+html.dark .bg-orange-100 {
+	background-color: rgba(249,115,22,0.08) !important;
+}
+html.dark .text-orange-800 { color: #fdba74 !important; }
+html.dark .text-orange-700 { color: #fdba74 !important; }
+html.dark .text-orange-500 { color: rgba(253,186,116,0.6) !important; }
+
+/* Rose (Missing status badge) */
+html.dark .bg-rose-100 {
+	background-color: rgba(244,63,94,0.08) !important;
+}
+html.dark .text-rose-800 { color: #fda4af !important; }
+html.dark .text-rose-700 { color: #fda4af !important; }
+
+/* Emerald text/bg used in performance cards */
+html.dark .text-emerald-700 { color: #6ee7b7 !important; }
+html.dark .text-emerald-600 { color: #34d399 !important; }
+html.dark .text-emerald-500 { color: rgba(110,231,183,0.6) !important; }
+html.dark .bg-emerald-100 {
+	background-color: rgba(16,185,129,0.08) !important;
+}
+
+/* Violet status badge (Active Loan) */
+html.dark .bg-violet-100 {
+	background-color: rgba(139,92,246,0.08) !important;
+}
+html.dark .text-violet-800 { color: #c4b5fd !important; }
+
+/* Yellow status badge (Pending Review) */
+html.dark .bg-yellow-100 {
+	background-color: rgba(234,179,8,0.08) !important;
+}
+html.dark .text-yellow-800 { color: #fde047 !important; }
+
+/* Blue status badge (Instructor Approved) */
+html.dark .bg-blue-100 {
+	background-color: rgba(59,130,246,0.08) !important;
+}
+html.dark .text-blue-800 { color: #93c5fd !important; }
+
+/* Slate (Cancelled status badge) */
+html.dark .bg-slate-100 {
+	background-color: rgba(100,116,139,0.08) !important;
+}
+html.dark .text-slate-800 { color: #cbd5e1 !important; }
+
+/* Gray stat cells inside performance cards */
+html.dark .bg-gray-100 {
+	background-color: rgba(255,255,255,0.04) !important;
+}
+html.dark .text-gray-700 { color: #d1d5db !important; }
+html.dark .text-gray-400 { color: rgba(255,255,255,0.35) !important; }
+
+/* Score breakdown panels (white bg inside trust score card) */
+html.dark .rounded-lg.border-red-100.bg-white,
+html.dark .rounded-lg.border-emerald-100.bg-white {
+	background-color: rgba(255,255,255,0.03) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
 /* Export Data panel: blue info box and selectable cards */
 html.dark .bg-blue-50 {
 	background-color: rgba(59,130,246,0.04) !important;
@@ -445,6 +1057,8 @@ html.dark .bg-gray-50 {
 }
 
 html.dark .border-gray-200 { border-color: rgba(255,255,255,0.04) !important; }
+html.dark .border-gray-100 { border-color: rgba(255,255,255,0.03) !important; }
+html.dark .divide-gray-50 > * + * { border-color: rgba(255,255,255,0.02) !important; }
 
 /* Ensure radio/checkbox inputs inside export panel remain visible */
 html.dark input[type="radio"].text-emerald-600,
