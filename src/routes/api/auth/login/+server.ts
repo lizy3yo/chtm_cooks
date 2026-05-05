@@ -9,22 +9,80 @@ import { rateLimit, RateLimitPresets, applyRateLimitHeaders, markRequestSuccess 
 import { rememberMeService } from '$lib/server/services/auth';
 import { setRememberMeCookie, getDeviceInfo } from '$lib/server/middleware/auth/rememberMe';
 import { setAuthTokens, getAccessTokenMaxAge } from '$lib/server/middleware/auth/cookies';
+import type { FailedLoginAttempt } from '$lib/server/models/SecuritySettings';
+
+/**
+ * Persist a failed login attempt to MongoDB for security monitoring.
+ * Fire-and-forget — never blocks the response.
+ */
+async function recordFailedLogin(
+	ip: string,
+	email: string,
+	reason: FailedLoginAttempt['reason'],
+	userAgent: string | null,
+	failedCountInWindow: number
+): Promise<void> {
+	try {
+		const db = await getDatabase();
+		// Risk heuristic: ≥10 attempts in window → high, ≥3 → medium, else low
+		const risk: FailedLoginAttempt['risk'] =
+			failedCountInWindow >= 10 ? 'high' : failedCountInWindow >= 3 ? 'medium' : 'low';
+
+		const attempt: FailedLoginAttempt = {
+			ip,
+			email,
+			reason,
+			risk,
+			occurredAt: new Date(),
+			userAgent: userAgent ?? undefined
+		};
+
+		await db.collection<FailedLoginAttempt>('failed_logins').insertOne(attempt);
+
+		// TTL index is created lazily — ensure it exists (idempotent)
+		await db
+			.collection('failed_logins')
+			.createIndex({ occurredAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60, background: true }); // auto-purge after 7 days
+	} catch {
+		// Non-critical — never let audit logging break authentication
+	}
+}
 
 export const POST: RequestHandler = async (event) => {
 	const { request } = event;
+
+	// Resolve client IP once for reuse in audit logging
+	const clientIP =
+		(request.headers.get('x-forwarded-for') ?? '').split(',')[0].trim() ||
+		event.getClientAddress() ||
+		'unknown';
+	const userAgent = request.headers.get('user-agent');
 	
 	// Apply rate limiting for login (strict limits to prevent brute force)
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.LOGIN);
 	
 	// If rate limit exceeded, return the error response
 	if (rateLimitResult instanceof Response) {
+		// Record rate-limited attempt (email unknown at this point — parsed below)
+		void (async () => {
+			try {
+				const body = await request.clone().json().catch(() => ({}));
+				const email = sanitizeInput((body?.email ?? 'unknown').toLowerCase());
+				await recordFailedLogin(clientIP, email, 'rate_limited', userAgent, rateLimitResult.status);
+			} catch { /* ignore */ }
+		})();
 		return rateLimitResult;
 	}
+
+	// Track attempt count for risk scoring (remaining = max - count, so count = max - remaining)
+	const attemptCount = RateLimitPresets.LOGIN.maxRequests - rateLimitResult.remaining;
+
 	try {
 		const body: LoginRequest = await request.json();
 
 		// Validate required fields
 		if (!body.email || !body.password) {
+			void recordFailedLogin(clientIP, 'unknown', 'invalid_credentials', userAgent, attemptCount);
 			return json({ error: 'Invalid credentials' }, { status: 401 });
 		}
 
@@ -33,6 +91,7 @@ export const POST: RequestHandler = async (event) => {
 
 		// Validate email format
 		if (!validateEmail(email)) {
+			void recordFailedLogin(clientIP, email, 'invalid_credentials', userAgent, attemptCount);
 			return json({ error: 'Invalid credentials' }, { status: 401 });
 		}
 
@@ -46,11 +105,13 @@ export const POST: RequestHandler = async (event) => {
 			{ collation: { locale: 'en', strength: 2 } }
 		);
 		if (!user) {
+			void recordFailedLogin(clientIP, email, 'invalid_credentials', userAgent, attemptCount);
 			return json({ error: 'Invalid credentials' }, { status: 401 });
 		}
 
 		// Check if user is active
 		if (!user.isActive) {
+			void recordFailedLogin(clientIP, email, 'account_inactive', userAgent, attemptCount);
 			return json({ error: 'Invalid credentials' }, { status: 401 });
 		}
 
@@ -61,13 +122,14 @@ export const POST: RequestHandler = async (event) => {
 		// even if `emailVerified` is false so superadmins can onboard them. Students
 		// still require email verification.
 		if (user.role === 'student' && !user.emailVerified) {
+			void recordFailedLogin(clientIP, email, 'email_unverified', userAgent, attemptCount);
 			return json({ error: 'Email not verified' }, { status: 401 });
 		}
 
 		// Verify password
 		const isPasswordValid = await comparePassword(body.password, user.password);
 		if (!isPasswordValid) {
-			// Failed login - rate limit will count this
+			void recordFailedLogin(clientIP, email, 'invalid_credentials', userAgent, attemptCount);
 			return json({ error: 'Invalid credentials' }, { status: 401 });
 		}
 		

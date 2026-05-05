@@ -58,6 +58,14 @@ function createRequestCartStore() {
 		async init(): Promise<void> {
 			if (!browser) return;
 
+			// Guard against double-initialization — only fetch once per session
+			let alreadyInitialized = false;
+			update((state) => {
+				alreadyInitialized = state.initialized;
+				return state;
+			});
+			if (alreadyInitialized) return;
+
 			update((state) => ({ ...state, loading: true }));
 
 			try {

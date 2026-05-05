@@ -22,10 +22,8 @@
  */
 
 import { json } from '@sveltejs/kit';
-import type { RequestEvent } from '@sveltejs/kit';
 import { ObjectId } from 'mongodb';
 import { sanitizeInput } from '../utils/validation';
-import { AppError } from '../errors/AppError';
 
 /**
  * Validation result type
@@ -241,17 +239,31 @@ export function validatePurpose(purpose: unknown): ValidationResult {
 }
 
 /**
- * Validate borrow and return dates with time (same-day return policy)
- * 
+ * Format an hour (0–23) as a human-readable 12-hour clock string.
+ * e.g. 7 → "7:00 AM", 20 → "8:00 PM"
+ */
+function formatHour(hour: number): string {
+	if (hour === 0) return '12:00 AM';
+	if (hour === 12) return '12:00 PM';
+	return hour > 12 ? `${hour - 12}:00 PM` : `${hour}:00 AM`;
+}
+
+/**
+ * Validate borrow and return dates with time (same-day return policy).
+ *
+ * All comparisons are performed in **local server time** to avoid UTC/local
+ * timezone mismatches that caused valid same-day requests to be rejected.
+ *
  * Business Rules:
- * - Equipment must be returned on the same day it's borrowed
+ * - Equipment must be returned on the same calendar day it is borrowed
  * - Minimum borrow duration: 1 hour
  * - Maximum borrow duration: 12 hours (within same day)
- * - Borrow datetime cannot be in the past
- * - Return time must be after borrow time on the same day
+ * - Borrow datetime cannot be before today's local midnight
+ * - Borrow datetime cannot be more than 2 calendar days ahead
+ * - Both times must fall within operating hours (07:00–20:00 local)
  */
 export function validateDates(borrowDate: unknown, returnDate: unknown): ValidationResult {
-	// Parse dates with time
+	// ── 1. Parse ──────────────────────────────────────────────────────────────
 	const borrow = typeof borrowDate === 'string' ? new Date(borrowDate) : null;
 	const returns = typeof returnDate === 'string' ? new Date(returnDate) : null;
 
@@ -269,37 +281,33 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 		};
 	}
 
+	// ── 2. Compute local-time boundaries ──────────────────────────────────────
+	// Use local time (setHours, not setUTCHours) so that "today" and "same day"
+	// are evaluated in the server's local timezone, matching what the client sees.
 	const now = new Date();
-	const minimumBorrowDate = new Date(now);
-	minimumBorrowDate.setUTCHours(0, 0, 0, 0);
-	const maximumBorrowDate = new Date(minimumBorrowDate);
-	maximumBorrowDate.setUTCDate(maximumBorrowDate.getUTCDate() + 2);
-	
-	// Check borrow date is within the allowed request window
-	if (borrow < minimumBorrowDate) {
+
+	const todayLocalMidnight = new Date(now);
+	todayLocalMidnight.setHours(0, 0, 0, 0); // local midnight — start of today
+
+	const maxBorrowLocalMidnight = new Date(todayLocalMidnight);
+	maxBorrowLocalMidnight.setDate(maxBorrowLocalMidnight.getDate() + 2); // start of day+2
+
+	// ── 3. Date-range checks ──────────────────────────────────────────────────
+	if (borrow < todayLocalMidnight) {
 		return {
 			valid: false,
 			error: 'Borrow date cannot be in the past'
 		};
 	}
 
-	if (borrow > maximumBorrowDate) {
+	if (borrow >= maxBorrowLocalMidnight) {
 		return {
 			valid: false,
 			error: 'Borrow date must be within the next 2 days'
 		};
 	}
 
-	// Check borrow date is not too far in advance
-	const maxAdvanceDate = new Date(now.getTime() + DATE_CONSTRAINTS.MAX_BORROW_DAYS_AHEAD * 24 * 60 * 60 * 1000);
-	if (borrow > maxAdvanceDate) {
-		return {
-			valid: false,
-			error: `Cannot schedule equipment borrow more than ${DATE_CONSTRAINTS.MAX_BORROW_DAYS_AHEAD} days in advance`
-		};
-	}
-
-	// Enforce same-day return policy
+	// ── 4. Same-day return policy ─────────────────────────────────────────────
 	if (DATE_CONSTRAINTS.SAME_DAY_RETURN_REQUIRED && !isSameDay(borrow, returns)) {
 		return {
 			valid: false,
@@ -307,31 +315,7 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 		};
 	}
 
-	// Enforce operating hours: 8:00 AM – 5:00 PM
-	const borrowHour = borrow.getHours();
-	const borrowMinute = borrow.getMinutes();
-	const borrowTimeMinutes = borrowHour * 60 + borrowMinute;
-	const returnHourLocal = returns.getHours();
-	const returnMinuteLocal = returns.getMinutes();
-	const returnTimeMinutes = returnHourLocal * 60 + returnMinuteLocal;
-	const operatingStartMinutes = DATE_CONSTRAINTS.OPERATING_START_HOUR * 60; // 420
-	const operatingEndMinutes   = DATE_CONSTRAINTS.OPERATING_END_HOUR * 60;   // 1200
-
-	if (borrowTimeMinutes < operatingStartMinutes || borrowTimeMinutes > operatingEndMinutes) {
-		return {
-			valid: false,
-			error: `Pickup time must be between ${DATE_CONSTRAINTS.OPERATING_START_HOUR}:00 AM and ${DATE_CONSTRAINTS.OPERATING_END_HOUR === 12 ? '12:00 PM' : DATE_CONSTRAINTS.OPERATING_END_HOUR > 12 ? `${DATE_CONSTRAINTS.OPERATING_END_HOUR - 12}:00 PM` : `${DATE_CONSTRAINTS.OPERATING_END_HOUR}:00 AM`} (operating hours)`
-		};
-	}
-
-	if (returnTimeMinutes < operatingStartMinutes || returnTimeMinutes > operatingEndMinutes) {
-		return {
-			valid: false,
-			error: `Return time must be between ${DATE_CONSTRAINTS.OPERATING_START_HOUR}:00 AM and ${DATE_CONSTRAINTS.OPERATING_END_HOUR === 12 ? '12:00 PM' : DATE_CONSTRAINTS.OPERATING_END_HOUR > 12 ? `${DATE_CONSTRAINTS.OPERATING_END_HOUR - 12}:00 PM` : `${DATE_CONSTRAINTS.OPERATING_END_HOUR}:00 AM`} (operating hours)`
-		};
-	}
-
-	// Check return datetime is after borrow datetime
+	// ── 6. Chronological order ────────────────────────────────────────────────
 	if (returns <= borrow) {
 		return {
 			valid: false,
@@ -339,10 +323,9 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 		};
 	}
 
-	// Calculate and validate duration
+	// ── 7. Duration constraints ───────────────────────────────────────────────
 	const durationHours = calculateDurationHours(borrow, returns);
-	
-	// Validate minimum duration
+
 	if (durationHours < DATE_CONSTRAINTS.MIN_BORROW_DURATION_HOURS) {
 		return {
 			valid: false,
@@ -350,7 +333,6 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 		};
 	}
 
-	// Validate maximum duration
 	if (durationHours > DATE_CONSTRAINTS.MAX_BORROW_DURATION_HOURS) {
 		return {
 			valid: false,

@@ -1,10 +1,12 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import SuperadminSidebar from '$lib/components/superadmin/SuperadminSidebar.svelte';
 	import SuperadminTopNav from '$lib/components/superadmin/SuperadminTopNav.svelte';
 	import SuperadminBottomNav from '$lib/components/superadmin/SuperadminBottomNav.svelte';
 	import ToastContainer from '$lib/components/ui/ToastContainer.svelte';
 	import ConfirmDialogContainer from '$lib/components/ui/ConfirmDialogContainer.svelte';
 	import { sidebarCollapsed } from '$lib/stores/superadmin';
+	import { authStore } from '$lib/stores/auth';
 	import type { Snippet } from 'svelte';
 	
 	interface Props {
@@ -12,6 +14,12 @@
 	}
 	
 	let { children }: Props = $props();
+
+	onMount(() => {
+		// Refresh user data (including profilePhotoUrl) so the avatar in the
+		// top nav is always up-to-date without requiring a profile page visit.
+		void authStore.verifySession();
+	});
 </script>
 
 <div class="flex min-h-screen bg-white">
