@@ -48,7 +48,7 @@
 		</div>
 		<button
 			onclick={resetSettings}
-			class="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+			class="flex shrink-0 items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 whitespace-nowrap"
 		>
 			<RotateCcw size={14} />
 			Reset to Default
@@ -108,39 +108,27 @@
 							<div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
 								<button
 									onclick={() => updateFontSize('small')}
-									class="rounded-lg border px-3 py-2 text-xs font-medium transition-all {settings.fontSize ===
-									'small'
-										? 'border-pink-600 bg-pink-600 text-white'
-										: 'border-gray-300 bg-white text-gray-700 hover:border-pink-500'}"
+									class="flex h-10 items-center justify-center rounded-lg border font-medium transition-all {settings.fontSize === 'small' ? 'border-pink-600 bg-pink-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-pink-500'}"
 								>
-									Small
+									<span class="text-xs">Small</span>
 								</button>
 								<button
 									onclick={() => updateFontSize('medium')}
-									class="rounded-lg border px-3 py-2 text-sm font-medium transition-all {settings.fontSize ===
-									'medium'
-										? 'border-pink-600 bg-pink-600 text-white'
-										: 'border-gray-300 bg-white text-gray-700 hover:border-pink-500'}"
+									class="flex h-10 items-center justify-center rounded-lg border font-medium transition-all {settings.fontSize === 'medium' ? 'border-pink-600 bg-pink-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-pink-500'}"
 								>
-									Medium
+									<span class="text-sm">Medium</span>
 								</button>
 								<button
 									onclick={() => updateFontSize('large')}
-									class="rounded-lg border px-3 py-2 text-base font-medium transition-all {settings.fontSize ===
-									'large'
-										? 'border-pink-600 bg-pink-600 text-white'
-										: 'border-gray-300 bg-white text-gray-700 hover:border-pink-500'}"
+									class="flex h-10 items-center justify-center rounded-lg border font-medium transition-all {settings.fontSize === 'large' ? 'border-pink-600 bg-pink-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-pink-500'}"
 								>
-									Large
+									<span class="text-base">Large</span>
 								</button>
 								<button
 									onclick={() => updateFontSize('extra-large')}
-									class="rounded-lg border px-3 py-2 text-lg font-medium transition-all {settings.fontSize ===
-									'extra-large'
-										? 'border-pink-600 bg-pink-600 text-white'
-										: 'border-gray-300 bg-white text-gray-700 hover:border-pink-500'}"
+									class="flex h-10 items-center justify-center rounded-lg border font-medium transition-all {settings.fontSize === 'extra-large' ? 'border-pink-600 bg-pink-600 text-white' : 'border-gray-300 bg-white text-gray-700 hover:border-pink-500'}"
 								>
-									Extra Large
+									<span class="text-lg leading-none">XL</span>
 								</button>
 							</div>
 						</div>
