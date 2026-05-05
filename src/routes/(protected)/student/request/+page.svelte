@@ -854,8 +854,8 @@
 				})),
 				purpose: buildPurposeText(),
 				usageLocation,
-				borrowDate: new Date(`${borrowDate}T${borrowTime}:00`).toISOString(),
-				returnDate: new Date(`${borrowDate}T${returnTime}:00`).toISOString(),
+				borrowDate: `${borrowDate}T${borrowTime}:00`,
+				returnDate: `${borrowDate}T${returnTime}:00`,
 				classCodeId: selectedClassCodeId // Required field
 			});
 
