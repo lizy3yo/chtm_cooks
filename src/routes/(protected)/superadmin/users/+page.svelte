@@ -8,9 +8,11 @@
 		Info,
 		Edit,
 		Trash2,
+		Users,
 		UserCheck,
 		UserX,
 		UserRound,
+		UserPlus,
 		MoreVertical,
 		X,
 		RefreshCw,
@@ -1141,51 +1143,69 @@
 		<div class="flex flex-col gap-4" role="tabpanel" id="{activeTab}-panel" aria-labelledby="{activeTab}-tab">
 			<!-- Stats -->
 			{#if activeTab === 'all'}
-				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 					{#if loading && stats.total === 0}
 						{#each Array(4) as _}
-							<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-								<div class="animate-pulse space-y-3">
-									<div class="h-4 w-24 rounded bg-gray-200"></div>
-									<div class="h-9 w-16 rounded bg-gray-200"></div>
-									<div class="h-3 w-32 rounded bg-gray-200"></div>
+							<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+								<div class="animate-pulse space-y-2">
+									<div class="h-3 w-20 rounded bg-gray-200"></div>
+									<div class="h-7 w-12 rounded bg-gray-200"></div>
+									<div class="h-3 w-28 rounded bg-gray-200"></div>
 								</div>
 							</div>
 						{/each}
 					{:else}
-						<div
-							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-						>
-							<p class="text-sm font-medium text-gray-500">Total Users</p>
-							<p class="mt-2 text-3xl font-bold text-gray-900">{stats.total.toLocaleString()}</p>
-							<p class="mt-1 text-xs text-gray-400">All roles combined</p>
+						<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0">
+									<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Users</p>
+									<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{stats.total.toLocaleString()}</p>
+									<p class="mt-0.5 text-xs text-gray-500">All roles combined</p>
+								</div>
+								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12">
+									<Users size={18} class="text-gray-500 sm:hidden" aria-hidden="true" />
+									<Users size={24} class="hidden text-gray-500 sm:block" aria-hidden="true" />
+								</div>
+							</div>
 						</div>
-						<div
-							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-						>
-							<p class="text-sm font-medium text-gray-500">Active Users</p>
-							<p class="mt-2 text-3xl font-bold text-emerald-600">
-								{stats.active.toLocaleString()}
-							</p>
-							<p class="mt-1 text-xs text-gray-400">
-								{stats.total ? ((stats.active / stats.total) * 100).toFixed(1) : 0}% of total
-							</p>
+						<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0">
+									<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Users</p>
+									<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">{stats.active.toLocaleString()}</p>
+									<p class="mt-0.5 text-xs text-gray-500">{stats.total ? ((stats.active / stats.total) * 100).toFixed(1) : 0}% of total</p>
+								</div>
+								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
+									<UserCheck size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
+									<UserCheck size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
+								</div>
+							</div>
 						</div>
-						<div
-							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-						>
-							<p class="text-sm font-medium text-gray-500">Inactive Users</p>
-							<p class="mt-2 text-3xl font-bold text-gray-600">{stats.inactive.toLocaleString()}</p>
-							<p class="mt-1 text-xs text-amber-600">Require attention</p>
+						<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0">
+									<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Inactive Users</p>
+									<p class="mt-1 text-2xl font-semibold text-gray-600 sm:mt-2 sm:text-3xl">{stats.inactive.toLocaleString()}</p>
+									<p class="mt-0.5 text-xs text-amber-600">Require attention</p>
+								</div>
+								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
+									<UserX size={18} class="text-amber-500 sm:hidden" aria-hidden="true" />
+									<UserX size={24} class="hidden text-amber-500 sm:block" aria-hidden="true" />
+								</div>
+							</div>
 						</div>
-						<div
-							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-						>
-							<p class="text-sm font-medium text-gray-500">New This Month</p>
-							<p class="mt-2 text-3xl font-bold text-pink-600">
-								{stats.newThisMonth.toLocaleString()}
-							</p>
-							<p class="mt-1 text-xs text-gray-400">Registered this month</p>
+						<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0">
+									<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">New This Month</p>
+									<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">{stats.newThisMonth.toLocaleString()}</p>
+									<p class="mt-0.5 text-xs text-gray-500">Registered this month</p>
+								</div>
+								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+									<UserPlus size={18} class="text-pink-500 sm:hidden" aria-hidden="true" />
+									<UserPlus size={24} class="hidden text-pink-500 sm:block" aria-hidden="true" />
+								</div>
+							</div>
 						</div>
 					{/if}
 				</div>

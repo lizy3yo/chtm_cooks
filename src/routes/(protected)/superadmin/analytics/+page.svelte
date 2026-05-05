@@ -129,59 +129,81 @@
 		<ReportsSkeletonLoader view="overview" />
 	{:else if analytics}
 		<!-- System Overview High-Level Stats -->
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-				<div class="flex items-center justify-between">
-					<p class="text-sm font-medium text-gray-500">Total Borrow Requests</p>
-					<ClipboardList size={18} class="text-gray-400" />
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+			<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Borrow Requests</p>
+						<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{analytics.borrowRequests.statusBreakdown.reduce((acc, s) => acc + s.count, 0)}</p>
+						<p class="mt-0.5 flex items-center text-xs text-emerald-600">
+							<TrendingUp size={11} class="mr-1 shrink-0" /> Over selected period
+						</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12">
+						<ClipboardList size={18} class="text-gray-500 sm:hidden" aria-hidden="true" />
+						<ClipboardList size={24} class="hidden text-gray-500 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-gray-900">{analytics.borrowRequests.statusBreakdown.reduce((acc, s) => acc + s.count, 0)}</p>
-				<p class="mt-1 flex items-center text-xs text-emerald-600">
-					<TrendingUp size={12} class="mr-1" /> Over selected period
-				</p>
 			</div>
-			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-				<div class="flex items-center justify-between">
-					<p class="text-sm font-medium text-gray-500">Avg. Approval Time</p>
-					<Clock size={18} class="text-gray-400" />
+			<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Avg. Approval Time</p>
+						<p class="mt-1 text-2xl font-semibold text-blue-600 sm:mt-2 sm:text-3xl">{analytics.borrowRequests.turnaround.avgApprovalHours.toFixed(1)} <span class="text-base font-medium text-gray-500 sm:text-lg">hrs</span></p>
+						<p class="mt-0.5 text-xs text-gray-500">Time to instructor approval</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+						<Clock size={18} class="text-blue-500 sm:hidden" aria-hidden="true" />
+						<Clock size={24} class="hidden text-blue-500 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-blue-600">{analytics.borrowRequests.turnaround.avgApprovalHours.toFixed(1)} <span class="text-lg font-medium text-gray-500">hrs</span></p>
-				<p class="mt-1 text-xs text-gray-500">Time to instructor approval</p>
 			</div>
-			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-				<div class="flex items-center justify-between">
-					<p class="text-sm font-medium text-gray-500">System Risk Level</p>
-					<ShieldAlert size={18} class={analytics.borrowRequests.overdueCount > 0 ? 'text-amber-500' : 'text-emerald-500'} />
+			<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">System Risk Level</p>
+						<p class="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl {analytics.borrowRequests.overdueCount > 0 ? 'text-amber-600' : 'text-emerald-600'}">{analytics.borrowRequests.overdueCount}</p>
+						<p class="mt-0.5 text-xs text-gray-500">Active overdue requests</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full sm:h-12 sm:w-12 {analytics.borrowRequests.overdueCount > 0 ? 'bg-amber-100' : 'bg-emerald-100'}">
+						<ShieldAlert size={18} class="sm:hidden {analytics.borrowRequests.overdueCount > 0 ? 'text-amber-500' : 'text-emerald-500'}" aria-hidden="true" />
+						<ShieldAlert size={24} class="hidden sm:block {analytics.borrowRequests.overdueCount > 0 ? 'text-amber-500' : 'text-emerald-500'}" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold {analytics.borrowRequests.overdueCount > 0 ? 'text-amber-600' : 'text-emerald-600'}">{analytics.borrowRequests.overdueCount}</p>
-				<p class="mt-1 text-xs text-gray-500">Active overdue requests</p>
 			</div>
-			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-				<div class="flex items-center justify-between">
-					<p class="text-sm font-medium text-gray-500">Active Classes</p>
-					<GraduationCap size={18} class="text-gray-400" />
+			<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Classes</p>
+						<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">{classStats?.activeClasses || 0}</p>
+						<p class="mt-0.5 text-xs text-gray-500">Currently facilitating requests</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+						<GraduationCap size={18} class="text-pink-500 sm:hidden" aria-hidden="true" />
+						<GraduationCap size={24} class="hidden text-pink-500 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-pink-600">{classStats?.activeClasses || 0}</p>
-				<p class="mt-1 text-xs text-gray-500">Currently facilitating requests</p>
 			</div>
 		</div>
 
 	<!-- Tabs Navigation -->
 	<div class="border-b border-gray-200">
-		<nav class="-mb-px flex space-x-6 overflow-x-auto">
+		<nav class="-mb-px flex" aria-label="Analytics tabs">
 			{#each [
-				{ id: 'system', label: 'System Overview', icon: BarChart3 },
-				{ id: 'users', label: 'User Analytics', icon: Users },
+				{ id: 'system',   label: 'System Overview',   icon: BarChart3 },
+				{ id: 'users',    label: 'User Analytics',    icon: Users },
 				{ id: 'requests', label: 'Request Analytics', icon: ClipboardList },
-				{ id: 'classes', label: 'Class Performance', icon: GraduationCap },
-				{ id: 'custom', label: 'Custom Reports', icon: FileText }
+				{ id: 'classes',  label: 'Class Performance', icon: GraduationCap },
+				{ id: 'custom',   label: 'Custom Reports',    icon: FileText }
 			] as tab}
-				<button 
-					onclick={() => activeTab = tab.id as any} 
-					class="flex items-center gap-2 whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === tab.id ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				<button
+					onclick={() => activeTab = tab.id as any}
+					title={tab.label}
+					class="flex flex-1 items-center justify-center border-b-2 py-3 text-sm font-medium transition-colors sm:flex-none sm:gap-2 sm:px-3 sm:justify-start {activeTab === tab.id ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+					aria-current={activeTab === tab.id ? 'page' : undefined}
 				>
-					<tab.icon size={16} />
-					{tab.label}
+					<tab.icon size={18} aria-hidden="true" />
+					<span class="hidden sm:inline">{tab.label}</span>
 				</button>
 			{/each}
 		</nav>
@@ -191,19 +213,19 @@
 	<div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden min-h-[400px]">
 			<!-- System Overview -->
 			{#if activeTab === 'system'}
-				<div class="p-6">
-					<div class="mb-6 flex items-center justify-between">
-						<h3 class="text-lg font-bold text-gray-900">Platform Activity Summary</h3>
-						<span class="text-sm text-gray-500">Period: Last 30 Days</span>
+				<div class="p-4 sm:p-6">
+					<div class="mb-6 flex items-center justify-between gap-3">
+						<h3 class="text-base font-bold text-gray-900 sm:text-lg">Platform Activity Summary</h3>
+						<span class="shrink-0 text-xs text-gray-500 sm:text-sm">Period: Last 30 Days</span>
 					</div>
 
-					<div class="grid gap-6 lg:grid-cols-2">
+					<div class="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
 						<!-- Request Status Breakdown -->
-						<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+						<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
 							<h4 class="mb-4 font-bold text-gray-900 flex items-center gap-2">
 								<Activity size={18} class="text-pink-500" /> Request Status Flow
 							</h4>
-							<div class="space-y-4">
+							<div class="space-y-3">
 								{#each analytics.borrowRequests.statusBreakdown as status}
 									<div class="flex items-center justify-between">
 										<span class="text-sm font-medium text-gray-700 capitalize">{status.status.replace('_', ' ')}</span>
@@ -217,21 +239,21 @@
 						</div>
 
 						<!-- Resolution Breakdown -->
-						<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+						<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
 							<h4 class="mb-4 font-bold text-gray-900 flex items-center gap-2">
 								<CheckCircle size={18} class="text-emerald-500" /> Obligation Resolutions
 							</h4>
-							<div class="grid grid-cols-2 gap-4 text-center mt-6">
-								<div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-									<p class="text-3xl font-bold text-gray-900">{analytics.replacement.summary.totalObligations}</p>
-									<p class="text-sm text-gray-500 mt-1">Total Obligations</p>
+							<div class="grid grid-cols-2 gap-3 text-center mt-4 sm:gap-4 sm:mt-6">
+								<div class="bg-gray-50 p-3 rounded-xl border border-gray-100 sm:p-4">
+									<p class="text-2xl font-bold text-gray-900 sm:text-3xl">{analytics.replacement.summary.totalObligations}</p>
+									<p class="text-xs text-gray-500 mt-1 sm:text-sm">Total Obligations</p>
 								</div>
-								<div class="bg-pink-50 p-4 rounded-xl border border-pink-100">
-									<p class="text-3xl font-bold text-pink-700">{analytics.replacement.summary.pendingCount}</p>
-									<p class="text-sm text-pink-600 mt-1">Pending Resolution</p>
+								<div class="bg-pink-50 p-3 rounded-xl border border-pink-100 sm:p-4">
+									<p class="text-2xl font-bold text-pink-700 sm:text-3xl">{analytics.replacement.summary.pendingCount}</p>
+									<p class="text-xs text-pink-600 mt-1 sm:text-sm">Pending Resolution</p>
 								</div>
 							</div>
-							<p class="mt-6 text-sm text-gray-500 text-center">Avg Resolution Time: <span class="font-bold text-gray-900">{analytics.replacement.avgResolutionDays} days</span></p>
+							<p class="mt-4 text-sm text-gray-500 text-center sm:mt-6">Avg Resolution Time: <span class="font-bold text-gray-900">{analytics.replacement.avgResolutionDays} days</span></p>
 						</div>
 					</div>
 				</div>
@@ -239,55 +261,55 @@
 
 			<!-- User Analytics -->
 			{#if activeTab === 'users'}
-				<div class="p-6">
-					<h3 class="mb-4 text-lg font-bold text-gray-900">Most Active Borrowers</h3>
+				<div class="p-4 sm:p-6">
+					<h3 class="mb-4 text-base font-bold text-gray-900 sm:text-lg">Most Active Borrowers</h3>
 					<div class="overflow-x-auto rounded-lg border border-gray-200">
 						<table class="min-w-full divide-y divide-gray-200">
 							<thead class="bg-gray-50">
 								<tr>
-									<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
-									<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Total Requests</th>
-									<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Items Borrowed</th>
+									<th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Student</th>
+									<th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Requests</th>
+									<th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Items</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-200 bg-white">
 								{#each analytics.borrowRequests.borrowers.slice(0, 10) as borrower}
 									<tr class="hover:bg-gray-50 transition-colors">
-										<td class="whitespace-nowrap px-6 py-4">
-											<div class="flex items-center gap-3">
-												<div class="flex h-8 w-8 items-center justify-center rounded-full bg-pink-100 text-pink-700 font-bold">
+										<td class="px-4 py-3 sm:px-6 sm:py-4">
+											<div class="flex items-center gap-2 sm:gap-3">
+												<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-700 font-bold text-sm">
 													{borrower.studentName.charAt(0)}
 												</div>
-												<div>
-													<p class="font-medium text-gray-900">{borrower.studentName}</p>
-													<p class="text-xs text-gray-500">{borrower.studentEmail}</p>
+												<div class="min-w-0">
+													<p class="truncate text-sm font-medium text-gray-900">{borrower.studentName}</p>
+													<p class="truncate text-xs text-gray-500">{borrower.studentEmail}</p>
 												</div>
 											</div>
 										</td>
-										<td class="whitespace-nowrap px-6 py-4 text-center">
+										<td class="px-3 py-3 text-center sm:px-6 sm:py-4">
 											<span class="inline-flex items-center justify-center rounded-full bg-blue-50 px-2.5 py-0.5 text-sm font-medium text-blue-700">
 												{borrower.requestCount}
 											</span>
 										</td>
-										<td class="whitespace-nowrap px-6 py-4 text-center font-bold text-gray-900">
+										<td class="px-3 py-3 text-center font-bold text-gray-900 sm:px-6 sm:py-4">
 											{borrower.totalItems}
 										</td>
 									</tr>
 								{:else}
-									<tr><td colspan="3" class="px-6 py-8 text-center text-gray-500">No active borrowers in this period.</td></tr>
+									<tr><td colspan="3" class="px-4 py-8 text-center text-gray-500">No active borrowers in this period.</td></tr>
 								{/each}
 							</tbody>
 						</table>
 					</div>
 
 					{#if analytics.studentRisk.trustScores.length > 0}
-						<h3 class="mb-4 mt-8 text-lg font-bold text-gray-900">Student Risk Monitor (Critical/Poor Trust)</h3>
-						<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+						<h3 class="mb-4 mt-6 text-base font-bold text-gray-900 sm:mt-8 sm:text-lg">Student Risk Monitor (Critical/Poor Trust)</h3>
+						<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
 							{#each analytics.studentRisk.trustScores as risk}
 								<div class="rounded-xl border border-red-100 bg-red-50/50 p-4">
 									<div class="flex items-center gap-3 mb-2">
-										<AlertTriangle size={20} class="text-red-500" />
-										<p class="font-bold text-gray-900">{risk.studentName}</p>
+										<AlertTriangle size={18} class="shrink-0 text-red-500" />
+										<p class="truncate font-bold text-gray-900">{risk.studentName}</p>
 									</div>
 									<div class="flex justify-between text-sm">
 										<span class="text-gray-600">Trust Score:</span>
@@ -306,52 +328,52 @@
 
 			<!-- Request Analytics -->
 			{#if activeTab === 'requests'}
-				<div class="p-6">
-					<div class="mb-6 flex items-center justify-between">
-						<h3 class="text-lg font-bold text-gray-900">Request Performance</h3>
-						<button onclick={() => exportReport('Request Performance')} class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm">
+				<div class="p-4 sm:p-6">
+					<div class="mb-4 flex items-center justify-between gap-3 sm:mb-6">
+						<h3 class="text-base font-bold text-gray-900 sm:text-lg">Request Performance</h3>
+						<button onclick={() => exportReport('Request Performance')} class="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 shadow-sm sm:gap-2 sm:text-sm">
 							<Download size={14} /> Export CSV
 						</button>
 					</div>
 
-					<div class="grid gap-6 sm:grid-cols-3">
-						<div class="rounded-xl border border-gray-200 bg-white p-5 text-center shadow-sm">
-							<p class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Avg Items / Request</p>
-							<p class="text-4xl font-bold text-gray-900">{analytics.borrowRequests.borrowingAverages.avgItemsPerRequest.toFixed(1)}</p>
+					<div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-6">
+						<div class="rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm sm:p-5">
+							<p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 sm:text-sm">Avg Items / Request</p>
+							<p class="text-3xl font-bold text-gray-900 sm:text-4xl">{analytics.borrowRequests.borrowingAverages.avgItemsPerRequest.toFixed(1)}</p>
 						</div>
-						<div class="rounded-xl border border-gray-200 bg-white p-5 text-center shadow-sm">
-							<p class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Avg Qty / Request</p>
-							<p class="text-4xl font-bold text-blue-600">{analytics.borrowRequests.borrowingAverages.avgQuantityPerRequest.toFixed(1)}</p>
+						<div class="rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm sm:p-5">
+							<p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 sm:text-sm">Avg Qty / Request</p>
+							<p class="text-3xl font-bold text-blue-600 sm:text-4xl">{analytics.borrowRequests.borrowingAverages.avgQuantityPerRequest.toFixed(1)}</p>
 						</div>
-						<div class="rounded-xl border border-gray-200 bg-white p-5 text-center shadow-sm">
-							<p class="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Overdue Requests</p>
-							<p class="text-4xl font-bold text-amber-600">{analytics.borrowRequests.overdueCount}</p>
+						<div class="rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm sm:p-5">
+							<p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2 sm:text-sm">Overdue Requests</p>
+							<p class="text-3xl font-bold text-amber-600 sm:text-4xl">{analytics.borrowRequests.overdueCount}</p>
 						</div>
 					</div>
 
 					{#if analytics.borrowRequests.overdueRequests.length > 0}
-						<h4 class="font-bold text-gray-900 mt-8 mb-4">Currently Overdue</h4>
+						<h4 class="font-bold text-gray-900 mt-6 mb-4 sm:mt-8">Currently Overdue</h4>
 						<div class="overflow-x-auto rounded-lg border border-red-200">
 							<table class="min-w-full divide-y divide-gray-200">
 								<thead class="bg-red-50">
 									<tr>
-										<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-red-800 uppercase tracking-wider">Student</th>
-										<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-red-800 uppercase tracking-wider">Return Date</th>
-										<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-red-800 uppercase tracking-wider">Days Overdue</th>
-										<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-red-800 uppercase tracking-wider">Items Affected</th>
+										<th scope="col" class="px-4 py-3 text-left text-xs font-medium text-red-800 uppercase tracking-wider sm:px-6">Student</th>
+										<th scope="col" class="px-3 py-3 text-left text-xs font-medium text-red-800 uppercase tracking-wider sm:px-6">Return Date</th>
+										<th scope="col" class="px-3 py-3 text-center text-xs font-medium text-red-800 uppercase tracking-wider sm:px-6">Overdue</th>
+										<th scope="col" class="hidden px-3 py-3 text-center text-xs font-medium text-red-800 uppercase tracking-wider sm:table-cell sm:px-6">Items</th>
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-gray-200 bg-white">
 									{#each analytics.borrowRequests.overdueRequests as overdue}
 										<tr>
-											<td class="whitespace-nowrap px-6 py-4 font-medium text-gray-900">{overdue.studentName}</td>
-											<td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{formatDate(overdue.returnDate)}</td>
-											<td class="whitespace-nowrap px-6 py-4 text-center">
-												<span class="inline-flex items-center justify-center rounded-full bg-red-100 px-2.5 py-0.5 text-sm font-bold text-red-800">
-													{overdue.daysOverdue} days
+											<td class="px-4 py-3 font-medium text-gray-900 sm:whitespace-nowrap sm:px-6 sm:py-4">{overdue.studentName}</td>
+											<td class="px-3 py-3 text-xs text-gray-500 sm:whitespace-nowrap sm:px-6 sm:py-4 sm:text-sm">{formatDate(overdue.returnDate)}</td>
+											<td class="px-3 py-3 text-center sm:px-6 sm:py-4">
+												<span class="inline-flex items-center justify-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-800 sm:px-2.5">
+													{overdue.daysOverdue}d
 												</span>
 											</td>
-											<td class="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-900">{overdue.itemCount} items</td>
+											<td class="hidden px-3 py-3 text-center text-sm text-gray-900 sm:table-cell sm:whitespace-nowrap sm:px-6 sm:py-4">{overdue.itemCount} items</td>
 										</tr>
 									{/each}
 								</tbody>
@@ -363,30 +385,28 @@
 
 			<!-- Class Performance -->
 			{#if activeTab === 'classes'}
-				<div class="p-6">
-					<div class="mb-6 flex items-center justify-between">
-						<div>
-							<h3 class="text-lg font-bold text-gray-900">Class Usage & Performance</h3>
-							<p class="text-sm text-gray-500">Tracking equipment utilization across currently active class codes.</p>
-						</div>
+				<div class="p-4 sm:p-6">
+					<div class="mb-4 sm:mb-6">
+						<h3 class="text-base font-bold text-gray-900 sm:text-lg">Class Usage & Performance</h3>
+						<p class="text-xs text-gray-500 sm:text-sm">Tracking equipment utilization across currently active class codes.</p>
 					</div>
 
-					<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 mb-8">
-						<div class="rounded-xl bg-gray-50 p-4 border border-gray-100 text-center">
+					<div class="grid grid-cols-2 gap-3 lg:grid-cols-4 mb-6 sm:mb-8">
+						<div class="rounded-xl bg-gray-50 p-3 border border-gray-100 text-center sm:p-4">
 							<p class="text-2xl font-bold text-gray-900">{classStats?.activeClasses || 0}</p>
 							<p class="text-xs text-gray-500 uppercase tracking-wider mt-1">Active Classes</p>
 						</div>
-						<div class="rounded-xl bg-gray-50 p-4 border border-gray-100 text-center">
+						<div class="rounded-xl bg-gray-50 p-3 border border-gray-100 text-center sm:p-4">
 							<p class="text-2xl font-bold text-blue-600">{classStats?.totalStudents || 0}</p>
 							<p class="text-xs text-gray-500 uppercase tracking-wider mt-1">Total Enrolled</p>
 						</div>
-						<div class="rounded-xl bg-gray-50 p-4 border border-gray-100 text-center">
+						<div class="rounded-xl bg-gray-50 p-3 border border-gray-100 text-center sm:p-4">
 							<p class="text-2xl font-bold text-emerald-600">{classStats?.avgClassSize.toFixed(1) || 0}</p>
 							<p class="text-xs text-gray-500 uppercase tracking-wider mt-1">Avg Class Size</p>
 						</div>
-						<div class="rounded-xl bg-gray-50 p-4 border border-gray-100 text-center">
+						<div class="rounded-xl bg-gray-50 p-3 border border-gray-100 text-center sm:p-4">
 							<p class="text-2xl font-bold text-pink-600">{classStats?.totalInstructors || 0}</p>
-							<p class="text-xs text-gray-500 uppercase tracking-wider mt-1">Active Instructors</p>
+							<p class="text-xs text-gray-500 uppercase tracking-wider mt-1">Instructors</p>
 						</div>
 					</div>
 
@@ -394,33 +414,33 @@
 						<table class="min-w-full divide-y divide-gray-200">
 							<thead class="bg-gray-50">
 								<tr>
-									<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Class Code</th>
-									<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
-									<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Students</th>
-									<th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Instructors</th>
+									<th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Class Code</th>
+									<th scope="col" class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Course</th>
+									<th scope="col" class="px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sm:px-6">Students</th>
+									<th scope="col" class="hidden px-3 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sm:table-cell sm:px-6">Instructors</th>
 								</tr>
 							</thead>
 							<tbody class="divide-y divide-gray-200 bg-white">
 								{#each classes as cls}
 									<tr class="hover:bg-gray-50 transition-colors">
-										<td class="whitespace-nowrap px-6 py-4">
+										<td class="px-4 py-3 sm:whitespace-nowrap sm:px-6 sm:py-4">
 											<span class="inline-flex items-center justify-center rounded bg-gray-100 px-2 py-1 text-xs font-bold text-gray-800 border border-gray-200">
 												{cls.code}
 											</span>
 										</td>
-										<td class="whitespace-nowrap px-6 py-4">
-											<p class="font-medium text-gray-900">{cls.courseCode} - {cls.section}</p>
+										<td class="px-3 py-3 sm:whitespace-nowrap sm:px-6 sm:py-4">
+											<p class="text-sm font-medium text-gray-900">{cls.courseCode} - {cls.section}</p>
 											<p class="text-xs text-gray-500">{cls.courseName}</p>
 										</td>
-										<td class="whitespace-nowrap px-6 py-4 text-center">
-											<span class="font-medium text-gray-900">{cls.studentCount} / {cls.maxEnrollment}</span>
+										<td class="px-3 py-3 text-center sm:whitespace-nowrap sm:px-6 sm:py-4">
+											<span class="text-sm font-medium text-gray-900">{cls.studentCount} / {cls.maxEnrollment}</span>
 										</td>
-										<td class="whitespace-nowrap px-6 py-4 text-center text-sm text-gray-500">
+										<td class="hidden px-3 py-3 text-center text-sm text-gray-500 sm:table-cell sm:whitespace-nowrap sm:px-6 sm:py-4">
 											{cls.instructorCount}
 										</td>
 									</tr>
 								{:else}
-									<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">No classes found.</td></tr>
+									<tr><td colspan="4" class="px-4 py-8 text-center text-gray-500">No classes found.</td></tr>
 								{/each}
 							</tbody>
 						</table>
@@ -430,16 +450,16 @@
 
 			<!-- Custom Reports -->
 			{#if activeTab === 'custom'}
-				<div class="p-6">
-					<div class="max-w-2xl mx-auto py-8">
-						<div class="rounded-2xl border border-gray-200 bg-gray-50 p-8 text-center">
-							<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white shadow-sm border border-gray-200 mb-6">
-								<FileText class="h-8 w-8 text-pink-500" />
+				<div class="p-4 sm:p-6">
+					<div class="mx-auto max-w-2xl py-4 sm:py-8">
+						<div class="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-center sm:p-8">
+							<div class="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm border border-gray-200 mb-5 sm:h-16 sm:w-16 sm:mb-6">
+								<FileText class="h-7 w-7 text-pink-500 sm:h-8 sm:w-8" />
 							</div>
-							<h3 class="text-xl font-bold text-gray-900 mb-2">Custom Report Builder</h3>
-							<p class="text-sm text-gray-500 mb-8 max-w-md mx-auto">Select a data model and date range to generate a comprehensive CSV export formatted for external accounting and audit systems.</p>
+							<h3 class="text-lg font-bold text-gray-900 mb-2 sm:text-xl">Custom Report Builder</h3>
+							<p class="text-sm text-gray-500 mb-6 max-w-md mx-auto sm:mb-8">Select a data model and date range to generate a comprehensive CSV export formatted for external accounting and audit systems.</p>
 							
-							<div class="grid gap-4 sm:grid-cols-2 mb-8 text-left">
+							<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-6 text-left sm:mb-8">
 								<div>
 									<label for="report-type" class="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-2">Report Type</label>
 									<select id="report-type" class="w-full rounded-lg border border-gray-300 py-2.5 px-3 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500">
@@ -460,8 +480,8 @@
 								</div>
 							</div>
 
-							<button onclick={() => exportReport('Custom')} class="inline-flex items-center gap-2 rounded-xl bg-pink-600 px-6 py-3 text-sm font-bold text-white shadow hover:bg-pink-700 transition">
-								<Download size={18} />
+							<button onclick={() => exportReport('Custom')} class="inline-flex items-center gap-2 rounded-xl bg-pink-600 px-5 py-2.5 text-sm font-bold text-white shadow hover:bg-pink-700 transition sm:px-6 sm:py-3">
+								<Download size={16} />
 								Generate & Download CSV
 							</button>
 						</div>

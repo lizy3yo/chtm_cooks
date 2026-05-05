@@ -253,84 +253,128 @@
 		<!-- ── KPI Strip ───────────────────────────────────────────────────── -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 
-			<div class="rounded-xl border border-purple-200 bg-purple-50 p-4 shadow-sm hover:shadow-md transition-shadow">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-purple-800">
-					<Users size={12} /> Total Users
+			<div class="rounded-xl border border-purple-200 bg-purple-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-semibold uppercase tracking-wide text-purple-800 sm:text-xs">Total Users</p>
+						<p class="mt-1 text-2xl font-bold text-purple-700 sm:mt-2 sm:text-3xl">{totalUsers.toLocaleString()}</p>
+						<a href="/superadmin/users" class="mt-0.5 flex items-center gap-1 text-xs font-medium text-purple-600 hover:text-purple-700">
+							Manage users <ArrowRight size={10} />
+						</a>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
+						<Users size={18} class="text-purple-600 sm:hidden" aria-hidden="true" />
+						<Users size={24} class="hidden text-purple-600 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-purple-700">{totalUsers.toLocaleString()}</p>
-				<a href="/superadmin/users" class="mt-1 flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-medium">
-					Manage users <ArrowRight size={11} />
-				</a>
 			</div>
 
-			<div class="rounded-xl border border-pink-200 bg-pink-50 p-4 shadow-sm hover:shadow-md transition-shadow">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-pink-800">
-					<GraduationCap size={12} /> Active Classes
+			<div class="rounded-xl border border-pink-200 bg-pink-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-semibold uppercase tracking-wide text-pink-800">Active Classes</p>
+						<p class="mt-1 text-2xl font-bold text-pink-700 sm:mt-2 sm:text-3xl">{activeClasses}</p>
+						<a href="/superadmin/class-codes" class="mt-0.5 flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+							View classes <ArrowRight size={10} />
+						</a>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+						<GraduationCap size={18} class="text-pink-600 sm:hidden" aria-hidden="true" />
+						<GraduationCap size={24} class="hidden text-pink-600 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-pink-700">{activeClasses}</p>
-				<a href="/superadmin/class-codes" class="mt-1 flex items-center gap-1 text-xs text-pink-600 hover:text-pink-700 font-medium">
-					View classes <ArrowRight size={11} />
-				</a>
 			</div>
 
-			<div class="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm hover:shadow-md transition-shadow">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-blue-800">
-					<ClipboardList size={12} /> Total Requests
+			<div class="rounded-xl border border-blue-200 bg-blue-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-semibold uppercase tracking-wide text-blue-800">Total Requests</p>
+						<p class="mt-1 text-2xl font-bold text-blue-700 sm:mt-2 sm:text-3xl">{totalRequests.toLocaleString()}</p>
+						<a href="/superadmin/requests" class="mt-0.5 flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700">
+							View requests <ArrowRight size={10} />
+						</a>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+						<ClipboardList size={18} class="text-blue-600 sm:hidden" aria-hidden="true" />
+						<ClipboardList size={24} class="hidden text-blue-600 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-blue-700">{totalRequests.toLocaleString()}</p>
-				<a href="/superadmin/requests" class="mt-1 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 font-medium">
-					View requests <ArrowRight size={11} />
-				</a>
 			</div>
 
-			<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm hover:shadow-md transition-shadow">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-800">
-					<Package size={12} /> Inventory Items
+			<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-semibold uppercase tracking-wide text-emerald-800">Inventory Items</p>
+						<p class="mt-1 text-2xl font-bold text-emerald-700 sm:mt-2 sm:text-3xl">{totalInventory.toLocaleString()}</p>
+						<a href="/superadmin/inventory" class="mt-0.5 flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700">
+							View inventory <ArrowRight size={10} />
+						</a>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
+						<Package size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
+						<Package size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-emerald-700">{totalInventory.toLocaleString()}</p>
-				<a href="/superadmin/inventory" class="mt-1 flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
-					View inventory <ArrowRight size={11} />
-				</a>
 			</div>
 		</div>
 
 		<!-- ── System Health & Alerts ────────────────────────────────────────── -->
-		<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-			
-			<div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4 shadow-sm">
-				<div class="flex items-center justify-between mb-2">
-					<Clock size={16} class="text-yellow-600" />
-					<span class="text-xs font-semibold text-yellow-600">PENDING</span>
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+
+			<div class="rounded-xl border border-yellow-200 bg-yellow-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-semibold uppercase tracking-wide text-yellow-700">Pending</p>
+						<p class="mt-1 text-2xl font-bold text-yellow-700 sm:mt-2 sm:text-3xl">{pendingRequests}</p>
+						<p class="mt-0.5 text-xs text-yellow-600">Awaiting approval</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:h-12 sm:w-12">
+						<Clock size={18} class="text-yellow-600 sm:hidden" aria-hidden="true" />
+						<Clock size={24} class="hidden text-yellow-600 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="text-2xl font-bold text-yellow-700">{pendingRequests}</p>
-				<p class="text-xs text-yellow-600 mt-1">Awaiting instructor approval</p>
 			</div>
 
-			<div class="rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
-				<div class="flex items-center justify-between mb-2">
-					<PackageOpen size={16} class="text-violet-600" />
-					<span class="text-xs font-semibold text-violet-600">ACTIVE</span>
+			<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-semibold uppercase tracking-wide text-violet-700">Active Loans</p>
+						<p class="mt-1 text-2xl font-bold text-violet-700 sm:mt-2 sm:text-3xl">{activeLoans}</p>
+						<p class="mt-0.5 text-xs text-violet-600">Currently borrowed</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 sm:h-12 sm:w-12">
+						<PackageOpen size={18} class="text-violet-600 sm:hidden" aria-hidden="true" />
+						<PackageOpen size={24} class="hidden text-violet-600 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="text-2xl font-bold text-violet-700">{activeLoans}</p>
-				<p class="text-xs text-violet-600 mt-1">Currently borrowed items</p>
 			</div>
 
-			<div class="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
-				<div class="flex items-center justify-between mb-2">
-					<AlertTriangle size={16} class="text-red-600" />
-					<span class="text-xs font-semibold text-red-600">OVERDUE</span>
+			<div class="rounded-xl border border-red-200 bg-red-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-semibold uppercase tracking-wide text-red-700">Overdue</p>
+						<p class="mt-1 text-2xl font-bold text-red-700 sm:mt-2 sm:text-3xl">{overdueRequests}</p>
+						<p class="mt-0.5 text-xs text-red-600">Past return date</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
+						<AlertTriangle size={18} class="text-red-600 sm:hidden" aria-hidden="true" />
+						<AlertTriangle size={24} class="hidden text-red-600 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="text-2xl font-bold text-red-700">{overdueRequests}</p>
-				<p class="text-xs text-red-600 mt-1">Past return date</p>
 			</div>
 
-			<div class="rounded-xl border border-orange-200 bg-orange-50 p-4 shadow-sm">
-				<div class="flex items-center justify-between mb-2">
-					<ShieldAlert size={16} class="text-orange-600" />
-					<span class="text-xs font-semibold text-orange-600">LOW STOCK</span>
+			<div class="rounded-xl border border-orange-200 bg-orange-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-semibold uppercase tracking-wide text-orange-700">Low Stock</p>
+						<p class="mt-1 text-2xl font-bold text-orange-700 sm:mt-2 sm:text-3xl">{lowStockItems + outOfStockItems}</p>
+						<p class="mt-0.5 text-xs text-orange-600">{outOfStockItems} out of stock</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 sm:h-12 sm:w-12">
+						<ShieldAlert size={18} class="text-orange-600 sm:hidden" aria-hidden="true" />
+						<ShieldAlert size={24} class="hidden text-orange-600 sm:block" aria-hidden="true" />
+					</div>
 				</div>
-				<p class="text-2xl font-bold text-orange-700">{lowStockItems + outOfStockItems}</p>
-				<p class="text-xs text-orange-600 mt-1">{outOfStockItems} out of stock</p>
 			</div>
 		</div>
 
@@ -359,7 +403,7 @@
 					<div class="divide-y divide-gray-50">
 						{#each recentUsers as user}
 							<div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
-								<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-purple-500 to-pink-500 text-sm font-semibold text-white">
+								<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-pink-500 to-rose-600 text-sm font-semibold text-white">
 									{#if user.profilePhotoUrl}
 										<img src={user.profilePhotoUrl} alt="{user.firstName} {user.lastName}" class="h-full w-full object-cover" />
 									{:else}
@@ -401,7 +445,7 @@
 					<div class="divide-y divide-gray-50">
 						{#each recentRequests.slice(0, 5) as request}
 							<div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
-								<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-blue-500 to-cyan-500 text-sm font-semibold text-white">
+								<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-pink-500 to-rose-600 text-sm font-semibold text-white">
 									{#if request.student?.profilePhotoUrl}
 										<img src={request.student.profilePhotoUrl} alt={request.student.fullName} class="h-full w-full object-cover" />
 									{:else}

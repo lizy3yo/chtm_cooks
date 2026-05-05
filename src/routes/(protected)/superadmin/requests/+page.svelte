@@ -14,6 +14,8 @@
 		MoreVertical,
 		RefreshCw,
 		Package,
+		PackageOpen,
+		ClipboardList,
 		Calendar,
 		User,
 		Bell
@@ -382,45 +384,87 @@
 		<RequestsSkeletonLoader viewMode="list" />
 	{:else}
 		<!-- Stats -->
-	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-			<p class="text-sm font-medium text-gray-500">Total Requests</p>
-			<p class="mt-2 text-3xl font-bold text-gray-900">{stats.totalRequests.toLocaleString()}</p>
+	<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Requests</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{stats.totalRequests.toLocaleString()}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12">
+					<ClipboardList size={18} class="text-gray-500 sm:hidden" aria-hidden="true" />
+					<ClipboardList size={24} class="hidden text-gray-500 sm:block" aria-hidden="true" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-			<p class="text-sm font-medium text-gray-500">Pending</p>
-			<p class="mt-2 text-3xl font-bold text-yellow-600">{stats.pending}</p>
+		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
+					<p class="mt-1 text-2xl font-semibold text-yellow-600 sm:mt-2 sm:text-3xl">{stats.pending}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:h-12 sm:w-12">
+					<Clock size={18} class="text-yellow-600 sm:hidden" aria-hidden="true" />
+					<Clock size={24} class="hidden text-yellow-600 sm:block" aria-hidden="true" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-			<p class="text-sm font-medium text-gray-500">Active Loans</p>
-			<p class="mt-2 text-3xl font-bold text-purple-600">{stats.active}</p>
+		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Loans</p>
+					<p class="mt-1 text-2xl font-semibold text-purple-600 sm:mt-2 sm:text-3xl">{stats.active}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
+					<PackageOpen size={18} class="text-purple-600 sm:hidden" aria-hidden="true" />
+					<PackageOpen size={24} class="hidden text-purple-600 sm:block" aria-hidden="true" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-			<p class="text-sm font-medium text-gray-500">Overdue</p>
-			<p class="mt-2 text-3xl font-bold text-red-600">{stats.overdue}</p>
+		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue</p>
+					<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">{stats.overdue}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
+					<AlertTriangle size={18} class="text-red-600 sm:hidden" aria-hidden="true" />
+					<AlertTriangle size={24} class="hidden text-red-600 sm:block" aria-hidden="true" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-			<p class="text-sm font-medium text-gray-500">Completed</p>
-			<p class="mt-2 text-3xl font-bold text-emerald-600">{stats.completed.toLocaleString()}</p>
+		<div class="col-span-2 rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:col-span-1 sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Completed</p>
+					<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">{stats.completed.toLocaleString()}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
+					<CheckCircle size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
+					<CheckCircle size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
+				</div>
+			</div>
 		</div>
 	</div>
 
 	<!-- Tabs -->
 	<div class="border-b border-gray-200">
-		<nav class="-mb-px flex space-x-6 overflow-x-auto">
+		<nav class="-mb-px flex" aria-label="Request tabs">
 			{#each [
-				{ id: 'all',         label: 'All Requests' },
-				{ id: 'pending',     label: 'Pending' },
-				{ id: 'active',      label: 'Active Loans' },
-				{ id: 'overdue',     label: 'Overdue' },
-				{ id: 'history',     label: 'History' },
-				{ id: 'obligations', label: `Replacement Obligations${pendingObligations.length > 0 ? ` (${pendingObligations.length})` : ''}` }
+				{ id: 'all',         label: 'All Requests',  short: 'All' },
+				{ id: 'pending',     label: 'Pending',       short: 'Pending' },
+				{ id: 'active',      label: 'Active Loans',  short: 'Active' },
+				{ id: 'overdue',     label: 'Overdue',       short: 'Overdue' },
+				{ id: 'history',     label: 'History',       short: 'History' },
+				{ id: 'obligations', label: `Obligations${pendingObligations.length > 0 ? ` (${pendingObligations.length})` : ''}`, short: `Oblig.${pendingObligations.length > 0 ? ` (${pendingObligations.length})` : ''}` }
 			] as tab}
-				<button 
-					onclick={() => handleTabChange(tab.id as any)} 
-					class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === tab.id ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				<button
+					onclick={() => handleTabChange(tab.id as any)}
+					class="flex flex-1 items-center justify-center border-b-2 py-3 text-xs font-medium transition-colors sm:flex-none sm:px-3 sm:text-sm {activeTab === tab.id ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+					aria-current={activeTab === tab.id ? 'page' : undefined}
 				>
-					{tab.label}
+					<span class="sm:hidden">{tab.short}</span>
+					<span class="hidden sm:inline">{tab.label}</span>
 				</button>
 			{/each}
 		</nav>

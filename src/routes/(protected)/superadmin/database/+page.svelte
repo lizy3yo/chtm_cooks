@@ -187,11 +187,11 @@
 	{#if loading && !stats}
 		<div class="animate-pulse space-y-6">
 			<!-- High Level Metrics Skeleton -->
-			<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+			<div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
 				{#each Array(5) as _}
-					<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm space-y-2">
-						<div class="h-4 w-24 rounded bg-gray-200"></div>
-						<div class="h-8 w-16 rounded bg-gray-200"></div>
+					<div class="rounded-lg bg-white p-3 shadow sm:p-5 space-y-2">
+						<div class="h-3 w-20 rounded bg-gray-200"></div>
+						<div class="h-7 w-14 rounded bg-gray-200"></div>
 					</div>
 				{/each}
 			</div>
@@ -246,26 +246,66 @@
 		</div>
 	{:else if stats}
 		<!-- High Level Metrics -->
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-				<p class="text-sm font-medium text-gray-500">Total Collections</p>
-				<p class="mt-2 text-3xl font-bold text-gray-900">{stats.database.collections}</p>
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+			<div class="rounded-lg bg-white p-3 shadow transition hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Collections</p>
+						<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{stats.database.collections}</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12">
+						<DatabaseIcon size={18} class="text-gray-500 sm:hidden" aria-hidden="true" />
+						<DatabaseIcon size={24} class="hidden text-gray-500 sm:block" aria-hidden="true" />
+					</div>
+				</div>
 			</div>
-			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-				<p class="text-sm font-medium text-gray-500">Total Indexes</p>
-				<p class="mt-2 text-3xl font-bold text-blue-600">{stats.database.indexes}</p>
+			<div class="rounded-lg bg-white p-3 shadow transition hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Indexes</p>
+						<p class="mt-1 text-2xl font-semibold text-blue-600 sm:mt-2 sm:text-3xl">{stats.database.indexes}</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+						<Activity size={18} class="text-blue-600 sm:hidden" aria-hidden="true" />
+						<Activity size={24} class="hidden text-blue-600 sm:block" aria-hidden="true" />
+					</div>
+				</div>
 			</div>
-			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-				<p class="text-sm font-medium text-gray-500">Data Size</p>
-				<p class="mt-2 text-3xl font-bold text-purple-600">{stats.database.dataSize}</p>
+			<div class="rounded-lg bg-white p-3 shadow transition hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Data Size</p>
+						<p class="mt-1 text-2xl font-semibold text-purple-600 sm:mt-2 sm:text-3xl">{stats.database.dataSize}</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
+						<HardDrive size={18} class="text-purple-600 sm:hidden" aria-hidden="true" />
+						<HardDrive size={24} class="hidden text-purple-600 sm:block" aria-hidden="true" />
+					</div>
+				</div>
 			</div>
-			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-				<p class="text-sm font-medium text-gray-500">Index Size</p>
-				<p class="mt-2 text-3xl font-bold text-emerald-600">{stats.database.indexSize}</p>
+			<div class="rounded-lg bg-white p-3 shadow transition hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Index Size</p>
+						<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">{stats.database.indexSize}</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
+						<Settings size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
+						<Settings size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
+					</div>
+				</div>
 			</div>
-			<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-				<p class="text-sm font-medium text-gray-500">Total Storage</p>
-				<p class="mt-2 text-3xl font-bold text-pink-600">{stats.database.totalSize}</p>
+			<div class="col-span-2 rounded-lg bg-white p-3 shadow transition hover:shadow-md sm:col-span-1 sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Storage</p>
+						<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">{stats.database.totalSize}</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+						<Download size={18} class="text-pink-600 sm:hidden" aria-hidden="true" />
+						<Download size={24} class="hidden text-pink-600 sm:block" aria-hidden="true" />
+					</div>
+				</div>
 			</div>
 		</div>
 
