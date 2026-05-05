@@ -267,13 +267,57 @@
 				unsubscribeSSE?.();
 			};
 		});
+
+		// ─── Export ───────────────────────────────────────────────────────────
+
+		let exporting = $state(false);
+
+		async function exportXLSX() {
+			if (!report || exporting) return;
+			exporting = true;
+			try {
+				const params = new URLSearchParams({ period });
+				if (customFrom) params.set('from', customFrom);
+				if (customTo) params.set('to', customTo);
+
+				const res = await fetch(`/api/reports/analytics/export?${params.toString()}`);
+				if (!res.ok) throw new Error('Export failed');
+
+				const blob = await res.blob();
+				const url = URL.createObjectURL(blob);
+				const link = document.createElement('a');
+				link.href = url;
+				const disposition = res.headers.get('Content-Disposition') ?? '';
+				const match = disposition.match(/filename="([^"]+)"/);
+				link.download = match?.[1] ?? 'chtm-cooks-analytics.xlsx';
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				URL.revokeObjectURL(url);
+				toastStore.success('Report exported as Excel file');
+			} catch {
+				toastStore.error('Failed to export report. Please try again.');
+			} finally {
+				exporting = false;
+			}
+		}
 	</script>
 
 	<div class="space-y-6">
 		<!-- Header -->
-		<div>
-			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Reports & Analytics</h1>
-			<p class="mt-1 text-sm text-gray-500">Professional borrowing, loss/damage, and inventory analytics</p>
+		<div class="flex items-start justify-between gap-4">
+			<div>
+				<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">Reports & Analytics</h1>
+				<p class="mt-1 text-sm text-gray-500">Professional borrowing, loss/damage, and inventory analytics</p>
+			</div>
+			<button
+				onclick={() => { if (report) exportXLSX(); }}
+				disabled={!report || exporting}
+				class="flex shrink-0 items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50"
+			>
+				<Download size={15} />
+				{exporting ? 'Exporting…' : 'Export Excel'}
+			</button>
 		</div>
 
 		<div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
