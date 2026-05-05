@@ -1878,14 +1878,15 @@
 									<input
 										id="borrowTimeBtn"
 										type="text"
-										inputmode="text"
+										readonly
 										value={borrowTimeInput}
-										oninput={(e) => { borrowTimeInput = (e.target as HTMLInputElement).value; }}
-										onfocus={() => { showBorrowPicker = true; showReturnPicker = false; }}
-										onblur={commitBorrowInput}
-										onkeydown={(e) => { if (e.key === 'Enter') { commitBorrowInput(); showBorrowPicker = false; (e.target as HTMLInputElement).blur(); } if (e.key === 'Escape') { showBorrowPicker = false; borrowTimeInput = formatTimeTo12Hour(borrowTime); } }}
+										onclick={() => { showBorrowPicker = !showBorrowPicker; showReturnPicker = false; }}
+										onkeydown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') { showBorrowPicker = !showBorrowPicker; showReturnPicker = false; }
+											if (e.key === 'Escape') { showBorrowPicker = false; }
+										}}
 										placeholder="e.g. 8:00 AM"
-										class="w-full rounded-lg border px-3 py-2 text-sm font-medium transition-colors {errors.borrowTime ? 'border-red-400 bg-red-50 text-red-900' : 'border-gray-300 bg-white text-gray-900 hover:border-pink-400'} focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
+										class="w-full cursor-pointer rounded-lg border px-3 py-2 text-sm font-medium transition-colors {errors.borrowTime ? 'border-red-400 bg-red-50 text-red-900' : 'border-gray-300 bg-white text-gray-900 hover:border-pink-400'} focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
 										autocomplete="off"
 									/>
 
@@ -1967,14 +1968,15 @@
 									<input
 										id="returnTimeBtn"
 										type="text"
-										inputmode="text"
+										readonly
 										value={returnTimeInput}
-										oninput={(e) => { returnTimeInput = (e.target as HTMLInputElement).value; }}
-										onfocus={() => { showReturnPicker = true; showBorrowPicker = false; }}
-										onblur={commitReturnInput}
-										onkeydown={(e) => { if (e.key === 'Enter') { commitReturnInput(); showReturnPicker = false; (e.target as HTMLInputElement).blur(); } if (e.key === 'Escape') { showReturnPicker = false; returnTimeInput = formatTimeTo12Hour(returnTime); } }}
+										onclick={() => { showReturnPicker = !showReturnPicker; showBorrowPicker = false; }}
+										onkeydown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') { showReturnPicker = !showReturnPicker; showBorrowPicker = false; }
+											if (e.key === 'Escape') { showReturnPicker = false; }
+										}}
 										placeholder="e.g. 5:00 PM"
-										class="w-full rounded-lg border px-3 py-2 text-sm font-medium transition-colors {errors.returnTime ? 'border-red-400 bg-red-50 text-red-900' : 'border-gray-300 bg-white text-gray-900 hover:border-pink-400'} focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
+										class="w-full cursor-pointer rounded-lg border px-3 py-2 text-sm font-medium transition-colors {errors.returnTime ? 'border-red-400 bg-red-50 text-red-900' : 'border-gray-300 bg-white text-gray-900 hover:border-pink-400'} focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
 										autocomplete="off"
 									/>
 
