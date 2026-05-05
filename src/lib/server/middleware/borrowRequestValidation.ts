@@ -251,79 +251,76 @@ function formatHour(hour: number): string {
 /**
  * Validate borrow and return dates with time (same-day return policy).
  *
- * All comparisons are performed in **local server time** to avoid UTC/local
- * timezone mismatches that caused valid same-day requests to be rejected.
+ * Accepts both plain local datetime strings (YYYY-MM-DDTHH:MM:SS, no timezone
+ * suffix) and UTC ISO strings. All date-range checks are performed against the
+ * **date portion only** (YYYY-MM-DD) so that timezone differences between the
+ * client and the Vercel/UTC server never cause valid same-day requests to be
+ * rejected.
  *
  * Business Rules:
  * - Equipment must be returned on the same calendar day it is borrowed
  * - Minimum borrow duration: 1 hour
  * - Maximum borrow duration: 12 hours (within same day)
- * - Borrow datetime cannot be before today's local midnight
- * - Borrow datetime cannot be more than 2 calendar days ahead
- * - Both times must fall within operating hours (07:00–20:00 local)
+ * - Borrow date cannot be before today's UTC date
+ * - Borrow date cannot be more than 2 calendar days ahead of today's UTC date
+ * - Both times must fall within operating hours (07:00–20:00)
  */
 export function validateDates(borrowDate: unknown, returnDate: unknown): ValidationResult {
 	// ── 1. Parse ──────────────────────────────────────────────────────────────
-	const borrow = typeof borrowDate === 'string' ? new Date(borrowDate) : null;
-	const returns = typeof returnDate === 'string' ? new Date(returnDate) : null;
-
-	if (!borrow || Number.isNaN(borrow.getTime())) {
-		return {
-			valid: false,
-			error: 'Invalid borrow date format. Expected ISO 8601 datetime (YYYY-MM-DDTHH:MM)'
-		};
+	if (typeof borrowDate !== 'string' || typeof returnDate !== 'string') {
+		return { valid: false, error: 'Borrow and return dates are required' };
 	}
 
-	if (!returns || Number.isNaN(returns.getTime())) {
-		return {
-			valid: false,
-			error: 'Invalid return date format. Expected ISO 8601 datetime (YYYY-MM-DDTHH:MM)'
-		};
+	// Strip trailing 'Z' or timezone offset so we always treat the value as
+	// the user's intended local wall-clock time, regardless of server timezone.
+	const localBorrowStr = borrowDate.replace(/Z$/, '').replace(/[+-]\d{2}:\d{2}$/, '');
+	const localReturnStr = returnDate.replace(/Z$/, '').replace(/[+-]\d{2}:\d{2}$/, '');
+
+	const borrow = new Date(localBorrowStr);
+	const returns = new Date(localReturnStr);
+
+	if (Number.isNaN(borrow.getTime())) {
+		return { valid: false, error: 'Invalid borrow date format. Expected YYYY-MM-DDTHH:MM:SS' };
+	}
+	if (Number.isNaN(returns.getTime())) {
+		return { valid: false, error: 'Invalid return date format. Expected YYYY-MM-DDTHH:MM:SS' };
 	}
 
-	// ── 2. Compute local-time boundaries ──────────────────────────────────────
-	// Use local time (setHours, not setUTCHours) so that "today" and "same day"
-	// are evaluated in the server's local timezone, matching what the client sees.
-	const now = new Date();
+	// ── 2. Extract date-only strings for range checks ─────────────────────────
+	// Compare YYYY-MM-DD strings so the check is timezone-agnostic.
+	const borrowDateStr  = localBorrowStr.slice(0, 10); // "YYYY-MM-DD"
+	const returnDateStr  = localReturnStr.slice(0, 10);
 
-	const todayLocalMidnight = new Date(now);
-	todayLocalMidnight.setHours(0, 0, 0, 0); // local midnight — start of today
+	const nowUtc = new Date();
+	const todayUtcStr = nowUtc.toISOString().slice(0, 10); // "YYYY-MM-DD" in UTC
 
-	const maxBorrowLocalMidnight = new Date(todayLocalMidnight);
-	maxBorrowLocalMidnight.setDate(maxBorrowLocalMidnight.getDate() + 2); // start of day+2
+	const maxDate = new Date(nowUtc);
+	maxDate.setUTCDate(maxDate.getUTCDate() + 2);
+	const maxDateStr = maxDate.toISOString().slice(0, 10);
 
-	// ── 3. Date-range checks ──────────────────────────────────────────────────
-	if (borrow < todayLocalMidnight) {
-		return {
-			valid: false,
-			error: 'Borrow date cannot be in the past'
-		};
+	// ── 3. Date-range checks (string comparison is safe for YYYY-MM-DD) ───────
+	if (borrowDateStr < todayUtcStr) {
+		return { valid: false, error: 'Borrow date cannot be in the past' };
 	}
 
-	if (borrow >= maxBorrowLocalMidnight) {
-		return {
-			valid: false,
-			error: 'Borrow date must be within the next 2 days'
-		};
+	if (borrowDateStr >= maxDateStr) {
+		return { valid: false, error: 'Borrow date must be within the next 2 days' };
 	}
 
 	// ── 4. Same-day return policy ─────────────────────────────────────────────
-	if (DATE_CONSTRAINTS.SAME_DAY_RETURN_REQUIRED && !isSameDay(borrow, returns)) {
+	if (DATE_CONSTRAINTS.SAME_DAY_RETURN_REQUIRED && borrowDateStr !== returnDateStr) {
 		return {
 			valid: false,
 			error: 'Equipment must be returned on the same day. Same-day return policy is enforced.'
 		};
 	}
 
-	// ── 6. Chronological order ────────────────────────────────────────────────
+	// ── 5. Chronological order ────────────────────────────────────────────────
 	if (returns <= borrow) {
-		return {
-			valid: false,
-			error: 'Return time must be after borrow time'
-		};
+		return { valid: false, error: 'Return time must be after borrow time' };
 	}
 
-	// ── 7. Duration constraints ───────────────────────────────────────────────
+	// ── 6. Duration constraints ───────────────────────────────────────────────
 	const durationHours = calculateDurationHours(borrow, returns);
 
 	if (durationHours < DATE_CONSTRAINTS.MIN_BORROW_DURATION_HOURS) {
@@ -343,6 +340,7 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 	return {
 		valid: true,
 		sanitized: {
+			// Store as UTC ISO strings in the database
 			borrowDate: borrow.toISOString(),
 			returnDate: returns.toISOString()
 		}
