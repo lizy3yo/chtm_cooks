@@ -59,6 +59,7 @@ export interface InventoryHistoryResponse {
 	userId: string;
 	userName: string;
 	userRole: string;
+	userProfilePhotoUrl?: string;
 	changes?: {
 		field: string;
 		oldValue: any;
