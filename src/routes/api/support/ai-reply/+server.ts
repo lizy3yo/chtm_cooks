@@ -18,6 +18,7 @@ import { sanitizeInput } from '$lib/server/utils/validation';
 import { logger } from '$lib/server/utils/logger';
 import type { SupportMessage, SupportChatEntry } from '$lib/server/models/SupportMessage';
 import { toSupportMessageResponse } from '$lib/server/models/SupportMessage';
+import { notifySupportMessage } from '$lib/server/services/notifications';
 import type { User } from '$lib/server/models/User';
 import { createAiChatResponse, type ChatMessage } from '$lib/server/services/aiChat';
 import {
@@ -160,6 +161,19 @@ export const POST: RequestHandler = async (event) => {
 				occurredAt: now.toISOString()
 			}
 		);
+
+		// Notify the ticket owner that ARIA replied — fire-and-forget, non-fatal
+		notifySupportMessage({
+			db,
+			ticketId,
+			ticketSubject: ticket.subject,
+			senderId: new ObjectId().toString(), // ARIA has no real user ID
+			senderRole: 'superadmin',
+			senderName: ARIA_SENDER_NAME,
+			messageBody: ariaText,
+			ownerId: ticket.studentId.toString(),
+			ownerRole: (ticket.ownerRole ?? 'student') as 'student' | 'instructor' | 'custodian'
+		}).catch(() => { /* non-fatal */ });
 
 		const updated = await col.findOne({ _id: new ObjectId(ticketId) });
 		const enriched = await enrichOne(db, updated!);

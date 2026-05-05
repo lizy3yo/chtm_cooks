@@ -10,7 +10,8 @@ export type NotificationType =
 	| 'borrow_request_missing'
 	| 'borrow_request_item_issue'
 	| 'borrow_request_cancelled'
-	| 'borrow_request_reminder';
+	| 'borrow_request_reminder'
+	| 'support_message_received';
 
 export interface NotificationRecord {
 	id: string;

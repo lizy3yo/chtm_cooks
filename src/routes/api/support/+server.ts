@@ -21,6 +21,7 @@ import {
 	SUPPORT_SUPERADMIN_CHANNEL,
 	supportUserChannel
 } from '$lib/server/realtime/supportEvents';
+import { notifySupportMessage } from '$lib/server/services/notifications';
 
 const COLLECTION = 'support_messages';
 const MAX_SUBJECT_LEN = 120;
@@ -174,6 +175,19 @@ export const POST: RequestHandler = async (event) => {
 			occurredAt: now.toISOString()
 		});
 
+		// Notify all superadmins — fire-and-forget, non-fatal
+		notifySupportMessage({
+			db,
+			ticketId: result.insertedId.toString(),
+			ticketSubject: subject,
+			senderId: user.userId,
+			senderRole: user.role as 'student' | 'instructor' | 'custodian',
+			senderName,
+			messageBody: message,
+			ownerId: user.userId,
+			ownerRole: user.role as 'student' | 'instructor' | 'custodian'
+		}).catch(() => { /* non-fatal */ });
+
 		logger.info('Support ticket created', {
 			ticketId: result.insertedId.toString(),
 			ownerId: user.userId,
@@ -272,6 +286,19 @@ export const PATCH: RequestHandler = async (event) => {
 				ownerId: ticket.studentId.toString(),
 				occurredAt: now.toISOString()
 			});
+
+			// Notify the recipient — fire-and-forget, non-fatal
+			notifySupportMessage({
+				db,
+				ticketId,
+				ticketSubject: ticket.subject,
+				senderId: user.userId,
+				senderRole: user.role as 'student' | 'instructor' | 'custodian' | 'superadmin',
+				senderName,
+				messageBody: msgBody,
+				ownerId: ticket.studentId.toString(),
+				ownerRole: (ticket.ownerRole ?? 'student') as 'student' | 'instructor' | 'custodian'
+			}).catch(() => { /* non-fatal */ });
 		}
 
 		// ── Update status (superadmin only) ───────────────────────────────────

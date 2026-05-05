@@ -7,3 +7,4 @@ export {
 	type CreateNotificationInput
 } from './service';
 export { notifyBorrowRequestLifecycle, type BorrowLifecycleEvent } from './borrowRequestLifecycle';
+export { notifySupportMessage, type SupportNotificationContext } from './supportMessageNotification';

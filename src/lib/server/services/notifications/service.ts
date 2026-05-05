@@ -96,6 +96,13 @@ export async function listNotificationsForUser(
 		let actorId: ObjectId | undefined;
 		const event = notif.metadata?.event as string | undefined;
 
+		// support_message_received notifications already have actorName and actorPhotoUrl
+		// stored in metadata at creation time — skip the DB re-lookup so we don't
+		// accidentally overwrite them with the recipient's own profile photo.
+		if (notif.type === 'support_message_received') {
+			continue;
+		}
+
 		if (!req) {
 			actorId = notif.userId;
 		} else {
