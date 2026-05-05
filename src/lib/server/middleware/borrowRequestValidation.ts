@@ -302,7 +302,7 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 	const minDateStr = minDate.toISOString().slice(0, 10);
 
 	const maxDate = new Date(nowUtc);
-	maxDate.setUTCDate(maxDate.getUTCDate() + 3); // +3 UTC = +2 in UTC-12 (westernmost)
+	maxDate.setUTCDate(maxDate.getUTCDate() + 3); // +3 UTC covers "today+2" for UTC-12 (westernmost)
 	const maxDateStr = maxDate.toISOString().slice(0, 10);
 
 	// ── 3. Date-range checks (string comparison is safe for YYYY-MM-DD) ───────
@@ -310,7 +310,7 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 		return { valid: false, error: 'Borrow date cannot be in the past' };
 	}
 
-	if (borrowDateStr >= maxDateStr) {
+	if (borrowDateStr > maxDateStr) {
 		return { valid: false, error: 'Borrow date must be within the next 2 days' };
 	}
 

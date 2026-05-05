@@ -153,10 +153,15 @@ async function handleResponse<T>(response: Response): Promise<T> {
 	const payload = (await response.json().catch(() => ({}))) as T & ApiError;
 
 	if (!response.ok) {
-		const message = await getApiErrorMessage(
-			response,
-			`Request failed with status ${response.status}`
-		);
+		// Use the already-parsed payload for the error message — the response
+		// body has already been consumed so we cannot call response.json() again.
+		const message = payload.message || payload.error || `Request failed with status ${response.status}`;
+
+		if (response.status === 401) {
+			// Trigger session expiry handling via getApiErrorMessage
+			await getApiErrorMessage(response, message);
+		}
+
 		throw new Error(message);
 	}
 

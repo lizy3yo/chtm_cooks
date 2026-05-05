@@ -273,9 +273,13 @@ export const POST: RequestHandler = async (event) => {
 		// Validate complete request using middleware
 		const validation = validateCreateBorrowRequest(body);
 		if (!validation.valid) {
+			const bodyAsAny = body as unknown as Record<string, unknown>;
 			logger.warn('Borrow request validation failed', {
 				userId: user.userId,
-				error: validation.error
+				error: validation.error,
+				borrowDate: bodyAsAny.borrowDate,
+				returnDate: bodyAsAny.returnDate,
+				serverUtcNow: new Date().toISOString()
 			});
 			return json({ error: validation.error }, { status: 400 });
 		}
