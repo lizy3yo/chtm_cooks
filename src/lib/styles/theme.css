@@ -826,7 +826,53 @@ html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .bg-white\/80 {
 
 /* ── Reports & Analytics page dark mode ─────────────────────────────────── */
 
-/* KPI card icon badge circles */
+/* Instructor KPI cards use gradient backgrounds (bg-linear-to-br from-*-50 to-white) */
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br.from-pink-50 {
+	background: rgba(236,72,153,0.08) !important;
+	border-color: rgba(236,72,153,0.15) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br.from-emerald-50 {
+	background: rgba(16,185,129,0.08) !important;
+	border-color: rgba(16,185,129,0.15) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br.from-rose-50 {
+	background: rgba(244,63,94,0.08) !important;
+	border-color: rgba(244,63,94,0.15) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br.from-amber-50 {
+	background: rgba(245,158,11,0.08) !important;
+	border-color: rgba(245,158,11,0.15) !important;
+}
+/* Total Incidents card (from-gray-50 to-white) */
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br.from-gray-50 {
+	background: rgba(255,255,255,0.04) !important;
+	border-color: rgba(255,255,255,0.08) !important;
+}
+/* Text inside gradient KPI cards */
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br .text-gray-700 {
+	color: rgba(255,255,255,0.75) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br .text-gray-900 {
+	color: var(--color-text) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br .text-gray-600 {
+	color: rgba(255,255,255,0.50) !important;
+}
+/* Icon circles inside gradient KPI cards */
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br .rounded-full.bg-pink-100 {
+	background-color: rgba(219,39,119,0.20) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br .rounded-full.bg-emerald-100 {
+	background-color: rgba(16,185,129,0.20) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br .rounded-full.bg-rose-100 {
+	background-color: rgba(244,63,94,0.20) !important;
+}
+html.dark .rounded-xl.border.border-gray-200.bg-linear-to-br .rounded-full.bg-amber-100 {
+	background-color: rgba(245,158,11,0.20) !important;
+}
+
+/* KPI card icon badge circles (plain bg-white cards — custodian) */
 html.dark .rounded-xl.border.border-gray-200.bg-white.p-5 .rounded-full.bg-pink-100 {
 	background-color: rgba(219,39,119,0.18) !important;
 }
@@ -878,7 +924,46 @@ html.dark .rounded-xl.border.border-gray-200.bg-gray-50 .text-gray-900 {
 	color: var(--color-text) !important;
 }
 
-/* ── Import Inventory modal: preview stat cards (bg-linear-to-br gradients) */
+/* ── Instructor History page: activity log table ────────────────────────── */
+
+/* "My activity" highlighted rows (bg-pink-50/50 hover:bg-pink-100/60) */
+html.dark tr.bg-pink-50\/50 {
+	background-color: rgba(219,39,119,0.08) !important;
+}
+html.dark tr.hover\:bg-pink-100\/60:hover {
+	background-color: rgba(219,39,119,0.14) !important;
+}
+/* Mobile card "my activity" rows */
+html.dark button.bg-pink-50\/40 {
+	background-color: rgba(219,39,119,0.08) !important;
+}
+
+/* Role badges in activity log table */
+html.dark .rounded-full.bg-purple-100.text-purple-800 {
+	background-color: rgba(139,92,246,0.20) !important;
+	color: #c4b5fd !important;
+}
+html.dark .rounded-full.bg-blue-100.text-blue-800 {
+	background-color: rgba(59,130,246,0.20) !important;
+	color: #93c5fd !important;
+}
+html.dark .rounded-full.bg-green-100.text-green-800 {
+	background-color: rgba(34,197,94,0.20) !important;
+	color: #86efac !important;
+}
+
+/* "My Activities" filter button active state (bg-pink-50 text-pink-700) */
+html.dark button.bg-pink-50.text-pink-700 {
+	background-color: rgba(219,39,119,0.12) !important;
+	color: #f9a8d4 !important;
+	border-color: rgba(219,39,119,0.35) !important;
+}
+
+/* Activity count pill (bg-pink-100 text-pink-700) */
+html.dark .rounded-full.bg-pink-100.text-pink-700 {
+	background-color: rgba(219,39,119,0.20) !important;
+	color: #f9a8d4 !important;
+}
 html.dark .rounded-t-3xl.bg-white.shadow-2xl .rounded-2xl.border.border-pink-100,
 html.dark .sm\:rounded-3xl.bg-white.shadow-2xl .rounded-2xl.border.border-pink-100 {
 	background: rgba(236,72,153,0.10) !important;
