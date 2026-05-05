@@ -64,39 +64,39 @@
 
 	const faqs = [
 		{
-			question: 'How do I borrow equipment?',
+			question: 'How do I process an approved borrow request?',
 			answer:
-				'Navigate to "Equipment Catalog" to browse available items, then click "Request Equipment" to submit a borrow request. Your instructor must approve the request before the custodian releases the items.'
+				'Go to "Borrow Requests" and filter by "Approved" status. Open the request, verify the items and quantities against your inventory, then click "Release Items" to confirm the handoff to the student. The request status will update to "Active" once released.'
 		},
 		{
-			question: 'How long can I borrow equipment?',
+			question: 'How do I confirm a return?',
 			answer:
-				'Borrow duration is set when you submit your request. You must specify a borrow date and a return date. Extensions are not guaranteed — contact your instructor if you need more time.'
+				'When a student initiates a return, it will appear in your "Borrow Requests" queue under "Pending Return". Inspect the items for completeness and condition, then click "Confirm Return" to close the loan. If items are damaged or missing, flag them before confirming.'
 		},
 		{
-			question: 'What happens if I lose or damage an item?',
+			question: 'How do I flag a lost or damaged item?',
 			answer:
-				'You will be issued a replacement obligation. You are responsible for replacing or paying for the item. Contact the custodian or superadmin immediately if an item is lost or damaged.'
+				'Open the active loan from "Borrow Requests" and use the "Flag Item" option to mark the item as lost or damaged. This will issue a replacement obligation to the student and notify the system administrator. Do not confirm the return until the issue is resolved.'
 		},
 		{
-			question: 'How do I return borrowed items?',
+			question: 'How do I manage inventory?',
 			answer:
-				'Go to "My Borrowed Items", find the active loan, and click "Initiate Return". The custodian will inspect the items and confirm the return on their end.'
+				'Navigate to "Inventory" to view all equipment records. You can update item quantities, mark items as under maintenance, or report discrepancies. Any changes to stock levels are reflected immediately in the catalog available to students and instructors.'
 		},
 		{
-			question: 'Why was my request rejected?',
+			question: 'What do I do if a student does not return items on time?',
 			answer:
-				'Requests can be rejected by your instructor or the custodian. Common reasons include insufficient stock, invalid dates, or missing class enrollment. Check the rejection reason in "My Requests" for details.'
+				'Overdue loans are highlighted in the "Borrow Requests" page. You can use the Chat Support to escalate the matter to the system administrator, who can contact the student and take further action if necessary.'
 		},
 		{
-			question: 'Can I cancel a pending request?',
+			question: 'How do I view the borrowing history for a specific item?',
 			answer:
-				'Yes. While your request is still in "Pending Review" status, you can cancel it from the "My Requests" page. Once approved, cancellation is no longer available.'
+				'Go to "Inventory", locate the item, and open its detail view. The item history shows all past loans, return dates, and any flagged incidents associated with that piece of equipment.'
 		},
 		{
-			question: 'What is a class code and why do I need one?',
+			question: 'How do I handle a replacement obligation?',
 			answer:
-				'A class code links your borrow request to a specific course and instructor. You must be enrolled in a class code to submit equipment requests. Contact your instructor if you are not enrolled.'
+				'Replacement obligations are created when an item is flagged as lost or damaged. You can view all active obligations in the "Replacement" section. Once the student has settled the obligation, mark it as resolved to reinstate their borrowing privileges.'
 		},
 		{
 			question: 'How do I contact support?',
@@ -106,10 +106,10 @@
 	];
 
 	const quickQuestions = [
-		'How do I borrow equipment?',
-		'Check my request status',
-		'Equipment return process',
-		'What is a class code?'
+		'How do I release items?',
+		'Confirm a return',
+		'Flag a damaged item',
+		'View inventory'
 	];
 
 	// ─── Helpers ─────────────────────────────────────────────────────────────

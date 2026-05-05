@@ -64,39 +64,35 @@
 
 	const faqs = [
 		{
-			question: 'How do I borrow equipment?',
+			question: 'How do I review and approve borrow requests?',
 			answer:
-				'Navigate to "Equipment Catalog" to browse available items, then click "Request Equipment" to submit a borrow request. Your instructor must approve the request before the custodian releases the items.'
+				'Go to "Borrow Requests" in the sidebar to see all pending requests from your students. Review the item, dates, and student details, then click "Approve" or "Reject". Approved requests are forwarded to the custodian for release.'
 		},
 		{
-			question: 'How long can I borrow equipment?',
+			question: 'How do I reject a request and notify the student?',
 			answer:
-				'Borrow duration is set when you submit your request. You must specify a borrow date and a return date. Extensions are not guaranteed — contact your instructor if you need more time.'
+				'Open the request from the "Borrow Requests" page and click "Reject". You will be prompted to provide a reason. The student will see this reason in their "My Requests" page so they can address the issue and resubmit if needed.'
+		},
+
+		{
+			question: 'Can I see which students are currently borrowing equipment?',
+			answer:
+				'Yes. The "Borrow Requests" page shows all active loans associated with your class codes. You can filter by status to see items that are currently borrowed, pending return, or overdue.'
 		},
 		{
-			question: 'What happens if I lose or damage an item?',
+			question: 'What happens when a student loses or damages an item?',
 			answer:
-				'You will be issued a replacement obligation. You are responsible for replacing or paying for the item. Contact the custodian or superadmin immediately if an item is lost or damaged.'
+				'The custodian will flag the item and issue a replacement obligation to the student. You will be notified. The student is responsible for replacing or paying for the item before their borrowing privileges are reinstated.'
 		},
 		{
-			question: 'How do I return borrowed items?',
+			question: 'Can I cancel or modify an approved request?',
 			answer:
-				'Go to "My Borrowed Items", find the active loan, and click "Initiate Return". The custodian will inspect the items and confirm the return on their end.'
+				'Once a request has been approved and forwarded to the custodian, modifications are not available from your end. Contact the custodian directly or reach out to the system administrator if a correction is needed.'
 		},
 		{
-			question: 'Why was my request rejected?',
+			question: 'How do I view my request approval history?',
 			answer:
-				'Requests can be rejected by your instructor or the custodian. Common reasons include insufficient stock, invalid dates, or missing class enrollment. Check the rejection reason in "My Requests" for details.'
-		},
-		{
-			question: 'Can I cancel a pending request?',
-			answer:
-				'Yes. While your request is still in "Pending Review" status, you can cancel it from the "My Requests" page. Once approved, cancellation is no longer available.'
-		},
-		{
-			question: 'What is a class code and why do I need one?',
-			answer:
-				'A class code links your borrow request to a specific course and instructor. You must be enrolled in a class code to submit equipment requests. Contact your instructor if you are not enrolled.'
+				'Go to "History" under your account section to see a full log of requests you have approved or rejected, including timestamps and student details.'
 		},
 		{
 			question: 'How do I contact support?',
@@ -106,10 +102,9 @@
 	];
 
 	const quickQuestions = [
-		'How do I borrow equipment?',
-		'Check my request status',
-		'Equipment return process',
-		'What is a class code?'
+		'How do I approve a request?',
+		'View active loans',
+		'Request approval history'
 	];
 
 	// ─── Helpers ─────────────────────────────────────────────────────────────
