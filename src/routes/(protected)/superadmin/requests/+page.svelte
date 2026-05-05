@@ -6,7 +6,8 @@
 		Info, 
 		Eye, 
 		CheckCircle, 
-		XCircle, 
+		XCircle,
+		X,
 		Clock, 
 		AlertTriangle, 
 		Wifi, 
@@ -14,7 +15,13 @@
 		MoreVertical,
 		RefreshCw,
 		Package,
+		PackageOpen,
+		ClipboardList,
 		Calendar,
+		CalendarDays,
+		BookOpen,
+		UserCircle,
+		FileText,
 		User,
 		Bell
 	} from 'lucide-svelte';
@@ -382,45 +389,87 @@
 		<RequestsSkeletonLoader viewMode="list" />
 	{:else}
 		<!-- Stats -->
-	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-			<p class="text-sm font-medium text-gray-500">Total Requests</p>
-			<p class="mt-2 text-3xl font-bold text-gray-900">{stats.totalRequests.toLocaleString()}</p>
+	<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Requests</p>
+					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{stats.totalRequests.toLocaleString()}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12">
+					<ClipboardList size={18} class="text-gray-500 sm:hidden" aria-hidden="true" />
+					<ClipboardList size={24} class="hidden text-gray-500 sm:block" aria-hidden="true" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-			<p class="text-sm font-medium text-gray-500">Pending</p>
-			<p class="mt-2 text-3xl font-bold text-yellow-600">{stats.pending}</p>
+		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
+					<p class="mt-1 text-2xl font-semibold text-yellow-600 sm:mt-2 sm:text-3xl">{stats.pending}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:h-12 sm:w-12">
+					<Clock size={18} class="text-yellow-600 sm:hidden" aria-hidden="true" />
+					<Clock size={24} class="hidden text-yellow-600 sm:block" aria-hidden="true" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-			<p class="text-sm font-medium text-gray-500">Active Loans</p>
-			<p class="mt-2 text-3xl font-bold text-purple-600">{stats.active}</p>
+		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Loans</p>
+					<p class="mt-1 text-2xl font-semibold text-purple-600 sm:mt-2 sm:text-3xl">{stats.active}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
+					<PackageOpen size={18} class="text-purple-600 sm:hidden" aria-hidden="true" />
+					<PackageOpen size={24} class="hidden text-purple-600 sm:block" aria-hidden="true" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-			<p class="text-sm font-medium text-gray-500">Overdue</p>
-			<p class="mt-2 text-3xl font-bold text-red-600">{stats.overdue}</p>
+		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue</p>
+					<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">{stats.overdue}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
+					<AlertTriangle size={18} class="text-red-600 sm:hidden" aria-hidden="true" />
+					<AlertTriangle size={24} class="hidden text-red-600 sm:block" aria-hidden="true" />
+				</div>
+			</div>
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md">
-			<p class="text-sm font-medium text-gray-500">Completed</p>
-			<p class="mt-2 text-3xl font-bold text-emerald-600">{stats.completed.toLocaleString()}</p>
+		<div class="col-span-2 rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:col-span-1 sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Completed</p>
+					<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">{stats.completed.toLocaleString()}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
+					<CheckCircle size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
+					<CheckCircle size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
+				</div>
+			</div>
 		</div>
 	</div>
 
 	<!-- Tabs -->
 	<div class="border-b border-gray-200">
-		<nav class="-mb-px flex space-x-6 overflow-x-auto">
+		<nav class="-mb-px flex" aria-label="Request tabs">
 			{#each [
-				{ id: 'all',         label: 'All Requests' },
-				{ id: 'pending',     label: 'Pending' },
-				{ id: 'active',      label: 'Active Loans' },
-				{ id: 'overdue',     label: 'Overdue' },
-				{ id: 'history',     label: 'History' },
-				{ id: 'obligations', label: `Replacement Obligations${pendingObligations.length > 0 ? ` (${pendingObligations.length})` : ''}` }
+				{ id: 'all',         label: 'All Requests',  short: 'All' },
+				{ id: 'pending',     label: 'Pending',       short: 'Pending' },
+				{ id: 'active',      label: 'Active Loans',  short: 'Active' },
+				{ id: 'overdue',     label: 'Overdue',       short: 'Overdue' },
+				{ id: 'history',     label: 'History',       short: 'History' },
+				{ id: 'obligations', label: `Obligations${pendingObligations.length > 0 ? ` (${pendingObligations.length})` : ''}`, short: `Oblig.${pendingObligations.length > 0 ? ` (${pendingObligations.length})` : ''}` }
 			] as tab}
-				<button 
-					onclick={() => handleTabChange(tab.id as any)} 
-					class="whitespace-nowrap border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === tab.id ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+				<button
+					onclick={() => handleTabChange(tab.id as any)}
+					class="flex flex-1 items-center justify-center border-b-2 py-3 text-xs font-medium transition-colors sm:flex-none sm:px-3 sm:text-sm {activeTab === tab.id ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
+					aria-current={activeTab === tab.id ? 'page' : undefined}
 				>
-					{tab.label}
+					<span class="sm:hidden">{tab.short}</span>
+					<span class="hidden sm:inline">{tab.label}</span>
 				</button>
 			{/each}
 		</nav>
@@ -500,8 +549,12 @@
 								</td>
 								<td class="whitespace-nowrap px-6 py-4">
 									<div class="flex items-center gap-3">
-										<div class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-blue-700 text-xs font-bold">
-											{request.student?.firstName?.[0] || ''}{request.student?.lastName?.[0] || ''}
+										<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-pink-500 to-rose-600 text-xs font-bold text-white">
+											{#if request.student?.profilePhotoUrl}
+												<img src={request.student.profilePhotoUrl} alt="{request.student.fullName}" class="h-full w-full object-cover" />
+											{:else}
+												{request.student?.firstName?.[0] || ''}{request.student?.lastName?.[0] || ''}
+											{/if}
 										</div>
 										<div class="text-sm">
 											<p class="font-medium text-gray-900">{request.student?.fullName || 'Unknown'}</p>
@@ -663,122 +716,206 @@
 
 <!-- Details Modal -->
 {#if showDetailModal && selectedRequest}
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<div class="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onclick={() => showDetailModal = false}></div>
-	<div class="fixed inset-y-0 right-0 z-50 w-full max-w-lg bg-white shadow-2xl flex flex-col sm:rounded-l-2xl">
-		<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4 bg-gray-50">
-			<div>
-				<h2 class="text-lg font-bold text-gray-900">Request Details</h2>
-				<p class="text-sm text-gray-500">REQ-{selectedRequest.id.slice(-6).toUpperCase()}</p>
-			</div>
-			<button onclick={() => showDetailModal = false} class="rounded-full p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition">
-				<XCircle size={24} />
-			</button>
-		</div>
-		<div class="flex-1 overflow-y-auto p-6 space-y-6">
-			<!-- Status Banner -->
-			<div class="flex items-center justify-between rounded-xl p-4 border {getStatusBadgeColor(selectedRequest.status).replace('bg-', 'bg-opacity-50 bg-').replace('text-', 'text-')}">
-				<div>
-					<p class="text-xs font-medium uppercase tracking-wider opacity-80">Current Status</p>
-					<p class="text-lg font-bold">{getStatusLabel(selectedRequest.status)}</p>
-				</div>
-				{#if isOverdue(selectedRequest)}
-					<div class="flex items-center gap-1.5 rounded-lg bg-red-100 px-3 py-1.5 text-sm font-semibold text-red-800">
-						<AlertTriangle size={16} /> Overdue
-					</div>
-				{/if}
-			</div>
+	<div class="fixed inset-0 z-50 overflow-y-auto">
+		<!-- Backdrop -->
+		<button
+			type="button"
+			class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+			onclick={() => showDetailModal = false}
+			aria-label="Close modal"
+			tabindex="-1"
+		></button>
 
-			<!-- People -->
-			<div class="grid grid-cols-2 gap-4">
-				<div class="rounded-xl border border-gray-200 p-4 shadow-sm">
-					<p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Student</p>
-					<div class="flex items-center gap-3">
-						<div class="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700 font-bold">
-							{selectedRequest.student?.firstName?.[0] || ''}{selectedRequest.student?.lastName?.[0] || ''}
-						</div>
-						<div>
-							<p class="font-medium text-gray-900">{selectedRequest.student?.fullName || 'Unknown'}</p>
-							<p class="text-xs text-gray-500">{selectedRequest.student?.email || 'No email'}</p>
-						</div>
-					</div>
-				</div>
-				<div class="rounded-xl border border-gray-200 p-4 shadow-sm">
-					<p class="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Instructor</p>
-					<div class="flex items-center gap-3">
-						<div class="flex h-10 w-10 items-center justify-center rounded-full bg-violet-100 text-violet-700 font-bold">
-							{selectedRequest.instructor?.firstName?.[0] || ''}{selectedRequest.instructor?.lastName?.[0] || ''}
-						</div>
-						<div>
-							<p class="font-medium text-gray-900">{selectedRequest.instructor?.fullName || 'Pending'}</p>
-							<p class="text-xs text-gray-500">{selectedRequest.instructor?.email || '—'}</p>
-						</div>
-					</div>
-				</div>
-			</div>
-
-			<!-- Request Info -->
-			<div class="rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
-				<h3 class="font-semibold text-gray-900 border-b border-gray-100 pb-2">Information</h3>
-				<div class="grid grid-cols-2 gap-y-4">
-					<div>
-						<p class="text-xs font-medium text-gray-500">Borrow Date</p>
-						<p class="font-medium text-gray-900">{formatDate(selectedRequest.borrowDate)}</p>
-					</div>
-					<div>
-						<p class="text-xs font-medium text-gray-500">Return Date</p>
-						<p class="font-medium text-gray-900">{formatDate(selectedRequest.returnDate)}</p>
-					</div>
-					<div class="col-span-2">
-						<p class="text-xs font-medium text-gray-500">Purpose</p>
-						<p class="text-sm text-gray-900 mt-1">{selectedRequest.purpose}</p>
-					</div>
-					{#if selectedRequest.usageLocation}
-						<div class="col-span-2">
-							<p class="text-xs font-medium text-gray-500">Location</p>
-							<p class="text-sm text-gray-900 mt-1 capitalize">{selectedRequest.usageLocation}</p>
-						</div>
-					{/if}
-				</div>
-			</div>
-
-			<!-- Items -->
-			<div class="rounded-xl border border-gray-200 p-5 shadow-sm">
-				<h3 class="font-semibold text-gray-900 border-b border-gray-100 pb-2 mb-3">Requested Items ({selectedRequest.items.length})</h3>
-				<ul class="space-y-3">
-					{#each selectedRequest.items as item}
-						<li class="flex items-center justify-between rounded-lg bg-gray-50 p-3 border border-gray-100">
-							<div class="flex items-center gap-3">
-								<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm">
-									<Package size={18} class="text-gray-400" />
-								</div>
-								<div>
-									<p class="font-medium text-gray-900 text-sm">{item.name}</p>
-									{#if item.inspection?.status}
-										<p class="text-xs text-gray-500 capitalize">Condition: {item.inspection.status}</p>
+		<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+			<div
+				class="animate-scaleIn relative w-full max-w-2xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="request-detail-title"
+			>
+				<!-- Header -->
+				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
+					<div class="px-6 py-5">
+						<div class="flex items-start gap-4">
+							<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-pink-500 to-rose-600 shadow-lg shadow-pink-500/30">
+								<Eye size={22} class="text-white" aria-hidden="true" />
+							</div>
+							<div class="min-w-0 flex-1">
+								<h2 id="request-detail-title" class="text-lg font-bold text-gray-900">Request Details</h2>
+								<div class="mt-0.5 flex items-center gap-2">
+									<p class="text-sm text-gray-500">REQ-{selectedRequest.id.slice(-6).toUpperCase()}</p>
+									{#if isOverdue(selectedRequest)}
+										<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+											<AlertTriangle size={11} /> Overdue
+										</span>
 									{/if}
 								</div>
 							</div>
-							<span class="rounded-full bg-pink-100 px-2.5 py-1 text-xs font-bold text-pink-700">
-								Qty: {item.quantity}
-							</span>
-						</li>
-					{/each}
-				</ul>
-			</div>
-
-			{#if qrDataUrl}
-				<div class="flex flex-col items-center justify-center rounded-xl border border-gray-200 bg-gray-50 p-6 shadow-sm">
-					<p class="mb-3 text-sm font-medium text-gray-600">Request QR Code</p>
-					<img src={qrDataUrl} alt="QR Code" class="h-40 w-40 rounded-xl bg-white p-2 shadow-sm" />
+							<button
+								type="button"
+								onclick={() => showDetailModal = false}
+								class="shrink-0 rounded-xl p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+								aria-label="Close request details"
+							>
+								<X size={20} />
+							</button>
+						</div>
+					</div>
 				</div>
-			{/if}
-		</div>
-		<div class="border-t border-gray-200 p-4 bg-gray-50 flex justify-end">
-			<button onclick={() => showDetailModal = false} class="rounded-lg bg-white border border-gray-300 px-5 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50">
-				Close
-			</button>
+
+				<!-- Body -->
+				<div class="max-h-[70vh] space-y-6 overflow-y-auto px-6 py-5">
+					<!-- Status -->
+					<div class="flex flex-wrap items-center gap-2">
+						<span class="inline-flex items-center rounded-full border px-3 py-1 text-sm font-semibold {getStatusBadgeColor(selectedRequest.status)}">
+							{getStatusLabel(selectedRequest.status)}
+						</span>
+						{#if isOverdue(selectedRequest)}
+							<span class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+								<AlertTriangle size={11} /> Overdue
+							</span>
+						{/if}
+					</div>
+
+					<!-- Request Information -->
+					<div>
+						<h3 class="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-900">
+							<div class="h-1.5 w-1.5 rounded-full bg-pink-500"></div>
+							Request Information
+						</h3>
+						<div class="grid grid-cols-2 gap-3">
+							<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4">
+								<div class="mb-2 flex items-center gap-1.5">
+									<CalendarDays size={14} class="text-pink-500" aria-hidden="true" />
+									<p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Request Date</p>
+								</div>
+								<p class="text-sm font-bold text-gray-900">
+									{new Date(selectedRequest.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+								</p>
+							</div>
+							<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4">
+								<div class="mb-2 flex items-center gap-1.5">
+									<CalendarDays size={14} class="text-pink-500" aria-hidden="true" />
+									<p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Borrow Period</p>
+								</div>
+								<p class="text-sm font-bold text-gray-900">
+									{new Date(selectedRequest.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(selectedRequest.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+								</p>
+							</div>
+							<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4">
+								<div class="mb-2 flex items-center gap-1.5">
+									<UserCircle size={14} class="text-pink-500" aria-hidden="true" />
+									<p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Student</p>
+								</div>
+								<div class="flex items-center gap-2">
+									<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200">
+										{#if selectedRequest.student?.profilePhotoUrl}
+											<img src={selectedRequest.student.profilePhotoUrl} alt={selectedRequest.student.fullName} class="h-full w-full object-cover" loading="lazy" />
+										{:else}
+											{selectedRequest.student?.firstName?.[0] || ''}{selectedRequest.student?.lastName?.[0] || ''}
+										{/if}
+									</div>
+									<div class="min-w-0">
+										<p class="truncate text-sm font-bold text-gray-900">{selectedRequest.student?.fullName || 'Unknown'}</p>
+										<p class="truncate text-xs text-gray-500">{selectedRequest.student?.email || ''}</p>
+									</div>
+								</div>
+							</div>
+							<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4">
+								<div class="mb-2 flex items-center gap-1.5">
+									<UserCircle size={14} class="text-pink-500" aria-hidden="true" />
+									<p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Instructor</p>
+								</div>
+								<div class="flex items-center gap-2">
+									<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200">
+										{#if selectedRequest.instructor?.profilePhotoUrl}
+											<img src={selectedRequest.instructor.profilePhotoUrl} alt={selectedRequest.instructor.fullName} class="h-full w-full object-cover" loading="lazy" />
+										{:else}
+											{selectedRequest.instructor?.firstName?.[0] || ''}{selectedRequest.instructor?.lastName?.[0] || ''}
+										{/if}
+									</div>
+									<p class="truncate text-sm font-bold text-gray-900">{selectedRequest.instructor?.fullName || 'Pending'}</p>
+								</div>
+							</div>
+							{#if selectedRequest.custodian}
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4">
+									<div class="mb-2 flex items-center gap-1.5">
+										<UserCircle size={14} class="text-pink-500" aria-hidden="true" />
+										<p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Custodian</p>
+									</div>
+									<div class="flex items-center gap-2">
+										<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200">
+											{#if selectedRequest.custodian.profilePhotoUrl}
+												<img src={selectedRequest.custodian.profilePhotoUrl} alt={selectedRequest.custodian.fullName} class="h-full w-full object-cover" loading="lazy" />
+											{:else}
+												{selectedRequest.custodian.firstName?.[0] || ''}{selectedRequest.custodian.lastName?.[0] || ''}
+											{/if}
+										</div>
+										<p class="truncate text-sm font-bold text-gray-900">{selectedRequest.custodian.fullName || '—'}</p>
+									</div>
+								</div>
+							{/if}
+							<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4">
+								<div class="mb-2 flex items-center gap-1.5">
+									<BookOpen size={14} class="text-pink-500" aria-hidden="true" />
+									<p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Class Code</p>
+								</div>
+								<p class="text-sm font-bold text-gray-900">{selectedRequest.classCodeId?.slice(-6).toUpperCase() || '—'}</p>
+							</div>
+							<div class="group col-span-2 rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4">
+								<div class="mb-2 flex items-center gap-1.5">
+									<FileText size={14} class="text-pink-500" aria-hidden="true" />
+									<p class="text-[10px] font-bold uppercase tracking-wider text-gray-500 sm:text-xs">Purpose</p>
+								</div>
+								<p class="text-sm font-bold text-gray-900">{selectedRequest.purpose}</p>
+							</div>
+						</div>
+					</div>
+
+					<!-- Requested Items -->
+					<div>
+						<h3 class="mb-4 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gray-900">
+							<div class="h-1.5 w-1.5 rounded-full bg-pink-500"></div>
+							Requested Items
+						</h3>
+						<div class="grid gap-3 sm:grid-cols-2">
+							{#each selectedRequest.items as item}
+								<div class="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-all hover:border-pink-200 hover:shadow-md">
+									{#if item.picture}
+										<img src={item.picture} alt={item.name} class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-gray-100" loading="lazy" />
+									{:else}
+										<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100 ring-1 ring-gray-100">
+											<Package size={20} class="text-gray-400" aria-hidden="true" />
+										</div>
+									{/if}
+									<div class="min-w-0 flex-1">
+										<p class="truncate text-sm font-semibold text-gray-900 transition-colors group-hover:text-pink-600">{item.name}</p>
+										{#if item.inspection?.status}
+											<p class="text-xs capitalize text-gray-500">Condition: {item.inspection.status}</p>
+										{/if}
+									</div>
+									<span class="shrink-0 rounded-full bg-pink-100 px-2.5 py-1 text-xs font-bold text-pink-700">×{item.quantity}</span>
+								</div>
+							{/each}
+						</div>
+					</div>
+
+
+				</div>
+
+				<!-- Footer -->
+				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-6 py-4">
+					<div class="flex justify-end">
+						<button
+							type="button"
+							onclick={() => showDetailModal = false}
+							class="rounded-xl border border-gray-300 px-5 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 active:scale-95"
+						>
+							Close
+						</button>
+					</div>
+				</div>
+			</div>
 		</div>
 	</div>
 {/if}

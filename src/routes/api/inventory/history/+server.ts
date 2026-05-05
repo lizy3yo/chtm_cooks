@@ -74,8 +74,8 @@ export const GET: RequestHandler = async (event) => {
 		const limit = parseInt(url.searchParams.get('limit') || '50');
 		const skip = (page - 1) * limit;
 
-		// Build cache key
-		const cacheKey = `inventory:history:${action || 'all'}:${entityType || 'all'}:${entityId || 'all'}:${userId || 'all'}:${page}:${limit}`;
+		// Build cache key — v2 includes userProfilePhotoUrl
+		const cacheKey = `inventory:history:v2:${action || 'all'}:${entityType || 'all'}:${entityId || 'all'}:${userId || 'all'}:${page}:${limit}`;
 
 		// Check cache first
 		const cached = await cacheService.get<any>(cacheKey);
@@ -86,6 +86,7 @@ export const GET: RequestHandler = async (event) => {
 		// Connect to database
 		const db = await getDatabase();
 		const historyCollection = db.collection<InventoryHistory>('inventory_history');
+		const usersCollection = db.collection('users');
 
 		// Build filter
 		const filter: any = {};
@@ -110,8 +111,26 @@ export const GET: RequestHandler = async (event) => {
 			historyCollection.countDocuments(filter)
 		]);
 
+		// Batch-fetch profile photos for all unique users in this page
+		const uniqueUserIds = [...new Set(history.map(h => h.userId.toString()))];
+		const userPhotoMap = new Map<string, string | null>();
+		if (uniqueUserIds.length > 0) {
+			const users = await usersCollection
+				.find(
+					{ _id: { $in: uniqueUserIds.map(id => new ObjectId(id)) } },
+					{ projection: { _id: 1, profilePhotoUrl: 1 } }
+				)
+				.toArray();
+			for (const u of users) {
+				userPhotoMap.set(u._id.toString(), u.profilePhotoUrl ?? null);
+			}
+		}
+
 		const response = {
-			history: history.map(toHistoryResponse),
+			history: history.map(h => ({
+				...toHistoryResponse(h),
+				userProfilePhotoUrl: userPhotoMap.get(h.userId.toString()) ?? undefined
+			})),
 			total,
 			page,
 			limit,

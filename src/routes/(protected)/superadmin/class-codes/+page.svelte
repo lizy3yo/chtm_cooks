@@ -1556,70 +1556,69 @@
 	<!-- ── ALL CLASSES TAB ─────────────────────────────────────────────────── -->
 	{#if activeTab === 'all'}
 		<!-- Stats Cards -->
-		<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 			{#if loading && classCodes.length === 0}
 				{#each Array(4) as _}
-					<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-						<div class="animate-pulse space-y-3">
-							<div class="flex items-center justify-between">
-								<div class="h-4 w-24 rounded bg-gray-200"></div>
-								<div class="h-8 w-8 rounded-lg bg-gray-200"></div>
-							</div>
-							<div class="h-9 w-16 rounded bg-gray-200"></div>
-							<div class="h-3 w-32 rounded bg-gray-200"></div>
+					<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+						<div class="animate-pulse space-y-2">
+							<div class="h-3 w-20 rounded bg-gray-200"></div>
+							<div class="h-7 w-12 rounded bg-gray-200"></div>
+							<div class="h-3 w-28 rounded bg-gray-200"></div>
 						</div>
 					</div>
 				{/each}
 			{:else}
-			<div
-				class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-			>
-				<div class="flex items-center justify-between">
-					<p class="text-sm font-medium text-gray-500">Total Classes</p>
-					<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100">
-						<BookOpen size={16} class="text-gray-600" />
+			<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Classes</p>
+						<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{stats.totalClasses}</p>
+						<p class="mt-0.5 text-xs text-gray-500">{stats.activeClasses} active · {stats.archivedClasses} archived</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12">
+						<BookOpen size={18} class="text-gray-600 sm:hidden" aria-hidden="true" />
+						<BookOpen size={24} class="hidden text-gray-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-gray-900">{stats.totalClasses}</p>
-				<p class="mt-1 text-xs text-gray-400">
-					{stats.activeClasses} active · {stats.archivedClasses} archived
-				</p>
 			</div>
-			<div
-				class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-			>
-				<div class="flex items-center justify-between">
-					<p class="text-sm font-medium text-gray-500">Total Students</p>
-					<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-pink-100">
-						<GraduationCap size={16} class="text-pink-600" />
+			<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Students</p>
+						<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">{stats.totalStudents.toLocaleString()}</p>
+						<p class="mt-0.5 text-xs text-gray-500">Enrolled across all classes</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+						<GraduationCap size={18} class="text-pink-600 sm:hidden" aria-hidden="true" />
+						<GraduationCap size={24} class="hidden text-pink-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-pink-600">{stats.totalStudents.toLocaleString()}</p>
-				<p class="mt-1 text-xs text-gray-400">Enrolled across all classes</p>
 			</div>
-			<div
-				class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-			>
-				<div class="flex items-center justify-between">
-					<p class="text-sm font-medium text-gray-500">Avg Class Size</p>
-					<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100">
-						<BarChart3 size={16} class="text-purple-600" />
+			<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Avg Class Size</p>
+						<p class="mt-1 text-2xl font-semibold text-purple-600 sm:mt-2 sm:text-3xl">{stats.avgClassSize}</p>
+						<p class="mt-0.5 text-xs text-gray-500">Students per class</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
+						<BarChart3 size={18} class="text-purple-600 sm:hidden" aria-hidden="true" />
+						<BarChart3 size={24} class="hidden text-purple-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-purple-600">{stats.avgClassSize}</p>
-				<p class="mt-1 text-xs text-gray-400">Students per class</p>
 			</div>
-			<div
-				class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-			>
-				<div class="flex items-center justify-between">
-					<p class="text-sm font-medium text-gray-500">Instructors</p>
-					<div class="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100">
-						<UserCheck size={16} class="text-blue-600" />
+			<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Instructors</p>
+						<p class="mt-1 text-2xl font-semibold text-blue-600 sm:mt-2 sm:text-3xl">{stats.totalInstructors}</p>
+						<p class="mt-0.5 text-xs text-gray-500">Teaching this semester</p>
+					</div>
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+						<UserCheck size={18} class="text-blue-600 sm:hidden" aria-hidden="true" />
+						<UserCheck size={24} class="hidden text-blue-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-blue-600">{stats.totalInstructors}</p>
-				<p class="mt-1 text-xs text-gray-400">Teaching this semester</p>
 			</div>
 			{/if}
 		</div>

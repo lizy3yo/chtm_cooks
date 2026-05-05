@@ -165,52 +165,78 @@
 	</div>
 
 	<!-- Stats -->
-	<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-			<div class="flex justify-between items-start">
-				<p class="text-sm font-medium text-gray-500">Active Sessions (24h)</p>
-				<Globe size={16} class="text-emerald-500" />
+	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+		<div class="rounded-lg bg-white p-3 shadow transition hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Sessions (24h)</p>
+					{#if loading}
+						<div class="mt-1 h-7 w-14 rounded bg-gray-200 animate-pulse sm:mt-2"></div>
+					{:else}
+						<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">{stats.activeSessions}</p>
+					{/if}
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
+					<Globe size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
+					<Globe size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
+				</div>
 			</div>
-			{#if loading}
-				<div class="mt-2 h-9 w-16 rounded bg-gray-200 animate-pulse"></div>
-			{:else}
-				<p class="mt-2 text-3xl font-bold text-emerald-600">{stats.activeSessions}</p>
-			{/if}
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-			<div class="flex justify-between items-start">
-				<p class="text-sm font-medium text-gray-500">Failed Logins (24h)</p>
-				<ShieldAlert size={16} class="text-amber-500" />
+		<div class="rounded-lg bg-white p-3 shadow transition hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Failed Logins (24h)</p>
+					<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">{stats.failedLogins}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
+					<ShieldAlert size={18} class="text-amber-600 sm:hidden" aria-hidden="true" />
+					<ShieldAlert size={24} class="hidden text-amber-600 sm:block" aria-hidden="true" />
+				</div>
 			</div>
-			<p class="mt-2 text-3xl font-bold text-amber-600">{stats.failedLogins}</p>
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-			<div class="flex justify-between items-start">
-				<p class="text-sm font-medium text-gray-500">Blacklisted IPs</p>
-				<Lock size={16} class="text-red-500" />
+		<div class="rounded-lg bg-white p-3 shadow transition hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Blacklisted IPs</p>
+					<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">{stats.blockedIPs}</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
+					<Lock size={18} class="text-red-600 sm:hidden" aria-hidden="true" />
+					<Lock size={24} class="hidden text-red-600 sm:block" aria-hidden="true" />
+				</div>
 			</div>
-			<p class="mt-2 text-3xl font-bold text-red-600">{stats.blockedIPs}</p>
 		</div>
-		<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition hover:shadow-md">
-			<div class="flex justify-between items-start">
-				<p class="text-sm font-medium text-gray-500">System Risk Level</p>
-				<AlertTriangle size={16} class="text-emerald-500" />
+		<div class="rounded-lg bg-white p-3 shadow transition hover:shadow-md sm:p-5">
+			<div class="flex items-center justify-between gap-2">
+				<div class="min-w-0">
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">System Risk Level</p>
+					<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">Low</p>
+				</div>
+				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
+					<AlertTriangle size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
+					<AlertTriangle size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
+				</div>
 			</div>
-			<p class="mt-2 text-3xl font-bold text-emerald-600">Low</p>
 		</div>
 	</div>
 
 	<!-- Tabs -->
 	<div class="border-b border-gray-200 bg-white rounded-t-xl px-4 pt-2">
-		<nav class="-mb-px flex space-x-6">
-			<button onclick={() => activeTab = 'sessions'} class="flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === 'sessions' ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}">
-				<Users size={16} /> Active Sessions
+		<nav class="-mb-px flex" aria-label="Security tabs">
+			<button onclick={() => activeTab = 'sessions'} class="flex flex-1 items-center justify-center gap-2 border-b-2 py-3 text-xs font-medium transition-colors sm:flex-none sm:px-3 sm:text-sm {activeTab === 'sessions' ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}" aria-current={activeTab === 'sessions' ? 'page' : undefined}>
+				<Users size={15} aria-hidden="true" />
+				<span class="hidden sm:inline">Active Sessions</span>
+				<span class="sm:hidden">Sessions</span>
 			</button>
-			<button onclick={() => activeTab = 'failed-logins'} class="flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === 'failed-logins' ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}">
-				<AlertTriangle size={16} /> Failed Logins
+			<button onclick={() => activeTab = 'failed-logins'} class="flex flex-1 items-center justify-center gap-2 border-b-2 py-3 text-xs font-medium transition-colors sm:flex-none sm:px-3 sm:text-sm {activeTab === 'failed-logins' ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}" aria-current={activeTab === 'failed-logins' ? 'page' : undefined}>
+				<AlertTriangle size={15} aria-hidden="true" />
+				<span class="hidden sm:inline">Failed Logins</span>
+				<span class="sm:hidden">Failed</span>
 			</button>
-			<button onclick={() => activeTab = 'access-control'} class="flex items-center gap-2 border-b-2 px-1 py-3 text-sm font-medium transition-colors {activeTab === 'access-control' ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}">
-				<Shield size={16} /> Access Control
+			<button onclick={() => activeTab = 'access-control'} class="flex flex-1 items-center justify-center gap-2 border-b-2 py-3 text-xs font-medium transition-colors sm:flex-none sm:px-3 sm:text-sm {activeTab === 'access-control' ? 'border-pink-600 text-pink-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}" aria-current={activeTab === 'access-control' ? 'page' : undefined}>
+				<Shield size={15} aria-hidden="true" />
+				<span class="hidden sm:inline">Access Control</span>
+				<span class="sm:hidden">Access</span>
 			</button>
 		</nav>
 	</div>
@@ -376,7 +402,7 @@
 		{/if}
 
 		{#if activeTab === 'access-control'}
-			<div class="p-6 grid gap-8 lg:grid-cols-2">
+			<div class="p-4 grid gap-6 sm:p-6 lg:grid-cols-2 lg:gap-8">
 				<!-- System Policies -->
 				<div class="space-y-6">
 					<h3 class="text-lg font-bold text-gray-900 flex items-center gap-2 border-b border-gray-100 pb-2">

@@ -8,8 +8,11 @@
 		Info,
 		Edit,
 		Trash2,
+		Users,
 		UserCheck,
 		UserX,
+		UserRound,
+		UserPlus,
 		MoreVertical,
 		X,
 		RefreshCw,
@@ -18,6 +21,7 @@
 		Wifi,
 		WifiOff
 	} from 'lucide-svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import {
 		usersAPI,
 		type UserResponse,
@@ -565,12 +569,12 @@
 
 	function avatarColor(role: string) {
 		const map: Record<string, string> = {
-			student: 'from-blue-500 to-blue-700',
+			student: 'from-pink-500 to-rose-600',
 			instructor: 'from-violet-500 to-violet-700',
 			custodian: 'from-pink-500 to-rose-600',
 			superadmin: 'from-gray-700 to-gray-900'
 		};
-		return map[role] || 'from-gray-400 to-gray-600';
+		return map[role] || 'from-pink-500 to-rose-600';
 	}
 
 	function formatDate(d: string | Date | undefined) {
@@ -970,130 +974,131 @@
 	</div>
 {/if}
 
-<!-- ─── Edit User Slide-Over ─────────────────────────────────────────────────── -->
+<!-- ─── Edit User Modal ───────────────────────────────────────────────────────── -->
 {#if editUser}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
-	<!-- svelte-ignore a11y_click_events_have_key_events -->
-	<div
-		class="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm"
-		onclick={() => (editUser = null)}
-		role="presentation"
-	></div>
-	<div
-		class="fixed top-0 right-0 z-50 flex h-full w-full flex-col bg-white shadow-2xl sm:max-w-md"
-		role="dialog"
-		aria-modal="true"
-		aria-labelledby="edit-user-title"
-	>
-		<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-			<div>
-				<h2 id="edit-user-title" class="text-lg font-semibold text-gray-900">Edit User</h2>
-				<p class="text-xs text-gray-500">{editUser.email}</p>
-			</div>
-			<button
-				type="button"
-				onclick={() => (editUser = null)}
-				class="rounded-lg p-2 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
-				aria-label="Close edit user dialog"
-			>
-				<X size={20} />
-			</button>
-		</div>
-		<div class="flex-1 space-y-4 overflow-y-auto px-6 py-6">
-			<div class="grid gap-4 sm:grid-cols-2">
-				<div>
-					<label for="edit-first-name" class="block text-sm font-medium text-gray-700"
-						>First Name</label
-					>
-					<input
-						id="edit-first-name"
-						type="text"
-						bind:value={editForm.firstName}
-						class={inputCls}
-					/>
-				</div>
-				<div>
-					<label for="edit-last-name" class="block text-sm font-medium text-gray-700"
-						>Last Name</label
-					>
-					<input id="edit-last-name" type="text" bind:value={editForm.lastName} class={inputCls} />
-				</div>
-			</div>
-			<div>
-				<label for="edit-role" class="block text-sm font-medium text-gray-700">Role</label>
-				<select id="edit-role" bind:value={editForm.role} class={inputCls}>
-					<option value="student">Student</option>
-					<option value="instructor">Instructor</option>
-					<option value="custodian">Custodian</option>
-					<option value="superadmin">Superadmin</option>
-				</select>
-			</div>
-			{#if editForm.role === 'student'}
-				<div class="grid gap-4 sm:grid-cols-2">
-					<div>
-						<label for="edit-year-level" class="block text-sm font-medium text-gray-700"
-							>Year Level</label
-						>
-						<select id="edit-year-level" bind:value={editForm.yearLevel} class={inputCls}>
-							<option value="">Select...</option>
-							<option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option
-								>4th Year</option
-							>
-						</select>
-					</div>
-					<div>
-						<label for="edit-block" class="block text-sm font-medium text-gray-700">Block</label>
-						<select id="edit-block" bind:value={editForm.block} class={inputCls}>
-							<option value="">Select...</option>
-							<option>A</option><option>B</option><option>C</option><option>D</option>
-						</select>
-					</div>
-				</div>
-			{/if}
+	<div class="fixed inset-0 z-50 overflow-y-auto">
+		<!-- Backdrop -->
+		<button
+			type="button"
+			class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+			onclick={() => (editUser = null)}
+			aria-label="Close modal"
+			tabindex="-1"
+		></button>
+
+		<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
 			<div
-				class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-4"
+				class="animate-scaleIn relative w-full max-w-lg overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="edit-user-title"
 			>
-				<div>
-					<p class="text-sm font-medium text-gray-900">Account Status</p>
-					<p class="text-xs text-gray-500">
-						{editForm.isActive ? 'User can access the system' : 'User is blocked from logging in'}
-					</p>
+				<!-- Header -->
+				<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
+					<div class="px-6 py-5">
+						<div class="flex items-start gap-4">
+							<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-pink-500 to-rose-600 shadow-lg shadow-pink-500/30">
+								<UserRound size={22} class="text-white" aria-hidden="true" />
+							</div>
+							<div class="min-w-0 flex-1">
+								<h2 id="edit-user-title" class="text-lg font-bold text-gray-900">Edit User</h2>
+								<p class="mt-0.5 text-sm text-gray-500 truncate">{editUser.email}</p>
+							</div>
+							<button
+								type="button"
+								onclick={() => (editUser = null)}
+								class="shrink-0 rounded-xl p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+								aria-label="Close edit user dialog"
+							>
+								<X size={20} />
+							</button>
+						</div>
+					</div>
 				</div>
-				<button
-					type="button"
-					onclick={() => (editForm.isActive = !editForm.isActive)}
-					class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none {editForm.isActive
-						? 'bg-emerald-500'
-						: 'bg-gray-300'}"
-					role="switch"
-					aria-checked={editForm.isActive}
-					aria-label="Toggle account status"
-				>
-					<span class="sr-only">{editForm.isActive ? 'Deactivate' : 'Activate'} account</span>
-					<span
-						class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 {editForm.isActive
-							? 'translate-x-5'
-							: 'translate-x-0'}"
-					></span>
-				</button>
+
+				<!-- Body -->
+				<div class="space-y-4 overflow-y-auto px-6 py-6">
+					<div class="grid gap-4 sm:grid-cols-2">
+						<div>
+							<label for="edit-first-name" class="block text-sm font-medium text-gray-700">First Name</label>
+							<input id="edit-first-name" type="text" bind:value={editForm.firstName} class={inputCls} />
+						</div>
+						<div>
+							<label for="edit-last-name" class="block text-sm font-medium text-gray-700">Last Name</label>
+							<input id="edit-last-name" type="text" bind:value={editForm.lastName} class={inputCls} />
+						</div>
+					</div>
+					<div>
+						<label for="edit-role" class="block text-sm font-medium text-gray-700">Role</label>
+						<select id="edit-role" bind:value={editForm.role} class={inputCls}>
+							<option value="student">Student</option>
+							<option value="instructor">Instructor</option>
+							<option value="custodian">Custodian</option>
+							<option value="superadmin">Superadmin</option>
+						</select>
+					</div>
+					{#if editForm.role === 'student'}
+						<div class="space-y-4 rounded-xl border border-pink-100 bg-pink-50 p-4">
+							<p class="text-sm font-semibold text-pink-900">Student Details</p>
+							<div class="grid gap-4 sm:grid-cols-2">
+								<div>
+									<label for="edit-year-level" class="block text-sm font-medium text-pink-800">Year Level</label>
+									<select id="edit-year-level" bind:value={editForm.yearLevel} class={inputCls}>
+										<option value="">Select year…</option>
+										<option>1st Year</option><option>2nd Year</option><option>3rd Year</option><option>4th Year</option>
+									</select>
+								</div>
+								<div>
+									<label for="edit-block" class="block text-sm font-medium text-pink-800">Block</label>
+									<select id="edit-block" bind:value={editForm.block} class={inputCls}>
+										<option value="">Select block…</option>
+										<option>A</option><option>B</option><option>C</option><option>D</option>
+									</select>
+								</div>
+							</div>
+						</div>
+					{/if}
+					<div class="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-4">
+						<div>
+							<p class="text-sm font-medium text-gray-900">Account Status</p>
+							<p class="text-xs text-gray-500">
+								{editForm.isActive ? 'User can access the system' : 'User is blocked from logging in'}
+							</p>
+						</div>
+						<button
+							type="button"
+							onclick={() => (editForm.isActive = !editForm.isActive)}
+							class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none {editForm.isActive ? 'bg-emerald-500' : 'bg-gray-300'}"
+							role="switch"
+							aria-checked={editForm.isActive}
+							aria-label="Toggle account status"
+						>
+							<span class="sr-only">{editForm.isActive ? 'Deactivate' : 'Activate'} account</span>
+							<span class="inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 {editForm.isActive ? 'translate-x-5' : 'translate-x-0'}"></span>
+						</button>
+					</div>
+				</div>
+
+				<!-- Footer -->
+				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-6 py-4">
+					<div class="flex justify-end gap-3">
+						<button
+							type="button"
+							onclick={() => (editUser = null)}
+							class="rounded-xl border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 active:scale-95"
+						>Cancel</button>
+						<button
+							type="button"
+							onclick={handleEditUser}
+							disabled={editLoading}
+							class="inline-flex items-center gap-2 rounded-xl bg-pink-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700 active:scale-95 disabled:opacity-60"
+						>
+							{#if editLoading}<RefreshCw size={15} class="animate-spin" aria-hidden="true" />{/if}
+							Save Changes
+						</button>
+					</div>
+				</div>
 			</div>
-		</div>
-		<div class="flex justify-end gap-3 border-t border-gray-200 px-6 py-4">
-			<button
-				type="button"
-				onclick={() => (editUser = null)}
-				class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-				>Cancel</button
-			>
-			<button
-				type="button"
-				onclick={handleEditUser}
-				disabled={editLoading}
-				class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-pink-700 disabled:opacity-60"
-			>
-				{#if editLoading}<RefreshCw size={16} class="animate-spin" aria-hidden="true" />{/if}
-				Save Changes
-			</button>
 		</div>
 	</div>
 {/if}
@@ -1138,51 +1143,69 @@
 		<div class="flex flex-col gap-4" role="tabpanel" id="{activeTab}-panel" aria-labelledby="{activeTab}-tab">
 			<!-- Stats -->
 			{#if activeTab === 'all'}
-				<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+				<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 					{#if loading && stats.total === 0}
 						{#each Array(4) as _}
-							<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-								<div class="animate-pulse space-y-3">
-									<div class="h-4 w-24 rounded bg-gray-200"></div>
-									<div class="h-9 w-16 rounded bg-gray-200"></div>
-									<div class="h-3 w-32 rounded bg-gray-200"></div>
+							<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+								<div class="animate-pulse space-y-2">
+									<div class="h-3 w-20 rounded bg-gray-200"></div>
+									<div class="h-7 w-12 rounded bg-gray-200"></div>
+									<div class="h-3 w-28 rounded bg-gray-200"></div>
 								</div>
 							</div>
 						{/each}
 					{:else}
-						<div
-							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-						>
-							<p class="text-sm font-medium text-gray-500">Total Users</p>
-							<p class="mt-2 text-3xl font-bold text-gray-900">{stats.total.toLocaleString()}</p>
-							<p class="mt-1 text-xs text-gray-400">All roles combined</p>
+						<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0">
+									<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Users</p>
+									<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{stats.total.toLocaleString()}</p>
+									<p class="mt-0.5 text-xs text-gray-500">All roles combined</p>
+								</div>
+								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12">
+									<Users size={18} class="text-gray-500 sm:hidden" aria-hidden="true" />
+									<Users size={24} class="hidden text-gray-500 sm:block" aria-hidden="true" />
+								</div>
+							</div>
 						</div>
-						<div
-							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-						>
-							<p class="text-sm font-medium text-gray-500">Active Users</p>
-							<p class="mt-2 text-3xl font-bold text-emerald-600">
-								{stats.active.toLocaleString()}
-							</p>
-							<p class="mt-1 text-xs text-gray-400">
-								{stats.total ? ((stats.active / stats.total) * 100).toFixed(1) : 0}% of total
-							</p>
+						<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0">
+									<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Users</p>
+									<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">{stats.active.toLocaleString()}</p>
+									<p class="mt-0.5 text-xs text-gray-500">{stats.total ? ((stats.active / stats.total) * 100).toFixed(1) : 0}% of total</p>
+								</div>
+								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
+									<UserCheck size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
+									<UserCheck size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
+								</div>
+							</div>
 						</div>
-						<div
-							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-						>
-							<p class="text-sm font-medium text-gray-500">Inactive Users</p>
-							<p class="mt-2 text-3xl font-bold text-gray-600">{stats.inactive.toLocaleString()}</p>
-							<p class="mt-1 text-xs text-amber-600">Require attention</p>
+						<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0">
+									<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Inactive Users</p>
+									<p class="mt-1 text-2xl font-semibold text-gray-600 sm:mt-2 sm:text-3xl">{stats.inactive.toLocaleString()}</p>
+									<p class="mt-0.5 text-xs text-amber-600">Require attention</p>
+								</div>
+								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
+									<UserX size={18} class="text-amber-500 sm:hidden" aria-hidden="true" />
+									<UserX size={24} class="hidden text-amber-500 sm:block" aria-hidden="true" />
+								</div>
+							</div>
 						</div>
-						<div
-							class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-						>
-							<p class="text-sm font-medium text-gray-500">New This Month</p>
-							<p class="mt-2 text-3xl font-bold text-pink-600">
-								{stats.newThisMonth.toLocaleString()}
-							</p>
-							<p class="mt-1 text-xs text-gray-400">Registered this month</p>
+						<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+							<div class="flex items-center justify-between gap-2">
+								<div class="min-w-0">
+									<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">New This Month</p>
+									<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">{stats.newThisMonth.toLocaleString()}</p>
+									<p class="mt-0.5 text-xs text-gray-500">Registered this month</p>
+								</div>
+								<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+									<UserPlus size={18} class="text-pink-500 sm:hidden" aria-hidden="true" />
+									<UserPlus size={24} class="hidden text-pink-500 sm:block" aria-hidden="true" />
+								</div>
+							</div>
 						</div>
 					{/if}
 				</div>
@@ -1574,38 +1597,14 @@
 
 					<!-- Pagination -->
 					{#if pagination.totalPages > 1}
-						<div
-							class="flex items-center justify-between border-t border-gray-200 bg-gray-50 px-6 py-4"
-						>
-							<p class="text-sm text-gray-500">
-								Showing {(pagination.page - 1) * pagination.limit + 1}–{Math.min(
-									pagination.page * pagination.limit,
-									pagination.total
-								)} of {pagination.total.toLocaleString()} users
-							</p>
-							<div class="flex gap-2">
-								<button
-									type="button"
-									onclick={() => {
-										pagination.page -= 1;
-										loadUsers();
-									}}
-									disabled={pagination.page <= 1}
-									class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-white disabled:opacity-40"
-									aria-label="Go to previous page">Previous</button
-								>
-								<button
-									type="button"
-									onclick={() => {
-										pagination.page += 1;
-										loadUsers();
-									}}
-									disabled={pagination.page >= pagination.totalPages}
-									class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-white disabled:opacity-40"
-									aria-label="Go to next page">Next</button
-								>
-							</div>
-						</div>
+						<Pagination
+							currentPage={pagination.page}
+							totalPages={pagination.totalPages}
+							totalItems={pagination.total}
+							itemsPerPage={pagination.limit}
+							onPageChange={(page) => { pagination.page = page; loadUsers(); }}
+							class="rounded-none border-x-0 border-b-0 border-t shadow-none"
+						/>
 					{/if}
 				{/if}
 			</div>

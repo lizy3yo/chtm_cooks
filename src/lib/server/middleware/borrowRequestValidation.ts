@@ -53,7 +53,9 @@ const DATE_CONSTRAINTS = {
 	MAX_BORROW_DAYS_AHEAD: 90, // Max 3 months in advance
 	MIN_BORROW_DURATION_HOURS: 1, // Minimum 1 hour
 	MAX_BORROW_DURATION_HOURS: 12, // Maximum 12 hours (same-day return policy)
-	SAME_DAY_RETURN_REQUIRED: true // Equipment must be returned same day
+	SAME_DAY_RETURN_REQUIRED: true, // Equipment must be returned same day
+	OPERATING_START_HOUR: 7,  // 7:00 AM
+	OPERATING_END_HOUR: 20    // 8:00 PM
 };
 
 /**
@@ -305,6 +307,30 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 		};
 	}
 
+	// Enforce operating hours: 8:00 AM – 5:00 PM
+	const borrowHour = borrow.getHours();
+	const borrowMinute = borrow.getMinutes();
+	const borrowTimeMinutes = borrowHour * 60 + borrowMinute;
+	const returnHourLocal = returns.getHours();
+	const returnMinuteLocal = returns.getMinutes();
+	const returnTimeMinutes = returnHourLocal * 60 + returnMinuteLocal;
+	const operatingStartMinutes = DATE_CONSTRAINTS.OPERATING_START_HOUR * 60; // 420
+	const operatingEndMinutes   = DATE_CONSTRAINTS.OPERATING_END_HOUR * 60;   // 1200
+
+	if (borrowTimeMinutes < operatingStartMinutes || borrowTimeMinutes > operatingEndMinutes) {
+		return {
+			valid: false,
+			error: `Pickup time must be between ${DATE_CONSTRAINTS.OPERATING_START_HOUR}:00 AM and ${DATE_CONSTRAINTS.OPERATING_END_HOUR === 12 ? '12:00 PM' : DATE_CONSTRAINTS.OPERATING_END_HOUR > 12 ? `${DATE_CONSTRAINTS.OPERATING_END_HOUR - 12}:00 PM` : `${DATE_CONSTRAINTS.OPERATING_END_HOUR}:00 AM`} (operating hours)`
+		};
+	}
+
+	if (returnTimeMinutes < operatingStartMinutes || returnTimeMinutes > operatingEndMinutes) {
+		return {
+			valid: false,
+			error: `Return time must be between ${DATE_CONSTRAINTS.OPERATING_START_HOUR}:00 AM and ${DATE_CONSTRAINTS.OPERATING_END_HOUR === 12 ? '12:00 PM' : DATE_CONSTRAINTS.OPERATING_END_HOUR > 12 ? `${DATE_CONSTRAINTS.OPERATING_END_HOUR - 12}:00 PM` : `${DATE_CONSTRAINTS.OPERATING_END_HOUR}:00 AM`} (operating hours)`
+		};
+	}
+
 	// Check return datetime is after borrow datetime
 	if (returns <= borrow) {
 		return {
@@ -329,16 +355,6 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 		return {
 			valid: false,
 			error: `Maximum borrow duration is ${DATE_CONSTRAINTS.MAX_BORROW_DURATION_HOURS} hours per day`
-		};
-	}
-
-	// Validate return time doesn't exceed end of day (23:59)
-	const returnHour = returns.getHours();
-	const returnMinute = returns.getMinutes();
-	if (returnHour > 23 || (returnHour === 23 && returnMinute > 59)) {
-		return {
-			valid: false,
-			error: 'Return time must be within the same day (before midnight)'
 		};
 	}
 
