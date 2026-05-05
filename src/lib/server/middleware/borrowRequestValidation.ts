@@ -294,12 +294,19 @@ export function validateDates(borrowDate: unknown, returnDate: unknown): Validat
 	const nowUtc = new Date();
 	const todayUtcStr = nowUtc.toISOString().slice(0, 10); // "YYYY-MM-DD" in UTC
 
+	// Add a 1-day buffer on each side to accommodate any UTC offset (UTC-12 to UTC+14).
+	// This ensures a client in any timezone can submit a request for their local "today"
+	// or "tomorrow" without the UTC server incorrectly rejecting it as past or too far ahead.
+	const minDate = new Date(nowUtc);
+	minDate.setUTCDate(minDate.getUTCDate() - 1); // yesterday UTC = today in UTC+14
+	const minDateStr = minDate.toISOString().slice(0, 10);
+
 	const maxDate = new Date(nowUtc);
-	maxDate.setUTCDate(maxDate.getUTCDate() + 2);
+	maxDate.setUTCDate(maxDate.getUTCDate() + 3); // +3 UTC = +2 in UTC-12 (westernmost)
 	const maxDateStr = maxDate.toISOString().slice(0, 10);
 
 	// ── 3. Date-range checks (string comparison is safe for YYYY-MM-DD) ───────
-	if (borrowDateStr < todayUtcStr) {
+	if (borrowDateStr < minDateStr) {
 		return { valid: false, error: 'Borrow date cannot be in the past' };
 	}
 
