@@ -190,10 +190,48 @@ let {
 										</svg>
 										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Approved By</p>
 									</div>
-									<p class="text-sm sm:text-base font-bold text-gray-900">{request.approvedBy}</p>
-									{#if request.approvedDate}
-										<p class="text-xs text-gray-500 mt-1">Approved on {request.approvedDate}</p>
+									{#if request.instructorData}
+										<div class="flex items-center gap-2.5">
+											<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200">
+												{#if request.instructorData.profilePhotoUrl}
+													<img src={request.instructorData.profilePhotoUrl} alt={request.instructorData.fullName} class="h-full w-full object-cover" loading="lazy" />
+												{:else}
+													{(request.instructorData.fullName ?? 'I').charAt(0).toUpperCase()}
+												{/if}
+											</div>
+											<div>
+												<p class="text-sm sm:text-base font-bold text-gray-900">{request.instructorData.fullName}</p>
+												{#if request.approvedDate}
+													<p class="text-xs text-gray-500 mt-0.5">Approved on {request.approvedDate}</p>
+												{/if}
+											</div>
+										</div>
+									{:else}
+										<p class="text-sm sm:text-base font-bold text-gray-900">{request.approvedBy}</p>
+										{#if request.approvedDate}
+											<p class="text-xs text-gray-500 mt-1">Approved on {request.approvedDate}</p>
+										{/if}
 									{/if}
+								</div>
+							{/if}
+							{#if request.custodianData}
+								<div class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 sm:p-4 transition-all hover:border-pink-200 hover:shadow-md col-span-1 sm:col-span-2">
+									<div class="flex items-center gap-1.5 sm:gap-2 mb-2">
+										<svg class="h-3.5 w-3.5 sm:h-4 sm:w-4 text-pink-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+										</svg>
+										<p class="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-gray-500">Custodian</p>
+									</div>
+									<div class="flex items-center gap-2.5">
+										<div class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200">
+											{#if request.custodianData.profilePhotoUrl}
+												<img src={request.custodianData.profilePhotoUrl} alt={request.custodianData.fullName} class="h-full w-full object-cover" loading="lazy" />
+											{:else}
+												{(request.custodianData.fullName ?? 'C').charAt(0).toUpperCase()}
+											{/if}
+										</div>
+										<p class="text-sm sm:text-base font-bold text-gray-900">{request.custodianData.fullName}</p>
+									</div>
 								</div>
 							{/if}
 						</div>
