@@ -64,6 +64,10 @@
 	let loading = $state(true);
 	let loadingReturn = $state<string | null>(null);
 	let loadingCancel = $state<string | null>(null);
+	let showAppealModal = $state(false);
+	let appealRequestTarget = $state<any>(null);
+	let appealReason = $state('');
+	let loadingAppeal = $state<string | null>(null);
 	let currentPage = $state(1);
 	// itemId → picture URL, back-filled from catalog for legacy requests
 	let itemPictureCache = $state<Map<string, string>>(new Map());
@@ -106,7 +110,8 @@
 		| 'missing'
 		| 'returned'
 		| 'rejected'
-		| 'cancelled' {
+		| 'cancelled'
+		| 'appealed' {
 		switch (status) {
 			case 'pending_instructor':
 				return 'pending';
@@ -126,6 +131,8 @@
 				return 'cancelled';
 			case 'rejected':
 				return isCancelledRequest(status, rejectionReason) ? 'cancelled' : 'rejected';
+			case 'pending_appeal':
+				return 'appealed';
 			default:
 				return 'approved';
 		}
@@ -161,7 +168,9 @@
 			releasedDate: request.releasedAt,
 			pickedUpDate: request.pickedUpAt,
 			returnedAt: request.returnedAt,
-			rejectionReason: request.rejectReason
+			rejectionReason: request.rejectReason,
+			appealReason: request.appealReason,
+			appealCount: request.appealCount ?? 0
 		};
 
 		console.log('[REQUEST-MAP] Mapped request:', {
@@ -401,6 +410,8 @@
 				return 'bg-slate-100 text-slate-800';
 			case 'rejected':
 				return 'bg-red-100 text-red-800';
+			case 'appealed':
+				return 'bg-violet-100 text-violet-800';
 			default:
 				return 'bg-gray-100 text-gray-800';
 		}
@@ -426,6 +437,8 @@
 				return CircleX;
 			case 'rejected':
 				return CircleX;
+			case 'appealed':
+				return RotateCcw;
 			default:
 				return Clock;
 		}
@@ -451,6 +464,8 @@
 				return 'border-slate-400';
 			case 'rejected':
 				return 'border-red-500';
+			case 'appealed':
+				return 'border-violet-500';
 			default:
 				return 'border-gray-200';
 		}
@@ -466,7 +481,8 @@
 			missing: 'Item Missing',
 			returned: 'Returned',
 			cancelled: 'Cancelled',
-			rejected: 'Rejected'
+			rejected: 'Rejected',
+			appealed: 'Appeal Submitted'
 		};
 		return labels[status] ?? status;
 	}
@@ -476,7 +492,7 @@
 			const isMyRequest = req.status === 'pending';
 			const isInstructorApproved = ['approved', 'ready'].includes(req.status);
 			const isActive = ['picked-up', 'pending-return', 'missing'].includes(req.status);
-			const isHistory = ['returned', 'rejected', 'cancelled'].includes(req.status);
+			const isHistory = ['returned', 'rejected', 'cancelled', 'appealed'].includes(req.status);
 
 			if (activeTab === 'my-request' && !isMyRequest) return false;
 			if (activeTab === 'instructor-approved' && !isInstructorApproved) return false;
@@ -540,7 +556,7 @@
 		'instructor-approved': requests.filter((r) => ['approved', 'ready'].includes(r.status)).length,
 		active: requests.filter((r) => ['picked-up', 'pending-return', 'missing'].includes(r.status))
 			.length,
-		history: requests.filter((r) => ['returned', 'rejected', 'cancelled'].includes(r.status)).length
+		history: requests.filter((r) => ['returned', 'rejected', 'cancelled', 'appealed'].includes(r.status)).length
 	});
 
 	const stats = $derived({
@@ -644,6 +660,45 @@
 		}
 	}
 
+	function openAppealModal(request: any) {
+		appealRequestTarget = request;
+		appealReason = '';
+		showAppealModal = true;
+	}
+
+	function closeAppealModal() {
+		showAppealModal = false;
+		appealRequestTarget = null;
+		appealReason = '';
+	}
+
+	async function submitAppeal() {
+		if (!appealRequestTarget || loadingAppeal) return;
+		if (appealReason.trim().length < 10) {
+			toastStore.error('Please provide a more detailed reason (at least 10 characters).');
+			return;
+		}
+
+		const requestId = appealRequestTarget.rawId;
+		loadingAppeal = requestId;
+
+		try {
+			await borrowRequestsAPI.appeal(requestId, appealReason.trim());
+			borrowRequestsAPI.invalidateCache();
+			await loadRequests(true);
+			closeAppealModal();
+			if (showDetailModal && selectedRequest?.rawId === requestId) {
+				closeDetailModal();
+			}
+			toastStore.success('Your appeal has been submitted. The instructor will review it shortly.');
+		} catch (error: any) {
+			console.error('Failed to submit appeal', error);
+			toastStore.error(error?.message || 'Failed to submit appeal. Please try again.');
+		} finally {
+			loadingAppeal = null;
+		}
+	}
+
 	function getApprovalTimeline(request: any) {
 		const timeline = [
 			{ step: 'Request Submitted', status: 'completed', date: request.requestDate, by: 'You' }
@@ -736,6 +791,25 @@
 				step: 'Request Rejected',
 				status: 'rejected',
 				date: request.requestDate,
+				by: request.instructor
+			});
+		} else if (request.status === 'appealed') {
+			timeline.push({
+				step: 'Request Rejected',
+				status: 'rejected',
+				date: request.requestDate,
+				by: request.instructor
+			});
+			timeline.push({
+				step: 'Appeal Submitted',
+				status: 'completed',
+				date: request.requestDate,
+				by: 'You'
+			});
+			timeline.push({
+				step: 'Instructor Review',
+				status: 'pending',
+				date: null,
 				by: request.instructor
 			});
 		}
@@ -1247,6 +1321,10 @@
 													{/if}
 													{#if request.status === 'rejected'}
 														<button
+															onclick={(e) => {
+																e.stopPropagation();
+																openAppealModal(request);
+															}}
 															class="rounded-lg border border-pink-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-pink-700 shadow-sm transition-colors hover:bg-pink-50"
 														>
 															Appeal
@@ -1437,6 +1515,10 @@
 													{/if}
 													{#if request.status === 'rejected'}
 														<button
+															onclick={(e) => {
+																e.stopPropagation();
+																openAppealModal(request);
+															}}
 															class="rounded-lg border border-pink-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-pink-700 shadow-sm transition-colors hover:bg-pink-50"
 														>
 															Appeal
@@ -2004,6 +2086,30 @@
 								</div>
 							</div>
 						{/if}
+
+						<!-- Appeal Submitted Banner -->
+						{#if selectedRequest.status === 'appealed' && selectedRequest.appealReason}
+							<div
+								class="rounded-2xl border-2 border-violet-200 bg-linear-to-br from-violet-50 to-violet-100/50 p-5"
+							>
+								<div class="flex gap-3">
+									<div
+										class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500"
+									>
+										<RotateCcw size={20} class="text-white" />
+									</div>
+									<div class="min-w-0 flex-1">
+										<p class="text-sm font-bold text-violet-900">Appeal Submitted</p>
+										<p class="mt-0.5 text-xs text-violet-700">
+											Your appeal is under instructor review.
+										</p>
+										<p class="mt-2 text-sm leading-relaxed text-violet-800">
+											{selectedRequest.appealReason}
+										</p>
+									</div>
+								</div>
+							</div>
+						{/if}
 					</div>
 				</div>
 
@@ -2061,11 +2167,154 @@
 
 						{#if selectedRequest.status === 'rejected'}
 							<button
+								onclick={() => openAppealModal(selectedRequest)}
 								class="rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] sm:px-6 sm:py-3"
 							>
 								Appeal Request
 							</button>
 						{/if}
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- Appeal Modal -->
+{#if showAppealModal && appealRequestTarget}
+	<div class="fixed inset-0 z-60 overflow-y-auto">
+		<div
+			class="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
+			onclick={closeAppealModal}
+			role="button"
+			tabindex="0"
+			onkeydown={(e) => {
+				if (e.key === 'Escape') closeAppealModal();
+			}}
+			aria-label="Close appeal modal"
+		></div>
+		<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
+			<div
+				class="animate-scaleIn relative w-full max-w-lg overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+			>
+				<!-- Header -->
+				<div class="border-b border-gray-200 bg-white px-5 py-5 sm:px-6 sm:py-6">
+					<div class="flex items-start justify-between gap-3">
+						<div class="flex items-start gap-3">
+							<div
+								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-violet-500 to-violet-600 shadow-lg shadow-violet-500/30"
+							>
+								<RotateCcw size={20} class="text-white" />
+							</div>
+							<div>
+								<h3 class="text-lg font-bold text-gray-900">Appeal Rejection</h3>
+								<p class="mt-0.5 font-mono text-xs font-semibold text-violet-600">
+									{appealRequestTarget.id}
+								</p>
+							</div>
+						</div>
+						<button
+							onclick={closeAppealModal}
+							class="rounded-xl p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95"
+							aria-label="Close"
+						>
+							<X size={18} />
+						</button>
+					</div>
+				</div>
+
+				<!-- Content -->
+				<div class="px-5 py-5 sm:px-6 sm:py-6">
+					<!-- Original rejection reason -->
+					{#if appealRequestTarget.rejectionReason}
+						<div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4">
+							<p class="mb-1 text-xs font-semibold text-red-700 uppercase tracking-wide">
+								Original Rejection Reason
+							</p>
+							<p class="text-sm text-red-800">{appealRequestTarget.rejectionReason}</p>
+						</div>
+					{/if}
+
+					<div class="space-y-4">
+						<div>
+							<label
+								for="appeal-reason"
+								class="mb-1.5 block text-sm font-semibold text-gray-700"
+							>
+								Appeal Reason
+								<span class="ml-1 font-normal text-gray-400">(required)</span>
+							</label>
+							<textarea
+								id="appeal-reason"
+								bind:value={appealReason}
+								rows="4"
+								maxlength="500"
+								placeholder="Explain why you believe this request should be reconsidered. Provide any additional context or clarification that may help the instructor review your appeal…"
+								class="block w-full rounded-xl border border-gray-300 px-3.5 py-3 text-sm leading-relaxed text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100 focus:outline-none resize-none"
+							></textarea>
+							<div class="mt-1.5 flex items-center justify-between">
+								<p class="text-xs text-gray-400">Minimum 10 characters</p>
+								<p
+									class="text-xs {appealReason.length > 450
+										? 'text-orange-500'
+										: 'text-gray-400'}"
+								>
+									{appealReason.length}/500
+								</p>
+							</div>
+						</div>
+
+						<div class="rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+							<div class="flex gap-2.5">
+								<Info size={16} class="mt-0.5 shrink-0 text-amber-600" />
+								<p class="text-xs leading-relaxed text-amber-800">
+									You may only appeal a rejected request once. The instructor will review your
+									appeal and either approve or uphold the rejection.
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Footer -->
+				<div
+					class="safe-area-bottom border-t border-gray-200 bg-gray-50/80 px-5 py-4 sm:px-6 sm:py-5"
+				>
+					<div class="flex items-center justify-end gap-3">
+						<button
+							onclick={closeAppealModal}
+							disabled={loadingAppeal === appealRequestTarget.rawId}
+							class="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+						>
+							Cancel
+						</button>
+						<button
+							onclick={submitAppeal}
+							disabled={appealReason.trim().length < 10 ||
+								loadingAppeal === appealRequestTarget.rawId}
+							class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-violet-600 to-violet-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-violet-700 hover:to-violet-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+						>
+							{#if loadingAppeal === appealRequestTarget.rawId}
+								<svg class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+									<circle
+										class="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										stroke-width="4"
+									></circle>
+									<path
+										class="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									></path>
+								</svg>
+								Submitting…
+							{:else}
+								Submit Appeal
+							{/if}
+						</button>
 					</div>
 				</div>
 			</div>

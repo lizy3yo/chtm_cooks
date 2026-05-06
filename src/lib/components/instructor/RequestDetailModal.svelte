@@ -262,27 +262,73 @@ let {
 							{/each}
 						</div>
 					</div>
+
+					<!-- Appeal Information (shown when request is a student appeal) -->
+					{#if request.isAppeal && request.appealReason}
+						<div>
+							<h3 class="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-gray-900">
+								<div class="h-1 w-1 rounded-full bg-violet-500"></div>
+								Student Appeal
+							</h3>
+							<!-- Original rejection reason -->
+							{#if request.rejectionReason}
+								<div class="mb-3 rounded-xl border border-red-200 bg-red-50 p-4">
+									<p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-red-700">Original Rejection Reason</p>
+									<p class="text-sm text-red-800">{request.rejectionReason}</p>
+								</div>
+							{/if}
+							<!-- Appeal reason -->
+							<div class="rounded-xl border-2 border-violet-200 bg-linear-to-br from-violet-50 to-violet-100/50 p-4 sm:p-5">
+								<div class="flex gap-3">
+									<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-500">
+										<svg class="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+										</svg>
+									</div>
+									<div class="min-w-0 flex-1">
+										<p class="text-sm font-bold text-violet-900">Student's Appeal Reason</p>
+										<p class="mt-1.5 text-sm leading-relaxed text-violet-800">{request.appealReason}</p>
+									</div>
+								</div>
+							</div>
+						</div>
+					{/if}
 				</div>
 			</div>
 			
 			<!-- Footer -->
 			<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm px-4 py-3 sm:px-8 sm:py-4">
-				{#if request.status === 'pending'}
-					<div class="flex items-center justify-end gap-3">
-						<button
-							onclick={() => onReject(request.rawId)}
-							disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
-							class="rounded-xl border-2 border-red-200 bg-white px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-red-600 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-						>
-							Reject Request
-						</button>
-						<button
-							onclick={() => onApprove(request.rawId)}
-							disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
-							class="rounded-xl bg-linear-to-r from-green-600 to-green-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-green-700 hover:to-green-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-						>
-							{isActionInFlight(request.rawId) ? 'Approving…' : 'Approve Request'}
-						</button>
+				{#if request.status === 'pending' || request.isAppeal}
+					<div class="flex items-center justify-between gap-3">
+						<div class="min-w-0">
+							{#if request.isAppeal}
+								<p class="text-xs font-semibold text-violet-700">
+									⚠ This is a student appeal — review the appeal reason before deciding.
+								</p>
+							{/if}
+						</div>
+						<div class="flex shrink-0 items-center gap-3">
+							<button
+								onclick={() => onReject(request.rawId)}
+								disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
+								class="rounded-xl border-2 border-red-200 bg-white px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-red-600 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								{request.isAppeal ? 'Uphold Rejection' : 'Reject Request'}
+							</button>
+							<button
+								onclick={() => onApprove(request.rawId)}
+								disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
+								class="rounded-xl bg-linear-to-r from-green-600 to-green-700 px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-white shadow-sm transition-all hover:from-green-700 hover:to-green-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+							>
+								{#if isActionInFlight(request.rawId)}
+									Approving…
+								{:else if request.isAppeal}
+									Approve Appeal
+								{:else}
+									Approve Request
+								{/if}
+							</button>
+						</div>
 					</div>
 				{/if}
 			</div>

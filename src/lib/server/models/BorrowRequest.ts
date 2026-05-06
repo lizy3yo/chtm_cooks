@@ -11,7 +11,8 @@ export enum BorrowRequestStatus {
 	RESOLVED = 'resolved',
 	RETURNED = 'returned',
 	CANCELLED = 'cancelled',
-	REJECTED = 'rejected'
+	REJECTED = 'rejected',
+	PENDING_APPEAL = 'pending_appeal'
 }
 
 export enum ItemInspectionStatus {
@@ -51,6 +52,9 @@ export interface BorrowRequest {
 	status: BorrowRequestStatus;
 	rejectReason?: string;
 	rejectionNotes?: string;
+	appealReason?: string;
+	appealedAt?: Date;
+	appealCount?: number;
 	approvedAt?: Date;
 	rejectedAt?: Date;
 	releasedAt?: Date;
@@ -95,6 +99,9 @@ export interface BorrowRequestResponse {
 	status: BorrowRequestStatus;
 	rejectReason?: string;
 	rejectionNotes?: string;
+	appealReason?: string;
+	appealedAt?: Date;
+	appealCount?: number;
 	approvedAt?: Date;
 	rejectedAt?: Date;
 	releasedAt?: Date;
@@ -155,6 +162,9 @@ export function toBorrowRequestResponse(request: BorrowRequest): BorrowRequestRe
 		status: request.status,
 		rejectReason: request.rejectReason,
 		rejectionNotes: request.rejectionNotes,
+		appealReason: request.appealReason,
+		appealedAt: request.appealedAt,
+		appealCount: request.appealCount,
 		approvedAt: request.approvedAt,
 		rejectedAt: request.rejectedAt,
 		releasedAt: request.releasedAt,
@@ -184,6 +194,14 @@ export function canTransitionStatus(
 				(actorRole === 'instructor' &&
 					(next === BorrowRequestStatus.APPROVED_INSTRUCTOR || next === BorrowRequestStatus.REJECTED)) ||
 				(actorRole === 'student' && next === BorrowRequestStatus.CANCELLED)
+			);
+		case BorrowRequestStatus.REJECTED:
+			// Students may appeal a rejected request once (up to the configured limit)
+			return actorRole === 'student' && next === BorrowRequestStatus.PENDING_APPEAL;
+		case BorrowRequestStatus.PENDING_APPEAL:
+			return (
+				actorRole === 'instructor' &&
+				(next === BorrowRequestStatus.APPROVED_INSTRUCTOR || next === BorrowRequestStatus.REJECTED)
 			);
 		case BorrowRequestStatus.APPROVED_INSTRUCTOR:
 			return actorRole === 'custodian' && next === BorrowRequestStatus.READY_FOR_PICKUP;

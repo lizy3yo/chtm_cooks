@@ -12,6 +12,7 @@ export type BorrowLifecycleEvent =
 	| 'submitted'
 	| 'approved'
 	| 'rejected'
+	| 'appealed'
 	| 'ready_for_pickup'
 	| 'picked_up'
 	| 'return_initiated'
@@ -45,7 +46,8 @@ const STATUS_LABELS: Record<BorrowRequestStatus, string> = {
 	resolved: 'Resolved',
 	returned: 'Returned',
 	cancelled: 'Cancelled',
-	rejected: 'Rejected'
+	rejected: 'Rejected',
+	pending_appeal: 'Appeal Submitted'
 };
 
 function requestCode(requestId: ObjectId): string {
@@ -92,6 +94,8 @@ function getNotificationType(event: BorrowLifecycleEvent) {
 			return 'borrow_request_cancelled';
 		case 'reminder_sent':
 			return 'borrow_request_reminder';
+		case 'appealed':
+			return 'borrow_request_appealed';
 		default:
 			return 'borrow_request_pending_review';
 	}
@@ -196,6 +200,19 @@ function buildCopy(event: BorrowLifecycleEvent, role: RoleAudience, requestStatu
 				message: `A due-date reminder was sent for this borrow request.`,
 				emailSummary: 'This is a reminder that your borrowed items are overdue for return.'
 			};
+		case 'appealed':
+			if (role === 'student') {
+				return {
+					title: `Appeal submitted (${code})`,
+					message: `Your appeal has been submitted and is pending instructor review.`,
+					emailSummary: 'Your appeal has been received and is awaiting instructor review.'
+				};
+			}
+			return {
+				title: `Student appeal requires review (${code})`,
+				message: `A student has appealed a rejected request. Please review the appeal.`,
+				emailSummary: 'A student has submitted an appeal for a rejected borrow request.'
+			};
 		default:
 			return {
 				title: `Request updated (${code})`,
@@ -251,7 +268,7 @@ async function getRecipients(
 		}
 	};
 
-	if (event === 'submitted' || event === 'cancelled') {
+	if (event === 'submitted' || event === 'cancelled' || event === 'appealed') {
 		await addRoleUsers('instructor');
 	}
 
