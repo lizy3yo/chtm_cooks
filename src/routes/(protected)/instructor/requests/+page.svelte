@@ -72,6 +72,7 @@
 	): 'pending' | 'fulfillment' | 'borrowed' | 'unresolved' | 'history' {
 		switch (status) {
 			case 'pending_instructor':
+			case 'pending_appeal':
 				return 'pending';
 			case 'approved_instructor':
 			case 'ready_for_pickup':
@@ -184,6 +185,9 @@
 			returnCondition: record.status === 'returned' ? 'Good' : undefined,
 			returnNotes: record.rejectionNotes,
 			rejectionReason: record.rejectReason,
+			appealReason: record.appealReason,
+			appealCount: record.appealCount ?? 0,
+			isAppeal: record.status === 'pending_appeal',
 			borrowingRecord: {
 				totalBorrowed: 0,
 				returnRate: 100,
@@ -1260,9 +1264,18 @@
 													{/if}
 												</div>
 												<div class="flex min-w-0 flex-col gap-1">
-													<span class="truncate font-semibold text-gray-900"
-														>{request.student.name}</span
-													>
+													<div class="flex items-center gap-1.5">
+														<span class="truncate font-semibold text-gray-900"
+															>{request.student.name}</span
+														>
+														{#if request.isAppeal}
+															<span
+																class="shrink-0 inline-flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700"
+															>
+																APPEAL
+															</span>
+														{/if}
+													</div>
 													<span class="truncate font-mono text-xs text-gray-500">{request.id}</span>
 												</div>
 											</div>
@@ -1438,9 +1451,18 @@
 												{/if}
 											</div>
 											<div class="min-w-0">
-												<p class="truncate text-sm font-semibold text-gray-900">
-													{request.student.name}
-												</p>
+												<div class="flex items-center gap-1.5">
+													<p class="truncate text-sm font-semibold text-gray-900">
+														{request.student.name}
+													</p>
+													{#if request.isAppeal}
+														<span
+															class="shrink-0 inline-flex items-center rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700"
+														>
+															APPEAL
+														</span>
+													{/if}
+												</div>
 												<p class="truncate text-xs text-gray-500">
 													{request.student.yearLevel} • Block {request.student.block}
 												</p>

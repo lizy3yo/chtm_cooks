@@ -39,7 +39,10 @@ export const POST: RequestHandler = async (event) => {
 		const now = new Date();
 
 		const updated = await collection.findOneAndUpdate(
-			{ _id: requestId, status: BorrowRequestStatus.PENDING_INSTRUCTOR },
+			{
+				_id: requestId,
+				status: { $in: [BorrowRequestStatus.PENDING_INSTRUCTOR, BorrowRequestStatus.PENDING_APPEAL] }
+			},
 			{
 				$set: {
 					status: BorrowRequestStatus.APPROVED_INSTRUCTOR,
@@ -53,7 +56,10 @@ export const POST: RequestHandler = async (event) => {
 		);
 
 		if (!updated) {
-			return json({ error: 'Borrow request is not in pending_instructor state' }, { status: 409 });
+			return json(
+				{ error: 'Borrow request is not in a pending or pending_appeal state' },
+				{ status: 409 }
+			);
 		}
 
 		await invalidateBorrowRequestCaches();

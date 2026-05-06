@@ -14,6 +14,7 @@ export type BorrowRequestRealtimeAction =
 	| 'created'
 	| 'approved'
 	| 'rejected'
+	| 'appealed'
 	| 'released'
 	| 'picked_up'
 	| 'return_initiated'

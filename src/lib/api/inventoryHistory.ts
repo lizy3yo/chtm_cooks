@@ -224,12 +224,14 @@ export const archivedItemsAPI = {
 		category?: string;
 		page?: number;
 		limit?: number;
+		forceRefresh?: boolean;
 	}): Promise<{ items: any[]; total: number; page: number; limit: number; pages: number }> {
 		const queryParams = new URLSearchParams();
 		if (params?.search) queryParams.set('search', params.search);
 		if (params?.category) queryParams.set('category', params.category);
 		if (params?.page) queryParams.set('page', params.page.toString());
 		if (params?.limit) queryParams.set('limit', params.limit.toString());
+		if (params?.forceRefresh) queryParams.set('_t', Date.now().toString());
 
 		const query = queryParams.toString();
 		const url = `/api/inventory/archived${query ? `?${query}` : ''}`;
@@ -258,11 +260,13 @@ export const deletedItemsAPI = {
 		search?: string;
 		page?: number;
 		limit?: number;
+		forceRefresh?: boolean;
 	}): Promise<{ items: DeletedItem[]; total: number; page: number; limit: number; pages: number }> {
 		const queryParams = new URLSearchParams();
 		if (params?.search) queryParams.set('search', params.search);
 		if (params?.page) queryParams.set('page', params.page.toString());
 		if (params?.limit) queryParams.set('limit', params.limit.toString());
+		if (params?.forceRefresh) queryParams.set('_t', Date.now().toString());
 
 		const query = queryParams.toString();
 		const url = `/api/inventory/deleted${query ? `?${query}` : ''}`;

@@ -8,7 +8,6 @@ import { logger } from '$lib/server/utils/logger';
 import {
 	BorrowRequestStatus,
 	type BorrowRequest,
-	type RejectBorrowRequestRequest,
 	toBorrowRequestResponse
 } from '$lib/server/models/BorrowRequest';
 import {
@@ -19,6 +18,9 @@ import {
 	publishBorrowRequestRealtimeEvent
 } from '../../shared';
 import { notifyBorrowRequestLifecycle } from '$lib/server/services/notifications';
+
+/** Maximum number of times a student may appeal a single request. */
+const MAX_APPEAL_COUNT = 1;
 
 export const POST: RequestHandler = async (event) => {
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -31,8 +33,8 @@ export const POST: RequestHandler = async (event) => {
 		if (!user) {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
-		if (!['instructor', 'custodian', 'superadmin'].includes(user.role)) {
-			return json({ error: 'Forbidden: Instructor or custodian access required' }, { status: 403 });
+		if (user.role !== 'student') {
+			return json({ error: 'Forbidden: Only students may appeal a rejected request' }, { status: 403 });
 		}
 
 		const requestId = parseObjectId(event.params.id);
@@ -40,60 +42,79 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: 'Invalid request ID' }, { status: 400 });
 		}
 
-		const body = (await event.request.json()) as RejectBorrowRequestRequest;
+		const body = (await event.request.json()) as { reason?: string };
 		const reason = sanitizeInput(body.reason || '');
-		const notes = body.notes ? sanitizeInput(body.notes) : undefined;
-		if (reason.length < 3 || reason.length > 200) {
-			return json({ error: 'Reason must be between 3 and 200 characters' }, { status: 400 });
-		}
-		if (notes && notes.length > 500) {
-			return json({ error: 'Notes must be 500 characters or less' }, { status: 400 });
+		if (reason.length < 10 || reason.length > 500) {
+			return json(
+				{ error: 'Appeal reason must be between 10 and 500 characters' },
+				{ status: 400 }
+			);
 		}
 
 		const db = await getDatabase();
 		const collection = db.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION);
 		const now = new Date();
 
-		const allowedCurrentStatuses = user.role === 'custodian'
-			? [BorrowRequestStatus.APPROVED_INSTRUCTOR]
-			: [BorrowRequestStatus.PENDING_INSTRUCTOR, BorrowRequestStatus.PENDING_APPEAL];
+		// Fetch the request first to validate ownership and appeal count
+		const existing = await collection.findOne({
+			_id: requestId,
+			studentId: new ObjectId(user.userId),
+			status: BorrowRequestStatus.REJECTED
+		});
 
-		const actorUpdateFields = user.role === 'custodian'
-			? { custodianId: new ObjectId(user.userId) }
-			: { instructorId: new ObjectId(user.userId) };
+		if (!existing) {
+			return json(
+				{ error: 'Request not found or is not in a rejected state' },
+				{ status: 409 }
+			);
+		}
+
+		const currentAppealCount = existing.appealCount ?? 0;
+		if (currentAppealCount >= MAX_APPEAL_COUNT) {
+			return json(
+				{ error: 'This request has already been appealed and cannot be appealed again' },
+				{ status: 409 }
+			);
+		}
 
 		const updated = await collection.findOneAndUpdate(
-			{ _id: requestId, status: { $in: allowedCurrentStatuses } },
+			{
+				_id: requestId,
+				studentId: new ObjectId(user.userId),
+				status: BorrowRequestStatus.REJECTED
+			},
 			{
 				$set: {
-					status: BorrowRequestStatus.REJECTED,
-					...actorUpdateFields,
-					rejectReason: reason,
-					rejectionNotes: notes,
-					rejectedAt: now,
+					status: BorrowRequestStatus.PENDING_APPEAL,
+					appealReason: reason,
+					appealedAt: now,
 					updatedAt: now,
 					updatedBy: new ObjectId(user.userId)
-				}
+				},
+				$inc: { appealCount: 1 }
 			},
 			{ returnDocument: 'after' }
 		);
 
 		if (!updated) {
-			const requiredState = user.role === 'custodian' ? 'approved_instructor' : 'pending_instructor';
-			return json({ error: `Borrow request is not in ${requiredState} state` }, { status: 409 });
+			return json(
+				{ error: 'Failed to submit appeal. The request may have already been appealed.' },
+				{ status: 409 }
+			);
 		}
 
 		await invalidateBorrowRequestCaches();
-		publishBorrowRequestRealtimeEvent(updated, 'rejected', now);
+		publishBorrowRequestRealtimeEvent(updated, 'appealed', now);
 		await notifyBorrowRequestLifecycle({
 			db,
 			request: updated,
-			event: 'rejected',
-			contextNotes: [reason, notes].filter(Boolean).join(' | ')
+			event: 'appealed',
+			contextNotes: reason
 		});
+
 		return json(toBorrowRequestResponse(updated));
 	} catch (error) {
-		logger.error('Error rejecting borrow request', { error });
-		return json({ error: 'Failed to reject borrow request' }, { status: 500 });
+		logger.error('Error submitting borrow request appeal', { error });
+		return json({ error: 'Failed to submit appeal' }, { status: 500 });
 	}
 };

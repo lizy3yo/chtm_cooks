@@ -43,7 +43,8 @@ export function isBorrowRequestStatus(value: string): boolean {
 	       'resolved',
 	       'returned',
 	       'cancelled',
-	       'rejected'
+	       'rejected',
+	       'pending_appeal'
        ].includes(value);
 }
 

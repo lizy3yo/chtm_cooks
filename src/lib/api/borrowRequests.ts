@@ -11,12 +11,14 @@ export type BorrowRequestStatus =
 	| 'resolved'
 	| 'returned'
 	| 'cancelled'
-	| 'rejected';
+	| 'rejected'
+	| 'pending_appeal';
 
 export type BorrowRequestRealtimeAction =
 	| 'created'
 	| 'approved'
 	| 'rejected'
+	| 'appealed'
 	| 'released'
 	| 'picked_up'
 	| 'return_initiated'
@@ -93,6 +95,9 @@ export interface BorrowRequestRecord {
 	status: BorrowRequestStatus;
 	rejectReason?: string;
 	rejectionNotes?: string;
+	appealReason?: string;
+	appealedAt?: string;
+	appealCount?: number;
 	approvedAt?: string;
 	rejectedAt?: string;
 	releasedAt?: string;
@@ -346,6 +351,17 @@ export const borrowRequestsAPI = {
 
 	async cancel(id: string): Promise<BorrowRequestRecord> {
 		const response = await fetch(`/api/borrow-requests/${id}`, getFetchOptions('DELETE'));
+		const data = await handleResponse<BorrowRequestRecord>(response);
+		invalidateAllCaches();
+		setCache(detailCache, id, data);
+		return data;
+	},
+
+	async appeal(id: string, reason: string): Promise<BorrowRequestRecord> {
+		const response = await fetch(
+			`/api/borrow-requests/${id}/appeal`,
+			getFetchOptions('POST', { reason })
+		);
 		const data = await handleResponse<BorrowRequestRecord>(response);
 		invalidateAllCaches();
 		setCache(detailCache, id, data);
