@@ -143,7 +143,9 @@
 			items: request.items.map((item) => ({
 				name: item.name,
 				itemId: item.itemId,
-				picture: item.picture || null
+				picture: item.picture || null,
+				code: item.itemId.slice(-6).toUpperCase(),
+				quantity: item.quantity
 			})),
 			status: uiStatus,
 			requestDate: request.createdAt,
@@ -1958,6 +1960,7 @@
 												src={pic}
 												alt={item.name}
 												class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-gray-100"
+												loading="lazy"
 											/>
 										{:else}
 											<div
@@ -1966,10 +1969,16 @@
 												<ItemImagePlaceholder size="sm" />
 											</div>
 										{/if}
-										<span
-											class="text-sm font-semibold text-gray-900 transition-colors group-hover:text-pink-600"
-											>{item.name}</span
-										>
+										<div class="min-w-0 flex-1">
+											<p
+												class="truncate text-sm font-semibold text-gray-900 transition-colors group-hover:text-pink-600"
+											>
+												{item.name}
+											</p>
+											<p class="mt-0.5 text-xs text-gray-500">
+												Code: {item.code} • Qty: {item.quantity}
+											</p>
+										</div>
 									</div>
 								{/each}
 							</div>

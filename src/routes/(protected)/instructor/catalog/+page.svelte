@@ -41,13 +41,34 @@
 		eomCount: 0
 	});
 	
+	/**
+	 * Condition → status mapping.
+	 * The data model stores availability as `status` (In Stock / Low Stock / Out of Stock).
+	 * We map the UI condition labels to those status values so the filter has real effect.
+	 */
+	const conditionStatusMap: Record<string, string[]> = {
+		Excellent: ['In Stock'],
+		Good:      ['In Stock', 'Low Stock'],
+		Fair:      ['Low Stock'],
+		Poor:      ['Out of Stock'],
+		Damaged:   ['Out of Stock']
+	};
+
+	// Client-side condition filter applied before pagination
+	const conditionFilteredItems = $derived.by(() => {
+		if (selectedCondition === 'all') return allItems;
+		const allowedStatuses = conditionStatusMap[selectedCondition];
+		if (!allowedStatuses) return allItems;
+		return allItems.filter((item) => allowedStatuses.includes(item.status));
+	});
+
 	// Client-side pagination
 	const itemsPerPageGrid = 20;
 	const itemsPerPageList = 10;
 	const itemsPerPage = $derived(viewMode === 'grid' ? itemsPerPageGrid : itemsPerPageList);
-	const totalPages = $derived(Math.max(1, Math.ceil(allItems.length / itemsPerPage)));
-	const filteredItems = $derived(allItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
-	const totalItems = $derived(allItems.length);
+	const totalPages = $derived(Math.max(1, Math.ceil(conditionFilteredItems.length / itemsPerPage)));
+	const filteredItems = $derived(conditionFilteredItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
+	const totalItems = $derived(conditionFilteredItems.length);
 	let selectedItemStockHealth = $derived.by(() => {
 		// minStock property not available on CatalogItem
 		return null;
@@ -630,8 +651,8 @@
 	{#if !isLoading}
 		<div class="flex items-center justify-between">
 			<p class="text-sm text-gray-700">
-				Showing <span class="font-medium">{allItems.length}</span>
-				{allItems.length === 1 ? 'item' : 'items'}
+				Showing <span class="font-medium">{conditionFilteredItems.length}</span>
+				{conditionFilteredItems.length === 1 ? 'item' : 'items'}
 			</p>
 			{#if searchQuery || selectedCategory !== 'all' || selectedAvailability !== 'all' || selectedCondition !== 'all'}
 				<button onclick={clearFilters} class="text-sm font-medium text-pink-600 hover:text-pink-700 transition-colors">
@@ -756,7 +777,7 @@
 	{/if}
 
 	<!-- Empty State -->
-	{#if !isLoading && allItems.length === 0}
+	{#if !isLoading && conditionFilteredItems.length === 0}
 		<div class="rounded-lg border border-gray-200 bg-gray-50 p-8 text-center sm:p-12">
 			<svg class="mx-auto h-10 w-10 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 				<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -770,7 +791,7 @@
 	{/if}
 
 	<!-- Pagination -->
-	{#if !isLoading && allItems.length > itemsPerPage}
+	{#if !isLoading && conditionFilteredItems.length > itemsPerPage}
 		<Pagination
 			{currentPage}
 			{totalPages}
