@@ -152,15 +152,16 @@
 	// Switch tabs
 	function switchTab(tab: Tab) {
 		activeTab = tab;
-		// Only load data if it hasn't been loaded yet
-		if (tab === 'activity-logs' && !activityLogsLoaded) {
+		// Always reload data when switching to a tab to ensure fresh state.
+		// forceRefresh=true bypasses the server cache so mutations are reflected immediately.
+		if (tab === 'activity-logs') {
 			loadActivityLogs();
-		} else if (tab === 'request-history' && !requestHistoryLoaded) {
+		} else if (tab === 'request-history') {
 			loadRequestHistory();
-		} else if (tab === 'archived' && !archivedLoaded) {
-			loadArchivedItems();
-		} else if (tab === 'deleted' && !deletedLoaded) {
-			loadDeletedItems();
+		} else if (tab === 'archived') {
+			loadArchivedItems(true);
+		} else if (tab === 'deleted') {
+			loadDeletedItems(true);
 		}
 	}
 
@@ -214,9 +215,9 @@
 				borrowRequestsAPI.invalidateCache();
 				await loadRequestHistory();
 			} else if (activeTab === 'archived') {
-				await loadArchivedItems();
+				await loadArchivedItems(true);
 			} else if (activeTab === 'deleted') {
-				await loadDeletedItems();
+				await loadDeletedItems(true);
 			}
 		} finally {
 			refreshInFlight = false;
@@ -272,12 +273,13 @@
 	}
 
 	// Load Archived Items
-	async function loadArchivedItems() {
+	async function loadArchivedItems(forceRefresh = false) {
 		try {
 			const response = await archivedItemsAPI.getArchived({
 				search: archivedSearch || undefined,
 				page: archivedPage,
-				limit: archivedLimit
+				limit: archivedLimit,
+				forceRefresh
 			});
 			archivedItems = response.items;
 			archivedTotal = response.total;
@@ -288,12 +290,13 @@
 	}
 
 	// Load Recently Deleted Items
-	async function loadDeletedItems() {
+	async function loadDeletedItems(forceRefresh = false) {
 		try {
 			const response = await deletedItemsAPI.getDeleted({
 				search: deletedSearch || undefined,
 				page: deletedPage,
-				limit: deletedLimit
+				limit: deletedLimit,
+				forceRefresh
 			});
 			deletedItems = response.items;
 			deletedTotal = response.total;
@@ -317,7 +320,7 @@
 		try {
 			await archivedItemsAPI.restore(item.id);
 			toastStore.success(`"${item.name}" has been restored to active inventory`);
-			await loadArchivedItems();
+			await loadArchivedItems(true);
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to restore item');
 		}
@@ -338,7 +341,7 @@
 		try {
 			await deletedItemsAPI.restore(item.id, item.type);
 			toastStore.success(`"${itemName}" has been restored successfully`);
-			await loadDeletedItems();
+			await loadDeletedItems(true);
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to restore item');
 		}
@@ -359,7 +362,7 @@
 		try {
 			await deletedItemsAPI.permanentlyDelete(item.id, item.type);
 			toastStore.success(`"${itemName}" has been permanently deleted`);
-			await loadDeletedItems();
+			await loadDeletedItems(true);
 		} catch (err: any) {
 			toastStore.error(err.message || 'Failed to permanently delete item');
 		}
@@ -1197,10 +1200,11 @@
 											<div class="flex items-center justify-center gap-2">
 												<button
 													onclick={() => restoreArchivedItem(item)}
-													class="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+													class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95"
+													title="Restore to active inventory"
 												>
-													<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 15L3 9m0 0l6-6m-6 6h12a6 6 0 010 12h-3"/>
+													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
 													</svg>
 													Restore
 												</button>
@@ -1370,19 +1374,21 @@
 											<div class="flex items-center justify-center gap-2">
 												<button
 													onclick={() => restoreDeletedItem(item)}
-													class="inline-flex items-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+													class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95"
+													title="Restore item"
 												>
-													<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 15L3 9m0 0l6-6m-6 6h12a6 6 0 010 12h-3"/>
+													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
 													</svg>
 													Restore
 												</button>
 												<button
 													onclick={() => permanentlyDelete(item)}
-													class="inline-flex items-center rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+													class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 active:scale-95"
+													title="Permanently delete — cannot be undone"
 												>
-													<svg class="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
 													</svg>
 													Delete Forever
 												</button>

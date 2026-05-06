@@ -3043,13 +3043,33 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm">
 							<div class="px-4 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-5">
 								<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-									<button
-										onclick={closeModal}
-										class="order-3 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] sm:order-1 sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-									>
-										Close
-									</button>
+									<div class="order-2 flex flex-row gap-2 sm:order-1">
+										<button
+											onclick={() => {
+												if (selectedItem) archiveItem(selectedItem);
+											}}
+											class="flex-1 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-amber-700 shadow-sm transition-all hover:bg-amber-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
+											title="Move item to archive. Recoverable from History."
+										>
+											Archive
+										</button>
+										<button
+											onclick={() => {
+												if (selectedItem) deleteItem(selectedItem);
+											}}
+											class="flex-1 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-red-600 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
+											title="Permanently delete item. Recoverable for 30 days."
+										>
+											Delete
+										</button>
+									</div>
 									<div class="order-1 flex flex-row gap-2 sm:order-2 sm:gap-2">
+										<button
+											onclick={closeModal}
+											class="order-3 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] sm:order-1 sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
+										>
+											Close
+										</button>
 										<button
 											onclick={() => {
 												if (selectedItem) toggleConstantStatus(selectedItem);
@@ -3057,11 +3077,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											class="flex-1 rounded-md border border-purple-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-purple-700 shadow-sm transition-all hover:bg-purple-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
 										>
 											{#if selectedItem.isConstant}
-												<span class="hidden sm:inline">Remove Constant</span>
-												<span class="sm:hidden">Remove Constant</span>
+												Remove Constant
 											{:else}
-												<span class="hidden sm:inline">Mark Constant</span>
-												<span class="sm:hidden">Mark Constant</span>
+												Mark Constant
 											{/if}
 										</button>
 										<button
@@ -3524,6 +3542,10 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
 											>Status</th
 										>
+										<th
+											class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Actions</th
+										>
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-gray-200 bg-white">
@@ -3608,6 +3630,31 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 														{item.status}
 													</span>
 												{/if}
+											</td>
+											<!-- Actions cell -->
+											<td class="px-4 py-4 text-right whitespace-nowrap" onclick={(e) => e.stopPropagation()}>
+												<div class="flex items-center justify-end gap-1">
+													<button
+														onclick={(e) => { e.stopPropagation(); archiveItem(item); }}
+														class="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-50 active:scale-95"
+														title="Archive item"
+													>
+														<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
+														</svg>
+														Archive
+													</button>
+													<button
+														onclick={(e) => { e.stopPropagation(); deleteItem(item); }}
+														class="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 active:scale-95"
+														title="Delete item (recoverable for 30 days)"
+													>
+														<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+														</svg>
+														Delete
+													</button>
+												</div>
 											</td>
 										</tr>
 									{/each}

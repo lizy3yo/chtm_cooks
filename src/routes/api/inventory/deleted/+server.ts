@@ -131,14 +131,17 @@ export const GET: RequestHandler = async (event) => {
 		const page = parseInt(url.searchParams.get('page') || '1');
 		const limit = parseInt(url.searchParams.get('limit') || '50');
 		const skip = (page - 1) * limit;
+		const bypassCache = url.searchParams.has('_t');
 
 		// Build cache key
 		const cacheKey = `inventory:deleted:${search || 'all'}:${page}:${limit}`;
 
-		// Check cache
-		const cached = await cacheService.get<any>(cacheKey);
-		if (cached) {
-			return json(cached);
+		// Check cache (skipped when caller requests a fresh fetch via _t param)
+		if (!bypassCache) {
+			const cached = await cacheService.get<any>(cacheKey);
+			if (cached) {
+				return json(cached);
+			}
 		}
 
 		// Connect to database
@@ -192,8 +195,8 @@ export const GET: RequestHandler = async (event) => {
 			pages: Math.ceil(total / limit)
 		};
 
-		// Cache for 12 hours to align with session timeout
-		await cacheService.set(cacheKey, response, { ttl: 43200 });
+		// Cache for 12 hours — tagged so invalidateByTags works on all cache providers including Upstash
+		await cacheService.set(cacheKey, response, { ttl: 43200, tags: ['inventory-deleted'] });
 
 		logger.info('Deleted items and categories retrieved', {
 			userId: decoded.userId,
@@ -302,6 +305,11 @@ export const POST: RequestHandler = async (event) => {
 				categoryName: deletedCategory.categoryData.name
 			});
 
+			// Invalidate all relevant caches
+			await Promise.all([
+				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
+			]);
+
 			return json({ success: true, message: 'Category restored successfully' });
 
 		} else {
@@ -357,6 +365,11 @@ export const POST: RequestHandler = async (event) => {
 				itemId: deletedItem.originalId.toString(),
 				itemName: deletedItem.itemData.name
 			});
+
+			// Invalidate all relevant caches
+			await Promise.all([
+				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
+			]);
 
 			return json({ success: true, message: 'Item restored successfully' });
 		}
@@ -463,6 +476,11 @@ export const DELETE: RequestHandler = async (event) => {
 				categoryName: deletedCategory.categoryData.name
 			});
 
+			// Invalidate all relevant caches
+			await Promise.all([
+				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
+			]);
+
 			return json({ success: true, message: 'Category permanently deleted' });
 
 		} else {
@@ -523,6 +541,11 @@ export const DELETE: RequestHandler = async (event) => {
 				itemId: deletedItem.originalId.toString(),
 				itemName: deletedItem.itemData.name
 			});
+
+			// Invalidate all relevant caches
+			await Promise.all([
+				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
+			]);
 
 			return json({ success: true, message: 'Item permanently deleted' });
 		}
