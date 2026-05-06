@@ -215,8 +215,9 @@ export const PATCH: RequestHandler = async (event) => {
 			return json({ error: 'Failed to update obligation' }, { status: 500 });
 		}
 
-		// Update inventory: Add replaced items back to stock
-		// This follows industry-standard inventory management where returned/replaced items are restocked
+		// Update inventory: Add replaced items back to stock quantity.
+		// The student has physically returned a replacement item, so it goes back into
+		// the available quantity — not donations, which tracks a separate flow.
 		if (sanitizedBody.resolutionType === ResolutionType.REPLACEMENT && sanitizedBody.amountPaid) {
 			try {
 				const inventoryUpdateResult = await db
@@ -225,7 +226,7 @@ export const PATCH: RequestHandler = async (event) => {
 						{ _id: obligation.itemId },
 						{
 							$inc: {
-								donations: sanitizedBody.amountPaid
+								quantity: sanitizedBody.amountPaid
 							},
 							$set: {
 								updatedAt: now,
