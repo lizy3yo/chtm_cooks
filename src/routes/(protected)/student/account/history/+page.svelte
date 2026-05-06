@@ -22,6 +22,7 @@ let selectedRequest = $state<any>(null);
 const statusOptions = [
 	{ value: '', label: 'All Statuses' },
 	{ value: 'returned', label: 'Returned' },
+	{ value: 'resolved', label: 'Resolved' },
 	{ value: 'cancelled', label: 'Cancelled' },
 	{ value: 'rejected', label: 'Rejected' }
 ];
@@ -31,7 +32,7 @@ async function loadHistory() {
 		loading = true;
 		let apiStatuses: string[];
 		if (!statusFilter) {
-			apiStatuses = ['returned', 'cancelled', 'rejected'];
+			apiStatuses = ['returned', 'resolved', 'cancelled', 'rejected'];
 		} else if (statusFilter === 'cancelled') {
 			apiStatuses = ['cancelled', 'rejected'];
 		} else {
@@ -90,6 +91,7 @@ function getStatusColor(status: string) {
 		'pending-return': 'bg-orange-100 text-orange-800 border-orange-200',
 		missing: 'bg-rose-100 text-rose-800 border-rose-200',
 		returned: 'bg-teal-100 text-teal-800 border-teal-200',
+		resolved: 'bg-emerald-100 text-emerald-800 border-emerald-200',
 		cancelled: 'bg-slate-100 text-slate-800 border-slate-200',
 		rejected: 'bg-red-100 text-red-800 border-red-200'
 	};
@@ -99,6 +101,7 @@ function getStatusColor(status: string) {
 function statusIcon(status: string) {
 	const map: Record<string, any> = {
 		returned: CheckCircle2,
+		resolved: ShieldCheck,
 		cancelled: XCircle,
 		rejected: XCircle
 	};
@@ -122,6 +125,7 @@ function toUiStatus(status: BorrowRequestRecord['status'], rejectionReason?: str
 		borrowed: 'picked-up',
 		pending_return: 'pending-return',
 		missing: 'missing',
+		resolved: 'resolved',
 		returned: 'returned',
 		cancelled: 'cancelled',
 		rejected: 'rejected'
@@ -137,6 +141,7 @@ function toStatusLabel(s: string): string {
 		'picked-up': 'Active Loan',
 		'pending-return': 'Return Initiated',
 		'missing': 'Item Missing',
+		'resolved': 'Resolved',
 		'returned': 'Returned',
 		'cancelled': 'Cancelled',
 		'rejected': 'Rejected'

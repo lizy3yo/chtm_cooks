@@ -108,6 +108,7 @@
 		| 'picked-up'
 		| 'pending-return'
 		| 'missing'
+		| 'resolved'
 		| 'returned'
 		| 'rejected'
 		| 'cancelled'
@@ -125,6 +126,8 @@
 				return 'pending-return';
 			case 'missing':
 				return 'missing';
+			case 'resolved':
+				return 'resolved';
 			case 'returned':
 				return 'returned';
 			case 'cancelled':
@@ -406,6 +409,8 @@
 				return 'bg-rose-100 text-rose-800';
 			case 'returned':
 				return 'bg-teal-100 text-teal-800';
+			case 'resolved':
+				return 'bg-emerald-100 text-emerald-800';
 			case 'cancelled':
 				return 'bg-slate-100 text-slate-800';
 			case 'rejected':
@@ -433,6 +438,8 @@
 				return CircleAlert;
 			case 'returned':
 				return CheckCircle2;
+			case 'resolved':
+				return FileCheck;
 			case 'cancelled':
 				return CircleX;
 			case 'rejected':
@@ -460,6 +467,8 @@
 				return 'border-rose-600';
 			case 'returned':
 				return 'border-teal-500';
+			case 'resolved':
+				return 'border-emerald-500';
 			case 'cancelled':
 				return 'border-slate-400';
 			case 'rejected':
@@ -480,6 +489,7 @@
 			'pending-return': 'Return Initiated',
 			missing: 'Item Missing',
 			returned: 'Returned',
+			resolved: 'Resolved',
 			cancelled: 'Cancelled',
 			rejected: 'Rejected',
 			appealed: 'Appeal Submitted'
@@ -492,7 +502,7 @@
 			const isMyRequest = req.status === 'pending';
 			const isInstructorApproved = ['approved', 'ready'].includes(req.status);
 			const isActive = ['picked-up', 'pending-return', 'missing'].includes(req.status);
-			const isHistory = ['returned', 'rejected', 'cancelled', 'appealed'].includes(req.status);
+			const isHistory = ['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(req.status);
 
 			if (activeTab === 'my-request' && !isMyRequest) return false;
 			if (activeTab === 'instructor-approved' && !isInstructorApproved) return false;
@@ -556,7 +566,7 @@
 		'instructor-approved': requests.filter((r) => ['approved', 'ready'].includes(r.status)).length,
 		active: requests.filter((r) => ['picked-up', 'pending-return', 'missing'].includes(r.status))
 			.length,
-		history: requests.filter((r) => ['returned', 'rejected', 'cancelled', 'appealed'].includes(r.status)).length
+		history: requests.filter((r) => ['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(r.status)).length
 	});
 
 	const stats = $derived({
