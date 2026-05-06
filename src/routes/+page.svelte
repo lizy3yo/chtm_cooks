@@ -22,18 +22,19 @@
 
 	let authCheckComplete = $state(false);
 	let diffPosition = $state(50);
-	let carouselEl: HTMLElement | null = $state(null);
+	let activeStep = $state(0);
+	const totalSteps = 6;
 
-	function scrollCarousel(direction: number) {
-		if (!carouselEl) return;
-		const scrollAmount = carouselEl.clientWidth;
-		carouselEl.scrollBy({ left: scrollAmount * direction, behavior: 'smooth' });
+	function nextStep() {
+		activeStep = (activeStep + 1) % totalSteps;
 	}
 
-	function scrollToSlide(index: number) {
-		if (!carouselEl) return;
-		const scrollAmount = carouselEl.clientWidth * index;
-		carouselEl.scrollTo({ left: scrollAmount, behavior: 'smooth' });
+	function prevStep() {
+		activeStep = (activeStep - 1 + totalSteps) % totalSteps;
+	}
+
+	function goToStep(index: number) {
+		activeStep = index;
 	}
 
 	$effect(() => {
@@ -146,76 +147,54 @@
 	<!-- ══ CORE FEATURES ════════════════════════════════ -->
 	<section id="core-features" class="guide-section features-modern">
 		<div class="section-wrap">
-			<div class="features-header">
-				<span class="section-chip gradient-chip">
-					<span class="chip-icon">✨</span>
-					Platform Essentials
-				</span>
-				<h2 class="section-heading gradient-text">Everything You Need</h2>
-				<p class="section-sub">
-					A complete suite of tools designed to make your laboratory experience seamless,
-					professional, and efficient.
-				</p>
+			<div class="flow-header">
+				<h2 class="section-heading flow-heading">Everything You Need</h2>
 			</div>
 
-			<div class="features-grid">
-				<!-- Dashboard Feature -->
-				<div class="feature-card card-primary" data-tilt>
-					<div class="card-glow"></div>
-					<div class="card-content">
-						<div class="feature-icon-wrapper">
-							<div class="icon-bg icon-bg-pink"></div>
-							<BarChart3 size={40} strokeWidth={2.5} class="feature-icon" />
-						</div>
-						<div class="feature-text">
-							<h3 class="feature-title">Dashboard & Trust Score</h3>
-							<p class="feature-desc">
-								Your personal hub. Track active loans, monitor due dates, and maintain your Trust
-								Score with on-time returns and performance metrics.
-							</p>
-							<div class="feature-stats">
-								<div class="stat-item">
-									<div class="stat-value">100%</div>
-									<div class="stat-label">Real-time</div>
-								</div>
-								<div class="stat-divider"></div>
-								<div class="stat-item">
-									<div class="stat-value">24/7</div>
-									<div class="stat-label">Monitoring</div>
-								</div>
-								<div class="stat-divider"></div>
-								<div class="stat-item">
-									<div class="stat-value">7-Day</div>
-									<div class="stat-label">Alerts</div>
-								</div>
-							</div>
-						</div>
-					</div>
-					<div class="card-shine"></div>
+			<div class="features-bento-grid">
+				<!-- Card 1 (Pink - Span 2) -->
+				<div class="bento-card bento-dark bento-span-2">
+					<h3 class="bento-title">Dashboard & Trust Score</h3>
+					<p class="bento-desc">
+						Your personal hub. Track active loans, monitor due dates, and maintain your Trust Score
+						with on-time returns and performance metrics.
+					</p>
 				</div>
 
-				<!-- Catalog Feature -->
-				<div class="feature-card card-secondary" data-tilt>
-					<div class="card-glow"></div>
-					<div class="card-content">
-						<div class="feature-icon-wrapper">
-							<div class="icon-bg icon-bg-purple"></div>
-							<Boxes size={40} strokeWidth={2.5} class="feature-icon" />
-						</div>
-						<div class="feature-text">
-							<h3 class="feature-title">Live Catalog</h3>
-							<p class="feature-desc">
-								Browse available equipment with real-time stock updates. Search, filter, and view
-								detailed specifications before adding items to your request.
-							</p>
-							<div class="feature-tags">
-								<span class="tag">Real-time Sync</span>
-								<span class="tag">Advanced Search</span>
-								<span class="tag">HD Photos</span>
-							</div>
-						</div>
-					</div>
-					<div class="card-shine"></div>
+				<!-- Card 2 (Light - Span 3) -->
+				<div class="bento-card bento-light bento-span-3">
+					<h3 class="bento-title">Live Equipment Catalog</h3>
+					<p class="bento-desc">
+						Browse available laboratory equipment with real-time stock updates. Search, filter, and
+						view detailed specifications before adding items to your request to avoid delays.
+					</p>
+				</div>
+
+				<!-- Card 3 (Light - Span 1) -->
+				<div class="bento-card bento-light bento-span-1-bot">
+					<h3 class="bento-title">Instructor Approvals</h3>
+					<p class="bento-desc">
+						Submit requests directly to your class instructor. Once approved, the system alerts the
+						custodian to prepare your items for pickup.
+					</p>
+				</div>
+
+				<!-- Card 4 (Light - Span 1) -->
+				<div class="bento-card bento-light bento-span-1-bot">
+					<h3 class="bento-title">Smart QR Codes</h3>
+					<p class="bento-desc">
+						Generate unique digital QR tickets instantly. Present your code at the custodian desk
+						for fast, contactless equipment claiming.
+					</p>
+				</div>
+
+				<!-- Card 5 (Pink - Span 1) -->
+				<div class="bento-card bento-dark bento-span-1-bot">
+					<h3 class="bento-title">Real-time Tracking</h3>
+					<p class="bento-desc">
+						Easily track your request status. Get live updates on approvals, preparation, and return
+						deadlines for a seamless borrowing experience.
+					</p>
 				</div>
 			</div>
 		</div>
@@ -232,26 +211,32 @@
 	<section id="request-flow" class="guide-section flow-section">
 		<div class="section-wrap">
 			<div class="flow-header">
-				<span class="section-chip gradient-chip">
-					<span class="chip-icon">📝</span>
-					Request Flow
-				</span>
 				<h2 class="section-heading flow-heading">How it works?</h2>
-				<p class="section-sub">
-					The entire borrowing process is 100% digital — from request to return in six clear steps.
-				</p>
 			</div>
 		</div>
 		<div class="carousel-container">
-			<div class="carousel-track" bind:this={carouselEl}>
+			<div class="carousel-stacked-track">
 				{#each requestSteps as s, index}
 					{@const Icon = s.icon}
-					<div class="carousel-slide">
-						<div class="flow-card" style="--card-index: {index}">
+					{@const isActive = index === activeStep}
+					{@const offset = index - activeStep}
+					{@const absOffset = Math.abs(offset)}
+					{@const isPast = offset < 0}
+
+					<!-- svelte-ignore a11y_click_events_have_key_events -->
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div
+						class="carousel-slide-stacked"
+						class:active={isActive}
+						class:past={isPast}
+						style="--offset: {offset}; --abs-offset: {absOffset}; z-index: {20 - absOffset};"
+						onclick={() => goToStep(index)}
+					>
+						<div class="flow-card">
 							<div class="card-number">0{s.step}</div>
 							<div class="card-inner">
 								<div class="flow-icon-wrapper">
-									<Icon size={64} strokeWidth={2} class="flow-icon" />
+									<Icon size={isActive ? 64 : 48} strokeWidth={2} class="flow-icon" />
 								</div>
 								<h3 class="flow-title">{s.title}</h3>
 								<p class="flow-description">{s.desc}</p>
@@ -263,10 +248,10 @@
 			</div>
 
 			<div class="carousel-nav">
-				<button class="nav-btn nav-prev" onclick={() => scrollCarousel(-1)} aria-label="Previous step">
+				<button class="nav-btn nav-prev" onclick={prevStep} aria-label="Previous step">
 					<ChevronLeft size={24} strokeWidth={2.5} />
 				</button>
-				<button class="nav-btn nav-next" onclick={() => scrollCarousel(1)} aria-label="Next step">
+				<button class="nav-btn nav-next" onclick={nextStep} aria-label="Next step">
 					<ChevronRight size={24} strokeWidth={2.5} />
 				</button>
 			</div>
@@ -275,8 +260,8 @@
 				{#each requestSteps as _, index}
 					<button
 						class="dot"
-						class:active={index === 0}
-						onclick={() => scrollToSlide(index)}
+						class:active={index === activeStep}
+						onclick={() => goToStep(index)}
 						aria-label="Go to step {index + 1}"
 					></button>
 				{/each}
@@ -287,12 +272,9 @@
 	<!-- ══ SMART FEATURES ════════════════════════════════ -->
 	<section id="smart-features" class="guide-section">
 		<div class="section-wrap">
-			<span class="section-chip">🚀 Smart Technology</span>
-			<h2 class="section-heading">Next-Gen Capabilities</h2>
-			<p class="section-sub">
-				Leverage cutting-edge AI and contactless features to streamline your entire borrowing
-				process.
-			</p>
+			<div class="flow-header">
+				<h2 class="section-heading flow-heading">Next-Gen Capabilities</h2>
+			</div>
 
 			<div class="diff-showcase" style="--pos: {diffPosition}%">
 				<!-- Base Layer: QR Code (Light Theme) -->
@@ -490,9 +472,10 @@
 		display: flex;
 		flex-direction: column;
 		justify-content: center;
-		padding: 5rem 1.5rem;
+		padding: 8rem 1.5rem 5rem;
 		overflow: hidden;
 		position: relative;
+		scroll-margin-top: 6rem;
 	}
 
 	.flow-section {
@@ -524,17 +507,6 @@
 		position: relative;
 		z-index: 2;
 	}
-	.section-chip {
-		display: inline-block;
-		font-size: 0.75rem;
-		font-weight: 700;
-		color: #e91e63;
-		background: rgba(233, 30, 99, 0.08);
-		padding: 0.35rem 0.9rem;
-		border-radius: 999px;
-		margin-bottom: 1rem;
-		letter-spacing: 0.03em;
-	}
 	.section-heading {
 		font-size: clamp(1.75rem, 4vw, 2.5rem);
 		font-weight: 900;
@@ -546,21 +518,6 @@
 	@media (max-width: 480px) {
 		.section-heading {
 			font-size: clamp(1.5rem, 6vw, 2rem);
-		}
-	}
-	.section-sub {
-		font-size: 1.05rem;
-		color: #78516a;
-		line-height: 1.7;
-		max-width: 600px;
-		margin: 0 0 2.5rem;
-	}
-
-	@media (max-width: 480px) {
-		.section-sub {
-			font-size: 0.9375rem;
-			line-height: 1.6;
-			margin: 0 0 2rem;
 		}
 	}
 
@@ -580,356 +537,130 @@
 
 	.features-modern {
 		position: relative;
-		background: linear-gradient(
-			180deg,
-			#ffffff 0%,
-			rgba(253, 232, 240, 0.2) 50%,
-			rgba(251, 182, 205, 0.3) 100%
-		);
+		background: #ffffff;
 		overflow: hidden;
 	}
 
-	.features-header {
-		text-align: center;
-		margin-bottom: 4rem;
-		position: relative;
-		z-index: 2;
-	}
-
-	.gradient-chip {
-		background: linear-gradient(135deg, rgba(233, 30, 99, 0.1), rgba(156, 39, 176, 0.1));
-		border: 1px solid rgba(233, 30, 99, 0.2);
-		backdrop-filter: blur(10px);
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-		padding: 0.5rem 1.25rem;
-		animation: float 3s ease-in-out infinite;
-	}
-
-	.chip-icon {
-		display: inline-block;
-		animation: sparkle 2s ease-in-out infinite;
-	}
-
-	@keyframes sparkle {
-		0%,
-		100% {
-			transform: scale(1) rotate(0deg);
-		}
-		50% {
-			transform: scale(1.2) rotate(180deg);
-		}
-	}
-
-	@keyframes float {
-		0%,
-		100% {
-			transform: translateY(0);
-		}
-		50% {
-			transform: translateY(-5px);
-		}
-	}
-
-	.gradient-text {
-		background: linear-gradient(135deg, #e91e63 0%, #9c27b0 100%);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		background-clip: text;
-		animation: gradient-shift 3s ease infinite;
-		background-size: 200% 200%;
-	}
-
-	@keyframes gradient-shift {
-		0%,
-		100% {
-			background-position: 0% 50%;
-		}
-		50% {
-			background-position: 100% 50%;
-		}
-	}
-
-	/* Features Grid */
-	.features-grid {
+	/* Bento Grid Layout */
+	.features-bento-grid {
 		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: 2rem;
+		grid-template-columns: repeat(15, 1fr);
+		gap: 1.5rem;
 		position: relative;
 		z-index: 2;
 	}
 
-	@media (max-width: 900px) {
-		.features-grid {
-			grid-template-columns: 1fr;
-			gap: 1.5rem;
-		}
-	}
-
-	/* Feature Card - Glassmorphism with 3D Tilt Effect */
-	.feature-card {
-		position: relative;
-		background: rgba(255, 255, 255, 0.7);
-		backdrop-filter: blur(20px);
-		border-radius: 2rem;
-		border: 1px solid rgba(255, 255, 255, 0.5);
+	.bento-card {
+		border-radius: 1rem;
 		padding: 2.5rem;
-		overflow: hidden;
-		transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-		transform-style: preserve-3d;
-		perspective: 1000px;
-	}
-
-	.feature-card::before {
-		content: '';
-		position: absolute;
-		inset: 0;
-		background: linear-gradient(
-			135deg,
-			rgba(233, 30, 99, 0.05) 0%,
-			rgba(156, 39, 176, 0.05) 100%
-		);
-		opacity: 0;
-		transition: opacity 0.4s ease;
-		border-radius: 2rem;
-	}
-
-	.feature-card:hover::before {
-		opacity: 1;
-	}
-
-	.feature-card:hover {
-		transform: translateY(-12px) scale(1.02);
-		box-shadow:
-			0 30px 60px rgba(233, 30, 99, 0.2),
-			0 0 0 1px rgba(233, 30, 99, 0.1);
-		border-color: rgba(233, 30, 99, 0.3);
-	}
-
-	@media (max-width: 480px) {
-		.feature-card {
-			padding: 2rem;
-		}
-	}
-
-	/* Card Glow Effect */
-	.card-glow {
-		position: absolute;
-		top: -50%;
-		left: -50%;
-		width: 200%;
-		height: 200%;
-		background: radial-gradient(
-			circle,
-			rgba(233, 30, 99, 0.15) 0%,
-			transparent 70%
-		);
-		opacity: 0;
-		transition: opacity 0.6s ease;
-		pointer-events: none;
-	}
-
-	.feature-card:hover .card-glow {
-		opacity: 1;
-		animation: glow-pulse 2s ease-in-out infinite;
-	}
-
-	@keyframes glow-pulse {
-		0%,
-		100% {
-			transform: scale(1);
-			opacity: 0.3;
-		}
-		50% {
-			transform: scale(1.1);
-			opacity: 0.6;
-		}
-	}
-
-	/* Card Shine Effect */
-	.card-shine {
-		position: absolute;
-		top: 0;
-		left: -100%;
-		width: 100%;
-		height: 100%;
-		background: linear-gradient(
-			90deg,
-			transparent 0%,
-			rgba(255, 255, 255, 0.4) 50%,
-			transparent 100%
-		);
-		transition: left 0.6s ease;
-		pointer-events: none;
-	}
-
-	.feature-card:hover .card-shine {
-		left: 100%;
-	}
-
-	/* Card Content */
-	.card-content {
-		position: relative;
-		z-index: 1;
-		display: flex;
-		flex-direction: column;
-		gap: 1.5rem;
-	}
-
-	/* Feature Icon */
-	.feature-icon-wrapper {
-		position: relative;
-		width: 80px;
-		height: 80px;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		margin-bottom: 0.5rem;
-	}
-
-	.icon-bg {
-		position: absolute;
-		inset: 0;
-		border-radius: 1.5rem;
-		opacity: 0.15;
-		transition: all 0.4s ease;
-	}
-
-	.icon-bg-pink {
-		background: linear-gradient(135deg, #e91e63, #f43f5e);
-	}
-
-	.icon-bg-purple {
-		background: linear-gradient(135deg, #9c27b0, #7b1fa2);
-	}
-
-	.feature-card:hover .icon-bg {
-		opacity: 0.25;
-		transform: rotate(10deg) scale(1.1);
-	}
-
-	.feature-card :global(.feature-icon) {
-		position: relative;
-		z-index: 1;
-		color: #e91e63;
-		transition: all 0.4s ease;
-	}
-
-	.card-secondary :global(.feature-icon) {
-		color: #9c27b0;
-	}
-
-	.feature-card:hover :global(.feature-icon) {
-		transform: scale(1.1) rotate(-5deg);
-		filter: drop-shadow(0 4px 12px rgba(233, 30, 99, 0.4));
-	}
-
-	/* Feature Text */
-	.feature-text {
 		display: flex;
 		flex-direction: column;
 		gap: 1rem;
+		transition:
+			transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+			box-shadow 0.3s ease;
 	}
 
-	.feature-title {
-		font-size: 1.75rem;
-		font-weight: 800;
+	.bento-card:hover {
+		transform: translateY(-4px);
+	}
+
+	.bento-dark {
+		background: linear-gradient(135deg, #e91e63, #c2185b); /* Signature pink gradient */
+		color: #ffffff;
+		box-shadow: 0 10px 30px rgba(233, 30, 99, 0.2);
+	}
+
+	.bento-dark:hover {
+		box-shadow: 0 20px 40px rgba(233, 30, 99, 0.3);
+	}
+
+	.bento-light {
+		background: #ffffff;
+		color: #111827;
+		border: 1px solid #f3f4f6;
+		box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+	}
+
+	.bento-light:hover {
+		box-shadow: 0 12px 24px -5px rgba(0, 0, 0, 0.05);
+		border-color: #e5e7eb;
+	}
+
+	/* Layout Proportions via 15-col grid */
+	.bento-span-2 {
+		grid-column: span 6; /* 40% width */
+	}
+
+	.bento-span-3 {
+		grid-column: span 9; /* 60% width */
+	}
+
+	.bento-span-1-bot {
+		grid-column: span 5; /* 33.3% width */
+	}
+
+	/* Text Styling */
+	.bento-title {
+		font-size: 1.375rem;
+		font-weight: 700;
+		margin: 0;
+		letter-spacing: -0.015em;
+		line-height: 1.3;
+	}
+
+	.bento-dark .bento-title {
+		color: #ffffff;
+	}
+
+	.bento-light .bento-title {
 		color: #1a0a12;
-		margin: 0;
-		letter-spacing: -0.02em;
-		line-height: 1.2;
 	}
 
-	@media (max-width: 480px) {
-		.feature-title {
-			font-size: 1.5rem;
-		}
-	}
-
-	.feature-desc {
-		font-size: 1rem;
-		color: #78516a;
-		line-height: 1.7;
+	.bento-desc {
+		font-size: 0.9375rem;
+		line-height: 1.6;
 		margin: 0;
 	}
 
-	@media (max-width: 480px) {
-		.feature-desc {
-			font-size: 0.9375rem;
+	.bento-dark .bento-desc {
+		color: rgba(255, 255, 255, 0.85);
+	}
+
+	.bento-light .bento-desc {
+		color: #4b5563;
+	}
+
+	@media (max-width: 1024px) {
+		/* Collapse to 2 columns on tablet */
+		.features-bento-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+		.bento-span-2,
+		.bento-span-3,
+		.bento-span-1-bot {
+			grid-column: span 1;
+		}
+		/* The last item takes full width on 2-col to avoid orphan */
+		.bento-card:last-child {
+			grid-column: span 2;
 		}
 	}
 
-	/* Feature Stats */
-	.feature-stats {
-		display: flex;
-		align-items: center;
-		gap: 1.5rem;
-		padding-top: 1.5rem;
-		border-top: 1px solid rgba(233, 30, 99, 0.1);
-	}
-
-	.stat-item {
-		display: flex;
-		flex-direction: column;
-		gap: 0.25rem;
-	}
-
-	.stat-value {
-		font-size: 1.5rem;
-		font-weight: 800;
-		background: linear-gradient(135deg, #e91e63, #f43f5e);
-		-webkit-background-clip: text;
-		-webkit-text-fill-color: transparent;
-		background-clip: text;
-		line-height: 1;
-	}
-
-	.stat-label {
-		font-size: 0.75rem;
-		color: #78516a;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-	}
-
-	.stat-divider {
-		width: 1px;
-		height: 40px;
-		background: linear-gradient(
-			180deg,
-			transparent 0%,
-			rgba(233, 30, 99, 0.2) 50%,
-			transparent 100%
-		);
-	}
-
-	/* Feature Tags */
-	.feature-tags {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 0.75rem;
-		padding-top: 1.5rem;
-		border-top: 1px solid rgba(156, 39, 176, 0.1);
-	}
-
-	.tag {
-		display: inline-flex;
-		align-items: center;
-		padding: 0.5rem 1rem;
-		background: rgba(156, 39, 176, 0.08);
-		border: 1px solid rgba(156, 39, 176, 0.15);
-		border-radius: 999px;
-		font-size: 0.8125rem;
-		font-weight: 600;
-		color: #7b1fa2;
-		transition: all 0.3s ease;
-	}
-
-	.tag:hover {
-		background: rgba(156, 39, 176, 0.15);
-		border-color: rgba(156, 39, 176, 0.3);
-		transform: translateY(-2px);
+	@media (max-width: 768px) {
+		/* Stack vertically on mobile */
+		.features-bento-grid {
+			grid-template-columns: 1fr;
+		}
+		.bento-span-2,
+		.bento-span-3,
+		.bento-span-1-bot,
+		.bento-card:last-child {
+			grid-column: span 1;
+		}
+		.bento-card {
+			padding: 2rem 1.5rem;
+		}
 	}
 
 	/* Animated Background Orbs */
@@ -945,7 +676,7 @@
 		position: absolute;
 		border-radius: 50%;
 		filter: blur(80px);
-		opacity: 0.3;
+		opacity: 0.15;
 		animation: float-orb 20s ease-in-out infinite;
 	}
 
@@ -970,7 +701,7 @@
 	.orb-3 {
 		width: 350px;
 		height: 350px;
-		background: radial-gradient(circle, rgba(244, 63, 94, 0.25), transparent);
+		background: radial-gradient(circle, rgba(59, 130, 246, 0.25), transparent);
 		top: 40%;
 		left: 50%;
 		animation-delay: 14s;
@@ -1054,9 +785,9 @@
 		z-index: 1;
 	}
 	.diff-ai {
-		background: linear-gradient(135deg, #1f0814 0%, #3a0d24 100%);
+		background: linear-gradient(135deg, #e91e63, #c2185b);
 		border: 1px solid rgba(233, 30, 99, 0.2);
-		box-shadow: 0 20px 40px rgba(233, 30, 99, 0.15);
+		box-shadow: 0 20px 40px rgba(233, 30, 99, 0.2);
 		z-index: 2;
 		will-change: clip-path;
 	}
@@ -1386,54 +1117,53 @@
 
 	@media (max-width: 900px) {
 		.diff-showcase {
-			min-height: 800px;
+			display: flex;
+			flex-direction: column;
+			gap: 2rem;
+			min-height: auto;
+			background: transparent;
+			box-shadow: none;
+			border: none;
+		}
+		.diff-item {
+			position: relative !important;
+			inset: auto !important;
+			clip-path: none !important;
+			width: 100% !important;
+			height: auto !important;
+			border-radius: 1.5rem;
+			box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+			overflow: hidden;
+		}
+		.diff-item.diff-qr {
+			background: #ffffff;
+			border: 1px solid #f3f4f6;
+		}
+		.diff-item.diff-ai {
+			background: linear-gradient(135deg, #e91e63, #c2185b);
+			border: 1px solid rgba(233, 30, 99, 0.2);
 		}
 		.diff-grid {
 			grid-template-columns: 1fr;
-			grid-template-rows: 1fr 1fr;
+			grid-template-rows: auto auto;
 		}
-		.diff-item.diff-ai {
-			clip-path: polygon(0 0, 100% 0, 100% var(--pos, 50%), 0 var(--pos, 50%)) !important;
-		}
-		.diff-content {
+		.diff-content,
+		.diff-visual {
+			width: 100%;
 			padding: 2rem;
-			align-items: flex-start;
+			align-items: center;
 		}
 		.diff-content-left,
 		.diff-content-right {
 			padding: 2rem;
 		}
-		.diff-visual {
-			padding: 2rem;
-			align-items: center;
-		}
-		.diff-resizer-handle {
-			left: 0 !important;
-			top: var(--pos, 50%);
-			width: 100%;
-			height: 0;
-		}
-		.handle-line {
-			top: -1.5px;
-			left: 10px;
-			right: 10px;
-			bottom: auto;
-			height: 3px;
-			width: auto;
-		}
-		.handle-knob {
-			flex-direction: column;
-			transform: translate(-50%, -50%) rotate(90deg);
-		}
+		.diff-resizer-handle,
 		.diff-range-input {
-			cursor: ns-resize;
+			display: none !important;
 		}
 	}
 
 	@media (max-width: 480px) {
-		.diff-showcase {
-			min-height: 700px;
-		}
 		.diff-content {
 			padding: 1.5rem;
 		}
@@ -1498,116 +1228,108 @@
 
 	.flow-header {
 		text-align: center;
-		margin-bottom: 4rem;
+		margin-bottom: 3.5rem;
+		position: relative;
+		z-index: 2;
 	}
 
 	.flow-heading {
 		color: #1a0a12;
 		font-size: clamp(2.5rem, 5vw, 4rem);
-		margin-bottom: 1rem;
+		margin-bottom: 0;
 	}
 
-	.flow-section .section-sub {
-		color: #78516a;
-		max-width: 700px;
-		margin-left: auto;
-		margin-right: auto;
-	}
+
 
 	.carousel-container {
 		position: relative;
 		width: 100%;
-		max-width: 1400px;
+		max-width: 1600px;
 		margin: 0 auto;
-		padding: 2rem 0 4rem;
+		padding: 0 0 4rem;
+		overflow: hidden;
 	}
 
-	.carousel-track {
+	.carousel-stacked-track {
+		position: relative;
+		height: 520px;
+		width: 100%;
+		max-width: 100%;
+		margin: 0 auto;
 		display: flex;
-		overflow-x: auto;
-		scroll-snap-type: x mandatory;
-		scroll-behavior: smooth;
-		scrollbar-width: none;
-		-ms-overflow-style: none;
-		gap: 2rem;
-		padding: 2rem 10%;
-	}
-
-	.carousel-track::-webkit-scrollbar {
-		display: none;
-	}
-
-	.carousel-slide {
-		flex: 0 0 100%;
-		scroll-snap-align: center;
-		display: flex;
+		align-items: center;
 		justify-content: center;
-		perspective: 1500px;
 	}
 
-	/* Flow Card - Glassmorphism with Pink Theme */
+	.carousel-slide-stacked {
+		position: relative;
+		height: 380px;
+		width: 290px;
+		transition: all 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+		cursor: pointer;
+		margin-left: -130px; /* Compress them heavily to overlap deeply */
+		flex-shrink: 0;
+	}
+
+	.carousel-slide-stacked:first-child {
+		margin-left: 0;
+	}
+
+	.carousel-slide-stacked.active {
+		height: 480px;
+		width: 390px;
+		margin-left: -30px;
+		margin-right: 30px;
+		cursor: default;
+	}
+
+	/* Flow Card - Stacked Theme */
 	.flow-card {
 		position: relative;
 		width: 100%;
-		max-width: 480px;
-		background: rgba(255, 255, 255, 0.85);
-		backdrop-filter: blur(20px);
-		border: 1px solid rgba(233, 30, 99, 0.2);
-		border-radius: 2rem;
-		padding: 3rem 2.5rem;
-		box-shadow:
-			0 20px 60px rgba(233, 30, 99, 0.15),
-			inset 0 1px 0 rgba(255, 255, 255, 0.8);
+		height: 100%;
+		background: #ffffff;
+		border: 1px solid rgba(233, 30, 99, 0.1);
+		border-radius: 1.5rem;
+		padding: 2rem 1.5rem;
+		box-shadow: 0 10px 40px rgba(0, 0, 0, 0.06);
 		transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-		transform-style: preserve-3d;
-		animation: cardFloat 3s ease-in-out infinite;
-		animation-delay: calc(var(--card-index) * 0.2s);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		text-align: center;
+		overflow: hidden;
 	}
 
-	@keyframes cardFloat {
-		0%,
-		100% {
-			transform: translateY(0) rotateY(0deg);
-		}
-		50% {
-			transform: translateY(-10px) rotateY(2deg);
-		}
-	}
-
-	.flow-card:hover {
-		transform: translateY(-20px) scale(1.03);
-		box-shadow:
-			0 30px 80px rgba(233, 30, 99, 0.25),
-			inset 0 1px 0 rgba(255, 255, 255, 1);
-		border-color: rgba(233, 30, 99, 0.4);
+	/* Active Card Styling */
+	.carousel-slide-stacked.active .flow-card {
+		background: linear-gradient(135deg, #e91e63, #c2185b);
+		border-color: rgba(233, 30, 99, 0.3);
+		box-shadow: 0 20px 50px rgba(233, 30, 99, 0.2);
+		padding: 3.5rem 2.5rem;
 	}
 
 	.card-gradient {
 		position: absolute;
 		inset: 0;
-		background: radial-gradient(
-			circle at top right,
-			rgba(244, 63, 94, 0.2) 0%,
-			transparent 60%
-		);
-		border-radius: 2rem;
+		background: radial-gradient(circle at top right, rgba(233, 30, 99, 0.15) 0%, transparent 60%);
+		border-radius: 1.5rem;
 		pointer-events: none;
-		opacity: 0;
-		transition: opacity 0.5s ease;
-	}
-
-	.flow-card:hover .card-gradient {
-		opacity: 1;
 	}
 
 	.card-number {
 		position: absolute;
 		top: 1.5rem;
-		right: 2rem;
-		font-size: 1rem;
+		right: 1.5rem;
+		font-size: 1.125rem;
 		font-weight: 700;
-		color: rgba(233, 30, 99, 0.3);
-		letter-spacing: 0.1em;
+		color: #9ca3af;
+		letter-spacing: 0.05em;
+		transition: color 0.4s ease;
+	}
+
+	.carousel-slide-stacked.active .card-number {
+		color: rgba(255, 255, 255, 0.6);
 	}
 
 	.card-inner {
@@ -1618,90 +1340,74 @@
 		align-items: center;
 		text-align: center;
 		gap: 1.5rem;
+		height: 100%;
+		justify-content: center;
 	}
 
 	.flow-icon-wrapper {
-		width: 140px;
-		height: 140px;
+		width: 100px;
+		height: 100px;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		background: linear-gradient(135deg, rgba(233, 30, 99, 0.1), rgba(244, 63, 94, 0.08));
-		border-radius: 50%;
-		border: 2px solid rgba(233, 30, 99, 0.2);
-		box-shadow:
-			0 10px 40px rgba(233, 30, 99, 0.2),
-			inset 0 1px 0 rgba(255, 255, 255, 0.5);
+		background: #f9fafb;
+		border-radius: 1rem;
+		border: 1px solid #f3f4f6;
 		transition: all 0.4s ease;
-		position: relative;
-		overflow: hidden;
+		margin-bottom: 1rem;
 	}
 
-	.flow-icon-wrapper::before {
-		content: '';
-		position: absolute;
-		inset: -50%;
-		background: conic-gradient(
-			from 0deg,
-			transparent 0deg,
-			rgba(233, 30, 99, 0.3) 90deg,
-			transparent 180deg
-		);
-		animation: iconRotate 3s linear infinite;
-		opacity: 0;
-		transition: opacity 0.4s ease;
-	}
-
-	.flow-card:hover .flow-icon-wrapper::before {
-		opacity: 1;
-	}
-
-	@keyframes iconRotate {
-		0% {
-			transform: rotate(0deg);
-		}
-		100% {
-			transform: rotate(360deg);
-		}
-	}
-
-	.flow-card:hover .flow-icon-wrapper {
-		transform: scale(1.1);
+	.carousel-slide-stacked.active .flow-icon-wrapper {
+		width: 140px;
+		height: 140px;
+		background: rgba(255, 255, 255, 0.2);
+		border: 1px solid rgba(255, 255, 255, 0.35);
 		box-shadow:
-			0 15px 50px rgba(233, 30, 99, 0.5),
-			inset 0 1px 0 rgba(255, 255, 255, 0.2);
-		border-color: rgba(233, 30, 99, 0.5);
+			0 10px 40px rgba(0, 0, 0, 0.1),
+			inset 0 1px 0 rgba(255, 255, 255, 0.3);
+		border-radius: 50%;
 	}
 
 	.flow-card :global(.flow-icon) {
 		color: #e91e63;
-		filter: drop-shadow(0 4px 12px rgba(233, 30, 99, 0.3));
 		transition: all 0.4s ease;
-		position: relative;
-		z-index: 1;
 	}
 
-	.flow-card:hover :global(.flow-icon) {
-		transform: scale(1.1) rotate(-5deg);
-		color: #c2185b;
+	.carousel-slide-stacked.active .flow-card :global(.flow-icon) {
+		color: #ffffff;
+		filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
 	}
 
 	.flow-title {
+		font-size: 1.5rem;
+		font-weight: 700;
+		color: #111827;
+		margin: 0;
+		letter-spacing: -0.015em;
+		line-height: 1.2;
+		transition: color 0.4s ease;
+	}
+
+	.carousel-slide-stacked.active .flow-title {
 		font-size: 2rem;
 		font-weight: 800;
-		color: #1a0a12;
-		margin: 0;
-		letter-spacing: -0.02em;
-		line-height: 1.2;
-		text-shadow: 0 2px 10px rgba(233, 30, 99, 0.1);
+		color: #ffffff;
+		text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
 	}
 
 	.flow-description {
-		font-size: 1.0625rem;
-		color: #78516a;
-		line-height: 1.7;
+		font-size: 0.9375rem;
+		color: #4b5563;
+		line-height: 1.6;
 		margin: 0;
-		max-width: 380px;
+		max-width: 320px;
+		transition: color 0.4s ease;
+		opacity: 1;
+	}
+
+	.carousel-slide-stacked.active .flow-description {
+		font-size: 1.0625rem;
+		color: rgba(255, 255, 255, 0.8);
 	}
 
 	/* Navigation Buttons */
@@ -1778,85 +1484,125 @@
 	}
 
 	/* Responsive Design */
-	@media (max-width: 768px) {
-		.carousel-track {
-			padding: 2rem 5%;
+	@media (max-width: 1024px) {
+		.carousel-stacked-track {
+			height: 440px;
+		}
+
+		.carousel-slide-stacked {
+			width: 220px;
+			height: 320px;
+			margin-left: -90px;
+		}
+
+		.carousel-slide-stacked.active {
+			width: 320px;
+			height: 420px;
+			margin-left: -20px;
+			margin-right: 20px;
 		}
 
 		.flow-card {
-			max-width: 400px;
-			padding: 2.5rem 2rem;
+			padding: 1.5rem 1.25rem;
 		}
 
 		.flow-icon-wrapper {
-			width: 120px;
-			height: 120px;
+			width: 80px;
+			height: 80px;
 		}
 
 		.flow-card :global(.flow-icon) {
-			width: 56px;
-			height: 56px;
+			width: 40px;
+			height: 40px;
 		}
 
 		.flow-title {
-			font-size: 1.75rem;
+			font-size: 1.25rem;
 		}
 
-		.flow-description {
-			font-size: 1rem;
+		.carousel-slide-stacked.active .flow-title {
+			font-size: 1.75rem;
+		}
+	}
+
+	@media (max-width: 768px) {
+		.carousel-stacked-track {
+			flex-direction: column;
+			height: auto;
+			padding: 0 5%;
+			gap: 1.5rem;
+		}
+
+		.carousel-slide-stacked,
+		.carousel-slide-stacked.active {
+			position: relative;
+			top: auto !important;
+			bottom: auto !important;
+			left: auto !important;
+			width: 100% !important;
+			height: auto !important;
+			min-height: 280px;
+			margin-left: 0 !important;
+			margin-right: 0 !important;
+			transform: none !important;
+			opacity: 1 !important;
+			pointer-events: none; /* Disable click-to-activate on mobile */
+		}
+
+		/* Reset active styling so they all look uniform on mobile vertical feed */
+		.carousel-slide-stacked .flow-card {
+			background: #ffffff !important;
+			box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05) !important;
+			padding: 2rem 1.5rem !important;
+			border-color: rgba(233, 30, 99, 0.1) !important;
+		}
+
+		.carousel-slide-stacked .card-number {
+			color: #9ca3af !important;
+		}
+
+		.carousel-slide-stacked .flow-title {
+			color: #111827 !important;
+			font-size: 1.5rem !important;
+			text-shadow: none !important;
+		}
+
+		.carousel-slide-stacked .flow-description {
+			color: #4b5563 !important;
+			font-size: 0.9375rem !important;
+		}
+
+		.carousel-slide-stacked .flow-icon-wrapper {
+			background: #f9fafb !important;
+			border: 1px solid #f3f4f6 !important;
+			width: 80px !important;
+			height: 80px !important;
+			box-shadow: none !important;
+			margin-bottom: 1rem;
+		}
+
+		.carousel-slide-stacked .flow-card :global(.flow-icon) {
+			filter: none !important;
+			width: 40px !important;
+			height: 40px !important;
 		}
 
 		.carousel-nav {
-			padding: 0 1rem;
+			display: none;
 		}
 
-		.nav-btn {
-			width: 48px;
-			height: 48px;
+		.carousel-dots {
+			display: none;
 		}
 	}
 
 	@media (max-width: 480px) {
 		.flow-section {
-			padding-bottom: 6rem;
+			padding-bottom: 4rem;
 		}
 
-		.carousel-track {
-			padding: 2rem 2%;
-		}
-
-		.flow-card {
-			max-width: 340px;
-			padding: 2rem 1.5rem;
-		}
-
-		.flow-icon-wrapper {
-			width: 100px;
-			height: 100px;
-		}
-
-		.flow-card :global(.flow-icon) {
-			width: 48px;
-			height: 48px;
-		}
-
-		.flow-title {
-			font-size: 1.5rem;
-		}
-
-		.flow-description {
-			font-size: 0.9375rem;
-		}
-
-		.card-number {
-			font-size: 0.875rem;
-			top: 1rem;
-			right: 1.5rem;
-		}
-
-		.nav-btn {
-			width: 44px;
-			height: 44px;
+		.carousel-stacked-track {
+			padding: 0 2%;
 		}
 	}
 </style>
