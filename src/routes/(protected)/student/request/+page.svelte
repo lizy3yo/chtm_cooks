@@ -7,12 +7,16 @@
 	import { subscribeToInventoryChanges, type InventoryRealtimeEvent } from '$lib/api/inventory';
 	import { subscribeToCartUpdates } from '$lib/api/cartStream';
 	import { borrowRequestsAPI } from '$lib/api/borrowRequests';
+	import { replacementObligationsAPI } from '$lib/api/replacementObligations';
 	import { donationsAPI } from '$lib/api/donations';
 	import { classCodesAPI, type ClassCodeResponse } from '$lib/api/classCodes';
 	import { requestCartStore, requestCartItems } from '$lib/stores/requestCart';
 	import { toastStore } from '$lib/stores/toast';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import SelectedItemsSkeletonLoader from '$lib/components/ui/SelectedItemsSkeletonLoader.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import CatalogItemModal from '$lib/components/ui/CatalogItemModal.svelte';
+	import type { CatalogCategory } from '$lib/api/catalog';
 	import { browser } from '$app/environment';
 
 	interface RequestItemOption {
@@ -86,6 +90,65 @@
 
 	// Form fields
 	let selectedItems = $state<SelectedRequestItem[]>([]);
+
+	// Pagination for the selected items list
+	const SELECTED_ITEMS_PAGE_SIZE = 5;
+	let selectedItemsPage = $state(1);
+
+	// Item detail preview modal
+	let previewItem = $state<SelectedRequestItem | null>(null);
+	// Photo lightbox (clicking the thumbnail directly)
+	let previewPhoto = $state<{ src: string; alt: string } | null>(null);
+
+	/** Map a SelectedRequestItem to the CatalogItem shape the modal expects */
+	function toModalItem(item: SelectedRequestItem) {
+		return {
+			id: item.id,
+			name: item.name,
+			category: item.category,
+			categoryId: item.id, // used as lookup key — matched by fake category array below
+			specification: item.specification,
+			toolsOrEquipment: 'Equipment',
+			picture: item.picture,
+			quantity: item.available,
+			eomCount: 0,
+			variance: 0,
+			status: item.available === 0 ? 'Out of Stock' : item.available <= 5 ? 'Low Stock' : 'In Stock',
+			archived: false,
+			isConstant: item.isConstant,
+			maxQuantityPerRequest: item.maxQuantityPerRequest,
+			createdAt: new Date(),
+			updatedAt: new Date()
+		};
+	}
+
+	/** Fake category array so the modal resolves the category name correctly */
+	const previewCategories = $derived.by((): CatalogCategory[] => {
+		if (!previewItem) return [];
+		return [{
+			id: previewItem.id,
+			name: previewItem.category,
+			itemCount: 0,
+			archived: false,
+			createdAt: new Date(),
+			updatedAt: new Date()
+		}];
+	});
+
+	const selectedItemsTotalPages = $derived(
+		Math.max(1, Math.ceil(selectedItems.length / SELECTED_ITEMS_PAGE_SIZE))
+	);
+
+	const paginatedSelectedItems = $derived.by(() => {
+		const start = (selectedItemsPage - 1) * SELECTED_ITEMS_PAGE_SIZE;
+		return selectedItems.slice(start, start + SELECTED_ITEMS_PAGE_SIZE);
+	});
+
+	// Reset to page 1 whenever the list changes (item added/removed)
+	$effect(() => {
+		selectedItems.length;
+		selectedItemsPage = 1;
+	});
 	let purpose = $state('lab-exercise');
 	let purposeDetails = $state('');
 	let usageLocation = $state<'school' | 'outdoor'>('school'); // Usage location: school or outdoor
@@ -99,17 +162,21 @@
 	let loadingClassCodes = $state(false);
 	let hasNoEnrollment = $state(false); // Track if student has no class enrollment
 
-	// Operating hours: 7:00 AM – 8:00 PM (07:00–20:00)
-	const OPERATING_START = '07:00'; // 7:00 AM
-	const OPERATING_END   = '20:00'; // 8:00 PM
+	// Obligation gate: block new requests until pending obligations are resolved
+	let hasUnresolvedObligations = $state(false);
+	let unresolvedObligationCount = $state(0);
 
-	/** Clamp a HH:MM string to the operating window [07:00, 20:00] */
+	// Operating hours: 8:00 AM – 5:00 PM (08:00–17:00)
+	const OPERATING_START = '08:00'; // 8:00 AM
+	const OPERATING_END   = '17:00'; // 5:00 PM
+
+	/** Clamp a HH:MM string to the operating window [08:00, 17:00] */
 	function clampToOperatingHours(time: string): string {
 		if (!time) return OPERATING_START;
 		const [h, m] = time.split(':').map(Number);
 		const minutes = h * 60 + m;
-		const startMinutes = 7 * 60;   // 420
-		const endMinutes   = 20 * 60;  // 1200
+		const startMinutes = 8 * 60;   // 480
+		const endMinutes   = 17 * 60;  // 1020
 		if (minutes < startMinutes) return OPERATING_START;
 		if (minutes > endMinutes)   return OPERATING_END;
 		return time;
@@ -123,13 +190,13 @@
 
 			const borrowMinutes = borrowHour * 60 + borrowMinute;
 			const returnMinutes = returnHour * 60 + returnMinute;
-			const endMinutes    = 20 * 60; // 8:00 PM
+			const endMinutes    = 17 * 60; // 5:00 PM
 
 			// If return time is not at least 1 hour after borrow time, auto-adjust
 			if (returnMinutes <= borrowMinutes + 60) {
 				let newMinutes = borrowMinutes + 60;
 
-				// Cap at 8:00 PM (operating hours end)
+				// Cap at 5:00 PM (operating hours end)
 				if (newMinutes > endMinutes) newMinutes = endMinutes;
 
 				const newHour   = Math.floor(newMinutes / 60);
@@ -740,6 +807,11 @@
 			errors.classCode = 'You must be enrolled in at least one class to submit equipment requests.';
 		}
 
+		// Block submission if student has unresolved replacement obligations
+		if (hasUnresolvedObligations) {
+			errors.obligations = `You have ${unresolvedObligationCount} unresolved replacement obligation${unresolvedObligationCount > 1 ? 's' : ''}. Please settle all outstanding cases before submitting a new request.`;
+		}
+
 		if (selectedItems.length === 0) {
 			errors.items = 'Please select at least one item';
 		}
@@ -784,8 +856,8 @@
 		} else {
 			const [bh, bm] = borrowTime.split(':').map(Number);
 			const bMinutes = bh * 60 + bm;
-			if (bMinutes < 7 * 60 || bMinutes > 20 * 60) {
-				errors.borrowTime = 'Pickup time must be between 7:00 AM and 8:00 PM';
+			if (bMinutes < 8 * 60 || bMinutes > 17 * 60) {
+				errors.borrowTime = 'Pickup time must be between 8:00 AM and 5:00 PM';
 			}
 		}
 
@@ -794,8 +866,8 @@
 		} else {
 			const [rh, rm] = returnTime.split(':').map(Number);
 			const rMinutes = rh * 60 + rm;
-			if (rMinutes < 7 * 60 || rMinutes > 20 * 60) {
-				errors.returnTime = 'Return time must be between 7:00 AM and 8:00 PM';
+			if (rMinutes < 8 * 60 || rMinutes > 17 * 60) {
+				errors.returnTime = 'Return time must be between 8:00 AM and 5:00 PM';
 			}
 		}
 
@@ -884,6 +956,23 @@
 		selectedClassCodeId = '';
 		errors = {};
 		requestCartStore.clear();
+	}
+
+	/**
+	 * Check whether the student has any pending replacement obligations.
+	 * Students with unresolved obligations (damaged/missing items) are blocked
+	 * from submitting new requests until all cases are settled.
+	 */
+	async function loadObligationStatus(): Promise<void> {
+		try {
+			const response = await replacementObligationsAPI.getObligations({ status: 'pending', limit: 1 });
+			unresolvedObligationCount = response.total;
+			hasUnresolvedObligations = response.total > 0;
+		} catch {
+			// Fail open — don't block the student if the check itself errors
+			hasUnresolvedObligations = false;
+			unresolvedObligationCount = 0;
+		}
 	}
 
 	/**
@@ -999,6 +1088,8 @@
 
 			// Load student's class codes
 			await loadStudentClassCodes();
+			// Check for pending replacement obligations
+			await loadObligationStatus();
 
 			if (cached) {
 				// Cache path: sync cart and revalidate in background
@@ -1225,6 +1316,8 @@
 <svelte:head>
 	<title>Request Equipment - Student Portal</title>
 </svelte:head>
+
+<svelte:window onkeydown={(e) => { if (e.key === 'Escape') { if (previewPhoto) { previewPhoto = null; } else if (previewItem) { previewItem = null; } } }} />
 
 <div class="space-y-6">
 	<!-- Page Header -->
@@ -1538,29 +1631,38 @@
 					<SelectedItemsSkeletonLoader count={3} />
 				{:else if selectedItems.length > 0}
 					<div class="space-y-2">
-						{#each selectedItems as item}
+						{#each paginatedSelectedItems as item}
+							<!-- svelte-ignore a11y_click_events_have_key_events -->
+							<!-- svelte-ignore a11y_no_static_element_interactions -->
 							<div
 								class="group rounded-lg border {item.available === 0
 									? 'border-amber-300 bg-amber-50'
-									: 'border-gray-200 bg-white'} p-2.5 transition-all hover:shadow-md"
+									: 'border-gray-200 bg-white'} p-2.5 transition-all hover:shadow-md cursor-pointer"
+								onclick={() => (previewItem = item)}
+								role="button"
+								tabindex="0"
+								onkeydown={(e) => e.key === 'Enter' && (previewItem = item)}
+								aria-label="View details for {item.name}"
 							>
 								<div class="flex items-start gap-2.5">
 									{#if item.picture}
-										<img
-											src={item.picture}
-											alt={item.name}
-											class="h-14 w-14 shrink-0 rounded-md object-cover ring-1 ring-gray-100 {item.available ===
-											0
-												? 'opacity-50'
-												: ''}"
-											loading="lazy"
-										/>
+										<button
+											type="button"
+											onclick={(e) => { e.stopPropagation(); previewPhoto = { src: item.picture!, alt: item.name }; }}
+											class="h-14 w-14 shrink-0 rounded-md overflow-hidden ring-1 ring-gray-100 cursor-zoom-in transition-opacity hover:opacity-80 focus:outline-none focus:ring-2 focus:ring-pink-500 {item.available === 0 ? 'opacity-50' : ''}"
+											title="View full photo"
+											aria-label="View full photo of {item.name}"
+										>
+											<img
+												src={item.picture}
+												alt={item.name}
+												class="h-full w-full object-cover"
+												loading="lazy"
+											/>
+										</button>
 									{:else}
 										<div
-											class="h-14 w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-gray-100 {item.available ===
-											0
-												? 'opacity-50'
-												: ''}"
+											class="h-14 w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-gray-100 {item.available === 0 ? 'opacity-50' : ''}"
 										>
 											<ItemImagePlaceholder size="sm" />
 										</div>
@@ -1679,7 +1781,7 @@
 										</div>
 
 										<!-- Quantity Controls -->
-										<div class="mt-2 flex items-center justify-between">
+										<div class="mt-2 flex items-center justify-between" onclick={(e) => e.stopPropagation()} role="none">
 											{#if item.available > 0}
 												<div class="flex items-center gap-1">
 													<!-- Decrement -->
@@ -1809,6 +1911,16 @@
 							</div>
 						{/each}
 					</div>
+					{#if selectedItems.length > SELECTED_ITEMS_PAGE_SIZE}
+						<Pagination
+							currentPage={selectedItemsPage}
+							totalPages={selectedItemsTotalPages}
+							totalItems={selectedItems.length}
+							itemsPerPage={SELECTED_ITEMS_PAGE_SIZE}
+							onPageChange={(p) => { selectedItemsPage = p; }}
+							class="mt-3"
+						/>
+					{/if}
 				{:else}
 					<div
 						class="rounded-xl border-2 border-dashed border-gray-300 bg-linear-to-br from-gray-50 to-gray-100 p-8 text-center"
@@ -1955,7 +2067,7 @@
 								{#if errors.borrowTime}
 									<p class="mt-1 text-xs text-red-600">{errors.borrowTime}</p>
 								{:else}
-									<p class="mt-1 text-xs text-gray-500">7:00 AM – 8:00 PM only</p>
+									<p class="mt-1 text-xs text-gray-500">8:00 AM – 5:00 PM only</p>
 								{/if}
 							</div>
 
@@ -2045,7 +2157,7 @@
 								{#if errors.returnTime}
 									<p class="mt-1 text-xs text-red-600">{errors.returnTime}</p>
 								{:else}
-									<p class="mt-1 text-xs text-gray-500">7:00 AM – 8:00 PM only</p>
+									<p class="mt-1 text-xs text-gray-500">8:00 AM – 5:00 PM only</p>
 								{/if}
 							</div>
 
@@ -2146,18 +2258,6 @@
 					<div class="mb-3 flex items-center justify-between">
 						<div class="flex items-center gap-2">
 							<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Class Code</h2>
-							<span
-								class="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-700"
-							>
-								<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-									<path
-										fill-rule="evenodd"
-										d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z"
-										clip-rule="evenodd"
-									/>
-								</svg>
-								REQUIRED
-							</span>
 						</div>
 						{#if loadingClassCodes}
 							<div class="flex items-center gap-2 text-xs text-gray-500">
@@ -2360,6 +2460,34 @@
 					</div>
 				</div>
 
+				<!-- Unresolved Obligations Gate -->
+				{#if hasUnresolvedObligations}
+					<div class="rounded-lg border border-red-200 bg-red-50 p-4 shadow-sm">
+						<div class="flex items-start gap-3">
+							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100">
+								<svg class="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+								</svg>
+							</div>
+							<div class="min-w-0 flex-1">
+								<p class="text-sm font-semibold text-red-800">Request Blocked</p>
+								<p class="mt-0.5 text-xs text-red-700 leading-relaxed">
+									You have <span class="font-bold">{unresolvedObligationCount} unresolved replacement {unresolvedObligationCount === 1 ? 'obligation' : 'obligations'}</span> from a previous loan. All outstanding cases must be settled before a new request can be submitted.
+								</p>
+								<a
+									href="/student/borrowed"
+									class="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
+								>
+									<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+									</svg>
+									View Obligations
+								</a>
+							</div>
+						</div>
+					</div>
+				{/if}
+
 				<!-- Terms and Conditions -->
 				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
 					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Terms & Conditions</h2>
@@ -2452,9 +2580,11 @@
 				<div class="flex flex-row gap-3">
 					<button
 						onclick={handleSubmit}
-						disabled={isSubmitting || hasNoEnrollment || availableClassCodes.length === 0}
+						disabled={isSubmitting || hasNoEnrollment || availableClassCodes.length === 0 || hasUnresolvedObligations}
 						class="inline-flex w-full items-center justify-center rounded-lg bg-pink-600 px-4 py-3 text-sm font-medium text-white hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-pink-600"
-						title={hasNoEnrollment || availableClassCodes.length === 0
+						title={hasUnresolvedObligations
+							? 'Resolve all outstanding obligations before submitting a new request'
+							: hasNoEnrollment || availableClassCodes.length === 0
 							? 'You must be enrolled in a class to submit requests'
 							: ''}
 					>
@@ -2466,7 +2596,9 @@
 								d="M5 13l4 4L19 7"
 							/>
 						</svg>
-						{#if hasNoEnrollment || availableClassCodes.length === 0}
+						{#if hasUnresolvedObligations}
+							Obligations Pending
+						{:else if hasNoEnrollment || availableClassCodes.length === 0}
 							Enrollment Required
 						{:else if isSubmitting}
 							Submitting...
@@ -2476,7 +2608,7 @@
 					</button>
 					<button
 						onclick={resetForm}
-						disabled={hasNoEnrollment || availableClassCodes.length === 0}
+						disabled={hasNoEnrollment || availableClassCodes.length === 0 || hasUnresolvedObligations}
 						class="inline-flex w-full items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
 					>
 						<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2494,3 +2626,57 @@
 		</div>
 	</div>
 </div>
+
+{#if previewItem}
+	{@const modalItem = toModalItem(previewItem)}
+	<CatalogItemModal
+		item={modalItem}
+		categories={previewCategories}
+		onClose={() => (previewItem = null)}
+		footerHint="Viewing item from your request list"
+	>
+		{#snippet footerAction()}
+			<span class="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600">
+				<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+				</svg>
+				In your request
+			</span>
+		{/snippet}
+	</CatalogItemModal>
+{/if}
+
+{#if previewPhoto}
+	<div
+		class="fixed inset-0 z-60 flex items-center justify-center p-4"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Full photo view"
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 bg-black/90 backdrop-blur-sm"
+			onclick={() => (previewPhoto = null)}
+			aria-hidden="true"
+		></div>
+		<div class="relative z-10 max-h-[90vh] max-w-[90vw]">
+			<button
+				type="button"
+				onclick={() => (previewPhoto = null)}
+				class="absolute -top-12 right-0 rounded-md p-2 text-white transition-colors hover:bg-white/10"
+				aria-label="Close photo"
+			>
+				<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+				</svg>
+			</button>
+			<img
+				src={previewPhoto.src}
+				alt={previewPhoto.alt}
+				class="max-h-[90vh] max-w-full rounded-lg shadow-2xl"
+			/>
+			<p class="mt-3 text-center text-sm font-medium text-white/80">{previewPhoto.alt}</p>
+		</div>
+	</div>
+{/if}
