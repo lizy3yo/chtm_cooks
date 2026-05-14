@@ -365,7 +365,7 @@ export const PATCH: RequestHandler = async (event) => {
 /**
  * DELETE /api/cart
  * Remove item from cart or clear entire cart
- * Note: Constant items cannot be removed individually
+ * Note: required items cannot be removed individually
  */
 export const DELETE: RequestHandler = async (event) => {
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
@@ -392,7 +392,7 @@ export const DELETE: RequestHandler = async (event) => {
 		const studentId = new ObjectId(user.userId);
 
 		if (!itemId) {
-			// Clear entire cart (removes all items including constant ones)
+			// Clear entire cart (removes all items including required ones)
 			await cartCollection.updateOne(
 				{ studentId },
 				{
@@ -411,28 +411,28 @@ export const DELETE: RequestHandler = async (event) => {
 			});
 		}
 
-		// Remove specific item - check if it's a constant item first
+		// Remove specific item - check if it's a required item first
 		const sanitizedItemId = sanitizeInput(itemId);
 		if (!ObjectId.isValid(sanitizedItemId)) {
 			return json({ error: 'Invalid itemId format' }, { status: 400 });
 		}
 
-		// Check if the item is a constant item in inventory
+		// Check if the item is a required item in inventory
 		const inventoryCollection = db.collection('inventory_items');
 		const inventoryItem = await inventoryCollection.findOne({
 			_id: new ObjectId(sanitizedItemId)
 		});
 
-		if (inventoryItem && inventoryItem.isConstant === true) {
-			logger.warn('Attempt to remove constant item from cart', {
+		if (inventoryItem && inventoryItem.isrequired === true) {
+			logger.warn('Attempt to remove required item from cart', {
 				userId: user.userId,
 				itemId: sanitizedItemId,
 				itemName: inventoryItem.name
 			});
 
 			return json({
-				error: 'Cannot remove constant items',
-				message: 'Constant items are required and cannot be removed from your request list. You can only adjust their quantity.'
+				error: 'Cannot remove required items',
+				message: 'required items are required and cannot be removed from your request list. You can only adjust their quantity.'
 			}, { status: 403 });
 		}
 

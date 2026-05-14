@@ -192,7 +192,7 @@ function createRequestCartStore() {
 
 		/**
 		 * Remove item from cart (persists to database)
-		 * Note: Constant items cannot be removed
+		 * Note: required items cannot be removed
 		 */
 		async removeItem(itemId: string): Promise<void> {
 			if (!browser) return;

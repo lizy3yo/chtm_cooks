@@ -20,7 +20,7 @@
 	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import { Package, FolderTree, AlertTriangle, Star } from 'lucide-svelte';
 
-	type Tab = 'all-items' | 'constant-items' | 'categories' | 'low-stock';
+	type Tab = 'all-items' | 'required-items' | 'categories' | 'low-stock';
 
 	let activeTab = $state<Tab>('all-items');
 	let showAddItemModal = $state(false);
@@ -55,7 +55,7 @@
 		pictureFile: null as File | null,
 		quantity: 0,
 		eomCount: 0,
-		isConstant: false,
+		isrequired: false,
 		maxQuantityPerRequest: undefined as number | undefined
 	});
 
@@ -689,7 +689,7 @@
 	const lowStockItems = $derived(
 		activeItems.filter((item) => item.status === 'Low Stock' || item.status === 'Out of Stock')
 	);
-	const constantItems = $derived(activeItems.filter((item) => item.isConstant === true));
+	const requiredItems = $derived(activeItems.filter((item) => item.isrequired === true));
 
 	function switchTab(tab: Tab) {
 		activeTab = tab;
@@ -872,9 +872,9 @@
 				picture: imageUrl,
 				quantity: newItem.quantity,
 				eomCount: newItem.eomCount,
-				isConstant: newItem.isConstant,
+				isrequired: newItem.isrequired,
 				maxQuantityPerRequest:
-					newItem.isConstant && newItem.maxQuantityPerRequest
+					newItem.isrequired && newItem.maxQuantityPerRequest
 						? Number(newItem.maxQuantityPerRequest)
 						: undefined
 			};
@@ -946,7 +946,7 @@
 			pictureFile: null,
 			quantity: 0,
 			eomCount: 0,
-			isConstant: false,
+			isrequired: false,
 			maxQuantityPerRequest: undefined
 		};
 		editingItemId = null;
@@ -964,7 +964,7 @@
 			pictureFile: null,
 			quantity: item.quantity,
 			eomCount: item.eomCount,
-			isConstant: item.isConstant || false,
+			isrequired: item.isrequired || false,
 			maxQuantityPerRequest: item.maxQuantityPerRequest
 		};
 		editingItemId = item.id;
@@ -989,17 +989,17 @@
 		);
 	}
 
-	async function toggleConstantStatus(item: InventoryItem) {
-		const newStatus = !item.isConstant;
+	async function togglerequiredStatus(item: InventoryItem) {
+		const newStatus = !item.isrequired;
 
 		// Confirm action with user
 		const confirmed = await confirmStore.confirm({
 			type: newStatus ? 'info' : 'warning',
-			title: newStatus ? 'Mark as Constant Item' : 'Remove from Constant Items',
+			title: newStatus ? 'Mark as required Item' : 'Remove from required Items',
 			message: newStatus
-				? `Mark "${item.name}" as a constant item? It will always appear on student request forms regardless of availability.`
-				: `Remove "${item.name}" from constant items? Students will need to manually add it to their requests.`,
-			confirmText: newStatus ? 'Mark as Constant' : 'Remove',
+				? `Mark "${item.name}" as a required item? It will always appear on student request forms regardless of availability.`
+				: `Remove "${item.name}" from required items? Students will need to manually add it to their requests.`,
+			confirmText: newStatus ? 'Mark as required' : 'Remove',
 			cancelText: 'Cancel'
 		});
 
@@ -1010,7 +1010,7 @@
 		try {
 			const operationLoading = loading; // Store current loading state
 			loading = true;
-			const updatedItem = await inventoryItemsAPI.update(item.id, { isConstant: newStatus });
+			const updatedItem = await inventoryItemsAPI.update(item.id, { isrequired: newStatus });
 
 			// Optimistic update: Update item in local array
 			const itemIndex = items.findIndex((i) => i.id === item.id);
@@ -1023,9 +1023,9 @@
 
 			toastStore.success(
 				newStatus
-					? `"${item.name}" is now a constant item and will always appear on student request forms`
-					: `"${item.name}" removed from constant items`,
-				'Constant Item Updated'
+					? `"${item.name}" is now a required item and will always appear on student request forms`
+					: `"${item.name}" removed from required items`,
+				'required Item Updated'
 			);
 
 			// Restore loading state if it wasn't loading before
@@ -1033,8 +1033,8 @@
 				loading = false;
 			}
 		} catch (err: any) {
-			toastStore.error(err.message || 'Failed to update constant status', 'Update Failed');
-			console.error('Error updating constant status:', err);
+			toastStore.error(err.message || 'Failed to update required status', 'Update Failed');
+			console.error('Error updating required status:', err);
 			loading = false;
 		}
 	}
@@ -2707,12 +2707,12 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
 												<span class="text-[10px] font-bold sm:text-xs">{selectedItem.status}</span>
 											</span>
-											{#if selectedItem.isConstant}
+											{#if selectedItem.isrequired}
 												<span
 													class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-purple-800 shadow-sm ring-1 ring-purple-200 sm:px-2.5 sm:py-1"
 												>
 													<Star class="h-2.5 w-2.5 fill-current sm:h-3 sm:w-3" />
-													<span class="text-[10px] font-bold sm:text-xs">Constant</span>
+													<span class="text-[10px] font-bold sm:text-xs">required</span>
 												</span>
 											{/if}
 										</div>
@@ -3072,14 +3072,14 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										</button>
 										<button
 											onclick={() => {
-												if (selectedItem) toggleConstantStatus(selectedItem);
+												if (selectedItem) togglerequiredStatus(selectedItem);
 											}}
 											class="flex-1 rounded-md border border-purple-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-purple-700 shadow-sm transition-all hover:bg-purple-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
 										>
-											{#if selectedItem.isConstant}
-												Remove Constant
+											{#if selectedItem.isrequired}
+												Remove required
 											{:else}
-												Mark Constant
+												Mark required
 											{/if}
 										</button>
 										<button
@@ -3182,7 +3182,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				? 'categories'
 				: activeTab === 'low-stock'
 					? 'low-stock'
-					: activeTab === 'constant-items'
+					: activeTab === 'required-items'
 						? 'all-items'
 						: 'all-items'}
 		/>
@@ -3240,9 +3240,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Constant Items</p>
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">required Items</p>
 						<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
-							{constantItems.length}
+							{requiredItems.length}
 						</p>
 					</div>
 					<div
@@ -3276,19 +3276,19 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				</button>
 
 				<button
-					onclick={() => switchTab('constant-items')}
+					onclick={() => switchTab('required-items')}
 					class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap transition-colors sm:text-sm
-					{activeTab === 'constant-items'
+					{activeTab === 'required-items'
 						? 'border-emerald-500 text-emerald-600'
 						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 				>
-					Constant
+					required
 					<span
-						class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'constant-items'
+						class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'required-items'
 							? 'bg-emerald-100 text-emerald-600'
 							: 'bg-gray-100 text-gray-600'}"
 					>
-						{constantItems.length}
+						{requiredItems.length}
 					</span>
 				</button>
 
@@ -3469,10 +3469,10 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												{item.specification || item.category}
 											</p>
 											<div class="mt-1 flex flex-wrap items-center gap-1">
-												{#if item.isConstant}
+												{#if item.isrequired}
 													<span
 														class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
-														>Constant</span
+														>required</span
 													>
 												{/if}
 												<span
@@ -3573,7 +3573,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 														{/if}
 													</div>
 													<div class="flex flex-col gap-0.5">
-														{#if item.isConstant}
+														{#if item.isrequired}
 															<span
 																class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-purple-800 uppercase ring-1 ring-purple-200"
 															>
@@ -3582,7 +3582,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 																		d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
 																	/></svg
 																>
-																Constant
+																required
 															</span>
 														{/if}
 														<div class="text-sm font-medium text-gray-900">{item.name}</div>
@@ -4170,17 +4170,17 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						</div>
 					</div>
 				{/if}
-			{:else if activeTab === 'constant-items'}
-				<!-- Constant Items View -->
+			{:else if activeTab === 'required-items'}
+				<!-- required Items View -->
 				<div class="p-4 sm:p-6">
 					<div class="mb-4">
-						<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Constant Items</h3>
+						<h3 class="text-base font-semibold text-gray-900 sm:text-lg">required Items</h3>
 						<p class="mt-1 text-sm text-gray-500">
 							Items that always appear on student request forms regardless of availability
 						</p>
 					</div>
 
-					{#if constantItems.length === 0}
+					{#if requiredItems.length === 0}
 						<div
 							class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white"
 							style="min-height: 600px;"
@@ -4204,10 +4204,10 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									</svg>
 								</div>
 								<h3 class="mt-6 text-lg font-semibold text-gray-900">
-									No constant items configured
+									No required items configured
 								</h3>
 								<p class="mx-auto mt-2 max-w-sm text-sm text-gray-600">
-									Mark items as constant from the Items tab to have them always appear on student
+									Mark items as required from the Items tab to have them always appear on student
 									request forms, regardless of stock availability.
 								</p>
 								<div class="mt-6 flex items-center justify-center gap-3">
@@ -4231,7 +4231,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					{:else}
 						<!-- Mobile card list -->
 						<div class="divide-y divide-gray-100 sm:hidden">
-							{#each constantItems as item, i}
+							{#each requiredItems as item, i}
 								<button
 									class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
 									onclick={() => openModal(item)}
@@ -4250,7 +4250,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											<div class="mt-1 flex flex-wrap items-center gap-1">
 												<span
 													class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
-													>Constant</span
+													>required</span
 												>
 												<span
 													class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800"
@@ -4326,7 +4326,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-gray-200 bg-white">
-									{#each constantItems as item, i}
+									{#each requiredItems as item, i}
 										<tr class="transition-colors hover:bg-gray-50">
 											<td class="px-6 py-4 whitespace-nowrap">
 												<div class="flex items-center gap-3">
@@ -4351,7 +4351,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 																	d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
 																/></svg
 															>
-															Constant
+															required
 														</span>
 														<div class="text-sm font-medium text-gray-900">{item.name}</div>
 													</div>
@@ -4442,9 +4442,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 														</svg>
 													</button>
 													<button
-														onclick={() => toggleConstantStatus(item)}
+														onclick={() => togglerequiredStatus(item)}
 														class="rounded p-1 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-800"
-														title="Remove from constant items"
+														title="Remove from required items"
 													>
 														<svg
 															class="h-4 w-4"
@@ -4707,23 +4707,23 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							</div>
 						</div>
 
-						<!-- Constant Item Checkbox -->
+						<!-- required Item Checkbox -->
 						<div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
 							<label class="flex cursor-pointer items-start gap-3">
 								<input
 									type="checkbox"
-									bind:checked={newItem.isConstant}
+									bind:checked={newItem.isrequired}
 									class="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
 								/>
 								<div class="flex-1">
-									<span class="text-sm font-medium text-gray-900">Mark as Constant Item</span>
+									<span class="text-sm font-medium text-gray-900">Mark as required Item</span>
 									<p class="mt-0.5 text-xs text-gray-600">
-										Constant items always appear on student request forms.
+										required items always appear on student request forms.
 									</p>
 								</div>
 							</label>
 
-							{#if newItem.isConstant}
+							{#if newItem.isrequired}
 								<div class="mt-3 border-t border-emerald-200 pt-3">
 									<label
 										for="maxQuantityPerRequest"

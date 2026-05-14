@@ -152,7 +152,7 @@ export const GET: RequestHandler = async (event) => {
             },
             // minimal placeholders for other sections so client can safely read
             lossAndDamage: { summary: { todayTotal: 0, todayMissing: 0, todayDamaged: 0, last7DaysTotal: 0, last7DaysMissing: 0, last7DaysDamaged: 0, mtdTotal: 0, mtdMissing: 0, mtdDamaged: 0, periodTotal: 0, periodMissing: 0, periodDamaged: 0 }, tracking: [] },
-            inventory: { summary: { currentCount: 0, eomCount: 0, variance: 0, donations: 0, constantCount: 0, lowStockCount: 0 }, constantItems: [], mostBorrowedItems: [], itemsCurrentlyOut: [], damageRateItems: [], eomVariance: [], varianceDrivers: [], stockAlerts: [] },
+            inventory: { summary: { currentCount: 0, eomCount: 0, variance: 0, donations: 0, requiredCount: 0, lowStockCount: 0 }, requiredItems: [], mostBorrowedItems: [], itemsCurrentlyOut: [], damageRateItems: [], eomVariance: [], varianceDrivers: [], stockAlerts: [] },
             replacement: { summary: { totalItemsPending: 0, totalItemsReplaced: 0, totalObligations: 0, pendingCount: 0 }, resolutionBreakdown: [], avgResolutionDays: 0, obligationsByCategory: [], monthlyActivity: [], donationTotals: [] },
             studentRisk: { repeatOffenders: [], highIncidentStudents: [], overdueStudents: [], trustScores: [] }
         };

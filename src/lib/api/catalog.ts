@@ -9,6 +9,7 @@ import { getApiErrorMessage } from './session';
 
 export interface CatalogItem extends InventoryItem {
 	categoryName?: string;
+	isrequired?: boolean;
 }
 
 export interface CatalogCategory extends InventoryCategory {}

@@ -175,12 +175,12 @@
 	}
 
 	function removeFromCart(itemId: string) {
-		// Check if item is constant before attempting removal
+		// Check if item is required before attempting removal
 		const item = $requestCartItems.find(i => i.itemId === itemId);
 		if (item) {
 			const catalogItem = catalogData?.items.find((i: any) => i.id === item.itemId);
-			if (catalogItem?.isConstant === true) {
-				toastStore.warning('Constant items cannot be removed from your request list. You can only adjust their quantity.', 'Cannot Remove Item');
+			if (catalogItem?.isrequired === true) {
+				toastStore.warning('required items cannot be removed from your request list. You can only adjust their quantity.', 'Cannot Remove Item');
 				return;
 			}
 		}
@@ -189,9 +189,9 @@
 			console.error('Failed to remove item:', error);
 			const errorMessage = error instanceof Error ? error.message : 'Failed to remove item';
 			
-			// Check if it's a constant item error from backend
-			if (errorMessage.includes('constant')) {
-				toastStore.warning('Constant items cannot be removed from your request list.', 'Cannot Remove Item');
+			// Check if it's a required item error from backend
+			if (errorMessage.includes('required')) {
+				toastStore.warning('required items cannot be removed from your request list.', 'Cannot Remove Item');
 			} else {
 				toastStore.error('Failed to remove item from request list', 'Error');
 			}
@@ -267,7 +267,7 @@
 			variance: 0,
 			status: cartItem.maxQuantity === 0 ? 'Out of Stock' : cartItem.maxQuantity <= 5 ? 'Low Stock' : 'In Stock',
 			archived: false,
-			isConstant: catalogItem?.isConstant ?? false,
+			isrequired: catalogItem?.isrequired ?? false,
 			maxQuantityPerRequest: catalogItem?.maxQuantityPerRequest,
 			createdAt: new Date(),
 			updatedAt: new Date()
@@ -365,25 +365,25 @@
 								<p class="text-sm text-gray-500">No items in request list</p>
 							</div>
 						{:else}
-							{@const constantItems = enrichedCartItems.filter((item) => {
+							{@const requiredItems = enrichedCartItems.filter((item) => {
 								const catalogItem = catalogData?.items.find((i: any) => i.id === item.itemId);
-								return catalogItem?.isConstant === true;
+								return catalogItem?.isrequired === true;
 							})}
 							{@const additionalItems = enrichedCartItems.filter((item) => {
 								const catalogItem = catalogData?.items.find((i: any) => i.id === item.itemId);
-								return catalogItem?.isConstant !== true;
+								return catalogItem?.isrequired !== true;
 							})}
 
-							<!-- Constant Items Section -->
-							{#if constantItems.length > 0}
+							<!-- required Items Section -->
+							{#if requiredItems.length > 0}
 								<div class="border-b border-gray-100 bg-blue-50/50 px-4 py-2">
 									<div class="flex items-center gap-2">
-										<h3 class="text-xs font-semibold text-blue-900 uppercase tracking-wide">Constant Items</h3>
-										<span class="ml-auto text-xs text-blue-600 font-medium">{constantItems.length}</span>
+										<h3 class="text-xs font-semibold text-blue-900 uppercase tracking-wide">required Items</h3>
+										<span class="ml-auto text-xs text-blue-600 font-medium">{requiredItems.length}</span>
 									</div>
 								</div>
 								<div>
-									{#each constantItems as cartItem (cartItem.itemId)}
+									{#each requiredItems as cartItem (cartItem.itemId)}
 										<!-- svelte-ignore a11y_click_events_have_key_events -->
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
@@ -423,7 +423,7 @@
 												<div class="min-w-0 flex-1">
 													<div class="flex items-start justify-between gap-2">
 														<p class="text-sm font-medium text-gray-900 line-clamp-1">{cartItem.name}</p>
-														<span class="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 uppercase">Constant</span>
+														<span class="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 uppercase">required</span>
 													</div>
 													<p class="mt-0.5 text-xs text-gray-500">Qty: {cartItem.quantity} / Max: {cartItem.maxQuantity}</p>
 													
@@ -454,13 +454,13 @@
 																</svg>
 															</button>
 														</div>
-														<!-- Constant items cannot be removed - show disabled button with tooltip -->
+														<!-- required items cannot be removed - show disabled button with tooltip -->
 														<div class="relative group">
 															<button
 																disabled
 																class="flex h-6 w-6 items-center justify-center rounded text-gray-300 cursor-not-allowed"
-																aria-label="Cannot remove constant item"
-																title="Constant items cannot be removed"
+																aria-label="Cannot remove required item"
+																title="required items cannot be removed"
 															>
 																<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />

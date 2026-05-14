@@ -21,8 +21,8 @@ export interface InventoryItem {
 	description?: string;
 	status: ItemStatus;
 	unitPrice?: number; // Price per unit for replacement tracking
-	isConstant?: boolean; // Items that always appear on student request forms
-	maxQuantityPerRequest?: number; // Maximum quantity allowed per request for constant items
+	isrequired?: boolean; // Items that always appear on student request forms
+	maxQuantityPerRequest?: number; // Maximum quantity allowed per request for required items
 	archived: boolean;
 	createdAt: Date;
 	updatedAt: Date;
@@ -46,7 +46,7 @@ export interface InventoryItemResponse {
 	description?: string;
 	status: ItemStatus;
 	unitPrice?: number;
-	isConstant?: boolean;
+	isrequired?: boolean;
 	maxQuantityPerRequest?: number;
 	archived: boolean;
 	createdAt: Date;
@@ -65,7 +65,7 @@ export interface CreateInventoryItemRequest {
 	eomCount?: number;
 	unitPrice?: number;
 	description?: string;
-	isConstant?: boolean;
+	isrequired?: boolean;
 	maxQuantityPerRequest?: number;
 }
 

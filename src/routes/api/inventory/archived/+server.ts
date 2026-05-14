@@ -32,7 +32,7 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		variance: currentCount - item.eomCount,
 		description: item.description,
 		status: item.status,
-		isConstant: item.isConstant,
+		isrequired: item.isrequired,
 		archived: item.archived,
 		createdAt: item.createdAt,
 		updatedAt: item.updatedAt
@@ -221,7 +221,7 @@ export const POST: RequestHandler = async (event) => {
 
 		// Invalidate all relevant caches so the next GET reflects the restored item
 		await Promise.all([
-			cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'inventory-archived', 'reports-analytics']),
+			cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-required', 'inventory-archived', 'reports-analytics']),
 			cacheService.deletePattern('inventory:history:*')
 		]);
 

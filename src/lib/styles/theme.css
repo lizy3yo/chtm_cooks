@@ -418,7 +418,7 @@ html.dark .text-red-700 { color: #ff9ca8 !important; }
 
 /* ── Request List dropdown (top nav) dark mode ──────────────────────────── */
 
-/* Constant Items section header (bg-blue-50/50) */
+/* required Items section header (bg-blue-50/50) */
 html.dark [aria-label="Request List"] .bg-blue-50\/50 {
 	background-color: rgba(59,130,246,0.08) !important;
 }
@@ -429,7 +429,7 @@ html.dark [aria-label="Request List"] .text-blue-600 {
 	color: #60a5fa !important;
 }
 
-/* Constant item rows (border-blue-500 bg-blue-50/30) */
+/* required item rows (border-blue-500 bg-blue-50/30) */
 html.dark [aria-label="Request List"] .bg-blue-50\/30 {
 	background-color: rgba(59,130,246,0.05) !important;
 }
@@ -437,7 +437,7 @@ html.dark [aria-label="Request List"] .hover\:bg-blue-50:hover {
 	background-color: rgba(59,130,246,0.10) !important;
 }
 
-/* "Constant" badge (bg-blue-100 text-blue-700) */
+/* "required" badge (bg-blue-100 text-blue-700) */
 html.dark [aria-label="Request List"] .bg-blue-100 {
 	background-color: rgba(59,130,246,0.20) !important;
 }
@@ -451,7 +451,7 @@ html.dark [aria-label="Request List"] .border-blue-300.bg-white {
 	border-color: rgba(59,130,246,0.30) !important;
 }
 
-/* Image border for constant items (border-blue-200) */
+/* Image border for required items (border-blue-200) */
 html.dark [aria-label="Request List"] .border-blue-200 {
 	border-color: rgba(59,130,246,0.20) !important;
 }
@@ -643,7 +643,7 @@ html.dark .from-emerald-100.to-teal-100 {
 }
 html.dark .ring-emerald-200 { --tw-ring-color: rgba(16,185,129,0.2) !important; }
 
-/* Constant item quantity input (bg-emerald-50 border-emerald-300) */
+/* required item quantity input (bg-emerald-50 border-emerald-300) */
 html.dark .border-emerald-300.bg-emerald-50 {
 	background-color: rgba(16,185,129,0.06) !important;
 	border-color: rgba(16,185,129,0.2) !important;
@@ -1185,7 +1185,7 @@ html.dark [role="dialog"] .border-gray-300.bg-gray-100 {
 	color: #d1d5db !important;
 }
 
-/* Constant badge (purple) */
+/* required badge (purple) */
 html.dark [role="dialog"] .bg-purple-100 {
 	background-color: rgba(139,92,246,0.1) !important;
 }

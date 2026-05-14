@@ -97,13 +97,13 @@ export async function createInventoryItemsIndexes() {
 			// Index for filtering by status (availability)
 			{ key: { status: 1, archived: 1 }, name: 'idx_status_archived' },
 			
-			// Index for constant items (frequently requested items)
-			{ key: { isConstant: 1, archived: 1 }, name: 'idx_isconstant_archived' },
+			// Index for required items (frequently requested items)
+			{ key: { isrequired: 1, archived: 1 }, name: 'idx_isrequired_archived' },
 			
-			// Compound index for constant items catalog queries
+			// Compound index for required items catalog queries
 			{ 
-				key: { isConstant: 1, archived: 1, status: 1 }, 
-				name: 'idx_constant_catalog'
+				key: { isrequired: 1, archived: 1, status: 1 }, 
+				name: 'idx_required_catalog'
 			},
 			
 			// Compound index for common catalog queries

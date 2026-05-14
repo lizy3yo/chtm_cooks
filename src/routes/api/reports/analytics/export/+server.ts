@@ -300,7 +300,7 @@ export const GET: RequestHandler = async (event) => {
 			['EOM Count', invs.eomCount ?? 0],
 			['Variance', invs.variance ?? 0],
 			['Donations', invs.donations ?? 0],
-			['Constant Items', invs.constantCount ?? 0],
+			['required Items', invs.requiredCount ?? 0],
 			['Low Stock Count', invs.lowStockCount ?? 0],
 		]);
 
@@ -335,9 +335,9 @@ export const GET: RequestHandler = async (event) => {
 			);
 		}
 
-		if ((inv.constantItems ?? []).length) {
-			addSection(ws, 'CONSTANT ITEMS', ['Item', 'Category', 'Quantity', 'EOM Count', 'Variance', 'Donations', 'Status'],
-				inv.constantItems.map((i: { name: string; category: string; quantity: number; eomCount: number; variance: number; donations: number; status: string }) =>
+		if ((inv.requiredItems ?? []).length) {
+			addSection(ws, 'required ITEMS', ['Item', 'Category', 'Quantity', 'EOM Count', 'Variance', 'Donations', 'Status'],
+				inv.requiredItems.map((i: { name: string; category: string; quantity: number; eomCount: number; variance: number; donations: number; status: string }) =>
 					[i.name, i.category, i.quantity, i.eomCount, i.variance, i.donations, i.status])
 			);
 		}

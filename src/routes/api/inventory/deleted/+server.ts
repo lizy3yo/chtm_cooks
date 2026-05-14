@@ -307,7 +307,7 @@ export const POST: RequestHandler = async (event) => {
 
 			// Invalidate all relevant caches
 			await Promise.all([
-				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
+				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-required', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
 			]);
 
 			return json({ success: true, message: 'Category restored successfully' });
@@ -368,7 +368,7 @@ export const POST: RequestHandler = async (event) => {
 
 			// Invalidate all relevant caches
 			await Promise.all([
-				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
+				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-required', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
 			]);
 
 			return json({ success: true, message: 'Item restored successfully' });
@@ -478,7 +478,7 @@ export const DELETE: RequestHandler = async (event) => {
 
 			// Invalidate all relevant caches
 			await Promise.all([
-				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
+				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-required', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
 			]);
 
 			return json({ success: true, message: 'Category permanently deleted' });
@@ -544,7 +544,7 @@ export const DELETE: RequestHandler = async (event) => {
 
 			// Invalidate all relevant caches
 			await Promise.all([
-				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
+				cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-required', 'inventory-deleted', 'inventory-archived', 'reports-analytics']),
 			]);
 
 			return json({ success: true, message: 'Item permanently deleted' });

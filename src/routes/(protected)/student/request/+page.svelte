@@ -30,7 +30,7 @@
 		specification: string;
 		status: string;
 		location?: string;
-		isConstant?: boolean;
+		isrequired?: boolean;
 		maxQuantityPerRequest?: number;
 	}
 
@@ -42,7 +42,7 @@
 	let isLoading = $state(true);
 	let isSubmitting = $state(false);
 	let availableEquipment = $state<RequestItemOption[]>([]);
-	let constantItems = $state<RequestItemOption[]>([]);
+	let requiredItems = $state<RequestItemOption[]>([]);
 	let showItemSelector = $state(false);
 	let sseConnected = $state(false);
 	let sseReconnecting = $state(false);
@@ -115,7 +115,7 @@
 			variance: 0,
 			status: item.available === 0 ? 'Out of Stock' : item.available <= 5 ? 'Low Stock' : 'In Stock',
 			archived: false,
-			isConstant: item.isConstant,
+			isrequired: item.isrequired,
 			maxQuantityPerRequest: item.maxQuantityPerRequest,
 			createdAt: new Date(),
 			updatedAt: new Date()
@@ -212,7 +212,7 @@
 		const cartItems = $requestCartItems;
 
 		// Only sync if we have equipment loaded and not currently loading
-		if ((availableEquipment.length > 0 || constantItems.length > 0) && !isLoading) {
+		if ((availableEquipment.length > 0 || requiredItems.length > 0) && !isLoading) {
 			console.log('[REACTIVE] Cart items changed, syncing selected items...', cartItems.length);
 			syncSelectedItemsFromCart();
 		}
@@ -260,7 +260,7 @@
 
 	// Get unique categories from available equipment
 	const categories = $derived(() => {
-		const allItems = [...availableEquipment, ...constantItems];
+		const allItems = [...availableEquipment, ...requiredItems];
 		const categorySet = new Set(allItems.map((item) => item.category));
 		return Array.from(categorySet).sort();
 	});
@@ -478,7 +478,7 @@
 				}
 			);
 
-			// Separate constant items from regular items
+			// Separate required items from regular items
 			const allItems = response.items.map((item) => ({
 				id: item.id,
 				name: item.name,
@@ -490,15 +490,15 @@
 				specification: item.specification || 'No specification provided',
 				status: item.status,
 				location: (item as any).location,
-				isConstant: item.isConstant || false,
+				isrequired: (item as any).isrequired || false,
 				maxQuantityPerRequest: item.maxQuantityPerRequest
 			}));
 
-			// Filter constant items (always show, even if quantity is 0)
-			constantItems = allItems.filter((item) => item.isConstant === true);
+			// Filter required items (always show, even if quantity is 0)
+			requiredItems = allItems.filter((item) => item.isrequired === true);
 
-			// Filter available equipment (quantity > 0, excluding constant items to avoid duplication)
-			availableEquipment = allItems.filter((item) => item.available > 0 && !item.isConstant);
+			// Filter available equipment (quantity > 0, excluding required items to avoid duplication)
+			availableEquipment = allItems.filter((item) => item.available > 0 && !item.isrequired);
 		} catch (error) {
 			console.error('Failed to load requestable equipment', error);
 			toastStore.error('Unable to load available equipment right now', 'Load Error');
@@ -554,70 +554,70 @@
 			);
 			console.log('[UPDATE] 📋 Current selected IDs:', currentSelectedIds);
 
-			// Store previous constant item IDs for comparison
-			const previousConstantIds = new Set(constantItems.map((item) => item.id));
-			console.log('[UPDATE] 📌 Previous constant IDs:', Array.from(previousConstantIds));
+			// Store previous required item IDs for comparison
+			const previousrequiredIds = new Set(requiredItems.map((item) => item.id));
+			console.log('[UPDATE] 📌 Previous required IDs:', Array.from(previousrequiredIds));
 
-			// Reload equipment data (this updates constantItems and availableEquipment)
+			// Reload equipment data (this updates requiredItems and availableEquipment)
 			console.log('[UPDATE] 🔃 Reloading equipment data...');
 			await loadAvailableEquipment({ forceRefresh: true });
 			console.log('[UPDATE] ✅ Equipment data reloaded');
 
-			// Get new constant item IDs
-			const newConstantIds = new Set(constantItems.map((item) => item.id));
-			console.log('[UPDATE] 📌 New constant IDs:', Array.from(newConstantIds));
+			// Get new required item IDs
+			const newrequiredIds = new Set(requiredItems.map((item) => item.id));
+			console.log('[UPDATE] 📌 New required IDs:', Array.from(newrequiredIds));
 
-			// Identify items that were removed from constant status
-			const removedConstantIds = new Set(
-				[...previousConstantIds].filter((id) => !newConstantIds.has(id))
+			// Identify items that were removed from required status
+			const removedrequiredIds = new Set(
+				[...previousrequiredIds].filter((id) => !newrequiredIds.has(id))
 			);
-			console.log('[UPDATE] ➖ Removed constant IDs:', Array.from(removedConstantIds));
+			console.log('[UPDATE] ➖ Removed required IDs:', Array.from(removedrequiredIds));
 
-			// Identify items that were added to constant status
-			const addedConstantIds = new Set(
-				[...newConstantIds].filter((id) => !previousConstantIds.has(id))
+			// Identify items that were added to required status
+			const addedrequiredIds = new Set(
+				[...newrequiredIds].filter((id) => !previousrequiredIds.has(id))
 			);
-			console.log('[UPDATE] ➕ Added constant IDs:', Array.from(addedConstantIds));
+			console.log('[UPDATE] ➕ Added required IDs:', Array.from(addedrequiredIds));
 
 			// Re-sync cart with new data
 			console.log('[UPDATE] 🛒 Clearing cart...');
 			requestCartStore.clear();
 
-			// Re-add all current constant items
-			console.log('[UPDATE] 🛒 Re-adding', constantItems.length, 'constant items...');
-			for (const item of constantItems) {
+			// Re-add all current required items
+			console.log('[UPDATE] 🛒 Re-adding', requiredItems.length, 'required items...');
+			for (const item of requiredItems) {
 				requestCartStore.addItem({
 					itemId: item.id,
 					name: item.name,
 					maxQuantity: Math.max(1, item.available)
 				});
-				console.log('[UPDATE]   ✓ Added constant item:', item.name, '(ID:', item.id, ')');
+				console.log('[UPDATE]   ✓ Added required item:', item.name, '(ID:', item.id, ')');
 			}
 
-			// Re-add previously selected non-constant items (excluding removed constant items)
-			const allItems = [...availableEquipment, ...constantItems];
-			console.log('[UPDATE] 🛒 Re-adding previously selected non-constant items...');
+			// Re-add previously selected non-required items (excluding removed required items)
+			const allItems = [...availableEquipment, ...requiredItems];
+			console.log('[UPDATE] 🛒 Re-adding previously selected non-required items...');
 			console.log(
 				'[UPDATE] 🛒 All items count:',
 				allItems.length,
 				'(available:',
 				availableEquipment.length,
-				', constant:',
-				constantItems.length,
+				', required:',
+				requiredItems.length,
 				')'
 			);
 
 			for (const itemId of currentSelectedIds) {
-				// Skip if this item was removed from constant status
-				if (removedConstantIds.has(itemId)) {
-					console.log('[UPDATE]   ⊘ Skipping removed constant item:', itemId);
+				// Skip if this item was removed from required status
+				if (removedrequiredIds.has(itemId)) {
+					console.log('[UPDATE]   ⊘ Skipping removed required item:', itemId);
 					continue;
 				}
 
 				const item = allItems.find((i) => i.id === itemId);
 
-				// Only re-add if item exists and is not already added as constant
-				if (item && !item.isConstant) {
+				// Only re-add if item exists and is not already added as required
+				if (item && !item.isrequired) {
 					const previousQty = currentQuantities.get(itemId) || 1;
 					requestCartStore.addItem({
 						itemId: item.id,
@@ -629,17 +629,17 @@
 						requestCartStore.setQuantity(itemId, previousQty);
 					}
 					console.log(
-						'[UPDATE]   ✓ Re-added non-constant item:',
+						'[UPDATE]   ✓ Re-added non-required item:',
 						item.name,
 						'(ID:',
 						itemId,
-						', isConstant:',
-						item.isConstant,
+						', isrequired:',
+						item.isrequired,
 						')'
 					);
-				} else if (item && item.isConstant) {
+				} else if (item && item.isrequired) {
 					console.log(
-						'[UPDATE]   ⊘ Skipping (already added as constant):',
+						'[UPDATE]   ⊘ Skipping (already added as required):',
 						item.name,
 						'(ID:',
 						itemId,
@@ -656,11 +656,11 @@
 			console.log('[UPDATE] ✅ Cart synced, selected items count:', selectedItems.length);
 
 			// Show single, appropriate notification with cooldown
-			if (addedConstantIds.size > 0 && removedConstantIds.size > 0) {
+			if (addedrequiredIds.size > 0 && removedrequiredIds.size > 0) {
 				showUpdateNotification('Frequently requested items updated');
-			} else if (addedConstantIds.size > 0) {
+			} else if (addedrequiredIds.size > 0) {
 				showUpdateNotification('New frequently requested items added');
-			} else if (removedConstantIds.size > 0) {
+			} else if (removedrequiredIds.size > 0) {
 				showUpdateNotification('Frequently requested items removed');
 			} else {
 				showUpdateNotification('Equipment availability updated');
@@ -739,8 +739,8 @@
 	function syncSelectedItemsFromCart(): void {
 		const cartEntries = get(requestCartItems);
 
-		// Combine both available equipment and constant items for lookup
-		const allEquipment = [...availableEquipment, ...constantItems];
+		// Combine both available equipment and required items for lookup
+		const allEquipment = [...availableEquipment, ...requiredItems];
 		const equipmentById = new Map(allEquipment.map((item) => [item.id, item]));
 
 		if (cartEntries.length === 0) {
@@ -1056,19 +1056,19 @@
 				specification: item.specification || 'No specification provided',
 				status: item.status,
 				location: (item as any).location,
-				isConstant: item.isConstant || false,
+				isrequired: (item as any).isrequired || false,
 				maxQuantityPerRequest: item.maxQuantityPerRequest
 			}));
 
-			constantItems = allItems.filter((item) => item.isConstant === true);
-			availableEquipment = allItems.filter((item) => item.available > 0 && !item.isConstant);
+			requiredItems = allItems.filter((item) => item.isrequired === true);
+			availableEquipment = allItems.filter((item) => item.available > 0 && !item.isrequired);
 			
 			// Hide skeleton immediately when cache is available
 			isLoading = false;
 			
 			console.log('[MOUNT] 📊 Loaded from cache:', {
 				total: allItems.length,
-				constant: constantItems.length,
+				required: requiredItems.length,
 				available: availableEquipment.length
 			});
 		} else {
@@ -1097,23 +1097,23 @@
 				
 				// Get current cart items ONCE before the loop (AFTER cart is initialized)
 				const currentCartItems = get(requestCartItems);
-				console.log('[MOUNT] Current cart items before adding constants:', currentCartItems.length);
+				console.log('[MOUNT] Current cart items before adding requireds:', currentCartItems.length);
 
-				// Auto-add constant items to cart ONLY if they don't exist
-				if (constantItems.length > 0) {
-					for (const item of constantItems) {
+				// Auto-add required items to cart ONLY if they don't exist
+				if (requiredItems.length > 0) {
+					for (const item of requiredItems) {
 						// Check if item already exists in cart (using the snapshot we took)
 						const alreadyInCart = currentCartItems.some((cartItem) => cartItem.itemId === item.id);
 
 						if (!alreadyInCart) {
-							console.log('[MOUNT] Adding constant item to cart:', item.name);
+							console.log('[MOUNT] Adding required item to cart:', item.name);
 							await requestCartStore.addItem({
 								itemId: item.id,
 								name: item.name,
 								maxQuantity: Math.max(1, item.available)
 							});
 						} else {
-							console.log('[MOUNT] Constant item already in cart, skipping:', item.name);
+							console.log('[MOUNT] required item already in cart, skipping:', item.name);
 						}
 					}
 				}
@@ -1134,27 +1134,27 @@
 				console.log('[MOUNT] 📡 No cache: loading fresh data from API...');
 				await loadAvailableEquipment();
 
-				console.log('[MOUNT] Equipment loaded, constant items:', constantItems.length);
+				console.log('[MOUNT] Equipment loaded, required items:', requiredItems.length);
 
 				// Get current cart items ONCE before the loop (AFTER cart is initialized)
 				const currentCartItems = get(requestCartItems);
-				console.log('[MOUNT] Current cart items before adding constants:', currentCartItems.length);
+				console.log('[MOUNT] Current cart items before adding requireds:', currentCartItems.length);
 
-				// Auto-add constant items to cart ONLY if they don't exist
-				if (constantItems.length > 0) {
-					for (const item of constantItems) {
+				// Auto-add required items to cart ONLY if they don't exist
+				if (requiredItems.length > 0) {
+					for (const item of requiredItems) {
 						// Check if item already exists in cart (using the snapshot we took)
 						const alreadyInCart = currentCartItems.some((cartItem) => cartItem.itemId === item.id);
 
 						if (!alreadyInCart) {
-							console.log('[MOUNT] Adding constant item to cart:', item.name);
+							console.log('[MOUNT] Adding required item to cart:', item.name);
 							await requestCartStore.addItem({
 								itemId: item.id,
 								name: item.name,
 								maxQuantity: Math.max(1, item.available)
 							});
 						} else {
-							console.log('[MOUNT] Constant item already in cart, skipping:', item.name);
+							console.log('[MOUNT] required item already in cart, skipping:', item.name);
 						}
 					}
 
@@ -1170,8 +1170,8 @@
 			// Handle preselected item from URL
 			const itemId = get(page).url.searchParams.get('itemId');
 			if (itemId) {
-				// Check both available equipment and constant items
-				const allItems = [...availableEquipment, ...constantItems];
+				// Check both available equipment and required items
+				const allItems = [...availableEquipment, ...requiredItems];
 				const preselectedItem = allItems.find((item) => item.id === itemId);
 				if (preselectedItem) {
 					requestCartStore.addItem({
@@ -1221,7 +1221,7 @@
 					console.log('[SSE] ============================');
 
 					// Handle ALL inventory item events (created, updated, archived, restored, deleted)
-					// This includes when items are marked/unmarked as constant
+					// This includes when items are marked/unmarked as required
 					const supportedActions = new Set([
 						'item_created',
 						'item_updated',
@@ -1678,7 +1678,7 @@
 													>
 														{item.name}
 													</h3>
-													{#if item.isConstant}
+													{#if item.isrequired}
 														<span
 															class="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-linear-to-r from-emerald-100 to-teal-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200"
 														>
@@ -1687,7 +1687,7 @@
 																	d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
 																/>
 															</svg>
-															CONSTANT
+															REQUIRED
 														</span>
 													{/if}
 												</div>
@@ -1821,7 +1821,7 @@
 															value={item.requestedQuantity}
 															onchange={(e) =>
 																updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
-															class="w-14 rounded-md border {item.isConstant
+															class="w-14 rounded-md border {item.isrequired
 																? 'border-emerald-300 bg-emerald-50 text-emerald-900'
 																: 'border-gray-300 bg-white text-gray-900'} px-1.5 py-1 text-center text-xs font-bold focus:border-pink-500 focus:ring-1 focus:ring-pink-500/20"
 															title={item.maxQuantityPerRequest
@@ -1871,7 +1871,7 @@
 											{/if}
 
 											<!-- Remove Button -->
-											{#if !item.isConstant}
+											{#if !item.isrequired}
 												<button
 													onclick={() => removeItemFromCart(item.id)}
 													class="flex h-7 w-7 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-all hover:border-red-300 hover:bg-red-100 hover:text-red-700"
@@ -1894,7 +1894,7 @@
 											{:else}
 												<div
 													class="flex h-7 w-7 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600"
-													title="Constant item (cannot be removed)"
+													title="required item (cannot be removed)"
 												>
 													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
 														<path

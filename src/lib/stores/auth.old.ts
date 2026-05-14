@@ -2,7 +2,7 @@ import { writable, derived, get } from 'svelte/store';
 import { browser } from '$app/environment';
 import type { AuthResponse, UserResponse } from '$lib/types/auth';
 
-// Constants
+// requireds
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_KEY = 'user_data';
