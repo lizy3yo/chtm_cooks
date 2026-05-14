@@ -282,7 +282,7 @@
 				<p class="mt-1 text-sm text-gray-500">JPG, PNG, or WebP up to 10MB.</p>
 
 				<div class="mt-6 flex flex-col items-center justify-center">
-					<div class="group relative h-48 w-48 flex-shrink-0">
+					<div class="group relative h-48 w-48 shrink-0">
 						{#if profile?.profilePhotoUrl}
 							<img
 								src={profile.profilePhotoUrl}
@@ -302,7 +302,7 @@
 								</svg>
 							</button>
 						{:else}
-							<div class="flex h-48 w-48 items-center justify-center rounded-xl bg-gradient-to-br from-pink-600 to-rose-600 text-2xl font-semibold text-white shadow-lg">
+							<div class="flex h-48 w-48 items-center justify-center rounded-xl bg-linear-to-br from-pink-600 to-rose-600 text-2xl font-semibold text-white shadow-lg">
 								{getInitials(profile)}
 							</div>
 						{/if}
