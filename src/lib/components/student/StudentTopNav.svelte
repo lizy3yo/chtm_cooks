@@ -28,6 +28,7 @@
 	import { Moon, Sun, HelpCircle, Bell, ChevronDown, LogOut, User, Settings, History, CalendarDays, ShoppingBag } from 'lucide-svelte';
 	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+	import CatalogItemModal from '$lib/components/ui/CatalogItemModal.svelte';
 	import logo from '$lib/assets/CHTM_LOGO.png';
 
 	// Only render on student routes — prevents flash on other pages during navigation
@@ -245,9 +246,52 @@
 			return cartItem;
 		});
 	});
+
+	// Cart item detail modal + photo lightbox
+	let previewCartItem = $state<any | null>(null);
+	let previewCartPhoto = $state<{ src: string; alt: string } | null>(null);
+
+	/** Build a CatalogItem-shaped object from a cart item + catalog lookup */
+	function toCartModalItem(cartItem: any) {
+		const catalogItem = catalogData?.items.find((i: any) => i.id === cartItem.itemId);
+		return {
+			id: cartItem.itemId,
+			name: cartItem.name,
+			category: catalogItem?.category ?? 'Equipment',
+			categoryId: cartItem.itemId,
+			specification: catalogItem?.specification ?? '',
+			toolsOrEquipment: 'Equipment',
+			picture: cartItem.picture,
+			quantity: cartItem.maxQuantity,
+			eomCount: 0,
+			variance: 0,
+			status: cartItem.maxQuantity === 0 ? 'Out of Stock' : cartItem.maxQuantity <= 5 ? 'Low Stock' : 'In Stock',
+			archived: false,
+			isConstant: catalogItem?.isConstant ?? false,
+			maxQuantityPerRequest: catalogItem?.maxQuantityPerRequest,
+			createdAt: new Date(),
+			updatedAt: new Date()
+		};
+	}
+
+	const previewCartCategories = $derived.by(() => {
+		if (!previewCartItem) return [];
+		const catalogItem = catalogData?.items.find((i: any) => i.id === previewCartItem.itemId);
+		return [{
+			id: previewCartItem.itemId,
+			name: catalogItem?.category ?? 'Equipment',
+			itemCount: 0,
+			archived: false,
+			createdAt: new Date(),
+			updatedAt: new Date()
+		}];
+	});
 </script>
 
-<svelte:window onclick={handleWindowClick} />
+<svelte:window
+	onclick={handleWindowClick}
+	onkeydown={(e) => { if (e.key === 'Escape') { if (previewCartPhoto) { previewCartPhoto = null; } else if (previewCartItem) { previewCartItem = null; } } }}
+/>
 
 {#if isStudentRoute}
 <header
@@ -340,10 +384,25 @@
 								</div>
 								<div>
 									{#each constantItems as cartItem (cartItem.itemId)}
-										<div class="border-l-2 border-blue-500 bg-blue-50/30 px-4 py-2 transition-colors hover:bg-blue-50">
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div
+											class="border-l-2 border-blue-500 bg-blue-50/30 px-4 py-2 transition-colors hover:bg-blue-50 cursor-pointer"
+											onclick={() => (previewCartItem = cartItem)}
+											role="button"
+											tabindex="0"
+											onkeydown={(e) => e.key === 'Enter' && (previewCartItem = cartItem)}
+											aria-label="View details for {cartItem.name}"
+										>
 											<div class="flex gap-3">
 												<!-- Item Image -->
-												<div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-blue-200 bg-gray-100 flex items-center justify-center">
+												<button
+													type="button"
+													onclick={(e) => { e.stopPropagation(); if (cartItem.picture) previewCartPhoto = { src: cartItem.picture, alt: cartItem.name }; }}
+													class="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-blue-200 bg-gray-100 flex items-center justify-center {cartItem.picture ? 'cursor-zoom-in hover:opacity-80' : 'cursor-default'} transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
+													aria-label={cartItem.picture ? 'View full photo of ' + cartItem.name : cartItem.name}
+													title={cartItem.picture ? 'View full photo' : ''}
+												>
 													{#if cartItem.picture}
 														<img 
 															src={cartItem.picture} 
@@ -353,14 +412,12 @@
 															onerror={(e) => { 
 																const img = e.target as HTMLImageElement;
 																img.style.display = 'none';
-																console.warn('[CART-IMAGE] Failed to load image:', cartItem.picture);
 															}}
 														/>
-													{/if}
-													{#if !cartItem.picture}
+													{:else}
 														<ItemImagePlaceholder size="sm" />
 													{/if}
-												</div>
+												</button>
 
 												<!-- Item Details -->
 												<div class="min-w-0 flex-1">
@@ -371,7 +428,7 @@
 													<p class="mt-0.5 text-xs text-gray-500">Qty: {cartItem.quantity} / Max: {cartItem.maxQuantity}</p>
 													
 													<!-- Quantity Controls -->
-													<div class="mt-1.5 flex items-center gap-1.5">
+													<div class="mt-1.5 flex items-center gap-1.5" onclick={(e) => e.stopPropagation()} role="none">
 														<div class="flex items-center rounded border border-blue-300 bg-white">
 															<button
 																onclick={() => updateCartQuantity(cartItem.itemId, Math.max(1, cartItem.quantity - 1))}
@@ -435,10 +492,25 @@
 								</div>
 								<div>
 									{#each additionalItems as cartItem (cartItem.itemId)}
-										<div class="border-l-2 border-transparent px-4 py-2 transition-colors hover:bg-gray-50">
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div
+											class="border-l-2 border-transparent px-4 py-2 transition-colors hover:bg-gray-50 cursor-pointer"
+											onclick={() => (previewCartItem = cartItem)}
+											role="button"
+											tabindex="0"
+											onkeydown={(e) => e.key === 'Enter' && (previewCartItem = cartItem)}
+											aria-label="View details for {cartItem.name}"
+										>
 											<div class="flex gap-3">
 												<!-- Item Image -->
-												<div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center">
+												<button
+													type="button"
+													onclick={(e) => { e.stopPropagation(); if (cartItem.picture) previewCartPhoto = { src: cartItem.picture, alt: cartItem.name }; }}
+													class="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center {cartItem.picture ? 'cursor-zoom-in hover:opacity-80' : 'cursor-default'} transition-opacity focus:outline-none focus:ring-2 focus:ring-pink-400"
+													aria-label={cartItem.picture ? 'View full photo of ' + cartItem.name : cartItem.name}
+													title={cartItem.picture ? 'View full photo' : ''}
+												>
 													{#if cartItem.picture}
 														<img 
 															src={cartItem.picture} 
@@ -448,14 +520,12 @@
 															onerror={(e) => { 
 																const img = e.target as HTMLImageElement;
 																img.style.display = 'none';
-																console.warn('[CART-IMAGE] Failed to load image:', cartItem.picture);
 															}}
 														/>
-													{/if}
-													{#if !cartItem.picture}
+													{:else}
 														<ItemImagePlaceholder size="sm" />
 													{/if}
-												</div>
+												</button>
 
 												<!-- Item Details -->
 												<div class="min-w-0 flex-1">
@@ -463,7 +533,7 @@
 													<p class="mt-0.5 text-xs text-gray-500">Qty: {cartItem.quantity} / Max: {cartItem.maxQuantity}</p>
 													
 													<!-- Quantity Controls -->
-													<div class="mt-1.5 flex items-center gap-1.5">
+													<div class="mt-1.5 flex items-center gap-1.5" onclick={(e) => e.stopPropagation()} role="none">
 														<div class="flex items-center rounded border border-gray-300 bg-white">
 															<button
 																onclick={() => updateCartQuantity(cartItem.itemId, Math.max(1, cartItem.quantity - 1))}
@@ -659,3 +729,57 @@
 	onconfirm={logout}
 	oncancel={() => (signOutOpen = false)}
 />
+
+{#if previewCartItem}
+	{@const modalItem = toCartModalItem(previewCartItem)}
+	<CatalogItemModal
+		item={modalItem}
+		categories={previewCartCategories}
+		onClose={() => (previewCartItem = null)}
+		footerHint="Viewing item from your request list"
+	>
+		{#snippet footerAction()}
+			<span class="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600">
+				<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+				</svg>
+				In your request
+			</span>
+		{/snippet}
+	</CatalogItemModal>
+{/if}
+
+{#if previewCartPhoto}
+	<div
+		class="fixed inset-0 z-60 flex items-center justify-center p-4"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Full photo view"
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 bg-black/90 backdrop-blur-sm"
+			onclick={() => (previewCartPhoto = null)}
+			aria-hidden="true"
+		></div>
+		<div class="relative z-10 max-h-[90vh] max-w-[90vw]">
+			<button
+				type="button"
+				onclick={() => (previewCartPhoto = null)}
+				class="absolute -top-12 right-0 rounded-md p-2 text-white transition-colors hover:bg-white/10"
+				aria-label="Close photo"
+			>
+				<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+				</svg>
+			</button>
+			<img
+				src={previewCartPhoto.src}
+				alt={previewCartPhoto.alt}
+				class="max-h-[90vh] max-w-full rounded-lg shadow-2xl"
+			/>
+			<p class="mt-3 text-center text-sm font-medium text-white/80">{previewCartPhoto.alt}</p>
+		</div>
+	</div>
+{/if}
