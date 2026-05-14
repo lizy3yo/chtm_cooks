@@ -6,6 +6,7 @@
 	import { chatStore } from '$lib/stores/chat';
 	import { user } from '$lib/stores/auth';
 	import { userSettingsStore } from '$lib/stores/userSettings';
+	import { themeStore } from '$lib/stores/theme';
 	import {
 		X,
 		Send,
@@ -21,6 +22,7 @@
 
 	// Subscribe to user settings - use direct store subscription for better reactivity
 	const isChatbotEnabled = $derived($userSettingsStore.aiChatbotEnabled);
+	const isDark = $derived($themeStore === 'dark');
 
 	let inputValue = $state('');
 	let messagesEl = $state<HTMLDivElement | null>(null);
@@ -333,7 +335,7 @@
 	></div>
 
 	<div
-		class="chat-panel"
+		class="chat-panel {isDark ? 'dark' : ''}"
 		transition:fly={{ y: 48, duration: 380, easing: quintOut }}
 		role="dialog"
 		aria-modal="true"
@@ -1050,5 +1052,174 @@
 	.send-btn:not(:disabled).active {
 		background: linear-gradient(135deg, #db2777, #be185d);
 		box-shadow: 0 2px 8px rgba(219, 39, 119, 0.3);
+	}
+
+	/* ── Dark mode ─────────────────────────────────────────────────────────── */
+	.chat-panel.dark {
+		background: #111827;
+		box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.06);
+	}
+
+	.chat-panel.dark .messages-area {
+		background: #111827;
+		scrollbar-color: rgba(255,255,255,0.1) transparent;
+	}
+
+	.chat-panel.dark .history-inline {
+		background: linear-gradient(180deg, #1f2937, #1a2332);
+		border-color: #374151;
+		box-shadow: 0 10px 24px rgba(0,0,0,0.3);
+	}
+
+	.chat-panel.dark .history-title {
+		color: #d1d5db;
+	}
+
+	.chat-panel.dark .history-close-btn {
+		border-color: #374151;
+		background: #1f2937;
+		color: #9ca3af;
+	}
+	.chat-panel.dark .history-close-btn:hover {
+		background: #374151;
+	}
+
+	.chat-panel.dark .history-new-btn {
+		border-color: #be185d;
+		background: #1f1520;
+		color: #f9a8d4;
+	}
+	.chat-panel.dark .history-new-btn:hover {
+		background: #2d1a28;
+	}
+
+	.chat-panel.dark .history-empty {
+		color: #6b7280;
+	}
+
+	.chat-panel.dark .history-item {
+		border-color: #374151;
+		background: #1f2937;
+		box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+	}
+	.chat-panel.dark .history-item:hover {
+		border-color: #ec4899;
+		background: #1f1a2e;
+		box-shadow: 0 6px 16px rgba(219,39,119,0.15);
+	}
+	.chat-panel.dark .history-item.active {
+		border-color: #ec4899;
+		background: #1f1520;
+		box-shadow: 0 8px 18px rgba(219,39,119,0.2);
+	}
+
+	.chat-panel.dark .history-item-title {
+		color: #f3f4f6;
+	}
+	.chat-panel.dark .history-item-meta {
+		color: #6b7280;
+	}
+
+	.chat-panel.dark .history-delete-btn {
+		border-color: #374151;
+		background: #1f2937;
+		color: #6b7280;
+	}
+	.chat-panel.dark .history-delete-btn:hover {
+		border-color: #fecdd3;
+		color: #e11d48;
+		background: #2d1a1e;
+	}
+
+	.chat-panel.dark .welcome-icon {
+		background: linear-gradient(135deg, #1f1520, #2d1a28);
+		border-color: #4b2040;
+	}
+
+	.chat-panel.dark .welcome-state :global(p.text-base) {
+		color: #f3f4f6;
+	}
+	.chat-panel.dark .welcome-state :global(p.text-sm) {
+		color: #9ca3af;
+	}
+
+	.chat-panel.dark .suggestion-chip {
+		background: #1f2937;
+		border-color: #4b2040;
+		color: #f9a8d4;
+		box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+	}
+	.chat-panel.dark .suggestion-chip:hover {
+		background: #2d1a28;
+		border-color: #ec4899;
+		box-shadow: 0 2px 8px rgba(219,39,119,0.2);
+	}
+
+	.chat-panel.dark .assistant-bubble {
+		background: #1f2937;
+	}
+
+	.chat-panel.dark .prose {
+		color: #d1d5db;
+	}
+	.chat-panel.dark .prose :global(h1),
+	.chat-panel.dark .prose :global(h2),
+	.chat-panel.dark .prose :global(h3) {
+		color: #f3f4f6;
+	}
+	.chat-panel.dark .prose :global(code) {
+		background: #1f1520;
+		color: #f9a8d4;
+	}
+	.chat-panel.dark .prose :global(pre) {
+		background: #0f172a;
+	}
+
+	.chat-panel.dark .typing-dot {
+		background: #4b5563;
+	}
+
+	.chat-panel.dark .error-banner {
+		background: #2d1a1e;
+		border-color: #7f1d1d;
+	}
+	.chat-panel.dark .error-banner :global(p) {
+		color: #fca5a5;
+	}
+
+	.chat-panel.dark .scroll-btn {
+		border-color: #374151;
+		background: #1f2937;
+	}
+	.chat-panel.dark .scroll-btn :global(svg) {
+		color: #9ca3af;
+	}
+	.chat-panel.dark .scroll-btn:hover {
+		box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+	}
+
+	.chat-panel.dark .input-area {
+		background: #111827;
+		border-top-color: #374151;
+	}
+
+	.chat-panel.dark .input-wrapper {
+		background: #1f2937;
+		border-color: #db2777;
+	}
+	.chat-panel.dark .input-wrapper:focus-within {
+		box-shadow: 0 0 0 3px rgba(219,39,119,0.15);
+	}
+
+	.chat-panel.dark .input-field {
+		color: #f3f4f6;
+	}
+	.chat-panel.dark .input-field::placeholder {
+		color: #6b7280;
+	}
+
+	.chat-panel.dark .send-btn:disabled {
+		background: #374151;
+		color: #6b7280;
 	}
 </style>

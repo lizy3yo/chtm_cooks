@@ -846,7 +846,7 @@ export const GET: RequestHandler = async (event) => {
 					currentCount: { $sum: { $ifNull: ['$quantity', 0] } },
 					eomCount: { $sum: { $ifNull: ['$eomCount', 0] } },
 					donations: { $sum: { $ifNull: ['$donations', 0] } },
-					constantCount: { $sum: { $cond: [{ $eq: ['$isConstant', true] }, 1, 0] } },
+					requiredCount: { $sum: { $cond: [{ $eq: ['$isrequired', true] }, 1, 0] } },
 					lowStockCount: {
 						$sum: { $cond: [{ $in: ['$status', ['Low Stock', 'Out of Stock']] }, 1, 0] }
 					},
@@ -860,8 +860,8 @@ export const GET: RequestHandler = async (event) => {
 			}
 		]).toArray();
 
-		const constantItems = await inventory.aggregate([
-			{ $match: { archived: false, isConstant: true } },
+		const requiredItems = await inventory.aggregate([
+			{ $match: { archived: false, isrequired: true } },
 			{
 				$project: {
 					_id: { $toString: '$_id' },
@@ -1502,10 +1502,10 @@ export const GET: RequestHandler = async (event) => {
 					eomCount: inventorySummary[0]?.eomCount ?? 0,
 					variance: inventorySummary[0]?.variance ?? 0,
 					donations: inventorySummary[0]?.donations ?? 0,
-					constantCount: inventorySummary[0]?.constantCount ?? 0,
+					requiredCount: inventorySummary[0]?.requiredCount ?? 0,
 					lowStockCount: inventorySummary[0]?.lowStockCount ?? 0
 				},
-				constantItems: constantItems.map((item) => ({
+				requiredItems: requiredItems.map((item) => ({
 					id: item._id?.toString() ?? '',
 					name: item.name,
 					category: item.category,

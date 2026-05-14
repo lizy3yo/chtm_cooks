@@ -211,7 +211,7 @@
 		pictureFile: null as File | null,
 		quantity: 0,
 		eomCount: 0,
-		isConstant: false,
+		isrequired: false,
 		maxQuantityPerRequest: undefined as number | undefined
 	});
 
@@ -236,7 +236,7 @@
 			pictureFile: null,
 			quantity: item.quantity,
 			eomCount: item.eomCount ?? 0,
-			isConstant: item.isConstant ?? false,
+			isrequired: item.isrequired ?? false,
 			maxQuantityPerRequest: item.maxQuantityPerRequest
 		};
 		showItemModal = true;
@@ -290,8 +290,8 @@
 				picture: imageUrl || undefined,
 				quantity: Number(itemForm.quantity),
 				eomCount: Number(itemForm.eomCount),
-				isConstant: itemForm.isConstant,
-				maxQuantityPerRequest: itemForm.isConstant && itemForm.maxQuantityPerRequest
+				isrequired: itemForm.isrequired,
+				maxQuantityPerRequest: itemForm.isrequired && itemForm.maxQuantityPerRequest
 					? Number(itemForm.maxQuantityPerRequest)
 					: undefined
 			};
@@ -383,10 +383,10 @@
 	// ─── Derived lists (mirrors custodian) ───────────────────────────────────
 	const activeItems = $derived(allItems.filter(i => !i.archived));
 	const lowStockItems = $derived(activeItems.filter(i => i.status === 'Low Stock' || i.status === 'Out of Stock'));
-	const constantItems = $derived(activeItems.filter(i => i.isConstant === true));
+	const requiredItems = $derived(activeItems.filter(i => i.isrequired === true));
 
 	// ─── Tab + filter state ───────────────────────────────────────────────────
-	type MainTab = 'all-items' | 'constant-items' | 'categories' | 'low-stock' | 'usage';
+	type MainTab = 'all-items' | 'required-items' | 'categories' | 'low-stock' | 'usage';
 	let mainTab = $state<MainTab>('all-items');
 	let selectedCategory = $state<InventoryCategory | null>(null);
 	let sortOrder = $state<'az' | 'za'>('az');
@@ -413,29 +413,29 @@
 	function clearCategoryFilter() { selectedCategory = null; }
 	function openCategory(cat: InventoryCategory) { mainTab = 'all-items'; selectedCategory = cat; }
 
-	// ─── Toggle constant status ───────────────────────────────────────────────
-	async function handleToggleConstant(item: InventoryItem) {
-		const newStatus = !item.isConstant;
+	// ─── Toggle required status ───────────────────────────────────────────────
+	async function handleTogglerequired(item: InventoryItem) {
+		const newStatus = !item.isrequired;
 		const confirmed = await confirmStore.confirm({
 			type: newStatus ? 'info' : 'warning',
-			title: newStatus ? 'Mark as Constant Item' : 'Remove from Constant Items',
+			title: newStatus ? 'Mark as required Item' : 'Remove from required Items',
 			message: newStatus
-				? `Mark "${item.name}" as a constant item? It will always appear on student request forms.`
-				: `Remove "${item.name}" from constant items?`,
-			confirmText: newStatus ? 'Mark as Constant' : 'Remove',
+				? `Mark "${item.name}" as a required item? It will always appear on student request forms.`
+				: `Remove "${item.name}" from required items?`,
+			confirmText: newStatus ? 'Mark as required' : 'Remove',
 			cancelText: 'Cancel'
 		});
 		if (!confirmed) return;
 		try {
-			const updated = await inventoryItemsAPI.update(item.id, { isConstant: newStatus });
+			const updated = await inventoryItemsAPI.update(item.id, { isrequired: newStatus });
 			allItems = allItems.map(i => i.id === item.id ? updated : i);
 			if (selectedItem?.id === item.id) selectedItem = updated;
 			toastStore.success(
-				newStatus ? `"${item.name}" is now a constant item` : `"${item.name}" removed from constant items`,
-				'Constant Item Updated'
+				newStatus ? `"${item.name}" is now a required item` : `"${item.name}" removed from required items`,
+				'required Item Updated'
 			);
 		} catch (err: any) {
-			toastStore.error(err.message || 'Failed to update constant status');
+			toastStore.error(err.message || 'Failed to update required status');
 		}
 	}
 
@@ -637,8 +637,8 @@ disabled={loading}
 		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
 			<div class="flex items-center justify-between gap-2">
 				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Constant Items</p>
-					<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">{constantItems.length}</p>
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">required Items</p>
+					<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">{requiredItems.length}</p>
 					<p class="mt-0.5 text-xs text-gray-500">Always on request forms</p>
 				</div>
 				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12">
@@ -654,7 +654,7 @@ disabled={loading}
 		<nav class="-mb-px flex" aria-label="Inventory tabs">
 			{#each [
 				{ id: 'all-items',      label: 'Stock Levels',     icon: Package     },
-				{ id: 'constant-items', label: 'Constant Items',   icon: Star        },
+				{ id: 'required-items', label: 'required Items',   icon: Star        },
 				{ id: 'categories',     label: 'Categories',       icon: FolderTree  },
 				{ id: 'usage',          label: 'Usage Statistics', icon: Activity    }
 			] as tab}
@@ -742,10 +742,10 @@ Add Your First Item
 {/if}
 </div>
 <div class="flex flex-col gap-0.5">
-	{#if item.isConstant}
+	{#if item.isrequired}
 		<span class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-800 ring-1 ring-purple-200">
 			<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-			Constant
+			required
 		</span>
 	{/if}
 	<div class="text-sm font-medium text-gray-900">{item.name}</div>
@@ -795,7 +795,7 @@ Add Your First Item
 <p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
 <p class="truncate text-xs text-gray-500">{item.specification || item.category}</p>
 <div class="mt-1 flex flex-wrap items-center gap-1">
-{#if item.isConstant}<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">Constant</span>{/if}
+{#if item.isrequired}<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800">required</span>{/if}
 <span class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">{item.category}</span>
 {#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
 <span class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">{item.status}</span>
@@ -834,14 +834,14 @@ Add Your First Item
 {/if}
 </div>
 {/if}
-{#if mainTab === 'constant-items'}
+{#if mainTab === 'required-items'}
 	<div class="p-4 sm:p-6">
 		<div class="mb-4">
-			<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Constant Items</h3>
+			<h3 class="text-base font-semibold text-gray-900 sm:text-lg">required Items</h3>
 			<p class="mt-1 text-sm text-gray-500">Items that always appear on student request forms regardless of availability</p>
 		</div>
 
-		{#if constantItems.length === 0}
+		{#if requiredItems.length === 0}
 			<div class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white" style="min-height: 600px;">
 				<div class="text-center px-4">
 					<div class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
@@ -849,9 +849,9 @@ Add Your First Item
 							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>
 						</svg>
 					</div>
-					<h3 class="mt-6 text-lg font-semibold text-gray-900">No constant items configured</h3>
+					<h3 class="mt-6 text-lg font-semibold text-gray-900">No required items configured</h3>
 					<p class="mt-2 text-sm text-gray-600 max-w-sm mx-auto">
-						Mark items as constant from the Stock Levels tab to have them always appear on student request forms.
+						Mark items as required from the Stock Levels tab to have them always appear on student request forms.
 					</p>
 					<button
 						onclick={() => switchTab('all-items')}
@@ -867,7 +867,7 @@ Add Your First Item
 		{:else}
 			<!-- Mobile card list -->
 			<div class="divide-y divide-gray-100 sm:hidden">
-				{#each constantItems as item, i}
+				{#each requiredItems as item, i}
 					<button class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100" onclick={() => openDetail(item)}>
 						<div class="flex items-center gap-3">
 							<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">{i + 1}</span>
@@ -882,7 +882,7 @@ Add Your First Item
 								<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
 								<p class="truncate text-xs text-gray-500">{item.specification || item.category}</p>
 								<div class="mt-1 flex flex-wrap items-center gap-1">
-									<span class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800 ring-1 ring-purple-200">Constant</span>
+									<span class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800 ring-1 ring-purple-200">required</span>
 									<span class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800">{item.category}</span>
 									{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
 										<span class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700">{item.status}</span>
@@ -913,7 +913,7 @@ Add Your First Item
 						</tr>
 					</thead>
 					<tbody class="divide-y divide-gray-200 bg-white">
-						{#each constantItems as item, i}
+						{#each requiredItems as item, i}
 							<!-- svelte-ignore a11y_click_events_have_key_events -->
 							<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 							<tr class="cursor-pointer hover:bg-gray-50 transition-colors" onclick={() => openDetail(item)} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && openDetail(item)}>
@@ -929,7 +929,7 @@ Add Your First Item
 										<div class="flex flex-col gap-0.5">
 											<span class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-800 ring-1 ring-purple-200">
 												<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-												Constant
+												required
 											</span>
 											<div class="text-sm font-medium text-gray-900">{item.name}</div>
 										</div>
@@ -973,10 +973,10 @@ Add Your First Item
 											<Edit size={16} />
 										</button>
 										<button
-											onclick={() => handleToggleConstant(item)}
+											onclick={() => handleTogglerequired(item)}
 											class="rounded p-1 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800"
-											title="Remove from constant items"
-											aria-label="Remove {item.name} from constant items"
+											title="Remove from required items"
+											aria-label="Remove {item.name} from required items"
 										>
 											<X size={16} />
 										</button>
@@ -1175,10 +1175,10 @@ Add Your First Category
 <span class="h-1.5 w-1.5 rounded-full bg-current"></span>
 <span class="text-[10px] font-bold sm:text-xs">{selectedItem.status}</span>
 </span>
-{#if selectedItem.isConstant}
+{#if selectedItem.isrequired}
 <span class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 sm:px-2.5 sm:py-1 text-purple-800 shadow-sm ring-1 ring-purple-200">
 <Star class="h-2.5 w-2.5 sm:h-3 sm:w-3 fill-current" />
-<span class="text-[10px] font-bold sm:text-xs">Constant</span>
+<span class="text-[10px] font-bold sm:text-xs">required</span>
 </span>
 {/if}
 </div>
@@ -1310,9 +1310,9 @@ Stock Information
 					variant: 'default' as const
 				},
 				{
-					label: selectedItem.isConstant ? 'Remove Constant' : 'Mark Constant',
-					icon: (selectedItem.isConstant ? PinOff : Pin) as unknown as LucideIcon,
-					action: () => { if (selectedItem) handleToggleConstant(selectedItem); },
+					label: selectedItem.isrequired ? 'Remove required' : 'Mark required',
+					icon: (selectedItem.isrequired ? PinOff : Pin) as unknown as LucideIcon,
+					action: () => { if (selectedItem) handleTogglerequired(selectedItem); },
 					variant: 'default' as const
 				},
 				{
@@ -1419,16 +1419,16 @@ Stock Information
 </div>
 </div>
 
-<!-- Constant Item -->
+<!-- required Item -->
 <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
 <label class="flex items-start gap-3 cursor-pointer">
-<input type="checkbox" bind:checked={itemForm.isConstant} class="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+<input type="checkbox" bind:checked={itemForm.isrequired} class="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
 <div class="flex-1">
-<span class="text-sm font-medium text-gray-900">Mark as Constant Item</span>
-<p class="mt-0.5 text-xs text-gray-600">Constant items always appear on student request forms.</p>
+<span class="text-sm font-medium text-gray-900">Mark as required Item</span>
+<p class="mt-0.5 text-xs text-gray-600">required items always appear on student request forms.</p>
 </div>
 </label>
-{#if itemForm.isConstant}
+{#if itemForm.isrequired}
 <div class="mt-3 border-t border-emerald-200 pt-3">
 <label for="maxQtyPerReq" class="block text-sm font-medium text-gray-900 mb-1">Maximum Quantity Per Request <span class="text-xs font-normal text-gray-500">(Optional)</span></label>
 <input type="number" id="maxQtyPerReq" bind:value={itemForm.maxQuantityPerRequest} min="1" step="1" placeholder="e.g., 5 (leave empty for unlimited)" class="block w-full rounded-lg border border-emerald-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500" />

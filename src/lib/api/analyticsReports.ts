@@ -162,11 +162,11 @@ export interface InventorySummary {
 	eomCount: number;
 	variance: number;
 	donations: number;
-	constantCount: number;
+	requiredCount: number;
 	lowStockCount: number;
 }
 
-export interface ConstantInventoryItem {
+export interface requiredInventoryItem {
 	id: string;
 	name: string;
 	category: string;
@@ -277,7 +277,7 @@ export interface AnalyticsReport {
 	};
 	inventory: {
 		summary: InventorySummary;
-		constantItems: ConstantInventoryItem[];
+		requiredItems: requiredInventoryItem[];
 		mostBorrowedItems: MostBorrowedItem[];
 		itemsCurrentlyOut: ItemCurrentlyOut[];
 		damageRateItems: DamageRateItem[];
@@ -478,10 +478,10 @@ function normalizeAnalyticsReport(raw: AnalyticsReport): AnalyticsReport {
 				eomCount: 0,
 				variance: 0,
 				donations: 0,
-				constantCount: 0,
+				requiredCount: 0,
 				lowStockCount: 0
 			},
-			constantItems: inventory.constantItems ?? [],
+			requiredItems: inventory.requiredItems ?? [],
 			mostBorrowedItems: inventory.mostBorrowedItems ?? [],
 			itemsCurrentlyOut: inventory.itemsCurrentlyOut ?? [],
 			damageRateItems: inventory.damageRateItems ?? [],

@@ -17,8 +17,8 @@ export interface InventoryItem {
 	description?: string;
 	status: string;
 	archived: boolean;
-	isConstant?: boolean; // Items that always appear on student request forms
-	maxQuantityPerRequest?: number; // Maximum quantity allowed per request for constant items
+	isrequired?: boolean; // Items that always appear on student request forms (required items)
+	maxQuantityPerRequest?: number; // Maximum quantity allowed per request for required items
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -44,7 +44,7 @@ export interface CreateItemRequest {
 	quantity: number;
 	donations?: number;
 	eomCount?: number;
-	isConstant?: boolean;
+	isrequired?: boolean;
 	maxQuantityPerRequest?: number;
 }
 
@@ -411,9 +411,9 @@ export async function uploadInventoryImage(file: File): Promise<{ success: boole
 	throw lastError ?? new Error('Image upload failed after retries');
 }
 
-// ─── Constant Items API ───────────────────────────────────────────────────────
+// ─── required Items API ───────────────────────────────────────────────────────
 
-export interface ConstantItemsResponse {
+export interface requiredItemsResponse {
 	items: InventoryItem[];
 	total: number;
 	meta: {
@@ -422,12 +422,12 @@ export interface ConstantItemsResponse {
 	};
 }
 
-export interface BulkUpdateConstantRequest {
+export interface BulkUpdaterequiredRequest {
 	itemIds: string[];
-	isConstant: boolean;
+	isrequired: boolean;
 }
 
-export interface BulkUpdateConstantResponse {
+export interface BulkUpdaterequiredResponse {
 	success: boolean;
 	message: string;
 	items: InventoryItem[];
@@ -435,38 +435,38 @@ export interface BulkUpdateConstantResponse {
 }
 
 /**
- * Constant Items API
+ * required Items API
  * For managing frequently requested items
  */
-export const constantItemsAPI = {
+export const requiredItemsAPI = {
 	/**
-	 * Get all constant items
+	 * Get all required items
 	 */
-	async getAll(): Promise<ConstantItemsResponse> {
-		const response = await fetch('/api/inventory/constant', getFetchOptions('GET'));
+	async getAll(): Promise<requiredItemsResponse> {
+		const response = await fetch('/api/inventory/required', getFetchOptions('GET'));
 		return handleResponse(response);
 	},
 
 	/**
-	 * Bulk update constant status for items
+	 * Bulk update required status for items
 	 */
-	async bulkUpdate(data: BulkUpdateConstantRequest): Promise<BulkUpdateConstantResponse> {
-		const response = await fetch('/api/inventory/constant', getFetchOptions('PATCH', data));
+	async bulkUpdate(data: BulkUpdaterequiredRequest): Promise<BulkUpdaterequiredResponse> {
+		const response = await fetch('/api/inventory/required', getFetchOptions('PATCH', data));
 		return handleResponse(response);
 	},
 
 	/**
-	 * Set item as constant
+	 * Set item as required
 	 */
-	async setConstant(itemId: string): Promise<InventoryItem> {
-		return inventoryItemsAPI.update(itemId, { isConstant: true });
+	async setrequired(itemId: string): Promise<InventoryItem> {
+		return inventoryItemsAPI.update(itemId, { isrequired: true });
 	},
 
 	/**
-	 * Remove item from constant
+	 * Remove item from required
 	 */
-	async removeConstant(itemId: string): Promise<InventoryItem> {
-		return inventoryItemsAPI.update(itemId, { isConstant: false });
+	async removerequired(itemId: string): Promise<InventoryItem> {
+		return inventoryItemsAPI.update(itemId, { isrequired: false });
 	}
 };
 

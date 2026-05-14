@@ -49,7 +49,7 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		variance: getCurrentCount(item.quantity, item.donations ?? 0) - item.eomCount,
 		description: item.description,
 		status: item.status,
-		isConstant: item.isConstant,
+		isrequired: item.isrequired,
 		maxQuantityPerRequest: item.maxQuantityPerRequest,
 		archived: item.archived,
 		createdAt: item.createdAt,
@@ -247,8 +247,8 @@ export const POST: RequestHandler = async (event) => {
 			donations,
 			eomCount,
 			status,
-			isConstant: body.isConstant || false,
-			maxQuantityPerRequest: body.isConstant && body.maxQuantityPerRequest 
+			isrequired: body.isrequired || false,
+			maxQuantityPerRequest: body.isrequired && body.maxQuantityPerRequest 
 				? Math.max(1, Math.floor(body.maxQuantityPerRequest))
 				: undefined,
 			archived: false,

@@ -46,7 +46,7 @@
 	type StudentTab = 'my-request' | 'instructor-approved' | 'active' | 'history';
 	type RequestViewMode = 'card' | 'list';
 
-	// Pagination constants
+	// Pagination requireds
 	const PAGE_SIZE_CARD = 5;
 	const PAGE_SIZE_LIST = 10;
 

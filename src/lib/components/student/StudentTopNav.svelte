@@ -28,6 +28,7 @@
 	import { Moon, Sun, HelpCircle, Bell, ChevronDown, LogOut, User, Settings, History, CalendarDays, ShoppingBag } from 'lucide-svelte';
 	import SignOutModal from '$lib/components/ui/SignOutModal.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+	import CatalogItemModal from '$lib/components/ui/CatalogItemModal.svelte';
 	import logo from '$lib/assets/CHTM_LOGO.png';
 
 	// Only render on student routes — prevents flash on other pages during navigation
@@ -174,12 +175,12 @@
 	}
 
 	function removeFromCart(itemId: string) {
-		// Check if item is constant before attempting removal
+		// Check if item is required before attempting removal
 		const item = $requestCartItems.find(i => i.itemId === itemId);
 		if (item) {
 			const catalogItem = catalogData?.items.find((i: any) => i.id === item.itemId);
-			if (catalogItem?.isConstant === true) {
-				toastStore.warning('Constant items cannot be removed from your request list. You can only adjust their quantity.', 'Cannot Remove Item');
+			if (catalogItem?.isrequired === true) {
+				toastStore.warning('required items cannot be removed from your request list. You can only adjust their quantity.', 'Cannot Remove Item');
 				return;
 			}
 		}
@@ -188,9 +189,9 @@
 			console.error('Failed to remove item:', error);
 			const errorMessage = error instanceof Error ? error.message : 'Failed to remove item';
 			
-			// Check if it's a constant item error from backend
-			if (errorMessage.includes('constant')) {
-				toastStore.warning('Constant items cannot be removed from your request list.', 'Cannot Remove Item');
+			// Check if it's a required item error from backend
+			if (errorMessage.includes('required')) {
+				toastStore.warning('required items cannot be removed from your request list.', 'Cannot Remove Item');
 			} else {
 				toastStore.error('Failed to remove item from request list', 'Error');
 			}
@@ -245,9 +246,52 @@
 			return cartItem;
 		});
 	});
+
+	// Cart item detail modal + photo lightbox
+	let previewCartItem = $state<any | null>(null);
+	let previewCartPhoto = $state<{ src: string; alt: string } | null>(null);
+
+	/** Build a CatalogItem-shaped object from a cart item + catalog lookup */
+	function toCartModalItem(cartItem: any) {
+		const catalogItem = catalogData?.items.find((i: any) => i.id === cartItem.itemId);
+		return {
+			id: cartItem.itemId,
+			name: cartItem.name,
+			category: catalogItem?.category ?? 'Equipment',
+			categoryId: cartItem.itemId,
+			specification: catalogItem?.specification ?? '',
+			toolsOrEquipment: 'Equipment',
+			picture: cartItem.picture,
+			quantity: cartItem.maxQuantity,
+			eomCount: 0,
+			variance: 0,
+			status: cartItem.maxQuantity === 0 ? 'Out of Stock' : cartItem.maxQuantity <= 5 ? 'Low Stock' : 'In Stock',
+			archived: false,
+			isrequired: catalogItem?.isrequired ?? false,
+			maxQuantityPerRequest: catalogItem?.maxQuantityPerRequest,
+			createdAt: new Date(),
+			updatedAt: new Date()
+		};
+	}
+
+	const previewCartCategories = $derived.by(() => {
+		if (!previewCartItem) return [];
+		const catalogItem = catalogData?.items.find((i: any) => i.id === previewCartItem.itemId);
+		return [{
+			id: previewCartItem.itemId,
+			name: catalogItem?.category ?? 'Equipment',
+			itemCount: 0,
+			archived: false,
+			createdAt: new Date(),
+			updatedAt: new Date()
+		}];
+	});
 </script>
 
-<svelte:window onclick={handleWindowClick} />
+<svelte:window
+	onclick={handleWindowClick}
+	onkeydown={(e) => { if (e.key === 'Escape') { if (previewCartPhoto) { previewCartPhoto = null; } else if (previewCartItem) { previewCartItem = null; } } }}
+/>
 
 {#if isStudentRoute}
 <header
@@ -321,29 +365,44 @@
 								<p class="text-sm text-gray-500">No items in request list</p>
 							</div>
 						{:else}
-							{@const constantItems = enrichedCartItems.filter((item) => {
+							{@const requiredItems = enrichedCartItems.filter((item) => {
 								const catalogItem = catalogData?.items.find((i: any) => i.id === item.itemId);
-								return catalogItem?.isConstant === true;
+								return catalogItem?.isrequired === true;
 							})}
 							{@const additionalItems = enrichedCartItems.filter((item) => {
 								const catalogItem = catalogData?.items.find((i: any) => i.id === item.itemId);
-								return catalogItem?.isConstant !== true;
+								return catalogItem?.isrequired !== true;
 							})}
 
-							<!-- Constant Items Section -->
-							{#if constantItems.length > 0}
+							<!-- required Items Section -->
+							{#if requiredItems.length > 0}
 								<div class="border-b border-gray-100 bg-blue-50/50 px-4 py-2">
 									<div class="flex items-center gap-2">
-										<h3 class="text-xs font-semibold text-blue-900 uppercase tracking-wide">Constant Items</h3>
-										<span class="ml-auto text-xs text-blue-600 font-medium">{constantItems.length}</span>
+										<h3 class="text-xs font-semibold text-blue-900 uppercase tracking-wide">required Items</h3>
+										<span class="ml-auto text-xs text-blue-600 font-medium">{requiredItems.length}</span>
 									</div>
 								</div>
 								<div>
-									{#each constantItems as cartItem (cartItem.itemId)}
-										<div class="border-l-2 border-blue-500 bg-blue-50/30 px-4 py-2 transition-colors hover:bg-blue-50">
+									{#each requiredItems as cartItem (cartItem.itemId)}
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div
+											class="border-l-2 border-blue-500 bg-blue-50/30 px-4 py-2 transition-colors hover:bg-blue-50 cursor-pointer"
+											onclick={() => (previewCartItem = cartItem)}
+											role="button"
+											tabindex="0"
+											onkeydown={(e) => e.key === 'Enter' && (previewCartItem = cartItem)}
+											aria-label="View details for {cartItem.name}"
+										>
 											<div class="flex gap-3">
 												<!-- Item Image -->
-												<div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-blue-200 bg-gray-100 flex items-center justify-center">
+												<button
+													type="button"
+													onclick={(e) => { e.stopPropagation(); if (cartItem.picture) previewCartPhoto = { src: cartItem.picture, alt: cartItem.name }; }}
+													class="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-blue-200 bg-gray-100 flex items-center justify-center {cartItem.picture ? 'cursor-zoom-in hover:opacity-80' : 'cursor-default'} transition-opacity focus:outline-none focus:ring-2 focus:ring-blue-400"
+													aria-label={cartItem.picture ? 'View full photo of ' + cartItem.name : cartItem.name}
+													title={cartItem.picture ? 'View full photo' : ''}
+												>
 													{#if cartItem.picture}
 														<img 
 															src={cartItem.picture} 
@@ -353,25 +412,23 @@
 															onerror={(e) => { 
 																const img = e.target as HTMLImageElement;
 																img.style.display = 'none';
-																console.warn('[CART-IMAGE] Failed to load image:', cartItem.picture);
 															}}
 														/>
-													{/if}
-													{#if !cartItem.picture}
+													{:else}
 														<ItemImagePlaceholder size="sm" />
 													{/if}
-												</div>
+												</button>
 
 												<!-- Item Details -->
 												<div class="min-w-0 flex-1">
 													<div class="flex items-start justify-between gap-2">
 														<p class="text-sm font-medium text-gray-900 line-clamp-1">{cartItem.name}</p>
-														<span class="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 uppercase">Constant</span>
+														<span class="shrink-0 rounded-full bg-blue-100 px-1.5 py-0.5 text-[9px] font-bold text-blue-700 uppercase">required</span>
 													</div>
 													<p class="mt-0.5 text-xs text-gray-500">Qty: {cartItem.quantity} / Max: {cartItem.maxQuantity}</p>
 													
 													<!-- Quantity Controls -->
-													<div class="mt-1.5 flex items-center gap-1.5">
+													<div class="mt-1.5 flex items-center gap-1.5" onclick={(e) => e.stopPropagation()} role="none">
 														<div class="flex items-center rounded border border-blue-300 bg-white">
 															<button
 																onclick={() => updateCartQuantity(cartItem.itemId, Math.max(1, cartItem.quantity - 1))}
@@ -397,13 +454,13 @@
 																</svg>
 															</button>
 														</div>
-														<!-- Constant items cannot be removed - show disabled button with tooltip -->
+														<!-- required items cannot be removed - show disabled button with tooltip -->
 														<div class="relative group">
 															<button
 																disabled
 																class="flex h-6 w-6 items-center justify-center rounded text-gray-300 cursor-not-allowed"
-																aria-label="Cannot remove constant item"
-																title="Constant items cannot be removed"
+																aria-label="Cannot remove required item"
+																title="required items cannot be removed"
 															>
 																<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -435,10 +492,25 @@
 								</div>
 								<div>
 									{#each additionalItems as cartItem (cartItem.itemId)}
-										<div class="border-l-2 border-transparent px-4 py-2 transition-colors hover:bg-gray-50">
+										<!-- svelte-ignore a11y_click_events_have_key_events -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div
+											class="border-l-2 border-transparent px-4 py-2 transition-colors hover:bg-gray-50 cursor-pointer"
+											onclick={() => (previewCartItem = cartItem)}
+											role="button"
+											tabindex="0"
+											onkeydown={(e) => e.key === 'Enter' && (previewCartItem = cartItem)}
+											aria-label="View details for {cartItem.name}"
+										>
 											<div class="flex gap-3">
 												<!-- Item Image -->
-												<div class="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center">
+												<button
+													type="button"
+													onclick={(e) => { e.stopPropagation(); if (cartItem.picture) previewCartPhoto = { src: cartItem.picture, alt: cartItem.name }; }}
+													class="h-12 w-12 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-100 flex items-center justify-center {cartItem.picture ? 'cursor-zoom-in hover:opacity-80' : 'cursor-default'} transition-opacity focus:outline-none focus:ring-2 focus:ring-pink-400"
+													aria-label={cartItem.picture ? 'View full photo of ' + cartItem.name : cartItem.name}
+													title={cartItem.picture ? 'View full photo' : ''}
+												>
 													{#if cartItem.picture}
 														<img 
 															src={cartItem.picture} 
@@ -448,14 +520,12 @@
 															onerror={(e) => { 
 																const img = e.target as HTMLImageElement;
 																img.style.display = 'none';
-																console.warn('[CART-IMAGE] Failed to load image:', cartItem.picture);
 															}}
 														/>
-													{/if}
-													{#if !cartItem.picture}
+													{:else}
 														<ItemImagePlaceholder size="sm" />
 													{/if}
-												</div>
+												</button>
 
 												<!-- Item Details -->
 												<div class="min-w-0 flex-1">
@@ -463,7 +533,7 @@
 													<p class="mt-0.5 text-xs text-gray-500">Qty: {cartItem.quantity} / Max: {cartItem.maxQuantity}</p>
 													
 													<!-- Quantity Controls -->
-													<div class="mt-1.5 flex items-center gap-1.5">
+													<div class="mt-1.5 flex items-center gap-1.5" onclick={(e) => e.stopPropagation()} role="none">
 														<div class="flex items-center rounded border border-gray-300 bg-white">
 															<button
 																onclick={() => updateCartQuantity(cartItem.itemId, Math.max(1, cartItem.quantity - 1))}
@@ -659,3 +729,57 @@
 	onconfirm={logout}
 	oncancel={() => (signOutOpen = false)}
 />
+
+{#if previewCartItem}
+	{@const modalItem = toCartModalItem(previewCartItem)}
+	<CatalogItemModal
+		item={modalItem}
+		categories={previewCartCategories}
+		onClose={() => (previewCartItem = null)}
+		footerHint="Viewing item from your request list"
+	>
+		{#snippet footerAction()}
+			<span class="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-2 text-xs font-semibold text-gray-600">
+				<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+				</svg>
+				In your request
+			</span>
+		{/snippet}
+	</CatalogItemModal>
+{/if}
+
+{#if previewCartPhoto}
+	<div
+		class="fixed inset-0 z-60 flex items-center justify-center p-4"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Full photo view"
+	>
+		<!-- svelte-ignore a11y_click_events_have_key_events -->
+		<!-- svelte-ignore a11y_no_static_element_interactions -->
+		<div
+			class="fixed inset-0 bg-black/90 backdrop-blur-sm"
+			onclick={() => (previewCartPhoto = null)}
+			aria-hidden="true"
+		></div>
+		<div class="relative z-10 max-h-[90vh] max-w-[90vw]">
+			<button
+				type="button"
+				onclick={() => (previewCartPhoto = null)}
+				class="absolute -top-12 right-0 rounded-md p-2 text-white transition-colors hover:bg-white/10"
+				aria-label="Close photo"
+			>
+				<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+				</svg>
+			</button>
+			<img
+				src={previewCartPhoto.src}
+				alt={previewCartPhoto.alt}
+				class="max-h-[90vh] max-w-full rounded-lg shadow-2xl"
+			/>
+			<p class="mt-3 text-center text-sm font-medium text-white/80">{previewCartPhoto.alt}</p>
+		</div>
+	</div>
+{/if}

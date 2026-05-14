@@ -5,6 +5,7 @@
 	import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
 	import { statisticsAPI, type StudentStatisticsData } from '$lib/api/statistics';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
+	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import {
 		ClipboardList, Clock, PackageOpen, TriangleAlert,
 		CheckCircle2, CalendarDays, TrendingUp, Package,
@@ -746,11 +747,17 @@
 										<div class="flex -space-x-2 shrink-0">
 											{#each req.items.slice(0, 2) as item}
 												{#if item.picture}
-													<img src={item.picture} alt={item.name} class="h-10 w-10 rounded-lg object-cover ring-2 ring-white sm:h-12 sm:w-12" />
+													{@const imgId = `al-${req.rawId}-${item.name}`}
+													<img
+														src={item.picture}
+														alt={item.name}
+														id={imgId}
+														class="h-10 w-10 rounded-lg object-cover ring-2 ring-white sm:h-12 sm:w-12"
+														onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }}
+													/>
+													<div class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12" style="display:none"><ItemImagePlaceholder size="sm" /></div>
 												{:else}
-													<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 ring-2 ring-white sm:h-12 sm:w-12">
-														<Package size={16} class="text-gray-400" />
-													</div>
+													<div class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12"><ItemImagePlaceholder size="sm" /></div>
 												{/if}
 											{/each}
 											{#if req.items.length > 2}
@@ -830,11 +837,15 @@
 										<div class="flex -space-x-2 shrink-0">
 											{#each req.items.slice(0, 2) as item}
 												{#if item.picture}
-													<img src={item.picture} alt={item.name} class="h-10 w-10 rounded-lg object-cover ring-2 ring-white sm:h-12 sm:w-12" />
+													<img
+														src={item.picture}
+														alt={item.name}
+														class="h-10 w-10 rounded-lg object-cover ring-2 ring-white sm:h-12 sm:w-12"
+														onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }}
+													/>
+													<div class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12" style="display:none"><ItemImagePlaceholder size="sm" /></div>
 												{:else}
-													<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 ring-2 ring-white sm:h-12 sm:w-12">
-														<Package size={16} class="text-gray-400" />
-													</div>
+													<div class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12"><ItemImagePlaceholder size="sm" /></div>
 												{/if}
 											{/each}
 											{#if req.items.length > 2}

@@ -151,7 +151,7 @@
 			eomCount: 0,
 			variance: 0,
 			donations: 0,
-			constantCount: 0,
+			requiredCount: 0,
 			lowStockCount: 0
 		});
 		const inventoryVarianceRows = $derived(

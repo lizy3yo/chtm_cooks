@@ -54,7 +54,7 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		variance: getCurrentCount(item.quantity, item.donations ?? 0) - item.eomCount,
 		description: item.description,
 		status: item.status,
-		isConstant: item.isConstant,
+		isrequired: item.isrequired,
 		maxQuantityPerRequest: item.maxQuantityPerRequest,
 		archived: item.archived,
 		createdAt: item.createdAt,
@@ -249,13 +249,13 @@ export const PATCH: RequestHandler = async (event) => {
 		if (body.archived !== undefined) {
 			updateFields.archived = body.archived;
 		}
-		if (body.isConstant !== undefined) {
-			updateFields.isConstant = body.isConstant;
+		if (body.isrequired !== undefined) {
+			updateFields.isrequired = body.isrequired;
 		}
 		if (body.maxQuantityPerRequest !== undefined) {
-			// Only set maxQuantityPerRequest if the item is constant
-			// If not constant or value is null/undefined, explicitly unset it
-			if (body.isConstant !== false && body.maxQuantityPerRequest) {
+			// Only set maxQuantityPerRequest if the item is required
+			// If not required or value is null/undefined, explicitly unset it
+			if (body.isrequired !== false && body.maxQuantityPerRequest) {
 				updateFields.maxQuantityPerRequest = Math.max(1, Math.floor(body.maxQuantityPerRequest));
 			} else {
 				updateFields.maxQuantityPerRequest = undefined;
@@ -319,7 +319,7 @@ export const PATCH: RequestHandler = async (event) => {
 		// Old image deletion is fire-and-forget — it's non-critical and should
 		// not block the response.
 		const cacheInvalidation = Promise.all([
-			cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-constant', 'reports-analytics']),
+			cacheService.invalidateByTags(['inventory-items', 'inventory-catalog', 'inventory-required', 'reports-analytics']),
 			cacheService.deletePattern('inventory:archived:*'),
 			cacheService.deletePattern('inventory:history:*')
 		]);

@@ -1,9 +1,9 @@
 /**
- * GET /api/inventory/constant
- * Fetch all constant (frequently requested) items
+ * GET /api/inventory/required
+ * Fetch all required (frequently requested) items
  * 
- * PATCH /api/inventory/constant
- * Bulk update constant status for multiple items
+ * PATCH /api/inventory/required
+ * Bulk update required status for multiple items
  * 
  * Professional, industry-standard API with:
  * - Cookie-based authentication
@@ -51,7 +51,7 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		variance: currentCount - item.eomCount,
 		description: item.description,
 		status: item.status,
-		isConstant: item.isConstant || false,
+		isrequired: item.isrequired || false,
 		archived: item.archived,
 		createdAt: item.createdAt,
 		updatedAt: item.updatedAt
@@ -59,8 +59,8 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 }
 
 /**
- * GET /api/inventory/constant
- * Fetch all constant items (frequently requested items)
+ * GET /api/inventory/required
+ * Fetch all required items (frequently requested items)
  * Optimized with server-side caching
  */
 export const GET: RequestHandler = async (event) => {
@@ -79,10 +79,10 @@ export const GET: RequestHandler = async (event) => {
 			return json({ error: 'Unauthorized' }, { status: 401 });
 		}
 
-		// Authorization: All authenticated users can view constant items
+		// Authorization: All authenticated users can view required items
 		const allowedRoles = ['custodian', 'instructor', 'superadmin', 'student'];
 		if (!allowedRoles.includes(decoded.role)) {
-			logger.warn('Unauthorized role attempted to access constant items', {
+			logger.warn('Unauthorized role attempted to access required items', {
 				userId: decoded.userId,
 				role: decoded.role,
 				ip: getClientAddress()
@@ -91,11 +91,11 @@ export const GET: RequestHandler = async (event) => {
 		}
 
 		// Check cache first (5 minute TTL)
-		const cacheKey = 'inventory:constant:all';
+		const cacheKey = 'inventory:required:all';
 		const cached = await cacheService.get<InventoryItemResponse[]>(cacheKey);
 		
 		if (cached) {
-			logger.debug('Constant items served from cache', {
+			logger.debug('required items served from cache', {
 				userId: decoded.userId,
 				count: cached.length
 			});
@@ -114,10 +114,10 @@ export const GET: RequestHandler = async (event) => {
 		const db = await getDatabase();
 		const itemsCollection = db.collection<InventoryItem>('inventory_items');
 
-		// Fetch constant items (non-archived, isConstant = true)
+		// Fetch required items (non-archived, isrequired = true)
 		const items = await itemsCollection
 			.find({
-				isConstant: true,
+				isrequired: true,
 				archived: false
 			})
 			.sort({ name: 1 })
@@ -128,10 +128,10 @@ export const GET: RequestHandler = async (event) => {
 		// Cache for 12 hours to align with session timeout
 		await cacheService.set(cacheKey, response, {
 			ttl: 43200,
-			tags: ['inventory-constant', 'inventory-catalog']
+			tags: ['inventory-required', 'inventory-catalog']
 		});
 
-		logger.info('Constant items retrieved', {
+		logger.info('required items retrieved', {
 			userId: decoded.userId,
 			role: decoded.role,
 			count: items.length
@@ -147,15 +147,15 @@ export const GET: RequestHandler = async (event) => {
 		});
 
 	} catch (error) {
-		logger.error('Error retrieving constant items', {
+		logger.error('Error retrieving required items', {
 			error: error instanceof Error ? error.message : String(error)
 		});
 		return json(
 			{
-				error: 'Failed to retrieve constant items',
+				error: 'Failed to retrieve required items',
 				message: process.env.NODE_ENV === 'development'
 					? error instanceof Error ? error.message : String(error)
-					: 'An error occurred while fetching constant items'
+					: 'An error occurred while fetching required items'
 			},
 			{ status: 500 }
 		);
@@ -163,8 +163,8 @@ export const GET: RequestHandler = async (event) => {
 };
 
 /**
- * PATCH /api/inventory/constant
- * Bulk update constant status for items
+ * PATCH /api/inventory/required
+ * Bulk update required status for items
  * Only custodians and superadmins can modify
  */
 export const PATCH: RequestHandler = async (event) => {
@@ -185,7 +185,7 @@ export const PATCH: RequestHandler = async (event) => {
 
 		// Authorization: Only custodians and superadmins
 		if (!['custodian', 'superadmin'].includes(decoded.role)) {
-			logger.warn('Unauthorized role attempted to update constant items', {
+			logger.warn('Unauthorized role attempted to update required items', {
 				userId: decoded.userId,
 				role: decoded.role,
 				ip: getClientAddress()
@@ -195,15 +195,15 @@ export const PATCH: RequestHandler = async (event) => {
 
 		// Parse request body
 		const body = await request.json();
-		const { itemIds, isConstant } = body;
+		const { itemIds, isrequired } = body;
 
 		// Validation
 		if (!Array.isArray(itemIds) || itemIds.length === 0) {
 			return json({ error: 'itemIds must be a non-empty array' }, { status: 400 });
 		}
 
-		if (typeof isConstant !== 'boolean') {
-			return json({ error: 'isConstant must be a boolean' }, { status: 400 });
+		if (typeof isrequired !== 'boolean') {
+			return json({ error: 'isrequired must be a boolean' }, { status: 400 });
 		}
 
 		// Validate item IDs
@@ -227,7 +227,7 @@ export const PATCH: RequestHandler = async (event) => {
 			},
 			{
 				$set: {
-					isConstant,
+					isrequired,
 					updatedAt: new Date()
 				}
 			}
@@ -238,7 +238,7 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 
 		// Invalidate cache
-		await cacheService.invalidateByTags(['inventory-constant', 'inventory-catalog', 'reports-analytics']);
+		await cacheService.invalidateByTags(['inventory-required', 'inventory-catalog', 'reports-analytics']);
 
 		// Fetch updated items for response
 		const updatedItems = await itemsCollection
@@ -257,11 +257,11 @@ export const PATCH: RequestHandler = async (event) => {
 			publishInventoryChange([INVENTORY_CHANNEL], event);
 		}
 
-		logger.info('Constant items updated', {
+		logger.info('required items updated', {
 			userId: decoded.userId,
 			role: decoded.role,
 			itemIds,
-			isConstant,
+			isrequired,
 			updatedCount: result.modifiedCount
 		});
 
@@ -273,15 +273,15 @@ export const PATCH: RequestHandler = async (event) => {
 		});
 
 	} catch (error) {
-		logger.error('Error updating constant items', {
+		logger.error('Error updating required items', {
 			error: error instanceof Error ? error.message : String(error)
 		});
 		return json(
 			{
-				error: 'Failed to update constant items',
+				error: 'Failed to update required items',
 				message: process.env.NODE_ENV === 'development'
 					? error instanceof Error ? error.message : String(error)
-					: 'An error occurred while updating constant items'
+					: 'An error occurred while updating required items'
 			},
 			{ status: 500 }
 		);

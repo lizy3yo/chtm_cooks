@@ -104,7 +104,7 @@ CHTM Cooks is a digital platform that manages the borrowing, tracking, and retur
 ### Equipment and Inventory
 - The catalog lists all available culinary equipment (knives, bowls, mixers, scales, processors, etc.).
 - Each item has a name, category, condition, quantity, and availability status.
-- Constant items always appear on request forms regardless of stock.
+- required items always appear on request forms regardless of stock.
 - Low-stock and out-of-stock items are flagged for custodian attention.
 
 ### Replacement Obligations
@@ -705,7 +705,7 @@ function buildLocalFallbackReply(userPrompt: string, role: ChatUserRole): string
 			'1. Go to the catalog or inventory page.',
 			'2. Search by item name or category.',
 			'3. Review quantity and status indicators (low stock/out of stock).',
-			'4. Submit only items currently available unless marked as constant items.'
+			'4. Submit only items currently available unless marked as required items.'
 		].join('\n');
 	}
 

@@ -747,7 +747,7 @@
 							<div class="grid gap-3 p-4 md:grid-cols-[32px_1.2fr_2fr_1fr_120px] md:items-start md:gap-4 transition-colors cursor-pointer hover:bg-gray-50" data-request-id={loan.id} onclick={() => openLoanDetails(loan)} role="button" tabindex="0" onkeydown={(e) => e.key === 'Enter' && openLoanDetails(loan)} aria-label="View details for {loan.requestCode}">
 								<div class="hidden md:flex items-center justify-center pt-0.5"><span class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{rowNum}</span></div>
 								<div class="min-w-0 pt-0.5"><p class="font-mono text-xs font-bold tracking-widest text-gray-900 truncate">{loan.requestCode}</p><p class="mt-1 text-[11px] text-gray-500">{new Date(loan.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(loan.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p></div>
-								<div class="min-w-0"><div class="flex flex-wrap gap-1.5 mb-1.5">{#each loan.items.slice(0,3) as item}{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700">{#if pic}<img src={pic} alt={item.name} class="h-3.5 w-3.5 rounded object-cover shrink-0" />{:else}<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>{/if}<span class="truncate max-w-22.5">{item.name}</span></span>{/each}{#if loan.items.length > 3}<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600">+{loan.items.length - 3}</span>{/if}</div><p class="truncate text-xs text-gray-500"><span class="font-medium text-gray-700">Purpose:</span> {loan.purpose}</p><p class="mt-0.5 truncate text-[11px] text-gray-400">Instructor: {loan.instructorName}</p></div>
+								<div class="min-w-0"><div class="flex flex-wrap gap-1.5 mb-1.5">{#each loan.items.slice(0,3) as item}{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}<span class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700">{#if pic}<img src={pic} alt={item.name} class="h-3.5 w-3.5 rounded object-cover shrink-0" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} /><span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded" style="display:none"><ItemImagePlaceholder size="xs" /></span>{:else}<span class="h-3.5 w-3.5 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>{/if}<span class="truncate max-w-22.5">{item.name}</span></span>{/each}{#if loan.items.length > 3}<span class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600">+{loan.items.length - 3}</span>{/if}</div><p class="truncate text-xs text-gray-500"><span class="font-medium text-gray-700">Purpose:</span> {loan.purpose}</p><p class="mt-0.5 truncate text-[11px] text-gray-400">Instructor: {loan.instructorName}</p></div>
 								<div class="min-w-0"><span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold {getLoanBadgeClasses(loan)}">{getLoanStateLabel(loan)}</span></div>
 								<div class="flex items-center justify-end gap-2 pt-0.5 shrink-0">
 									{#if loan.status === 'borrowed'}
@@ -794,7 +794,8 @@
 								
 								<div class="flex items-start gap-3 min-w-0">
 									{#if row.picture}
-										<img src={row.picture} alt={row.itemName} class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-gray-100" loading="lazy" />
+										<img src={row.picture} alt={row.itemName} class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-gray-100" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} />
+										<span class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-50 ring-1 ring-gray-100" style="display:none"><ItemImagePlaceholder size="sm" /></span>
 									{:else}
 										<span class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-50 ring-1 ring-gray-100"><ItemImagePlaceholder size="sm" /></span>
 									{/if}
@@ -851,7 +852,7 @@
 	</div>
 
 	{#if showQrModal && selectedLoan}
-		<div class="fixed inset-0 z-[60] overflow-y-auto">
+		<div class="fixed inset-0 z-60 overflow-y-auto">
 			<div
 				class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
 				onclick={() => showQrModal = false}
@@ -1100,7 +1101,8 @@
 										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
 										<div class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-all hover:border-pink-200 hover:shadow-sm">
 											{#if pic}
-												<img src={pic} alt={item.name} class="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-gray-100" loading="lazy" />
+												<img src={pic} alt={item.name} class="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-gray-100" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} />
+												<div class="h-11 w-11 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100" style="display:none"><ItemImagePlaceholder size="sm" /></div>
 											{:else}
 												<div class="h-11 w-11 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100"><ItemImagePlaceholder size="sm" /></div>
 											{/if}
@@ -1155,7 +1157,8 @@
 													<td class="px-4 py-3">
 														<div class="flex items-center gap-2">
 															{#if pic}
-																<img src={pic} alt={item.name} class="h-7 w-7 shrink-0 rounded object-cover" loading="lazy" />
+																<img src={pic} alt={item.name} class="h-7 w-7 shrink-0 rounded object-cover" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} />
+																<span class="h-7 w-7 shrink-0 overflow-hidden rounded" style="display:none"><ItemImagePlaceholder size="xs" /></span>
 															{:else}
 																<span class="h-7 w-7 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
 															{/if}
@@ -1250,7 +1253,7 @@
 
 	<!-- QR Code Modal -->
 	{#if showQrModal && qrLoan}
-		<div class="fixed inset-0 z-[60] overflow-y-auto">
+		<div class="fixed inset-0 z-60 overflow-y-auto">
 			<div
 				class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
 				onclick={() => (showQrModal = false)}

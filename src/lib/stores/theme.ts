@@ -1,48 +1,30 @@
-import { writable } from 'svelte/store';
-import { browser } from '$app/environment';
+/**
+ * themeStore — thin compatibility wrapper over userSettingsStore.darkMode
+ *
+ * Industry-standard approach: single source of truth for dark mode.
+ * Both the top-nav toggle and the settings page toggle go through
+ * userSettingsStore, so they are always in sync.
+ */
+import { derived } from 'svelte/store';
+import { userSettingsStore } from '$lib/stores/userSettings';
 
 export type Theme = 'light' | 'dark';
 
-function getInitialTheme(): Theme {
-	if (!browser) return 'light';
-	const stored = localStorage.getItem('theme') as Theme | null;
-	// Respect an explicit user preference; otherwise default to light.
-	if (stored === 'light' || stored === 'dark') return stored;
-	return 'light';
-}
+/** Read-only derived store: 'dark' | 'light' */
+export const themeStore = {
+	subscribe: derived(userSettingsStore, ($s) => ($s.darkMode ? 'dark' : 'light') as Theme).subscribe,
 
-function applyTheme(theme: Theme) {
-	if (!browser) return;
-	const html = document.documentElement;
-	if (theme === 'dark') html.classList.add('dark');
-	else html.classList.remove('dark');
-	try {
-		localStorage.setItem('theme', theme);
-	} catch {}
-}
+	toggle() {
+		let current = false;
+		const unsub = userSettingsStore.subscribe((s) => (current = s.darkMode));
+		unsub();
+		userSettingsStore.updateSetting('darkMode', !current);
+	},
 
-function createThemeStore() {
-	const initial = getInitialTheme();
-	const { subscribe, set } = writable<Theme>(initial);
+	set(theme: Theme) {
+		userSettingsStore.updateSetting('darkMode', theme === 'dark');
+	},
 
-	return {
-		subscribe,
-		toggle: () => {
-			let current: Theme = 'light';
-			const unsub = subscribe(v => (current = v));
-			unsub();
-			const next = current === 'light' ? 'dark' : 'light';
-			applyTheme(next);
-			set(next);
-		},
-		set: (theme: Theme) => {
-			applyTheme(theme);
-			set(theme);
-		},
-		init: () => {
-			applyTheme(getInitialTheme());
-		}
-	};
-}
-
-export const themeStore = createThemeStore();
+	/** No-op: userSettingsStore already initialises itself on import */
+	init() {}
+};

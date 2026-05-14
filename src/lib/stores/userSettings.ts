@@ -56,6 +56,14 @@ function getInitialSettings(): UserSettings {
 		console.error('Failed to load user settings:', error);
 	}
 
+	// Migrate legacy themeStore preference (stored as 'theme' = 'dark'|'light')
+	try {
+		const legacyTheme = localStorage.getItem('theme');
+		if (legacyTheme === 'dark' || legacyTheme === 'light') {
+			return { ...defaultSettings, darkMode: legacyTheme === 'dark' };
+		}
+	} catch {}
+
 	return defaultSettings;
 }
 

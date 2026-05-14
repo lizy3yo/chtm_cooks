@@ -121,8 +121,8 @@ export const POST: RequestHandler = async (event) => {
 					donations,
 					eomCount,
 					status: determineStatus(getCurrentCount(quantity, donations), false),
-					isConstant: item.isConstant || false,
-					maxQuantityPerRequest: item.isConstant && item.maxQuantityPerRequest
+					isrequired: item.isrequired || false,
+					maxQuantityPerRequest: item.isrequired && item.maxQuantityPerRequest
 						? Math.max(1, Math.floor(item.maxQuantityPerRequest))
 						: undefined,
 					archived: false,

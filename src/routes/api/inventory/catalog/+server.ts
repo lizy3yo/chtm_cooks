@@ -31,7 +31,7 @@ function toItemResponse(item: InventoryItem): InventoryItemResponse {
 		variance: currentCount - item.eomCount,
 		description: item.description,
 		status: item.status,
-		isConstant: item.isConstant,
+		isrequired: item.isrequired,
 		archived: item.archived,
 		createdAt: item.createdAt,
 		updatedAt: item.updatedAt

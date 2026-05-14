@@ -36,7 +36,7 @@
 	const filteredItems = $derived(allItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage));
 	const totalItems = $derived(allItems.length);
 	
-	// UI Constants
+	// UI requireds
 	const availabilityOptions = [
 		{ value: 'all', label: 'All Statuses' },
 		{ value: 'available', label: 'Available' },
@@ -70,6 +70,18 @@
 				return 'bg-orange-100 text-orange-800';
 			default:
 				return 'bg-gray-100 text-gray-800';
+		}
+	}
+
+	/** Solid opaque colors for badges rendered over images */
+	function getOverlayStatusColor(status: string): string {
+		switch (status) {
+			case 'In Stock':    return 'bg-emerald-600 text-white';
+			case 'Available':   return 'bg-blue-600 text-white';
+			case 'Low Stock':   return 'bg-amber-500 text-white';
+			case 'Out of Stock':return 'bg-red-600 text-white';
+			case 'Maintenance': return 'bg-orange-500 text-white';
+			default:            return 'bg-gray-700 text-white';
 		}
 	}
 	
@@ -248,14 +260,14 @@
 		if (cached) {
 			catalogData = cached;
 			isLoading = false;
-			// Load constant items into cart after catalog is loaded
-			loadConstantItemsToCart();
+			// Load required items into cart after catalog is loaded
+			loadrequiredItemsToCart();
 			// Revalidate in background to keep data fresh.
 			fetchCatalog({ background: true, forceRefresh: true });
 		} else {
 			fetchCatalog().then(() => {
-				// Load constant items into cart after initial fetch
-				loadConstantItemsToCart();
+				// Load required items into cart after initial fetch
+				loadrequiredItemsToCart();
 			});
 		}
 		
@@ -277,22 +289,22 @@
 	});
 
 	/**
-	 * Load constant items into the request cart
-	 * This ensures constant items are always available in the cart dropdown
+	 * Load required items into the request cart
+	 * This ensures required items are always available in the cart dropdown
 	 */
-	async function loadConstantItemsToCart(): Promise<void> {
+	async function loadrequiredItemsToCart(): Promise<void> {
 		if (!catalogData) return;
 
-		// Filter constant items from catalog
-		const constantItems = catalogData.items.filter(item => item.isConstant === true);
+		// Filter required items from catalog
+		const requiredItems = catalogData.items.filter(item => item.isrequired === true);
 
-		if (constantItems.length === 0) return;
+		if (requiredItems.length === 0) return;
 
 		// Get current cart items
 		const currentCartItems = $requestCartItems;
 
-		// Add constant items that aren't already in the cart
-		for (const item of constantItems) {
+		// Add required items that aren't already in the cart
+		for (const item of requiredItems) {
 			const alreadyInCart = currentCartItems.some(cartItem => cartItem.itemId === item.id);
 
 			if (!alreadyInCart) {
@@ -305,7 +317,7 @@
 						picture: item.picture
 					});
 				} catch (error) {
-					console.error('Failed to add constant item to cart:', error);
+					console.error('Failed to add required item to cart:', error);
 				}
 			}
 		}
@@ -319,8 +331,8 @@
 			console.log('[STUDENT-CATALOG-SSE] Fetching catalog with forceRefresh=true...');
 			fetchCatalog({ background: true, forceRefresh: true }).then(() => {
 				console.log('[STUDENT-CATALOG-SSE] Catalog refreshed successfully');
-				// Reload constant items after inventory update
-				loadConstantItemsToCart();
+				// Reload required items after inventory update
+				loadrequiredItemsToCart();
 			}).catch((err) => {
 				console.error('[STUDENT-CATALOG-SSE] Failed to refresh catalog:', err);
 			});
@@ -572,15 +584,15 @@
 						{:else}
 							<ItemImagePlaceholder size="lg" />
 						{/if}
-						<!-- Constant badge — top left -->
-						{#if item.isConstant}
-							<span class="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-purple-800 ring-1 ring-purple-200">
+						<!-- required badge — top left -->
+						{#if item.isrequired}
+							<span class="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-full bg-purple-600 px-1.5 py-0.5 text-[10px] font-bold leading-tight text-white shadow-sm">
 								<svg class="h-2 w-2 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-								Constant
+								REQUIRED
 							</span>
 						{/if}
 						<!-- Status badge — top right -->
-						<span class="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight {getAvailabilityColor(item.status)}">
+						<span class="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight shadow-sm {getOverlayStatusColor(item.status)}">
 							{item.status === 'In Stock' ? 'In Stock' : item.status === 'Out of Stock' ? 'Out' : item.status}
 						</span>
 					</div>
@@ -649,10 +661,10 @@
 						<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
 						<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
 						<div class="mt-1 flex flex-wrap items-center gap-1">
-							{#if item.isConstant}
+							{#if item.isrequired}
 								<span class="inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800 ring-1 ring-purple-200">
 									<svg class="h-2 w-2 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-									Constant
+									REQUIRED
 								</span>
 							{/if}
 							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
