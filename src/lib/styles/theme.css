@@ -1819,3 +1819,178 @@ html.keyboard-hints a:focus::after {
 	border-radius: var(--radius-md);
 	pointer-events: none;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SETTINGS PAGE — dark mode
+   Covers all four roles: student, instructor, custodian, superadmin
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Settings card container */
+html.dark .rounded-lg.bg-white.shadow {
+	background-color: var(--color-surface) !important;
+	box-shadow: 0 1px 3px rgba(0,0,0,0.4) !important;
+}
+
+/* Section header divider inside settings card */
+html.dark .rounded-lg.bg-white.shadow .border-b.border-gray-200 {
+	border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Row dividers inside settings card */
+html.dark .rounded-lg.bg-white.shadow .divide-y.divide-gray-200 > * + * {
+	border-color: rgba(255,255,255,0.05) !important;
+}
+
+/* "Reset to Default" button */
+html.dark button.border.border-gray-300.bg-white.text-gray-700 {
+	background-color: rgba(255,255,255,0.04) !important;
+	border-color: rgba(255,255,255,0.10) !important;
+	color: var(--color-gray-700) !important;
+}
+html.dark button.border.border-gray-300.bg-white.text-gray-700:hover {
+	background-color: rgba(255,255,255,0.07) !important;
+}
+
+/* Font-size selector buttons — inactive state */
+html.dark .border-gray-300.bg-white.text-gray-700 {
+	background-color: rgba(255,255,255,0.04) !important;
+	border-color: rgba(255,255,255,0.10) !important;
+	color: var(--color-gray-700) !important;
+}
+html.dark .border-gray-300.bg-white.text-gray-700:hover {
+	border-color: rgba(219,39,119,0.45) !important;
+}
+
+/* Toggle switch track — OFF state (bg-gray-300) */
+html.dark button[role="switch"].bg-gray-300 {
+	background-color: rgba(255,255,255,0.15) !important;
+}
+
+/* Toggle switch thumb always stays white */
+html.dark button[role="switch"] span {
+	background-color: #ffffff !important;
+}
+
+/* Icon container inside settings rows (bg-pink-50) */
+html.dark .rounded-lg.bg-pink-50 {
+	background-color: rgba(219,39,119,0.12) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TOP NAV — dark mode
+   Covers header bar, all dropdowns (notifications, profile, request list)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Header bar */
+html.dark header.fixed.inset-x-0.top-0 {
+	background-color: var(--color-surface) !important;
+	border-color: rgba(255,255,255,0.06) !important;
+	box-shadow: 0 1px 0 rgba(255,255,255,0.04) !important;
+}
+
+/* Date / clock text in header */
+html.dark header.fixed.inset-x-0.top-0 .text-gray-500 {
+	color: rgba(255,255,255,0.45) !important;
+}
+
+/* Branding text in header (mobile) */
+html.dark header.fixed.inset-x-0.top-0 .text-gray-900 {
+	color: var(--color-text) !important;
+}
+html.dark header.fixed.inset-x-0.top-0 .text-gray-400 {
+	color: rgba(255,255,255,0.35) !important;
+}
+
+/* Divider line before avatar */
+html.dark header.fixed.inset-x-0.top-0 .bg-gray-200 {
+	background-color: rgba(255,255,255,0.08) !important;
+}
+
+/* Icon buttons in header (dark/light toggle, bell, cart) */
+html.dark header.fixed.inset-x-0.top-0 button.text-gray-600 {
+	color: rgba(255,255,255,0.60) !important;
+}
+
+/* Avatar button hover */
+html.dark header.fixed.inset-x-0.top-0 .hover\:bg-pink-50:hover {
+	background-color: rgba(219,39,119,0.08) !important;
+}
+
+/* User name in header */
+html.dark header.fixed.inset-x-0.top-0 .text-gray-900.font-medium {
+	color: var(--color-text) !important;
+}
+
+/* Notification badge ring */
+html.dark header.fixed.inset-x-0.top-0 .ring-white {
+	--tw-ring-color: var(--color-surface) !important;
+}
+
+/* ── Notifications dropdown ─────────────────────────────────────────────── */
+html.dark [role="dialog"][aria-label="Notifications"] {
+	background-color: var(--color-surface) !important;
+	border-color: rgba(255,255,255,0.07) !important;
+	box-shadow: 0 12px 30px rgba(2,6,23,0.65) !important;
+}
+html.dark [role="dialog"][aria-label="Notifications"] .border-b.border-gray-100 {
+	border-color: rgba(255,255,255,0.06) !important;
+}
+html.dark [role="dialog"][aria-label="Notifications"] .text-gray-900 {
+	color: var(--color-text) !important;
+}
+html.dark [role="dialog"][aria-label="Notifications"] .text-gray-600 {
+	color: rgba(255,255,255,0.55) !important;
+}
+html.dark [role="dialog"][aria-label="Notifications"] .text-gray-500 {
+	color: rgba(255,255,255,0.40) !important;
+}
+html.dark [role="dialog"][aria-label="Notifications"] .text-gray-400 {
+	color: rgba(255,255,255,0.30) !important;
+}
+html.dark [role="dialog"][aria-label="Notifications"] .hover\:bg-gray-50:hover {
+	background-color: rgba(255,255,255,0.03) !important;
+}
+html.dark [role="dialog"][aria-label="Notifications"] .bg-pink-50\/40 {
+	background-color: rgba(219,39,119,0.07) !important;
+}
+html.dark [role="dialog"][aria-label="Notifications"] .bg-pink-100 {
+	background-color: rgba(219,39,119,0.18) !important;
+}
+
+/* ── Profile dropdown ───────────────────────────────────────────────────── */
+html.dark [role="menu"].absolute.right-0.top-full {
+	background-color: var(--color-surface) !important;
+	border-color: rgba(255,255,255,0.07) !important;
+	box-shadow: 0 12px 30px rgba(2,6,23,0.65) !important;
+}
+html.dark [role="menu"].absolute.right-0.top-full .border-b.border-gray-100 {
+	border-color: rgba(255,255,255,0.06) !important;
+}
+html.dark [role="menu"].absolute.right-0.top-full .text-gray-900 {
+	color: var(--color-text) !important;
+}
+html.dark [role="menu"].absolute.right-0.top-full .text-gray-500 {
+	color: rgba(255,255,255,0.45) !important;
+}
+html.dark [role="menu"].absolute.right-0.top-full .text-gray-700 {
+	color: rgba(255,255,255,0.75) !important;
+}
+html.dark [role="menu"].absolute.right-0.top-full .text-gray-400 {
+	color: rgba(255,255,255,0.30) !important;
+}
+html.dark [role="menu"].absolute.right-0.top-full .hover\:bg-pink-50:hover {
+	background-color: rgba(219,39,119,0.08) !important;
+}
+html.dark [role="menu"].absolute.right-0.top-full .hover\:text-pink-600:hover {
+	color: var(--color-rose-300) !important;
+}
+html.dark [role="menu"].absolute.right-0.top-full .border-t.border-gray-100 {
+	border-color: rgba(255,255,255,0.06) !important;
+}
+html.dark [role="menu"].absolute.right-0.top-full button.text-red-600 {
+	color: #ff9ca8 !important;
+}
+html.dark [role="menu"].absolute.right-0.top-full button.text-red-600:hover {
+	background-color: rgba(239,68,68,0.08) !important;
+	color: #fca5a5 !important;
+}
