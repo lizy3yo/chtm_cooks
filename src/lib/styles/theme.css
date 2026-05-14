@@ -1719,6 +1719,65 @@ html.high-contrast *:focus-visible {
 	outline-offset: 2px !important;
 }
 
+/* ── High Contrast + Dark Mode combined ─────────────────────────────────────
+   When both high-contrast and dark are active, flip all the forced-black text
+   to high-contrast light equivalents. Pure white on dark backgrounds meets
+   WCAG AAA (21:1 contrast ratio) — the highest possible standard.           */
+
+html.high-contrast.dark {
+	--color-text-primary: #ffffff;
+	--color-text-secondary: #f3f4f6;
+	--color-text-tertiary: #d1d5db;
+}
+
+/* Primary text — pure white */
+html.high-contrast.dark .text-gray-900,
+html.high-contrast.dark h1,
+html.high-contrast.dark h2,
+html.high-contrast.dark h3,
+html.high-contrast.dark h4,
+html.high-contrast.dark h5,
+html.high-contrast.dark h6 {
+	color: #ffffff !important;
+}
+
+/* Secondary text — near white */
+html.high-contrast.dark .text-gray-700,
+html.high-contrast.dark .text-gray-600 {
+	color: #f3f4f6 !important;
+}
+
+/* Tertiary text — light gray */
+html.high-contrast.dark .text-gray-500,
+html.high-contrast.dark .text-gray-400 {
+	color: #d1d5db !important;
+}
+
+/* Pink text — lighter pink for dark backgrounds */
+html.high-contrast.dark .text-pink-600,
+html.high-contrast.dark .text-pink-700 {
+	color: #f9a8d4 !important;
+}
+
+/* Link text — white on dark */
+html.high-contrast.dark a {
+	color: #f3f4f6 !important;
+	font-weight: 500 !important;
+}
+
+/* Placeholder text — visible on dark inputs */
+html.high-contrast.dark ::placeholder,
+html.high-contrast.dark .placeholder-gray-400 {
+	color: #9ca3af !important;
+	opacity: 1 !important;
+}
+
+/* Focus states — white outline on dark */
+html.high-contrast.dark *:focus-visible {
+	outline: 2px solid #ffffff !important;
+	outline-offset: 2px !important;
+}
+
 /* Font Size Classes */
 html.text-sm {
 	font-size: 14px;

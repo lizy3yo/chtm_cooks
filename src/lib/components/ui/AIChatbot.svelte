@@ -1222,8 +1222,4 @@
 		background: #374151;
 		color: #6b7280;
 	}
-
-	.chat-panel.dark .input-area :global(p) {
-		color: #4b5563;
-	}
 </style>
