@@ -21,6 +21,8 @@
 		editContent?: import('svelte').Snippet;
 		/** When true the image overlay and name/category overlay are suppressed (edit mode) */
 		isEditMode?: boolean;
+		/** When true, internal inventory fields (EOM count, variance) are hidden — for student-facing views */
+		hideInventoryFields?: boolean;
 		/** Save error message to display */
 		saveError?: string | null;
 		/** Whether a save succeeded (shows success banner) */
@@ -36,6 +38,7 @@
 		footerAction,
 		editContent,
 		isEditMode = false,
+		hideInventoryFields = false,
 		saveError = null,
 		saveSuccess = false,
 		footerHint = ''
@@ -245,7 +248,7 @@
 									</div>
 								</div>
 
-								{#if item.eomCount != null || item.variance != null}
+								{#if !hideInventoryFields && (item.eomCount != null || item.variance != null)}
 									<div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-200">
 										{#if item.eomCount != null}
 											<div>

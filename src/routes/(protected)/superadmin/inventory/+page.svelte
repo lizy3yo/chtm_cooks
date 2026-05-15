@@ -319,8 +319,8 @@
 	async function handleDeleteItem(item: InventoryItem) {
 		const confirmed = await confirmStore.danger(
 			`Permanently delete "${item.name}"? This cannot be undone.`,
-			'Delete Item',
-			'Delete'
+			'Remove Item',
+			'Remove'
 		);
 		if (!confirmed) return;
 		try {
@@ -528,7 +528,7 @@
 			toastStore.error(`Cannot delete "${cat.name}" — it has ${cat.itemCount} item(s). Reassign or delete items first.`);
 			return;
 		}
-		const confirmed = await confirmStore.danger(`Delete category "${cat.name}"?`, 'Delete Category', 'Delete');
+		const confirmed = await confirmStore.danger(`Remove category "${cat.name}"?`, 'Remove Category', 'Remove');
 		if (!confirmed) return;
 		try {
 			loading = true;
@@ -1038,7 +1038,7 @@ Add Your First Category
 <Edit size={14} class="text-gray-500" /> Edit Category
 </button>
 <button onclick={(e) => deleteCategory(category, e)} class="w-full flex items-center gap-3 px-4 py-2 text-sm text-left {category.itemCount > 0 ? 'text-gray-400 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'}" disabled={category.itemCount > 0}>
-<Trash2 size={14} /> Delete Category
+<Trash2 size={14} /> Remove Category
 {#if category.itemCount > 0}<span class="ml-auto text-xs">(has items)</span>{/if}
 </button>
 </div>
@@ -1322,7 +1322,7 @@ Stock Information
 					variant: 'warning' as const
 				},
 				{
-					label: 'Delete',
+					label: 'Remove',
 					icon: Trash2 as unknown as LucideIcon,
 					action: () => { if (selectedItem) handleDeleteItem(selectedItem); },
 					variant: 'danger' as const,

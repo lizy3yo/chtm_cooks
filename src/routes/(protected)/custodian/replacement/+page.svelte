@@ -3830,9 +3830,9 @@
 							onclick={async (e) => {
 								e.stopPropagation();
 								const confirmed = await confirmStore.danger(
-									`Delete donation ${selectedDonation!.receiptNumber} (${selectedDonation!.itemName}) from ${selectedDonation!.donorName}? This cannot be undone.`,
-									'Delete Donation',
-									'Delete'
+									`Remove donation ${selectedDonation!.receiptNumber} (${selectedDonation!.itemName}) from ${selectedDonation!.donorName}? This cannot be undone.`,
+									'Remove Donation',
+									'Remove'
 								);
 								if (!confirmed) return;
 								try {

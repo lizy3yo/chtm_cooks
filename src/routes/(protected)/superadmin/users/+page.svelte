@@ -399,9 +399,9 @@
 	async function handleDelete(user: UserResponse) {
 		openDropdown = null;
 		const confirmed = await confirmStore.danger(
-			`Are you sure you want to permanently delete ${user.firstName} ${user.lastName} (${user.email})? This action cannot be undone.`,
-			'Delete User',
-			'Delete Permanently'
+			`Are you sure you want to permanently remove ${user.firstName} ${user.lastName} (${user.email})? This action cannot be undone.`,
+			'Remove User',
+			'Remove Permanently'
 		);
 		if (!confirmed) return;
 		try {
@@ -1517,7 +1517,7 @@
 															class="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 transition hover:bg-red-50"
 															role="menuitem"
 														>
-															<Trash2 size={15} class="text-red-500" aria-hidden="true" />Delete
+															<Trash2 size={15} class="text-red-500" aria-hidden="true" />Remove
 															User
 														</button>
 													</div>
