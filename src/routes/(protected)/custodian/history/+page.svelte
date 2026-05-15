@@ -12,6 +12,8 @@
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import HistorySkeletonLoader from '$lib/components/ui/HistorySkeletonLoader.svelte';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import ActionMenu from '$lib/components/ui/ActionMenu.svelte';
+	import { RotateCcw, Trash2 } from 'lucide-svelte';
 
 	type Tab = 'activity-logs' | 'request-history' | 'archived' | 'deleted';
 	
@@ -1370,29 +1372,26 @@
 												{item.daysRemaining} days
 											</span>
 										</td>
-										<td class="px-6 py-4 text-center">
-											<div class="flex items-center justify-center gap-2">
-												<button
-													onclick={() => restoreDeletedItem(item)}
-													class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95"
-													title="Restore item"
-												>
-													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-													</svg>
-													Restore
-												</button>
-												<button
-													onclick={() => permanentlyDelete(item)}
-													class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-50 active:scale-95"
-													title="Permanently delete — cannot be undone"
-												>
-													<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-														<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-													</svg>
-													Delete Forever
-												</button>
-											</div>
+										<td class="px-6 py-4 text-center" onclick={(e) => e.stopPropagation()}>
+											<ActionMenu
+												align="right"
+												triggerLabel="Item actions"
+												items={[
+													{
+														label: 'Restore',
+														icon: RotateCcw,
+														variant: 'success',
+														action: () => restoreDeletedItem(item)
+													},
+													{
+														label: 'Remove Forever',
+														icon: Trash2,
+														variant: 'danger',
+														divider: true,
+														action: () => permanentlyDelete(item)
+													}
+												]}
+											/>
 										</td>
 									</tr>
 								{/each}

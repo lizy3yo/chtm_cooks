@@ -4,7 +4,7 @@ export type LucideIcon = new (...args: any[]) => any;
 export interface ActionMenuItem {
 	label: string;
 	action: () => void;
-	variant?: 'default' | 'danger' | 'warning';
+	variant?: 'default' | 'danger' | 'warning' | 'success';
 	/** Lucide-svelte icon component */
 	icon?: LucideIcon;
 	/** Render a divider line above this item */

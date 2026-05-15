@@ -376,6 +376,7 @@
 		item={selectedItem}
 		{categories}
 		onClose={closeDetailsModal}
+		hideInventoryFields={true}
 		footerHint="Review details carefully before adding this item to your request list."
 	>
 		{#snippet footerAction()}

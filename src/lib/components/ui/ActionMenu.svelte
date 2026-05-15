@@ -126,13 +126,15 @@
 	const variantCls: Record<NonNullable<ActionMenuItem['variant']>, string> = {
 		default: 'text-gray-700 hover:bg-gray-50',
 		danger:  'text-red-600  hover:bg-red-50',
-		warning: 'text-amber-600 hover:bg-amber-50'
+		warning: 'text-amber-600 hover:bg-amber-50',
+		success: 'text-emerald-600 hover:bg-emerald-50'
 	};
 
 	const iconCls: Record<NonNullable<ActionMenuItem['variant']>, string> = {
 		default: 'text-gray-400',
 		danger:  'text-red-400',
-		warning: 'text-amber-400'
+		warning: 'text-amber-400',
+		success: 'text-emerald-500'
 	};
 </script>
 

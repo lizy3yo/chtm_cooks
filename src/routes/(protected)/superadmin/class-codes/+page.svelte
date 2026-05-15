@@ -445,9 +445,9 @@
 
 	async function handleDelete(cc: ClassCodeResponse) {
 		const confirmed = await confirmStore.danger(
-			`Permanently delete class "${cc.code}"? This action cannot be undone and all enrollment data will be lost.`,
-			'Delete Class',
-			'Delete Permanently'
+			`Permanently remove class "${cc.code}"? This action cannot be undone and all enrollment data will be lost.`,
+			'Remove Class',
+			'Remove Permanently'
 		);
 		if (!confirmed) return;
 		try {
@@ -1774,7 +1774,7 @@
 								<button
 									onclick={() => handleDelete(cc)}
 									class="rounded-lg p-1.5 text-gray-400 transition hover:bg-red-50 hover:text-red-600"
-									title="Delete class"><Trash2 size={15} /></button
+									title="Remove class"><Trash2 size={15} /></button
 								>
 							</div>
 						</div>
@@ -1969,7 +1969,7 @@
 								onclick={() => handleDelete(cc)}
 								class="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-100"
 							>
-								<Trash2 size={14} /> Delete
+								<Trash2 size={14} /> Remove
 							</button>
 						</div>
 					</div>

@@ -18,7 +18,8 @@
 	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
-	import { Package, FolderTree, AlertTriangle, Star } from 'lucide-svelte';
+	import { Package, FolderTree, AlertTriangle, Star, Archive, Trash2 } from 'lucide-svelte';
+	import ActionMenu from '$lib/components/ui/ActionMenu.svelte';
 
 	type Tab = 'all-items' | 'required-items' | 'categories' | 'low-stock';
 
@@ -1045,9 +1046,9 @@
 
 	async function deleteItem(item: InventoryItem) {
 		const confirmed = await confirmStore.danger(
-			`Are you sure you want to delete "${item.name}"? This action cannot be undone.`,
-			'Delete Item',
-			'Delete',
+			`Are you sure you want to remove "${item.name}"? This action cannot be undone.`,
+			'Remove Item',
+			'Remove',
 			'Cancel'
 		);
 
@@ -1241,9 +1242,9 @@
 		}
 
 		const confirmed = await confirmStore.danger(
-			`Are you sure you want to delete category "${category.name}"?`,
-			'Delete Category',
-			'Delete',
+			`Are you sure you want to remove category "${category.name}"?`,
+			'Remove Category',
+			'Remove',
 			'Cancel'
 		);
 
@@ -3633,28 +3634,24 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											</td>
 											<!-- Actions cell -->
 											<td class="px-4 py-4 text-right whitespace-nowrap" onclick={(e) => e.stopPropagation()}>
-												<div class="flex items-center justify-end gap-1">
-													<button
-														onclick={(e) => { e.stopPropagation(); archiveItem(item); }}
-														class="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-white px-2.5 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-50 active:scale-95"
-														title="Archive item"
-													>
-														<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/>
-														</svg>
-														Archive
-													</button>
-													<button
-														onclick={(e) => { e.stopPropagation(); deleteItem(item); }}
-														class="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 active:scale-95"
-														title="Delete item (recoverable for 30 days)"
-													>
-														<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-															<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-														</svg>
-														Delete
-													</button>
-												</div>
+												<ActionMenu
+													align="right"
+													triggerLabel="Item actions"
+													items={[
+														{
+															label: 'Archive',
+															icon: Archive,
+															variant: 'warning',
+															action: () => archiveItem(item)
+														},
+														{
+															label: 'Remove',
+															icon: Trash2,
+															variant: 'danger',
+															action: () => deleteItem(item)
+														}
+													]}
+												/>
 											</td>
 										</tr>
 									{/each}
