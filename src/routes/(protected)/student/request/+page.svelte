@@ -123,6 +123,10 @@
 		};
 	}
 
+	function availableQuantityForItem(item: { quantity: number; donations?: number; currentCount?: number }): number {
+		return item.currentCount ?? (item.quantity + (item.donations ?? 0));
+	}
+
 	/** Fake category array so the modal resolves the category name correctly */
 	const previewCategories = $derived.by((): CatalogCategory[] => {
 		if (!previewItem) return [];
@@ -511,7 +515,7 @@
 				image: inferItemIcon(item.name),
 				picture: item.picture,
 				category: item.category || 'Uncategorized',
-				available: item.quantity,
+				available: availableQuantityForItem(item),
 				specification: item.specification || 'No specification provided',
 				status: item.status,
 				location: (item as any).location,
@@ -1077,7 +1081,7 @@
 				image: inferItemIcon(item.name),
 				picture: item.picture,
 				category: item.category || 'Uncategorized',
-				available: item.quantity,
+				available: availableQuantityForItem(item),
 				specification: item.specification || 'No specification provided',
 				status: item.status,
 				location: (item as any).location,
@@ -2040,7 +2044,7 @@
 												] as col}
 													<div class="flex flex-col items-center gap-1">
 														<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{col.label}</span>
-														<div class="relative h-[144px] w-12 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+														<div class="relative h-36 w-12 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 															<div class="pointer-events-none absolute inset-x-0 top-1/2 h-9 -translate-y-1/2 rounded-lg bg-pink-50 ring-1 ring-pink-200"></div>
 															<div
 																class="relative z-10 h-full overflow-y-auto"
@@ -2070,7 +2074,7 @@
 												{/each}
 												<div class="flex flex-col items-center gap-1">
 													<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">AM/PM</span>
-													<div class="flex h-[144px] w-12 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+													<div class="flex h-36 w-12 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 														{#each ['AM', 'PM'] as period}
 															<button
 																type="button"
@@ -2130,7 +2134,7 @@
 												] as col}
 													<div class="flex flex-col items-center gap-1">
 														<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">{col.label}</span>
-														<div class="relative h-[144px] w-12 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+														<div class="relative h-36 w-12 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 															<div class="pointer-events-none absolute inset-x-0 top-1/2 h-9 -translate-y-1/2 rounded-lg bg-pink-50 ring-1 ring-pink-200"></div>
 															<div
 																class="relative z-10 h-full overflow-y-auto"
@@ -2160,7 +2164,7 @@
 												{/each}
 												<div class="flex flex-col items-center gap-1">
 													<span class="text-[10px] font-semibold uppercase tracking-wide text-gray-400">AM/PM</span>
-													<div class="flex h-[144px] w-12 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+													<div class="flex h-36 w-12 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 														{#each ['AM', 'PM'] as period}
 															<button
 																type="button"
