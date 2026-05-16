@@ -1,4 +1,4 @@
-<script lang="ts">
+﻿<script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -95,6 +95,23 @@
 	// Pagination for the selected items list
 	const SELECTED_ITEMS_PAGE_SIZE = 5;
 	let selectedItemsPage = $state(1);
+	// Separate page state for the Step 4 read-only preview
+	let previewItemsPage = $state(1);
+
+	const previewItemsTotalPages = $derived(
+		Math.max(1, Math.ceil(selectedItems.length / SELECTED_ITEMS_PAGE_SIZE))
+	);
+
+	const paginatedPreviewItems = $derived.by(() => {
+		const start = (previewItemsPage - 1) * SELECTED_ITEMS_PAGE_SIZE;
+		return selectedItems.slice(start, start + SELECTED_ITEMS_PAGE_SIZE);
+	});
+
+	// Reset preview page when items change
+	$effect(() => {
+		selectedItems.length;
+		previewItemsPage = 1;
+	});
 
 	// Item detail preview modal
 	let previewItem = $state<SelectedRequestItem | null>(null);
@@ -247,6 +264,98 @@
 		}
 	});
 
+	// Multi-step wizard state
+	let currentStep = $state(1);
+	const totalSteps = 4;
+
+	const requestSteps = [
+		{ number: 1, title: 'Select Items', description: 'Choose your equipment' },
+		{ number: 2, title: 'Schedule & Class', description: 'Borrow period & class' },
+		{ number: 3, title: 'Purpose & Notes', description: 'Usage details' },
+		{ number: 4, title: 'Review & Submit', description: 'Confirm & send' }
+	];
+
+	function getStepErrorCount(step: number): number {
+		let count = 0;
+		switch (step) {
+			case 1:
+				if (errors.items) count++;
+				if (errors.obligations) count++;
+				break;
+			case 2:
+				if (errors.borrowDate) count++;
+				if (errors.borrowTime) count++;
+				if (errors.returnTime) count++;
+				if (errors.classCode) count++;
+				break;
+			case 3:
+				if (errors.purposeDetails) count++;
+				break;
+			case 4:
+				if (errors.terms) count++;
+				break;
+		}
+		return count;
+	}
+
+	function handleStepNext() {
+		// Partial validation per step
+		const stepErrors: Record<string, string> = {};
+
+		if (currentStep === 1) {
+			if (selectedItems.length === 0) stepErrors.items = 'Please select at least one item';
+			const outOfStock = selectedItems.filter((i) => i.available === 0);
+			if (outOfStock.length > 0) stepErrors.items = `Out of stock items must be removed: ${outOfStock.map((i) => i.name).join(', ')}`;
+			if (hasUnresolvedObligations) stepErrors.obligations = `You have ${unresolvedObligationCount} unresolved obligation${unresolvedObligationCount > 1 ? 's' : ''}. Please settle before continuing.`;
+		} else if (currentStep === 2) {
+			if (!borrowDate) stepErrors.borrowDate = 'Borrow date is required';
+			else if (borrowDate < today) stepErrors.borrowDate = 'Borrow date cannot be in the past';
+			else if (borrowDate > maximumBorrowDate) stepErrors.borrowDate = 'Borrow date must be within the next 2 days';
+			if (!borrowTime) stepErrors.borrowTime = 'Borrow time is required';
+			if (!returnTime) stepErrors.returnTime = 'Return time is required';
+			if (borrowTime && returnTime) {
+				const [bh, bm] = borrowTime.split(':').map(Number);
+				const [rh, rm] = returnTime.split(':').map(Number);
+				const bMin = bh * 60 + bm;
+				const rMin = rh * 60 + rm;
+				if (rMin <= bMin) stepErrors.returnTime = 'Return time must be after borrow time';
+				else if (rMin - bMin < 60) stepErrors.returnTime = 'Minimum borrow duration is 1 hour';
+			}
+			if (!selectedClassCodeId || selectedClassCodeId.trim() === '') stepErrors.classCode = 'Class code is required';
+			if (hasNoEnrollment || availableClassCodes.length === 0) stepErrors.classCode = 'You must be enrolled in at least one class to submit requests.';
+		} else if (currentStep === 3) {
+			if (!purposeDetails.trim()) stepErrors.purposeDetails = 'Please provide purpose details';
+		}
+
+		if (Object.keys(stepErrors).length > 0) {
+			errors = { ...errors, ...stepErrors };
+			// Build a specific message listing exactly what's missing
+			const missing = Object.values(stepErrors);
+			const message = missing.length === 1
+				? missing[0]
+				: `Please fix the following: ${missing.join(' · ')}`;
+			toastStore.error(message, 'Required fields missing');
+			return;
+		}
+
+		// Clear step errors on success
+		const cleared = { ...errors };
+		if (currentStep === 1) { delete cleared.items; delete cleared.obligations; }
+		if (currentStep === 2) { delete cleared.borrowDate; delete cleared.borrowTime; delete cleared.returnTime; delete cleared.classCode; }
+		if (currentStep === 3) { delete cleared.purposeDetails; }
+		errors = cleared;
+
+		if (currentStep < totalSteps) currentStep++;
+	}
+
+	function handleStepBack() {
+		if (currentStep > 1) currentStep--;
+	}
+
+	function goToStep(step: number) {
+		if (step < currentStep) currentStep = step;
+	}
+
 	// Validation
 	let errors = $state<Record<string, string>>({});
 
@@ -357,8 +466,12 @@
 		};
 	}
 
-	const HOURS_12 = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
-	const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+	// Hours filtered by AM/PM to match the 8 AM–5 PM operating window exactly.
+	// AM: only 8–11 are valid. PM: only 12–5 are valid.
+	const HOURS_AM = [8, 9, 10, 11];
+	const HOURS_PM = [12, 1, 2, 3, 4, 5];
+	// 15-minute intervals — clean and professional for a constrained time window
+	const MINUTES = [0, 15, 30, 45];
 
 	let showBorrowPicker = $state(false);
 	let showReturnPicker = $state(false);
@@ -933,7 +1046,12 @@
 
 	async function handleSubmit() {
 		if (!validateForm()) {
-			toastStore.error('Please fix the errors in the form', 'Validation Error');
+			// Build a specific message from the actual validation errors
+			const errorValues = Object.values(errors);
+			const message = errorValues.length === 1
+				? errorValues[0]
+				: `Please fix the following: ${errorValues.join(' · ')}`;
+			toastStore.error(message, 'Cannot submit request');
 			return;
 		}
 
@@ -972,8 +1090,32 @@
 		}
 	}
 
-	function resetForm() {
-		selectedItems = [];
+	async function resetForm() {
+		const confirmed = await confirmStore.warning(
+			'This will clear all your selections and form data. Required items will be kept but their quantities will be reset. You will be taken back to Step 1.',
+			'Reset Request Form?',
+			'Yes, Reset',
+			'Cancel'
+		);
+
+		if (!confirmed) return;
+
+		// Clear the cart entirely first
+		requestCartStore.clear();
+
+		// Re-add required items with quantity reset to 1
+		for (const item of requiredItems) {
+			await requestCartStore.addItem({
+				itemId: item.id,
+				name: item.name,
+				maxQuantity: Math.max(1, item.available)
+			});
+		}
+
+		// Sync selected items from the restored cart
+		syncSelectedItemsFromCart();
+
+		// Reset all form fields
 		purpose = 'lab-exercise';
 		purposeDetails = '';
 		usageLocation = 'school';
@@ -982,9 +1124,11 @@
 		returnTime = '17:00';
 		notes = '';
 		acknowledgeTerms = false;
-		selectedClassCodeId = '';
+		selectedClassCodeId = availableClassCodes.length === 1 ? availableClassCodes[0].id : '';
 		errors = {};
-		requestCartStore.clear();
+
+		// Navigate back to step 1
+		currentStep = 1;
 	}
 
 	/**
@@ -1375,12 +1519,64 @@
 		</div>
 	</div>
 
-	<!-- Request Form -->
-	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-		<!-- Main Form -->
-		<div class="space-y-4 lg:col-span-2">
+	<!-- Step Progress Indicator -->
+	<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+		<!-- Progress Bar -->
+		<div class="relative mb-6">
+			<div class="h-2 overflow-hidden rounded-full bg-gray-200">
+				<div
+					class="h-full bg-linear-to-r from-pink-600 to-rose-600 transition-all duration-500 ease-in-out"
+					style="width: {(currentStep / totalSteps) * 100}%"
+				></div>
+			</div>
+		</div>
+
+		<!-- Step Indicators -->
+		<div class="flex justify-between">
+			{#each requestSteps as step}
+				<button
+					type="button"
+					onclick={() => goToStep(step.number)}
+					disabled={step.number > currentStep}
+					class="group flex flex-col items-center transition-all disabled:cursor-not-allowed"
+				>
+					<div
+						class="relative mb-2 flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all
+							{currentStep === step.number
+								? 'scale-110 bg-linear-to-br from-pink-600 to-rose-600 text-white shadow-md'
+								: currentStep > step.number
+									? 'bg-emerald-500 text-white'
+									: 'bg-gray-200 text-gray-500'}"
+					>
+						{#if currentStep > step.number}
+							<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7" />
+							</svg>
+						{:else}
+							{step.number}
+						{/if}
+						{#if getStepErrorCount(step.number) > 0}
+							<span class="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">!</span>
+						{/if}
+					</div>
+					<div class="max-w-20 text-center">
+						<p class="text-xs font-semibold {currentStep === step.number ? 'text-gray-900' : 'text-gray-500'} hidden sm:block">
+							{step.title}
+						</p>
+						<p class="text-[10px] text-gray-400 hidden sm:block">{step.description}</p>
+					</div>
+				</button>
+			{/each}
+		</div>
+	</div>
+
+	<!-- Step Content -->
+	<div class="flex flex-col gap-6">
+		<!-- Main Step Panel -->
+		<div class="space-y-4 w-full">
 			<!-- Selected Items -->
-			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+			{#if currentStep === 1}
+			<div class="animate-fadeIn rounded-lg bg-white p-4 shadow sm:p-6">
 				<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div>
 						<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Selected Items</h2>
@@ -1978,9 +2174,11 @@
 					</div>
 				{/if}
 			</div>
+			{/if}
 
-			<!-- Row 1: Borrow Period & Purpose/Usage -->
-			<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+			<!-- Step 2: Schedule & Class -->
+			{#if currentStep === 2}
+			<div class="animate-fadeIn space-y-4">
 				<!-- Borrow Period -->
 				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
 					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Borrow Period</h2>
@@ -2039,7 +2237,7 @@
 											<p class="mb-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">Pickup Time</p>
 											<div class="flex items-stretch gap-2">
 												{#each [
-													{ label: 'Hour', values: HOURS_12, current: from24Hour(borrowTime).hour12, set: (v: number) => { const p = from24Hour(borrowTime); borrowTime = clampToOperatingHours(to24Hour(v, p.minute, p.period)); } },
+													{ label: 'Hour', values: from24Hour(borrowTime).period === 'AM' ? HOURS_AM : HOURS_PM, current: from24Hour(borrowTime).hour12, set: (v: number) => { const p = from24Hour(borrowTime); borrowTime = clampToOperatingHours(to24Hour(v, p.minute, p.period)); } },
 													{ label: 'Min',  values: MINUTES,  current: from24Hour(borrowTime).minute,  set: (v: number) => { const p = from24Hour(borrowTime); borrowTime = clampToOperatingHours(to24Hour(p.hour12, v, p.period)); } }
 												] as col}
 													<div class="flex flex-col items-center gap-1">
@@ -2129,7 +2327,7 @@
 											<p class="mb-2 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400">Return Time</p>
 											<div class="flex items-stretch gap-2">
 												{#each [
-													{ label: 'Hour', values: HOURS_12, current: from24Hour(returnTime).hour12, set: (v: number) => { const p = from24Hour(returnTime); returnTime = clampToOperatingHours(to24Hour(v, p.minute, p.period)); } },
+													{ label: 'Hour', values: from24Hour(returnTime).period === 'AM' ? HOURS_AM : HOURS_PM, current: from24Hour(returnTime).hour12, set: (v: number) => { const p = from24Hour(returnTime); returnTime = clampToOperatingHours(to24Hour(v, p.minute, p.period)); } },
 													{ label: 'Min',  values: MINUTES,  current: from24Hour(returnTime).minute,  set: (v: number) => { const p = from24Hour(returnTime); returnTime = clampToOperatingHours(to24Hour(p.hour12, v, p.period)); } }
 												] as col}
 													<div class="flex flex-col items-center gap-1">
@@ -2220,6 +2418,81 @@
 					</div>
 				</div>
 
+
+				<!-- Class Code -->
+				<div class="rounded-lg bg-white p-4 shadow sm:p-6 {hasNoEnrollment ? 'ring-2 ring-red-500' : ''}">
+					<div class="mb-3 flex items-center justify-between">
+						<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Class Code</h2>
+						{#if loadingClassCodes}
+							<div class="flex items-center gap-2 text-xs text-gray-500">
+								<div class="h-3 w-3 animate-spin rounded-full border-2 border-pink-600 border-t-transparent"></div>
+								Loading...
+							</div>
+						{/if}
+					</div>
+					{#if availableClassCodes.length > 0}
+						<div>
+							<label for="classCode" class="mb-1 block text-sm font-medium text-gray-700">
+								Select Your Class <span class="text-red-500">*</span>
+							</label>
+							<select
+								id="classCode"
+								bind:value={selectedClassCodeId}
+								class="block w-full rounded-lg border px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.classCode ? 'border-red-500 bg-red-50' : 'border-gray-300'}"
+							>
+								<option value="" disabled>-- Select a class --</option>
+								{#each availableClassCodes as classCode}
+									<option value={classCode.id}>
+										{classCode.courseCode} - {classCode.courseName} ({classCode.semester} {classCode.academicYear})
+									</option>
+								{/each}
+							</select>
+							{#if errors.classCode}
+								<p class="mt-1.5 text-xs font-medium text-red-600">{errors.classCode}</p>
+							{:else if selectedClassCodeId}
+								{@const selected = availableClassCodes.find((c) => c.id === selectedClassCodeId)}
+								{#if selected}
+									<div class="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2">
+										<svg class="h-4 w-4 shrink-0 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+											<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+										</svg>
+										<div class="min-w-0 flex-1">
+											<p class="text-xs font-semibold text-emerald-900">{selected.courseCode}</p>
+											<p class="text-xs text-emerald-700">{selected.courseName}</p>
+										</div>
+										<span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-600">
+											{selected.semester} {selected.academicYear}
+										</span>
+									</div>
+								{/if}
+							{:else}
+								<p class="mt-1.5 text-xs text-gray-500">
+									Please select the class for which you're requesting this equipment.
+								</p>
+							{/if}
+						</div>
+					{:else if !loadingClassCodes}
+						<div class="rounded-lg border-2 border-red-300 bg-red-50 p-6 text-center">
+							<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
+								<svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+								</svg>
+							</div>
+							<p class="mt-3 text-sm font-bold text-red-900">Enrollment Required</p>
+							<p class="mt-1 text-xs text-red-700">You must be enrolled in at least one class to submit equipment requests.</p>
+							<p class="mt-2 text-xs text-red-600">Please contact your administrator or instructor to be added to a class.</p>
+							{#if errors.classCode}
+								<p class="mt-2 rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-800">{errors.classCode}</p>
+							{/if}
+						</div>
+					{/if}
+				</div>
+			</div>
+			{/if}
+
+			<!-- Step 3: Purpose & Notes -->
+			{#if currentStep === 3}
+			<div class="animate-fadeIn space-y-4">
 				<!-- Purpose & Usage -->
 				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
 					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Purpose & Usage</h2>
@@ -2239,7 +2512,6 @@
 									{/each}
 								</select>
 							</div>
-
 							<div>
 								<label for="usageLocation" class="mb-1 block text-sm font-medium text-gray-700">
 									Usage Location <span class="text-red-500">*</span>
@@ -2254,7 +2526,6 @@
 								</select>
 							</div>
 						</div>
-
 						<div>
 							<label for="purposeDetails" class="mb-1 block text-sm font-medium text-gray-700">
 								Purpose Details <span class="text-red-500">*</span>
@@ -2264,9 +2535,7 @@
 								bind:value={purposeDetails}
 								rows="3"
 								placeholder="Please provide specific details about how you will use this equipment..."
-								class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.purposeDetails
-									? 'border-red-500'
-									: ''}"
+								class="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.purposeDetails ? 'border-red-500' : ''}"
 							></textarea>
 							{#if errors.purposeDetails}
 								<p class="mt-1 text-xs text-red-600">{errors.purposeDetails}</p>
@@ -2274,127 +2543,10 @@
 						</div>
 					</div>
 				</div>
-			</div>
-
-			<!-- Row 2: Class Code & Additional Information -->
-			<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-				<!-- Class Code Selection (Required) -->
-				<div
-					class="rounded-lg bg-white p-4 shadow sm:p-6 {hasNoEnrollment
-						? 'ring-2 ring-red-500'
-						: ''}"
-				>
-					<div class="mb-3 flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Class Code</h2>
-						</div>
-						{#if loadingClassCodes}
-							<div class="flex items-center gap-2 text-xs text-gray-500">
-								<div
-									class="h-3 w-3 animate-spin rounded-full border-2 border-pink-600 border-t-transparent"
-								></div>
-								Loading...
-							</div>
-						{/if}
-					</div>
-
-					{#if availableClassCodes.length > 0}
-						<div>
-							<label for="classCode" class="mb-1 block text-sm font-medium text-gray-700">
-								Select Your Class <span class="text-red-500">*</span>
-							</label>
-							<select
-								id="classCode"
-								bind:value={selectedClassCodeId}
-								class="block w-full rounded-lg border px-3 py-2 text-sm focus:border-pink-500 focus:ring-pink-500 {errors.classCode
-									? 'border-red-500 bg-red-50'
-									: 'border-gray-300'}"
-							>
-								<option value="" disabled>-- Select a class --</option>
-								{#each availableClassCodes as classCode}
-									<option value={classCode.id}>
-										{classCode.courseCode} - {classCode.courseName} ({classCode.semester}
-										{classCode.academicYear})
-									</option>
-								{/each}
-							</select>
-							{#if errors.classCode}
-								<p class="mt-1.5 text-xs font-medium text-red-600">{errors.classCode}</p>
-							{:else if selectedClassCodeId}
-								{@const selected = availableClassCodes.find((c) => c.id === selectedClassCodeId)}
-								{#if selected}
-									<div
-										class="mt-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2"
-									>
-										<svg
-											class="h-4 w-4 shrink-0 text-emerald-600"
-											fill="currentColor"
-											viewBox="0 0 20 20"
-										>
-											<path
-												fill-rule="evenodd"
-												d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-												clip-rule="evenodd"
-											/>
-										</svg>
-										<div class="min-w-0 flex-1">
-											<p class="text-xs font-semibold text-emerald-900">{selected.courseCode}</p>
-											<p class="text-xs text-emerald-700">{selected.courseName}</p>
-										</div>
-										<span
-											class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-600"
-										>
-											{selected.semester}
-											{selected.academicYear}
-										</span>
-									</div>
-								{/if}
-							{:else}
-								<p class="mt-1.5 text-xs text-gray-500">
-									Please select the class for which you're requesting this equipment.
-								</p>
-							{/if}
-						</div>
-					{:else if !loadingClassCodes}
-						<div class="rounded-lg border-2 border-red-300 bg-red-50 p-6 text-center">
-							<div
-								class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100"
-							>
-								<svg
-									class="h-6 w-6 text-red-600"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-									/>
-								</svg>
-							</div>
-							<p class="mt-3 text-sm font-bold text-red-900">Enrollment Required</p>
-							<p class="mt-1 text-xs text-red-700">
-								You must be enrolled in at least one class to submit equipment requests.
-							</p>
-							<p class="mt-2 text-xs text-red-600">
-								Please contact your administrator or instructor to be added to a class.
-							</p>
-							{#if errors.classCode}
-								<p class="mt-2 rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-800">
-									{errors.classCode}
-								</p>
-							{/if}
-						</div>
-					{/if}
-				</div>
 
 				<!-- Additional Information -->
 				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">
-						Additional Information
-					</h2>
+					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Additional Information</h2>
 					<div>
 						<label for="notes" class="mb-1 block text-sm font-medium text-gray-700">
 							Notes <span class="font-normal text-gray-400">(Optional)</span>
@@ -2412,219 +2564,311 @@
 					</div>
 				</div>
 			</div>
-		</div>
+			{/if}
 
-		<!-- Summary Sidebar -->
-		<div class="lg:col-span-1">
-			<div class="space-y-4 lg:sticky lg:top-20">
-				<!-- Request Summary -->
-				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Summary</h2>
-					<div class="space-y-2 text-sm">
-						<div class="flex justify-between">
-							<span class="text-gray-500">Items</span>
-							<span class="font-medium text-gray-900">{selectedItems.length}</span>
-						</div>
-						<div class="flex justify-between">
-							<span class="text-gray-500">Location</span>
-							<span
-								class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {usageLocation ===
-								'school'
-									? 'bg-blue-100 text-blue-700'
-									: 'bg-green-100 text-green-700'}"
-							>
-								{#if usageLocation === 'school'}
-									<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-										<path
-											d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"
-										/>
-									</svg>
-									In-School
-								{:else}
-									<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-										<path
-											fill-rule="evenodd"
-											d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-											clip-rule="evenodd"
-										/>
-									</svg>
-									Outdoor
-								{/if}
-							</span>
-						</div>
-						<div class="flex justify-between">
-							<span class="text-gray-500">Date</span>
-							<span class="font-medium text-gray-900">{borrowDate || '—'}</span>
-						</div>
-						<div class="flex justify-between">
-							<span class="text-gray-500">Pickup</span>
-							<span class="font-medium text-gray-900">{formatTimeTo12Hour(borrowTime)}</span>
-						</div>
-						<div class="flex justify-between">
-							<span class="text-gray-500">Return</span>
-							<span class="font-medium text-gray-900">{formatTimeTo12Hour(returnTime)}</span>
-						</div>
-						<div class="flex justify-between border-t border-gray-200 pt-2">
-							<span class="text-gray-500">Duration</span>
-							<span class="font-medium text-gray-900">
-								{#if borrowTime && returnTime}
-									{(() => {
-										const [borrowHour, borrowMinute] = borrowTime.split(':').map(Number);
-										const [returnHour, returnMinute] = returnTime.split(':').map(Number);
-										const borrowMinutes = borrowHour * 60 + borrowMinute;
-										const returnMinutes = returnHour * 60 + returnMinute;
-										const diffMinutes = returnMinutes - borrowMinutes;
-										const hours = Math.floor(diffMinutes / 60);
-										const minutes = diffMinutes % 60;
-										if (diffMinutes <= 0) return '—';
-										if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
-										if (hours > 0) return `${hours} hour${hours !== 1 ? 's' : ''}`;
-										return `${minutes} min`;
-									})()}
-								{:else}
-									—
-								{/if}
-							</span>
-						</div>
+			<!-- Step 4: Review & Submit -->
+			{#if currentStep === 4}
+			<div class="animate-fadeIn flex h-full flex-col rounded-lg bg-white p-4 shadow sm:p-6">
+				<div class="mb-4 flex items-center justify-between">
+					<div>
+						<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Selected Items</h2>
+						<p class="mt-0.5 text-xs text-gray-500">
+							{selectedItems.length} {selectedItems.length === 1 ? 'item' : 'items'} — read-only preview
+						</p>
 					</div>
+					<button type="button" onclick={() => goToStep(1)} class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 hover:text-pink-600 focus:outline-none">
+						<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+						</svg>
+						Edit Items
+					</button>
 				</div>
 
-				<!-- Terms and Conditions -->
-				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
-					<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Terms & Conditions</h2>
-					<ul class="space-y-2 text-sm text-gray-600">
-						<li class="flex items-start gap-2">
-							<svg
-								class="mt-0.5 h-4 w-4 shrink-0 text-pink-600"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
-							I am responsible for any damage
-						</li>
-						<li class="flex items-start gap-2">
-							<svg
-								class="mt-0.5 h-4 w-4 shrink-0 text-pink-600"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
-							I will return equipment on time
-						</li>
-						<li class="flex items-start gap-2">
-							<svg
-								class="mt-0.5 h-4 w-4 shrink-0 text-pink-600"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
-							Late returns may incur penalties
-						</li>
-						<li class="flex items-start gap-2">
-							<svg
-								class="mt-0.5 h-4 w-4 shrink-0 text-pink-600"
-								fill="none"
-								stroke="currentColor"
-								viewBox="0 0 24 24"
-							>
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-								/>
-							</svg>
-							Educational use only
-						</li>
-					</ul>
-
-					<div class="mt-4 border-t border-gray-200 pt-4">
-						<label class="flex cursor-pointer items-start gap-3">
-							<input
-								type="checkbox"
-								bind:checked={acknowledgeTerms}
-								class="mt-1 h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
-							/>
-							<span class="text-sm text-gray-700">
-								I acknowledge and agree to the terms and conditions
-								<span class="text-red-500">*</span>
-							</span>
-						</label>
-						{#if errors.terms}
-							<p class="mt-1 text-xs text-red-600">{errors.terms}</p>
-						{/if}
+				{#if selectedItems.length === 0}
+					<div class="flex flex-1 items-center justify-center rounded-xl border-2 border-dashed border-gray-200 p-8 text-center">
+						<p class="text-sm text-gray-500">No items selected</p>
 					</div>
-				</div>
+				{:else}
+					<div class="flex-1 space-y-2 overflow-y-auto">
+						{#each paginatedPreviewItems as item}
+							<div class="flex items-start gap-2.5 rounded-lg border border-gray-200 bg-white p-2.5">
+								<!-- Thumbnail -->
+								{#if item.picture}
+									<img src={item.picture} alt={item.name} class="h-14 w-14 shrink-0 rounded-md object-cover ring-1 ring-gray-100" loading="lazy" />
+								{:else}
+									<div class="h-14 w-14 shrink-0 overflow-hidden rounded-md ring-1 ring-gray-100">
+										<ItemImagePlaceholder size="sm" />
+									</div>
+								{/if}
 
-				<!-- Action Buttons -->
-				<div class="flex flex-row gap-3">
-					<button
-						onclick={handleSubmit}
-						disabled={isSubmitting || hasNoEnrollment || availableClassCodes.length === 0 || hasUnresolvedObligations}
-						class="inline-flex w-full items-center justify-center rounded-lg bg-pink-600 px-4 py-3 text-sm font-medium text-white hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-pink-600"
-						title={hasUnresolvedObligations
-							? 'Resolve all outstanding obligations before submitting a new request'
-							: hasNoEnrollment || availableClassCodes.length === 0
-							? 'You must be enrolled in a class to submit requests'
-							: ''}
-					>
-						<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M5 13l4 4L19 7"
-							/>
+								<!-- Details -->
+								<div class="min-w-0 flex-1">
+									<div class="flex flex-wrap items-center gap-1.5">
+										<h3 class="text-xs font-semibold text-gray-900">{item.name}</h3>
+										{#if item.isrequired}
+											<span class="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-linear-to-r from-emerald-100 to-teal-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200">
+												<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20">
+													<path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+												</svg>
+												REQUIRED
+											</span>
+										{/if}
+									</div>
+									<div class="mt-0.5 flex items-center gap-1.5 text-[11px]">
+										<span class="text-gray-500">{item.category}</span>
+										<span class="text-gray-300">•</span>
+										<span class="{item.available > 5 ? 'text-emerald-600' : 'text-amber-600'}">{item.available} available</span>
+									</div>
+								</div>
+
+								<!-- Quantity badge (read-only) -->
+								<div class="flex shrink-0 items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-bold text-gray-700">
+									Qty: {item.requestedQuantity}
+								</div>
+							</div>
+						{/each}
+					</div>
+					{#if selectedItems.length > SELECTED_ITEMS_PAGE_SIZE}
+						<Pagination
+							currentPage={previewItemsPage}
+							totalPages={previewItemsTotalPages}
+							totalItems={selectedItems.length}
+							itemsPerPage={SELECTED_ITEMS_PAGE_SIZE}
+							onPageChange={(p) => { previewItemsPage = p; }}
+							class="mt-3"
+						/>
+					{/if}
+				{/if}
+			</div>
+
+			<!-- Class Code — read-only summary -->
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+				<div class="mb-3 flex items-center justify-between">
+					<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Class Code</h2>
+					<button type="button" onclick={() => goToStep(2)} class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 hover:text-pink-600 focus:outline-none">
+						<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
 						</svg>
-						{#if hasUnresolvedObligations}
-							Obligations Pending
-						{:else if hasNoEnrollment || availableClassCodes.length === 0}
-							Enrollment Required
-						{:else if isSubmitting}
-							Submitting...
-						{:else}
-							Submit Request
-						{/if}
+						Edit
 					</button>
-					<button
-						onclick={resetForm}
-						disabled={hasNoEnrollment || availableClassCodes.length === 0 || hasUnresolvedObligations}
-						class="inline-flex w-full items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-					>
-						<svg class="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-							/>
+				</div>
+				{#if selectedClassCodeId}
+					{@const cls = availableClassCodes.find(c => c.id === selectedClassCodeId)}
+					{#if cls}
+						<div class="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5">
+							<svg class="h-4 w-4 shrink-0 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+								<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+							</svg>
+							<div class="min-w-0 flex-1">
+								<p class="text-xs font-semibold text-emerald-900">{cls.courseCode}</p>
+								<p class="text-xs text-emerald-700">{cls.courseName}</p>
+							</div>
+							<span class="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-600">{cls.semester} {cls.academicYear}</span>
+						</div>
+					{/if}
+				{:else}
+					<p class="text-sm text-gray-400">No class selected</p>
+				{/if}
+			</div>
+
+			<!-- Purpose & Usage — read-only summary -->
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+				<div class="mb-3 flex items-center justify-between">
+					<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Purpose & Usage</h2>
+					<button type="button" onclick={() => goToStep(3)} class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 hover:text-pink-600 focus:outline-none">
+						<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
 						</svg>
-						Reset Form
+						Edit
 					</button>
+				</div>
+				<div class="space-y-3 text-sm">
+					<div>
+						<p class="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-400">Purpose Type</p>
+						<p class="font-medium text-gray-900">{purposeOptions.find(o => o.value === purpose)?.label ?? purpose}</p>
+					</div>
+					<div>
+						<p class="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-400">Usage Location</p>
+						<p class="font-medium text-gray-900">{usageLocation === 'school' ? 'In-School Use' : 'Outdoor Use'}</p>
+					</div>
+					<div>
+						<p class="mb-0.5 text-xs font-medium uppercase tracking-wide text-gray-400">Purpose Details</p>
+						<p class="font-medium text-gray-900">{purposeDetails || '—'}</p>
+					</div>
 				</div>
 			</div>
+
+			{#if notes}
+			<!-- Additional Notes — read-only summary (only shown if filled) -->
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+				<div class="mb-3 flex items-center justify-between">
+					<h2 class="text-base font-semibold text-gray-900 sm:text-lg">Additional Notes</h2>
+					<button type="button" onclick={() => goToStep(3)} class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 transition-all hover:bg-gray-50 hover:text-pink-600 focus:outline-none">
+						<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+						</svg>
+						Edit
+					</button>
+				</div>
+				<p class="text-sm text-gray-700">{notes}</p>
+			</div>
+			{/if}
+
+			<!-- Summary -->
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Summary</h2>
+				<div class="space-y-2 text-sm">
+					<div class="flex justify-between">
+						<span class="text-gray-500">Items</span>
+						<span class="font-medium text-gray-900">{selectedItems.length}</span>
+					</div>
+					<div class="flex justify-between">
+						<span class="text-gray-500">Location</span>
+						<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold {usageLocation === 'school' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}">
+							{#if usageLocation === 'school'}
+								<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"/></svg>
+								In-School
+							{:else}
+								<svg class="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+								Outdoor
+							{/if}
+						</span>
+					</div>
+					<div class="flex justify-between">
+						<span class="text-gray-500">Date</span>
+						<span class="font-medium text-gray-900">{borrowDate || '—'}</span>
+					</div>
+					<div class="flex justify-between">
+						<span class="text-gray-500">Pickup</span>
+						<span class="font-medium text-gray-900">{formatTimeTo12Hour(borrowTime)}</span>
+					</div>
+					<div class="flex justify-between">
+						<span class="text-gray-500">Return</span>
+						<span class="font-medium text-gray-900">{formatTimeTo12Hour(returnTime)}</span>
+					</div>
+					<div class="flex justify-between border-t border-gray-200 pt-2">
+						<span class="text-gray-500">Duration</span>
+						<span class="font-medium text-gray-900">
+							{#if borrowTime && returnTime}
+								{(() => {
+									const [bh, bm] = borrowTime.split(':').map(Number);
+									const [rh, rm] = returnTime.split(':').map(Number);
+									const diff = (rh * 60 + rm) - (bh * 60 + bm);
+									const h = Math.floor(diff / 60), m = diff % 60;
+									if (diff <= 0) return '—';
+									if (h > 0 && m > 0) return `${h}h ${m}m`;
+									if (h > 0) return `${h} hour${h !== 1 ? 's' : ''}`;
+									return `${m} min`;
+								})()}
+							{:else}—{/if}
+						</span>
+					</div>
+				</div>
+			</div>
+
+			<!-- Terms & Conditions -->
+			<div class="rounded-lg bg-white p-4 shadow sm:p-6">
+				<h2 class="mb-3 text-base font-semibold text-gray-900 sm:text-lg">Terms & Conditions</h2>
+				<ul class="space-y-2 text-sm text-gray-600">
+					{#each [
+						'I am responsible for any damage',
+						'I will return equipment on time',
+						'Late returns may incur penalties',
+						'Educational use only'
+					] as term}
+						<li class="flex items-start gap-2">
+							<svg class="mt-0.5 h-4 w-4 shrink-0 text-pink-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+							</svg>
+							{term}
+						</li>
+					{/each}
+				</ul>
+				<div class="mt-4 border-t border-gray-200 pt-4">
+					<label class="flex cursor-pointer items-start gap-3">
+						<input
+							type="checkbox"
+							bind:checked={acknowledgeTerms}
+							class="mt-1 h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+						/>
+						<span class="text-sm text-gray-700">
+							I acknowledge and agree to the terms and conditions
+							<span class="text-red-500">*</span>
+						</span>
+					</label>
+					{#if errors.terms}
+						<p class="mt-1 text-xs text-red-600">{errors.terms}</p>
+					{/if}
+				</div>
+			</div>
+
+			{/if}
 		</div>
+
+		<!-- Summary and Terms moved into Step 4 main panel above -->
+	</div>
+
+	<!-- Step Navigation Buttons (full-width footer) -->
+	<div class="flex items-center justify-between gap-3 pt-2">
+		{#if currentStep > 1}
+			<button
+				type="button"
+				onclick={handleStepBack}
+				class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:outline-none"
+			>
+				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+				</svg>
+				Back
+			</button>
+		{:else}
+			<div></div>
+		{/if}
+
+		{#if currentStep < totalSteps}
+			<button
+				type="button"
+				onclick={handleStepNext}
+				class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:outline-none"
+			>
+				Continue
+				<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+					<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+				</svg>
+			</button>
+		{:else}
+			<div class="flex items-center gap-3">
+				<button
+					onclick={resetForm}
+					disabled={hasNoEnrollment || availableClassCodes.length === 0 || hasUnresolvedObligations}
+					class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 shadow-sm transition-all hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+					</svg>
+					Reset Form
+				</button>
+				<button
+					onclick={handleSubmit}
+					disabled={isSubmitting || hasNoEnrollment || availableClassCodes.length === 0 || hasUnresolvedObligations}
+					class="inline-flex items-center gap-2 rounded-lg bg-pink-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-pink-600"
+					title={hasUnresolvedObligations ? 'Resolve all outstanding obligations before submitting' : hasNoEnrollment || availableClassCodes.length === 0 ? 'You must be enrolled in a class to submit requests' : ''}
+				>
+					<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+					</svg>
+					{#if hasUnresolvedObligations}
+						Obligations Pending
+					{:else if hasNoEnrollment || availableClassCodes.length === 0}
+						Enrollment Required
+					{:else if isSubmitting}
+						Submitting...
+					{:else}
+						Submit Request
+					{/if}
+				</button>
+			</div>
+		{/if}
 	</div>
 </div>
 
