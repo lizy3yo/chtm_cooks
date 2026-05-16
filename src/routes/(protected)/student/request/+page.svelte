@@ -17,6 +17,7 @@
 	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import CatalogItemModal from '$lib/components/ui/CatalogItemModal.svelte';
 	import type { CatalogCategory } from '$lib/api/catalog';
+	import { confirmStore } from '$lib/stores/confirm';
 	import { browser } from '$app/environment';
 
 	interface RequestItemOption {
@@ -165,6 +166,7 @@
 	// Obligation gate: block new requests until pending obligations are resolved
 	let hasUnresolvedObligations = $state(false);
 	let unresolvedObligationCount = $state(0);
+	let hasShownObligationDialog = $state(false);
 
 	// Operating hours: 8:00 AM – 5:00 PM (08:00–17:00)
 	const OPERATING_START = '08:00'; // 8:00 AM
@@ -204,6 +206,29 @@
 				returnTime = `${String(newHour).padStart(2, '0')}:${String(newMinute).padStart(2, '0')}`;
 			}
 		}
+	});
+
+	$effect(() => {
+		if (!hasUnresolvedObligations) {
+			hasShownObligationDialog = false;
+			return;
+		}
+
+		if (hasShownObligationDialog) {
+			return;
+		}
+
+		hasShownObligationDialog = true;
+		void confirmStore.warning(
+			`You have ${unresolvedObligationCount} unresolved replacement obligation${unresolvedObligationCount === 1 ? '' : 's'} from a previous loan. Please settle all outstanding cases before submitting a new request.`,
+			'Request temporarily on hold',
+			'Review Obligations',
+			'Dismiss'
+		).then((confirmed) => {
+			if (confirmed) {
+				void goto('/student/borrowed');
+			}
+		});
 	});
 
 	// Reactive effect: Sync selected items when cart items change
@@ -2459,34 +2484,6 @@
 						</div>
 					</div>
 				</div>
-
-				<!-- Unresolved Obligations Gate -->
-				{#if hasUnresolvedObligations}
-					<div class="rounded-lg border border-red-200 bg-red-50 p-4 shadow-sm">
-						<div class="flex items-start gap-3">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100">
-								<svg class="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-								</svg>
-							</div>
-							<div class="min-w-0 flex-1">
-								<p class="text-sm font-semibold text-red-800">Request Blocked</p>
-								<p class="mt-0.5 text-xs text-red-700 leading-relaxed">
-									You have <span class="font-bold">{unresolvedObligationCount} unresolved replacement {unresolvedObligationCount === 1 ? 'obligation' : 'obligations'}</span> from a previous loan. All outstanding cases must be settled before a new request can be submitted.
-								</p>
-								<a
-									href="/student/borrowed"
-									class="mt-2.5 inline-flex items-center gap-1.5 rounded-md bg-red-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-red-700"
-								>
-									<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-									</svg>
-									View Obligations
-								</a>
-							</div>
-						</div>
-					</div>
-				{/if}
 
 				<!-- Terms and Conditions -->
 				<div class="rounded-lg bg-white p-4 shadow sm:p-6">
