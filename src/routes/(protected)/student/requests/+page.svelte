@@ -1237,7 +1237,7 @@
 													<span class="truncate">Reviewer: {request.instructor}</span>
 												</div>
 
-												<!-- Rejection Reason -->
+												<!-- Decline Reason -->
 												{#if request.status === 'rejected' && request.rejectionReason}
 													<div class="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-2.5">
 														<svg
@@ -2076,7 +2076,7 @@
 							</div>
 						</div>
 
-						<!-- Rejection Reason -->
+						<!-- Decline Reason -->
 						{#if selectedRequest.status === 'rejected' && selectedRequest.rejectionReason}
 							<div
 								class="rounded-2xl border-2 border-red-200 bg-linear-to-br from-red-50 to-red-100/50 p-5"
@@ -2463,4 +2463,5 @@
 		</div>
 	</div>
 {/if}
+
 

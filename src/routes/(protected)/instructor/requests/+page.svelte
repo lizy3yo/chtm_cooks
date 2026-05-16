@@ -588,7 +588,7 @@
 		if (!rejectReason || requestIds.length === 0 || bulkActionInFlight) return;
 
 		const confirmed = await confirmStore.danger(
-			`Reject ${requestIds.length} selected request${requestIds.length === 1 ? '' : 's'} with the provided reason?`,
+			`Decline ${requestIds.length} selected request${requestIds.length === 1 ? '' : 's'} with the provided reason?`,
 			'Confirm Bulk Decline',
 			'Decline Requests',
 			'Review Again'
@@ -1136,7 +1136,7 @@
 							disabled={bulkActionInFlight}
 							class="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
 						>
-							Reject
+							Decline
 						</button>
 						<button
 							onclick={() => (selectedRequests = [])}
@@ -1612,7 +1612,7 @@
 	/>
 {/if}
 
-<!-- Bulk Reject Modal -->
+<!-- Bulk Decline Modal -->
 {#if showBulkRejectModal}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
 		<button
@@ -1629,7 +1629,7 @@
 				</h3>
 				<p class="mt-1 text-sm text-gray-500">
 					{selectedRequests.length > 1
-						? `Rejecting ${selectedRequests.length} requests.`
+						? `Declining ${selectedRequests.length} requests.`
 						: 'Provide a reason for declining.'}
 				</p>
 				<div class="mt-4 space-y-4">
@@ -1684,5 +1684,6 @@
 		</div>
 	</div>
 {/if}
+
 
 

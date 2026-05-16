@@ -313,7 +313,7 @@ let {
 								disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
 								class="rounded-xl border-2 border-red-200 bg-white px-5 py-2.5 sm:px-6 sm:py-3 text-sm font-bold text-red-600 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
 							>
-								{request.isAppeal ? 'Uphold Rejection' : 'Reject Request'}
+								{request.isAppeal ? 'Uphold Decline' : 'Decline Request'}
 							</button>
 							<button
 								onclick={() => onApprove(request.rawId)}
@@ -335,4 +335,5 @@ let {
 		</div>
 	</div>
 </div>
+
 

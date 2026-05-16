@@ -644,7 +644,7 @@ function getApprovalTimeline(request: any) {
 							</div>
 						</div>
 						
-						<!-- Rejection Reason -->
+						<!-- Decline Reason -->
 						{#if selectedRequest.status === 'rejected' && selectedRequest.rejectionReason}
 							<div class="rounded-2xl border-2 border-red-200 bg-linear-to-br from-red-50 to-red-100/50 p-5">
 								<div class="flex gap-3">
@@ -674,3 +674,4 @@ function getApprovalTimeline(request: any) {
 		</div>
 	</div>
 {/if}
+
