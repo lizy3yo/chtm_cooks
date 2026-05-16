@@ -795,7 +795,7 @@
 				return isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
 					? { text: 'Cancelled', color: 'bg-slate-100 text-slate-800' }
 					: rawStatus === 'rejected'
-						? { text: 'Rejected', color: 'bg-red-100 text-red-800' }
+						? { text: 'Declined', color: 'bg-red-100 text-red-800' }
 						: { text: 'Completed', color: 'bg-gray-100 text-gray-800' };
 			default:
 				return { text: status, color: 'bg-gray-100 text-gray-800' };
@@ -2496,3 +2496,4 @@
 		}}
 	/>
 {/if}
+

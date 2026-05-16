@@ -548,7 +548,7 @@
 					<option value="borrowed">Active Loan</option>
 					<option value="pending_return">Return Initiated</option>
 					<option value="returned">Returned</option>
-					<option value="rejected">Rejected</option>
+					<option value="rejected">Declined</option>
 					<option value="cancelled">Cancelled</option>
 				</select>
 			</div>
@@ -643,3 +643,4 @@
 		</div>
 	{/if}
 </div>
+

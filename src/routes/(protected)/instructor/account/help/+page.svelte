@@ -66,12 +66,12 @@
 		{
 			question: 'How do I review and approve borrow requests?',
 			answer:
-				'Go to "Borrow Requests" in the sidebar to see all pending requests from your students. Review the item, dates, and student details, then click "Approve" or "Reject". Approved requests are forwarded to the custodian for release.'
+				'Go to "Borrow Requests" in the sidebar to see all pending requests from your students. Review the item, dates, and student details, then click "Approve" or "Decline". Approved requests are forwarded to the custodian for release.'
 		},
 		{
-			question: 'How do I reject a request and notify the student?',
+			question: 'How do I decline a request and notify the student?',
 			answer:
-				'Open the request from the "Borrow Requests" page and click "Reject". You will be prompted to provide a reason. The student will see this reason in their "My Requests" page so they can address the issue and resubmit if needed.'
+				'Open the request from the "Borrow Requests" page and click "Decline". You will be prompted to provide a reason. The student will see this reason in their "My Requests" page so they can address the issue and resubmit if needed.'
 		},
 
 		{
@@ -92,7 +92,7 @@
 		{
 			question: 'How do I view my request approval history?',
 			answer:
-				'Go to "History" under your account section to see a full log of requests you have approved or rejected, including timestamps and student details.'
+				'Go to "History" under your account section to see a full log of requests you have approved or declined, including timestamps and student details.'
 		},
 		{
 			question: 'How do I contact support?',
@@ -768,3 +768,4 @@
 		</div>
 	{/if}
 </div>
+

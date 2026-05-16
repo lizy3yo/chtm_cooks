@@ -272,7 +272,7 @@ function getApprovalTimeline(request: any) {
 					<Clock size={32} class="text-gray-400" />
 				</div>
 				<h3 class="text-base font-semibold text-gray-900">No history found</h3>
-				<p class="mt-2 text-sm text-gray-500">You have no completed, cancelled, or rejected requests yet.</p>
+				<p class="mt-2 text-sm text-gray-500">You have no completed, cancelled, or declined requests yet.</p>
 			</div>
 		</div>
 	{:else}
@@ -578,7 +578,7 @@ function getApprovalTimeline(request: any) {
 									</div>
 									<div class="flex items-center gap-1.5">
 										<div class="h-2 w-2 rounded-full bg-red-600"></div>
-										<span class="text-gray-600">Rejected</span>
+										<span class="text-gray-600">Declined</span>
 									</div>
 									<div class="flex items-center gap-1.5">
 										<div class="h-2 w-2 rounded-full bg-slate-400"></div>
@@ -652,7 +652,7 @@ function getApprovalTimeline(request: any) {
 										<CircleAlert size={20} class="text-white" />
 									</div>
 									<div class="flex-1 min-w-0">
-										<p class="text-sm font-bold text-red-900">Rejection Reason</p>
+										<p class="text-sm font-bold text-red-900">Decline Reason</p>
 										<p class="mt-1.5 text-sm text-red-800 leading-relaxed">{selectedRequest.rejectionReason}</p>
 									</div>
 								</div>

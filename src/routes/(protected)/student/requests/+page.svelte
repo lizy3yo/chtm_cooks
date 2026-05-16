@@ -1253,7 +1253,7 @@
 															/></svg
 														>
 														<div class="min-w-0">
-															<p class="text-[10px] font-semibold text-red-800">Rejection Reason</p>
+															<p class="text-[10px] font-semibold text-red-800">Decline Reason</p>
 															<p class="truncate text-xs text-red-700">{request.rejectionReason}</p>
 														</div>
 													</div>
@@ -1853,7 +1853,7 @@
 									</div>
 									<div class="flex items-center gap-1.5">
 										<div class="h-2 w-2 rounded-full bg-red-600"></div>
-										<span class="text-gray-600">Rejected</span>
+										<span class="text-gray-600">Declined</span>
 									</div>
 									<div class="flex items-center gap-1.5">
 										<div class="h-2 w-2 rounded-full bg-slate-400"></div>
@@ -2088,7 +2088,7 @@
 										<CircleAlert size={20} class="text-white" />
 									</div>
 									<div class="min-w-0 flex-1">
-										<p class="text-sm font-bold text-red-900">Rejection Reason</p>
+										<p class="text-sm font-bold text-red-900">Decline Reason</p>
 										<p class="mt-1.5 text-sm leading-relaxed text-red-800">
 											{selectedRequest.rejectionReason}
 										</p>
@@ -2217,7 +2217,7 @@
 								<RotateCcw size={20} class="text-white" />
 							</div>
 							<div>
-								<h3 class="text-lg font-bold text-gray-900">Appeal Rejection</h3>
+								<h3 class="text-lg font-bold text-gray-900">Appeal Decline</h3>
 								<p class="mt-0.5 font-mono text-xs font-semibold text-violet-600">
 									{appealRequestTarget.id}
 								</p>
@@ -2235,11 +2235,11 @@
 
 				<!-- Content -->
 				<div class="px-5 py-5 sm:px-6 sm:py-6">
-					<!-- Original rejection reason -->
+					<!-- Original Decline Reason -->
 					{#if appealRequestTarget.rejectionReason}
 						<div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4">
 							<p class="mb-1 text-xs font-semibold text-red-700 uppercase tracking-wide">
-								Original Rejection Reason
+								Original Decline Reason
 							</p>
 							<p class="text-sm text-red-800">{appealRequestTarget.rejectionReason}</p>
 						</div>
@@ -2278,8 +2278,8 @@
 							<div class="flex gap-2.5">
 								<Info size={16} class="mt-0.5 shrink-0 text-amber-600" />
 								<p class="text-xs leading-relaxed text-amber-800">
-									You may only appeal a rejected request once. The instructor will review your
-									appeal and either approve or uphold the rejection.
+									You may only appeal a declined request once. The instructor will review your
+									appeal and either approve or uphold the decline.
 								</p>
 							</div>
 						</div>
@@ -2463,3 +2463,4 @@
 		</div>
 	</div>
 {/if}
+

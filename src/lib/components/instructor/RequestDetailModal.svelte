@@ -270,10 +270,10 @@ let {
 								<div class="h-1 w-1 rounded-full bg-violet-500"></div>
 								Student Appeal
 							</h3>
-							<!-- Original rejection reason -->
+							<!-- Original Decline Reason -->
 							{#if request.rejectionReason}
 								<div class="mb-3 rounded-xl border border-red-200 bg-red-50 p-4">
-									<p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-red-700">Original Rejection Reason</p>
+									<p class="mb-1.5 text-xs font-semibold uppercase tracking-wide text-red-700">Original Decline Reason</p>
 									<p class="text-sm text-red-800">{request.rejectionReason}</p>
 								</div>
 							{/if}
@@ -335,3 +335,4 @@ let {
 		</div>
 	</div>
 </div>
+

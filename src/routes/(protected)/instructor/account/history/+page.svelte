@@ -920,7 +920,7 @@
 									<option value="returned">Returned</option>
 									<option value="resolved">Resolved</option>
 									<option value="cancelled">Cancelled</option>
-									<option value="rejected">Rejected</option>
+									<option value="rejected">Declined</option>
 								</select>
 							</div>
 
@@ -973,7 +973,7 @@
 							{#if requestHistoryFilterStatus || requestHistoryFilterStartDate || requestHistoryFilterEndDate || requestHistorySearch}
 								No requests match your current filters. Try adjusting your search criteria.
 							{:else}
-								Completed, resolved, cancelled, and rejected requests will appear here.
+								Completed, resolved, cancelled, and declined requests will appear here.
 							{/if}
 						</p>
 					</div>
@@ -1607,3 +1607,4 @@
 		</div>
 	</div>
 {/if}
+
