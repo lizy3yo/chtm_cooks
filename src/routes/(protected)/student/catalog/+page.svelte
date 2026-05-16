@@ -8,12 +8,18 @@
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import CatalogItemModal from '$lib/components/ui/CatalogItemModal.svelte';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import { ClipboardList } from 'lucide-svelte';
 	
 	// UI State Management
 	let viewMode = $state<'grid' | 'list'>('grid');
 	let isLoading = $state(true);
 	let error = $state<string | null>(null);
 	let selectedItem = $state<CatalogItem | null>(null);
+	const selectedItemRequestEntry = $derived.by(() => {
+		const itemId = selectedItem?.id;
+		if (!itemId) return null;
+		return $requestCartItems.find((entry) => entry.itemId === itemId) ?? null;
+	});
 	let hasShownUnauthorizedToast = $state(false);
 	
 	// Filter State
@@ -214,7 +220,7 @@
 			const result = await requestCartStore.addItem({
 				itemId: item.id,
 				name: item.name,
-				maxQuantity: item.quantity,
+				maxQuantity: availableQuantityForItem(item),
 				categoryId: item.categoryId,
 				picture: item.picture
 			});
@@ -235,6 +241,82 @@
 			toastStore.error('Failed to add item to request list. Please try again.', 'Error');
 		}
 	}
+
+	async function updateSelectedItemQuantity(quantity: number): Promise<void> {
+		if (!selectedItem || !selectedItemRequestEntry) return;
+
+		try {
+			await requestCartStore.setQuantity(selectedItem.id, quantity);
+		} catch (error) {
+			console.error('Failed to update request quantity:', error);
+			toastStore.error('Unable to update the request quantity. Please try again.', 'Error');
+		}
+	}
+
+
+// Helper: find cart entry for an item
+function cartEntryFor(itemId: string) {
+	return $requestCartItems.find(i => i.itemId === itemId);
+}
+
+function availableQuantityForItem(item: CatalogItem): number {
+	return item.currentCount ?? (item.quantity + (item.donations ?? 0));
+}
+
+function displayedQuantityForItem(item: CatalogItem): number {
+	return availableQuantityForItem(item);
+}
+
+async function incrementItem(item: CatalogItem) {
+	const entry = cartEntryFor(item.id);
+	if (!entry) {
+		await requestItem(item);
+		return;
+	}
+	if (entry.quantity >= maxQuantityForItem(item)) {
+		toastStore.info(`${item.name} is already at max available quantity in your request list.`, 'Max Quantity Reached');
+		return;
+	}
+	try {
+		await requestCartStore.setQuantity(item.id, entry.quantity + 1);
+	} catch (err) {
+		console.error('Failed to increment quantity', err);
+		toastStore.error('Unable to update quantity', 'Error');
+	}
+}
+
+async function decrementItem(item: CatalogItem) {
+	const entry = cartEntryFor(item.id);
+	if (!entry) return;
+	try {
+		if (entry.quantity <= 1) {
+			await requestCartStore.removeItem(item.id);
+		} else {
+			await requestCartStore.setQuantity(item.id, entry.quantity - 1);
+		}
+	} catch (err) {
+		console.error('Failed to decrement quantity', err);
+		toastStore.error('Unable to update quantity', 'Error');
+	}
+}
+
+function maxQuantityForItem(item: CatalogItem): number {
+	const availableQuantity = availableQuantityForItem(item);
+	return item.maxQuantityPerRequest
+		? Math.min(item.maxQuantityPerRequest, availableQuantity)
+		: availableQuantity;
+}
+
+async function removeItemFromRequest(item: CatalogItem): Promise<void> {
+	if (!cartEntryFor(item.id)) return;
+
+	try {
+		await requestCartStore.removeItem(item.id);
+	} catch (err) {
+		console.error('Failed to remove item from request list', err);
+		toastStore.error('Unable to remove the item from your request list. Please try again.', 'Error');
+	}
+}
 
 
 	
@@ -312,7 +394,7 @@
 					await requestCartStore.addItem({
 						itemId: item.id,
 						name: item.name,
-						maxQuantity: Math.max(1, item.quantity),
+						maxQuantity: availableQuantityForItem(item),
 						categoryId: item.categoryId,
 						picture: item.picture
 					});
@@ -380,13 +462,72 @@
 		footerHint="Review details carefully before adding this item to your request list."
 	>
 		{#snippet footerAction()}
-			<button
-				onclick={() => selectedItem && requestItem(selectedItem)}
-				disabled={selectedItem!.status === 'Out of Stock'}
-				class="min-w-0 flex-1 rounded-lg bg-pink-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
-			>
-				{selectedItem!.status === 'Out of Stock' ? 'Out of Stock' : 'Add to Request List'}
-			</button>
+			{#if selectedItemRequestEntry}
+				<div class="flex min-w-0 flex-1 items-center justify-center gap-2 sm:flex-none">
+					{#if !selectedItem?.isrequired}
+					<button
+						type="button"
+						onclick={() => selectedItem && removeItemFromRequest(selectedItem)}
+						class="inline-flex h-10 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-sm font-semibold text-red-700 transition-colors hover:border-red-300 hover:bg-red-100"
+						aria-label="Remove from request list"
+						title="Remove from request list"
+					>
+						<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 18L18 6M6 6l12 12" />
+						</svg>
+						Remove
+					</button>
+					{/if}
+
+					<div class="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1.5 shadow-sm">
+						<button
+							type="button"
+							onclick={() => updateSelectedItemQuantity(Math.max(1, selectedItemRequestEntry.quantity - 1))}
+							disabled={selectedItemRequestEntry.quantity <= 1}
+							class="flex h-8 w-8 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition-all hover:border-pink-500 hover:bg-pink-50 hover:text-pink-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-gray-300 disabled:hover:bg-white disabled:hover:text-gray-700"
+							aria-label="Decrease requested quantity"
+							title="Decrease quantity"
+						>
+							<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4" />
+							</svg>
+						</button>
+
+						<div class="min-w-12 px-2 text-center text-sm font-semibold text-gray-900">
+							{selectedItemRequestEntry.quantity}
+						</div>
+
+						<button
+							type="button"
+							onclick={() =>
+								updateSelectedItemQuantity(
+									Math.min(
+										selectedItemRequestEntry.maxQuantity,
+										selectedItemRequestEntry.quantity + 1
+									)
+								)
+							}
+							disabled={selectedItemRequestEntry.quantity >= selectedItemRequestEntry.maxQuantity}
+							class="flex h-8 w-8 items-center justify-center rounded-md bg-pink-600 text-white transition-all hover:bg-pink-700 disabled:cursor-not-allowed disabled:bg-pink-300"
+							aria-label="Increase requested quantity"
+							title="Increase quantity"
+						>
+							<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+							</svg>
+						</button>
+					</div>
+				</div>
+			{:else}
+				<button
+					type="button"
+					onclick={() => selectedItem && requestItem(selectedItem)}
+					disabled={selectedItem!.status === 'Out of Stock'}
+					class="min-w-0 flex-1 rounded-lg bg-pink-600 px-4 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+				>
+					{selectedItem!.status === 'Out of Stock' ? 'Out of Stock' : 'Add to Request List'}
+				</button>
+			{/if}
 		{/snippet}
 	</CatalogItemModal>
 {/if}
@@ -399,6 +540,16 @@
 			<p class="mt-1 text-sm text-gray-500">Browse and request available cooking equipment</p>
 		</div>
 		<div class="flex items-center gap-2">
+			<a
+				href="/student/request"
+				class="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-pink-700 transition-colors sm:px-4 sm:text-sm"
+				aria-label="Go to request equipment"
+				title="Go to request equipment"
+			>
+				<ClipboardList size={13} />
+				Request Equipment
+			</a>
+
 			<!-- View Mode Toggle -->
 			<div class="flex rounded-lg border border-gray-300 overflow-hidden">
 				<button
@@ -607,23 +758,64 @@
 
 						<!-- Category row -->
 						<div class="mt-1.5 flex flex-wrap items-center gap-1">
-							<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">
+							<span class="inline-flex items-center gap-1 rounded bg-pink-100 px-2 py-0.5 text-xs font-semibold text-pink-800 dark:bg-pink-600 dark:text-white">
 								{getCategoryName(item.categoryId)}
 							</span>
 						</div>
 
+						{#if item.specification}
+							<p class="mt-1 text-sm text-gray-800 leading-tight wrap-break-word line-clamp-2" title={item.specification} aria-label="Specification">{item.specification}</p>
+						{/if}
+
 						<!-- Qty -->
-						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</p>
+						<p class="mt-1 text-[10px] text-gray-600">Qty: {displayedQuantityForItem(item)}</p>
 
 						<!-- Actions — stop propagation so they don't open the modal -->
-						<div class="mt-auto flex gap-1 pt-2">
-							<button
-								onclick={(e) => { e.stopPropagation(); requestItem(item); }}
-								disabled={item.status === 'Out of Stock'}
-								class="flex-1 rounded-md bg-pink-600 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
-							>
-								Request
-							</button>
+						<div class="mt-auto flex gap-1 pt-2 justify-center items-center">
+							{#if cartEntryFor(item.id)}
+										{@const entryQuantity = cartEntryFor(item.id)?.quantity ?? 0}
+								{#if !item.isrequired}
+									<button
+										onclick={(e) => { e.stopPropagation(); removeItemFromRequest(item); }}
+										title="Remove from request list"
+										class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-all hover:border-red-300 hover:bg-red-100 hover:text-red-700"
+										aria-label="Remove from request list"
+									>
+										<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								{/if}
+
+								<button
+									onclick={(e) => { e.stopPropagation(); decrementItem(item); }}
+									title="Decrease quantity"
+									class="rounded-md bg-gray-100 px-3 py-1.5 text-[13px] font-semibold text-gray-800 hover:bg-gray-200"
+								>
+									−
+								</button>
+
+								<span class="inline-flex items-center justify-center px-3 text-sm font-semibold text-gray-900 w-8">
+									{cartEntryFor(item.id)?.quantity ?? 0}
+								</span>
+
+								<button
+									onclick={(e) => { e.stopPropagation(); incrementItem(item); }}
+												disabled={entryQuantity >= maxQuantityForItem(item)}
+									title="Increase quantity"
+									class="rounded-md bg-pink-600 px-3 py-1.5 text-[13px] font-semibold text-white hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									+
+								</button>
+							{:else}
+								<button
+									onclick={(e) => { e.stopPropagation(); requestItem(item); }}
+									disabled={item.status === 'Out of Stock'}
+									class="flex-1 rounded-md bg-pink-600 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
+								>
+									Request
+								</button>
+							{/if}
 						</div>
 					</div>
 				</div>
@@ -660,7 +852,7 @@
 					<!-- Info -->
 					<div class="min-w-0 flex-1">
 						<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-						<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
+						<p class="truncate text-sm text-gray-800" title={item.specification || getCategoryName(item.categoryId)}>{item.specification || getCategoryName(item.categoryId)}</p>
 						<div class="mt-1 flex flex-wrap items-center gap-1">
 							{#if item.isrequired}
 								<span class="inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800 ring-1 ring-purple-200">
@@ -669,19 +861,52 @@
 								</span>
 							{/if}
 							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
-							<span class="text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</span>
+							<span class="text-[10px] text-gray-600">Qty: {displayedQuantityForItem(item)}</span>
 						</div>
 					</div>
 
 					<!-- Actions — stop propagation so they don't open the modal -->
-					<div class="flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-						<button
-							onclick={(e) => { e.stopPropagation(); requestItem(item); }}
-							disabled={item.status === 'Out of Stock'}
-							class="rounded-md bg-pink-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
-						>
-							Request
-						</button>
+					<div class="flex shrink-0 flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-2 justify-center">
+							{#if cartEntryFor(item.id)}
+									{@const entryQuantity = cartEntryFor(item.id)?.quantity ?? 0}
+							<div class="inline-flex items-center gap-2">
+									{#if !item.isrequired}
+										<button
+											onclick={(e) => { e.stopPropagation(); removeItemFromRequest(item); }}
+											class="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-all hover:border-red-300 hover:bg-red-100 hover:text-red-700"
+											aria-label="Remove from request list"
+											title="Remove from request list"
+										>
+											<svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M6 18L18 6M6 6l12 12" />
+											</svg>
+										</button>
+									{/if}
+
+								<button
+									onclick={(e) => { e.stopPropagation(); decrementItem(item); }}
+									class="rounded-md bg-gray-100 px-2 py-1 text-sm font-semibold text-gray-800 hover:bg-gray-200"
+								>
+									−
+								</button>
+									<span class="inline-flex items-center justify-center px-3 text-sm font-semibold text-gray-900 w-8">{cartEntryFor(item.id)?.quantity ?? 0}</span>
+								<button
+									onclick={(e) => { e.stopPropagation(); incrementItem(item); }}
+											disabled={entryQuantity >= maxQuantityForItem(item)}
+									class="rounded-md bg-pink-600 px-2 py-1 text-sm font-semibold text-white hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40"
+								>
+									+
+								</button>
+							</div>
+						{:else}
+							<button
+								onclick={(e) => { e.stopPropagation(); requestItem(item); }}
+								disabled={item.status === 'Out of Stock'}
+								class="rounded-md bg-pink-600 px-2.5 py-1.5 text-[11px] font-semibold text-white hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-40 sm:text-xs"
+							>
+								Request
+							</button>
+						{/if}
 					</div>
 				</div>
 			{/each}

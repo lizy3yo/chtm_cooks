@@ -31,6 +31,15 @@ export interface StudentCart {
 	updatedAt: Date;
 }
 
+interface InventoryCartSource {
+	_id: ObjectId;
+	name: string;
+	quantity: number;
+	donations?: number;
+	isrequired?: boolean;
+	maxQuantityPerRequest?: number;
+}
+
 const CART_COLLECTION = 'student_carts';
 
 /**
@@ -61,6 +70,13 @@ function toCartResponse(cart: StudentCart) {
 		})),
 		updatedAt: cart.updatedAt.toISOString()
 	};
+}
+
+function getEffectiveMaxQuantity(item: InventoryCartSource): number {
+	const availableQuantity = Math.max(1, item.quantity + (item.donations ?? 0));
+	return item.isrequired && item.maxQuantityPerRequest
+		? Math.min(item.maxQuantityPerRequest, availableQuantity)
+		: availableQuantity;
 }
 
 /**
@@ -150,7 +166,15 @@ export const POST: RequestHandler = async (event) => {
 
 		const db = await getDatabase();
 		const cartCollection = db.collection<StudentCart>(CART_COLLECTION);
+		const inventoryCollection = db.collection<InventoryCartSource>('inventory_items');
 		const now = new Date();
+
+		const inventoryItem = await inventoryCollection.findOne({ _id: new ObjectId(itemId) });
+		if (!inventoryItem) {
+			return json({ error: 'Item not found' }, { status: 404 });
+		}
+
+		const effectiveMaxQuantity = getEffectiveMaxQuantity(inventoryItem);
 
 		const studentId = new ObjectId(user.userId);
 		const itemObjectId = new ObjectId(itemId);
@@ -164,9 +188,9 @@ export const POST: RequestHandler = async (event) => {
 				studentId,
 				items: [{
 					itemId: itemObjectId,
-					name,
+					name: inventoryItem.name,
 					quantity,
-					maxQuantity,
+					maxQuantity: effectiveMaxQuantity,
 					categoryId: body.categoryId ? new ObjectId(body.categoryId) : undefined,
 					picture: body.picture,
 					addedAt: now,
@@ -198,14 +222,14 @@ export const POST: RequestHandler = async (event) => {
 		if (existingItemIndex >= 0) {
 			// Update existing item quantity
 			const currentItem = existingCart.items[existingItemIndex];
-			const newQuantity = Math.min(currentItem.quantity + quantity, maxQuantity);
+			const newQuantity = Math.min(currentItem.quantity + quantity, effectiveMaxQuantity);
 			const result = newQuantity === currentItem.quantity ? 'capped' : 'incremented';
 
 			existingCart.items[existingItemIndex] = {
 				...currentItem,
-				name, // Update name in case it changed
+				name: inventoryItem.name,
 				quantity: newQuantity,
-				maxQuantity,
+				maxQuantity: effectiveMaxQuantity,
 				categoryId: body.categoryId ? new ObjectId(body.categoryId) : currentItem.categoryId,
 				picture: body.picture || currentItem.picture,
 				updatedAt: now
@@ -314,6 +338,7 @@ export const PATCH: RequestHandler = async (event) => {
 
 		const db = await getDatabase();
 		const cartCollection = db.collection<StudentCart>(CART_COLLECTION);
+		const inventoryCollection = db.collection<InventoryCartSource>('inventory_items');
 		const now = new Date();
 
 		const studentId = new ObjectId(user.userId);
@@ -330,11 +355,14 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 
 		const item = cart.items[itemIndex];
-		const newQuantity = Math.max(1, Math.min(item.maxQuantity, body.quantity));
+		const inventoryItem = await inventoryCollection.findOne({ _id: item.itemId });
+		const effectiveMaxQuantity = inventoryItem ? getEffectiveMaxQuantity(inventoryItem) : item.maxQuantity;
+		const newQuantity = Math.max(1, Math.min(effectiveMaxQuantity, body.quantity));
 
 		cart.items[itemIndex] = {
 			...item,
 			quantity: newQuantity,
+			maxQuantity: effectiveMaxQuantity,
 			updatedAt: now
 		};
 
