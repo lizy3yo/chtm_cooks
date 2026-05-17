@@ -21,64 +21,15 @@ export const POST: RequestHandler = async (event) => {
 	}
 
 	try {
-		const user = getAuthenticatedUser(event);
-		if (!user) {
-			return json({ error: 'Unauthorized' }, { status: 401 });
-		}
-		if (!['student', 'superadmin'].includes(user.role)) {
-			return json({ error: 'Forbidden: Student access required' }, { status: 403 });
-		}
-
-		const requestId = parseObjectId(event.params.id);
-		if (!requestId) {
-			return json({ error: 'Invalid request ID' }, { status: 400 });
-		}
-
-		const db = await getDatabase();
-		const requestCollection = db.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION);
-
-		const borrowRequest = await requestCollection.findOne({ _id: requestId });
-		if (!borrowRequest) {
-			return json({ error: 'Borrow request not found' }, { status: 404 });
-		}
-
-		// Verify the student owns this request
-		if (user.role === 'student' && borrowRequest.studentId.toString() !== user.userId) {
-			return json({ error: 'Forbidden: Not your request' }, { status: 403 });
-		}
-
-		if (borrowRequest.status !== BorrowRequestStatus.BORROWED) {
-			return json({ error: 'Borrow request is not in borrowed state' }, { status: 409 });
-		}
-
-		const now = new Date();
-		const updated = await requestCollection.findOneAndUpdate(
-			{ _id: requestId, status: BorrowRequestStatus.BORROWED },
+		logger.warn('Deprecated return initiation endpoint called');
+		return json(
 			{
-				$set: {
-					status: BorrowRequestStatus.PENDING_RETURN,
-					updatedAt: now,
-					updatedBy: new ObjectId(user.userId)
-				}
+				error: 'Student-initiated returns are no longer supported. The custodian must confirm the return.'
 			},
-			{ returnDocument: 'after' }
+			{ status: 410 }
 		);
-
-		if (!updated) {
-			return json({ error: 'Borrow request state changed, please retry' }, { status: 409 });
-		}
-
-		await invalidateBorrowRequestCaches();
-		publishBorrowRequestRealtimeEvent(updated, 'return_initiated', now);
-		await notifyBorrowRequestLifecycle({
-			db,
-			request: updated,
-			event: 'return_initiated'
-		});
-		logger.info('Student initiated return', { requestId: requestId.toString(), studentId: user.userId });
-		return json(toBorrowRequestResponse(updated));
 	} catch (error) {
-		logger.error('Error initiating return', { error });
-		return json({ error: 'Failed to initiate return' }, { status: 500 });
+		logger.error('Error handling deprecated return initiation endpoint', { error });
+		return json({ error: 'Failed to process return request' }, { status: 500 });
 	}
 };

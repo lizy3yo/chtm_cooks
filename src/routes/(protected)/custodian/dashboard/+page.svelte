@@ -303,7 +303,7 @@
 					<div class="p-4">
 						<div class="mb-3 flex items-center justify-between">
 							<span class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-								<Clock size={11} /> Pending — Mark as Ready
+							<Clock size={11} /> Pending — Ready for Pickup
 							</span>
 							<span class="text-xs font-bold text-amber-700">{requestsPendingApproval.length}</span>
 						</div>
@@ -328,7 +328,7 @@
 											<p class="text-xs text-gray-400">{req.items.length} item{req.items.length !== 1 ? 's' : ''} · {formatDate(req.borrowDate)}</p>
 										</div>
 										<a href="/custodian/requests" class="shrink-0 rounded-md bg-green-600 px-2 py-1 text-xs font-semibold text-white hover:bg-green-700 transition-colors">
-											Mark Ready
+										Ready for Pickup
 										</a>
 									</li>
 								{/each}

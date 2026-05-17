@@ -228,7 +228,7 @@
 			title: 'Release for Pickup',
 			message: 'Mark this request as ready for student pickup?',
 			type: 'info',
-			confirmText: 'Mark Ready',
+			confirmText: 'Ready for Pickup',
 			cancelText: 'Cancel'
 		});
 
@@ -785,7 +785,7 @@
 				return { text: 'Ready for Pickup', color: 'bg-green-100 text-green-800' };
 			case 'active':
 				return rawStatus === 'pending_return'
-					? { text: 'Return Requested', color: 'bg-orange-100 text-orange-800' }
+					? { text: 'Awaiting Return Confirmation', color: 'bg-orange-100 text-orange-800' }
 					: { text: 'On Loan', color: 'bg-purple-100 text-purple-800' };
 			case 'unresolved':
 				return { text: 'Unresolved', color: 'bg-amber-100 text-amber-800' };
@@ -848,7 +848,7 @@
 			case 'active':
 				if (rawStatus === 'pending_return') {
 					return {
-						text: 'The student has initiated the return. Inspect the items before completing check-in.',
+						text: 'The items are ready for return inspection. Inspect them before completing check-in.',
 						color: 'text-orange-700'
 					};
 				}
@@ -1438,7 +1438,7 @@
 															onclick={() => markReady(request.rawId)}
 															class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
 														>
-															Mark Ready
+															Ready for Pickup
 														</button>
 													{/if}
 													{#if request.status === 'ready'}
@@ -1449,7 +1449,7 @@
 															Confirm Pickup
 														</button>
 													{/if}
-													{#if request.status === 'active' && request.rawStatus === 'pending_return'}
+													{#if request.status === 'active' && ['borrowed', 'pending_return'].includes(request.rawStatus)}
 														<button
 															onclick={() => {
 																closeActionMenu();
@@ -1662,7 +1662,7 @@
 															}}
 															class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
 														>
-															Mark Ready
+															Ready for Pickup
 														</button>
 													{/if}
 													{#if request.status === 'ready'}
@@ -1676,7 +1676,7 @@
 															Confirm Pickup
 														</button>
 													{/if}
-													{#if request.status === 'active' && request.rawStatus === 'pending_return'}
+													{#if request.status === 'active' && ['borrowed', 'pending_return'].includes(request.rawStatus)}
 														<button
 															onclick={(e) => {
 																e.stopPropagation();
@@ -2411,7 +2411,7 @@
 								}}
 								class="rounded-xl bg-linear-to-r from-green-600 to-green-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-green-700 hover:to-green-800 active:scale-[0.98] sm:px-6 sm:py-3"
 							>
-								Mark Ready for Pickup
+								Ready for Pickup
 							</button>
 						{/if}
 						{#if selectedRequest.status === 'ready'}
@@ -2426,7 +2426,7 @@
 								Confirm Pickup
 							</button>
 						{/if}
-						{#if selectedRequest.status === 'active' && selectedRequest.rawStatus === 'pending_return'}
+						{#if selectedRequest.status === 'active' && ['borrowed', 'pending_return'].includes(selectedRequest.rawStatus)}
 							<button
 								onclick={() => {
 									confirmReturn(selectedRequest.rawId);
@@ -2496,4 +2496,5 @@
 		}}
 	/>
 {/if}
+
 

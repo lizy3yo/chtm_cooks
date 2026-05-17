@@ -62,7 +62,6 @@
 	let dateFilter = $state({ from: '', to: '' });
 	let requests = $state<any[]>([]);
 	let loading = $state(true);
-	let loadingReturn = $state<string | null>(null);
 	let loadingCancel = $state<string | null>(null);
 	let showAppealModal = $state(false);
 	let appealRequestTarget = $state<any>(null);
@@ -605,38 +604,6 @@
 
 	function getReadyPickupMessage(): string {
 		return 'Please proceed to the custodian desk. Pickup will be confirmed by the custodian upon release of items.';
-	}
-
-	async function requestReturnConfirmation(request: any) {
-		if (loadingReturn === request.rawId) return;
-
-		const confirmed = await confirmStore.warning(
-			'Are you ready to return these items? The custodian will inspect and confirm the return.',
-			`Initiate Return for ${request.id}`,
-			'Initiate Return',
-			'Keep Active'
-		);
-
-		if (!confirmed) return;
-
-		const requestId = request.rawId;
-		loadingReturn = requestId;
-
-		try {
-			await borrowRequestsAPI.initiateReturn(requestId);
-			borrowRequestsAPI.invalidateCache();
-			requests = requests.map((req) =>
-				req.rawId === requestId ? { ...req, status: 'pending-return' } : req
-			);
-			toastStore.success(
-				`Return initiated for ${request.id}. The custodian will confirm the return.`
-			);
-		} catch (error: any) {
-			console.error('Failed to initiate return', error);
-			toastStore.error(`Failed to initiate return: ${error?.message || 'Please try again.'}`);
-		} finally {
-			loadingReturn = null;
-		}
 	}
 
 	async function requestCancelConfirmation(request: any) {
@@ -1317,18 +1284,6 @@
 															{loadingCancel === request.rawId ? 'Cancelling...' : 'Cancel'}
 														</button>
 													{/if}
-													{#if request.status === 'picked-up'}
-														<button
-															onclick={(e) => {
-																e.stopPropagation();
-																requestReturnConfirmation(request);
-															}}
-															disabled={loadingReturn === request.rawId}
-															class="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-														>
-															{loadingReturn === request.rawId ? 'Processing...' : 'Return'}
-														</button>
-													{/if}
 													{#if request.status === 'rejected'}
 														<button
 															onclick={(e) => {
@@ -1351,7 +1306,7 @@
 							<div style="min-height: 600px;">
 								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 									<div
-										class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1.2fr_1.8fr_1fr_120px] md:items-center md:gap-4"
+										class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1fr_1.5fr_1fr_120px] md:items-center md:gap-4"
 									>
 										<span class="text-center text-gray-400">#</span>
 										<span>Request</span>
@@ -1366,7 +1321,7 @@
 											<!-- svelte-ignore a11y_click_events_have_key_events -->
 											<!-- svelte-ignore a11y_no_static_element_interactions -->
 											<div
-												class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[32px_1.2fr_1.8fr_1fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
+												class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[32px_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
 												request.rawId
 													? 'bg-pink-50/50 ring-1 ring-pink-300 ring-inset'
 													: 'hover:bg-gray-50'}"
@@ -1409,7 +1364,7 @@
 														{#each request.items.slice(0, 3) as item}
 															{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
 															<span
-																class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700"
+																class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700"
 															>
 																{#if pic}
 																	<img
@@ -1422,13 +1377,13 @@
 																		><ItemImagePlaceholder size="xs" /></span
 																	>
 																{/if}
-																<span class="max-w-[90px] truncate">{item.name}</span>
+																<span class="max-w-[100px] truncate">{item.name}</span>
 															</span>
 														{/each}
 														{#if request.items.length > 3}
 															<span
-																class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600"
-																>+{request.items.length - 3}</span
+																class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600"
+																>+{request.items.length - 3} more</span
 															>
 														{/if}
 													</div>
@@ -1451,7 +1406,11 @@
 														<StatusIcon size={11} />
 														{getStatusLabel(request.status)}
 													</span>
-													{#if request.status === 'ready'}
+													{#if request.status === 'picked-up'}
+														<p class="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-slate-500">
+															<CornerDownLeft size={12} class="shrink-0" /> Return handled by custodian
+														</p>
+													{:else if request.status === 'ready'}
 														<p
 															class="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"
 														>
@@ -1509,18 +1468,6 @@
 															class="rounded-lg border border-red-200 bg-white px-2.5 py-1.5 text-[11px] font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
 														>
 															{loadingCancel === request.rawId ? 'Cancelling...' : 'Cancel'}
-														</button>
-													{/if}
-													{#if request.status === 'picked-up'}
-														<button
-															onclick={(e) => {
-																e.stopPropagation();
-																requestReturnConfirmation(request);
-															}}
-															disabled={loadingReturn === request.rawId}
-															class="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-														>
-															{loadingReturn === request.rawId ? 'Processing...' : 'Return'}
 														</button>
 													{/if}
 													{#if request.status === 'rejected'}
@@ -2130,6 +2077,13 @@
 					<div
 						class="flex flex-col items-stretch justify-end gap-2 sm:flex-row sm:items-center sm:gap-3"
 					>
+						{#if selectedRequest.status === 'picked-up'}
+							<div class="flex flex-1 items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-600">
+								<CornerDownLeft size={14} class="shrink-0 text-slate-400" />
+								<span>Return is handled by the custodian. Bring the item(s) to the custodian desk when ready to return.</span>
+							</div>
+						{/if}
+
 						{#if selectedRequest.status === 'pending'}
 							<button
 								onclick={() => requestCancelConfirmation(selectedRequest)}

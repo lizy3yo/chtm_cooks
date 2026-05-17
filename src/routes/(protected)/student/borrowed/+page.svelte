@@ -251,7 +251,7 @@
 			if (overdueCount > 0 && !hasShownOverdueModal) {
 				hasShownOverdueModal = true;
 				void confirmStore.warning(
-					`You currently have ${overdueCount} overdue loan${overdueCount > 1 ? 's' : ''}. Please initiate return and proceed to the custodian desk.`,
+					`You currently have ${overdueCount} overdue loan${overdueCount > 1 ? 's' : ''}. Please proceed to the custodian desk for return confirmation.`,
 					'Immediate Attention Required',
 					'Understood',
 					'Later'
@@ -312,26 +312,6 @@
 		}
 	}
 
-	async function initiateReturn(loan: LoanCard): Promise<void> {
-		actionLoadingId = loan.id;
-
-		try {
-			await borrowRequestsAPI.initiateReturn(loan.id);
-			toastStore.success(
-				`${loan.requestCode} marked for return. Please proceed to the custodian for handover.`,
-				'Return Initiated'
-			);
-			await loadBorrowedItems(true);
-		} catch (error) {
-			toastStore.error(
-				error instanceof Error ? error.message : 'Failed to initiate return.',
-				'Return Initiation Failed'
-			);
-		} finally {
-			actionLoadingId = null;
-		}
-	}
-
 	async function refreshBorrowedItems(): Promise<void> {
 		if (refreshInFlight) {
 			pendingRefresh = true;
@@ -387,7 +367,7 @@
 
 	function getLoanStateLabel(loan: LoanCard): string {
 		if (loan.hasUnresolvedIssue || loan.status === 'missing') return 'Unresolved';
-		if (loan.status === 'pending_return') return 'Return Initiated';
+		if (loan.status === 'pending_return') return 'Awaiting Return Confirmation';
 		if (loan.isOverdue) return 'Overdue';
 		if (loan.isDueSoon) return 'Due Soon';
 		return 'Active Loan';
@@ -402,7 +382,7 @@
 	function getLoanSummary(loan: LoanCard): string {
 		if (loan.hasUnresolvedIssue) return `${loan.unresolvedItems} unresolved item ${loan.unresolvedItems === 1 ? 'case' : 'cases'}`;
 		if (loan.status === 'missing') return 'Marked as missing. Coordinate with custodian immediately.';
-		if (loan.status === 'pending_return') return 'Return initiated. Waiting for custodian confirmation.';
+		if (loan.status === 'pending_return') return 'Return awaiting custodian confirmation.';
 		if (loan.isOverdue) return `${Math.abs(loan.daysDelta)} day${Math.abs(loan.daysDelta) > 1 ? 's' : ''} overdue`;
 		if (loan.daysDelta === 0) return 'Due today';
 		if (loan.isDueSoon) return `Due in ${loan.daysDelta} day${loan.daysDelta > 1 ? 's' : ''}`;
@@ -754,7 +734,7 @@
 										<button onclick={(e) => { e.stopPropagation(); qrLoan = loan; qrDataUrl = null; QRCode.toDataURL(loan.id, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' }, errorCorrectionLevel: 'H' }).then(url => { qrDataUrl = url; }).catch(() => {}); showQrModal = true; }} class="inline-flex shrink-0 h-8 w-8 items-center justify-center rounded-full border border-pink-200 bg-white text-pink-600 shadow-sm transition-colors hover:bg-pink-50" title="View QR Code">
 											<QrCode size={14} strokeWidth={2} />
 										</button>
-										<button onclick={(e) => { e.stopPropagation(); initiateReturn(loan); }} disabled={actionLoadingId === loan.id} class="inline-flex shrink-0 items-center justify-center rounded-full bg-pink-600 px-4 py-1.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50">{actionLoadingId === loan.id ? 'Processing...' : 'Initiate Return'}</button>
+										<span class="inline-flex shrink-0 items-center justify-center rounded-full bg-slate-100 px-4 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200">Return confirmed by custodian</span>
 									{:else}
 										<a onclick={(e) => e.stopPropagation()} href="/student/requests" class="inline-flex shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white px-4 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50">Track Request</a>
 									{/if}
@@ -1206,9 +1186,7 @@
 									<a href="/student/account/help" class="flex-1 rounded-lg border-2 border-red-300 bg-red-50 px-4 py-2.5 text-center text-sm font-semibold text-red-700 shadow-sm transition-all hover:bg-red-100 active:scale-[0.98]">Get Help</a>
 								{/if}
 								{#if selectedLoan.status === 'borrowed'}
-									<button type="button" onclick={() => initiateReturn(selectedLoan!)} disabled={actionLoadingId === selectedLoan!.id} class="flex-1 rounded-lg bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none">
-										{actionLoadingId === selectedLoan.id ? 'Processing...' : 'Initiate Return'}
-									</button>
+									<span class="flex-1 rounded-lg bg-slate-100 px-4 py-2.5 text-center text-sm font-semibold text-slate-600 ring-1 ring-slate-200">Return confirmed by custodian</span>
 								{/if}
 							</div>
 						</div>
@@ -1239,9 +1217,7 @@
 									<a href="/student/account/help" class="rounded-lg border-2 border-red-300 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition-all hover:bg-red-100 active:scale-[0.98]">Get Help</a>
 								{/if}
 								{#if selectedLoan.status === 'borrowed'}
-									<button type="button" onclick={() => initiateReturn(selectedLoan!)} disabled={actionLoadingId === selectedLoan!.id} class="rounded-lg bg-pink-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none">
-										{actionLoadingId === selectedLoan.id ? 'Processing...' : 'Initiate Return'}
-									</button>
+									<span class="rounded-lg bg-slate-100 px-5 py-2.5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">Return confirmed by custodian</span>
 								{/if}
 							</div>
 						</div>
