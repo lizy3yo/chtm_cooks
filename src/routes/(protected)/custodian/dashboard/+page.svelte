@@ -37,9 +37,7 @@
 	);
 	const overdueCount  = $derived(report?.borrowRequests.overdueCount ?? 0);
 	const pendingCount  = $derived(
-		(report?.borrowRequests.statusBreakdown.find(s => s.status === 'pending_instructor')?.count ?? 0) +
-		(report?.borrowRequests.statusBreakdown.find(s => s.status === 'approved_instructor')?.count ?? 0) +
-		(report?.borrowRequests.statusBreakdown.find(s => s.status === 'ready_for_pickup')?.count ?? 0)
+		report?.borrowRequests.statusBreakdown.find(s => s.status === 'approved_instructor')?.count ?? 0
 	);
 	const stockAlertCount   = $derived(report?.inventory.stockAlerts.length ?? 0);
 	const pendingObligations = $derived(report?.replacement.summary.pendingCount ?? 0);
@@ -305,7 +303,7 @@
 					<div class="p-4">
 						<div class="mb-3 flex items-center justify-between">
 							<span class="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
-								<Clock size={11} /> Pending — Mark Ready
+								<Clock size={11} /> Pending — Mark as Ready
 							</span>
 							<span class="text-xs font-bold text-amber-700">{requestsPendingApproval.length}</span>
 						</div>
@@ -554,7 +552,7 @@
 					<div class="space-y-3">
 						<!-- Repeat offenders -->
 						<div class="rounded-lg border border-rose-100 bg-rose-50 px-4 py-3">
-							<p class="text-xs font-medium text-rose-700">Active Obligations</p>
+							<p class="text-xs font-medium text-rose-700">High Risk Students</p>
 							<p class="mt-0.5 text-2xl font-bold text-rose-700">{report.studentRisk.repeatOffenders.length}</p>
 							{#if report.studentRisk.repeatOffenders.length > 0}
 								<p class="mt-1 text-xs text-rose-500 truncate">
