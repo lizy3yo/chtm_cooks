@@ -15,16 +15,8 @@
 	let currentIndex = $state(0);
 	const currentObligation = $derived(activeObligations[currentIndex] || null);
 
-	let quantityReplaced = $state(0);
 	let submitting = $state(false);
 	let error = $state<string | null>(null);
-
-	// Initialize quantityReplaced when obligation changes
-	$effect(() => {
-		if (currentObligation) {
-			quantityReplaced = currentObligation.balance;
-		}
-	});
 
 	function getTypeColor(type: 'missing' | 'damaged'): string {
 		return type === 'missing' 
@@ -56,17 +48,12 @@
 	}
 
 	async function handleSubmit() {
-		// Validation
-		if (!Number.isInteger(quantityReplaced) || quantityReplaced <= 0) {
-			error = 'Please enter a valid quantity (must be a positive whole number)';
-			return;
-		}
-
 		submitting = true;
 		error = null;
 
 		try {
-			await onResolve(currentObligation.id, quantityReplaced);
+			// Automatically use the exact remaining balance required by the custodian
+			await onResolve(currentObligation.id, currentObligation.balance);
 		} catch (err) {
 			console.error('[ReplacementObligationModal] Resolution failed:', err);
 			error = err instanceof Error ? err.message : 'Failed to resolve obligation';
@@ -172,6 +159,12 @@
 							</div>
 							<div class="flex-1 min-w-0">
 								<h3 class="text-lg font-bold text-gray-900 truncate uppercase">{currentObligation.itemName}</h3>
+								<div class="mt-1.5 flex items-center gap-2">
+									<span class="text-sm font-medium text-gray-600">Expected Replacement Qty:</span>
+									<span class="inline-flex min-w-10 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-sm font-bold text-gray-900">
+										{currentObligation.amount}
+									</span>
+								</div>
 								<div class="mt-2 flex flex-wrap gap-2">
 									<span class={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${getTypeColor(currentObligation.type)}`}>
 										{#key currentObligation.type}
@@ -184,15 +177,66 @@
 							</div>
 						</div>
 
-						<!-- Replacement Metrics -->
-						<div class="mb-5 grid grid-cols-2 gap-4 rounded-xl bg-white p-4 border border-gray-200">
-							<div class="text-center">
-								<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Original Qty</p>
-								<p class="text-xl font-bold text-gray-900 tabular-nums">{currentObligation.quantity}</p>
+						<!-- Obligation Details Table -->
+						<div class="mb-5 overflow-hidden rounded-xl border border-gray-200">
+							<!-- Desktop Table Header -->
+							<div class="hidden sm:grid grid-cols-5 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+								<span class="text-center">Original Qty</span>
+								<span class="text-center text-amber-700">Damaged</span>
+								<span class="text-center text-rose-700">Missing</span>
+								<span class="text-center">Due Date</span>
+								<span class="text-center">Request ID</span>
 							</div>
-							<div class="text-center border-l border-gray-200">
-								<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Required</p>
-								<p class="text-xl font-bold text-gray-900 tabular-nums">{currentObligation.amount}</p>
+							
+							<!-- Desktop Table Row -->
+							<div class="hidden sm:grid grid-cols-5 items-center bg-white px-4 py-3">
+								<div class="text-center">
+									<span class="text-sm font-bold text-gray-900 tabular-nums">{currentObligation.quantity}</span>
+								</div>
+								<div class="text-center">
+									<span class="text-sm font-bold tabular-nums {currentObligation.type === 'damaged' ? 'text-amber-600' : 'text-gray-300'}">{currentObligation.type === 'damaged' ? currentObligation.amount : '0'}</span>
+								</div>
+								<div class="text-center">
+									<span class="text-sm font-bold tabular-nums {currentObligation.type === 'missing' ? 'text-rose-600' : 'text-gray-300'}">{currentObligation.type === 'missing' ? currentObligation.amount : '0'}</span>
+								</div>
+								<div class="flex items-center justify-center gap-1.5">
+									<Calendar class="h-4 w-4 text-gray-400" />
+									<span class="text-sm font-semibold text-gray-900">{new Date(currentObligation.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+								</div>
+								<div class="flex items-center justify-center gap-1.5">
+									<Package class="h-4 w-4 text-gray-400" />
+									<span class="text-sm font-mono font-semibold text-gray-900">REQ-{currentObligation.borrowRequestId.slice(-6).toUpperCase()}</span>
+								</div>
+							</div>
+
+							<!-- Mobile Layout -->
+							<div class="grid sm:hidden grid-cols-3 divide-x divide-gray-200 border-b border-gray-200 bg-white">
+								<div class="flex flex-col items-center justify-center p-3">
+									<span class="text-[10px] font-semibold tracking-wide text-gray-500 uppercase mb-1">Original Qty</span>
+									<span class="text-sm font-bold text-gray-900 tabular-nums">{currentObligation.quantity}</span>
+								</div>
+								<div class="flex flex-col items-center justify-center p-3">
+									<span class="text-[10px] font-semibold tracking-wide text-amber-700 uppercase mb-1">Damaged</span>
+									<span class="text-sm font-bold tabular-nums {currentObligation.type === 'damaged' ? 'text-amber-600' : 'text-gray-300'}">{currentObligation.type === 'damaged' ? currentObligation.amount : '0'}</span>
+								</div>
+								<div class="flex flex-col items-center justify-center p-3">
+									<span class="text-[10px] font-semibold tracking-wide text-rose-700 uppercase mb-1">Missing</span>
+									<span class="text-sm font-bold tabular-nums {currentObligation.type === 'missing' ? 'text-rose-600' : 'text-gray-300'}">{currentObligation.type === 'missing' ? currentObligation.amount : '0'}</span>
+								</div>
+							</div>
+							<div class="grid sm:hidden grid-cols-2 divide-x divide-gray-200 bg-white">
+								<div class="flex flex-col items-center justify-center p-3">
+									<span class="flex items-center gap-1 text-[10px] font-semibold tracking-wide text-gray-500 uppercase mb-1">
+										<Calendar class="h-3 w-3" /> Due Date
+									</span>
+									<span class="text-sm font-semibold text-gray-900">{new Date(currentObligation.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+								</div>
+								<div class="flex flex-col items-center justify-center p-3">
+									<span class="flex items-center gap-1 text-[10px] font-semibold tracking-wide text-gray-500 uppercase mb-1">
+										<Package class="h-3 w-3" /> Request ID
+									</span>
+									<span class="text-sm font-mono font-semibold text-gray-900">REQ-{currentObligation.borrowRequestId.slice(-6).toUpperCase()}</span>
+								</div>
 							</div>
 						</div>
 
@@ -205,24 +249,6 @@
 							</div>
 						{/if}
 
-						<!-- Obligation Info Grid -->
-						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
-							<div>
-								<div class="flex items-center gap-2 mb-1">
-									<Calendar class="h-4 w-4 text-gray-400" />
-									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Due Date</p>
-								</div>
-								<p class="text-sm font-semibold text-gray-900">{new Date(currentObligation.dueDate).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-							</div>
-							<div>
-								<div class="flex items-center gap-2 mb-1">
-									<Package class="h-4 w-4 text-gray-400" />
-									<p class="text-xs font-medium text-gray-500 uppercase tracking-wide">Request ID</p>
-								</div>
-								<p class="text-sm font-mono font-semibold text-gray-900">REQ-{currentObligation.borrowRequestId.slice(-6).toUpperCase()}</p>
-							</div>
-						</div>
-
 						{#if currentObligation.incidentNotes}
 							<div class="mt-4 pt-4 border-t border-gray-200">
 								<p class="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Incident Notes</p>
@@ -231,32 +257,7 @@
 						{/if}
 					</div>
 
-					<!-- Quantity Being Replaced -->
-					{#if currentObligation.status === 'pending'}
-						<div>
-							<label for="quantity-replaced" class="mb-2 block text-sm font-bold text-gray-900">
-								Quantity Being Replaced <span class="text-pink-500">*</span>
-							</label>
-							<div class="relative">
-								<input
-									id="quantity-replaced"
-									type="number"
-									min="1"
-									step="1"
-									bind:value={quantityReplaced}
-									class="block w-full rounded-lg border-2 border-gray-200 px-4 py-3 text-base font-semibold shadow-sm focus:border-pink-500 focus:outline-none focus:ring-2 focus:ring-pink-500/20 pr-24"
-									placeholder="Enter quantity"
-									required
-								/>
-								<div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-									<span class="text-sm text-gray-500">Required: {currentObligation.balance}</span>
-								</div>
-							</div>
-							<p class="mt-2 text-xs text-gray-500">
-								Enter the number of items the student is replacing in this transaction. Excess quantity will be recorded.
-							</p>
-						</div>
-					{/if}
+					<!-- Note: Quantity is automatically resolved using the exact remaining balance required by the custodian -->
 				</div>
 			</div>
 
@@ -296,7 +297,7 @@
 							<button
 								type="button"
 								onclick={handleSubmit}
-								disabled={!Number.isInteger(quantityReplaced) || quantityReplaced <= 0 || submitting}
+								disabled={submitting}
 								class="flex-1 sm:flex-none rounded-lg bg-pink-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-pink-600/30 transition-all hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none active:scale-[0.98]"
 							>
 								{#if submitting}
