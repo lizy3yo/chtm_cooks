@@ -341,6 +341,7 @@
 			status: 'good' | 'damaged' | 'missing';
 			notes: string;
 			replacementQuantity?: number;
+			dueDate?: string;
 		}>
 	): Promise<void> {
 		if (!selectedRequest) return;
@@ -572,20 +573,38 @@
 	}
 
 	async function backfillItemPictures(): Promise<void> {
+		const next = new Map(itemPictureCache);
+		let hasNewLocalPictures = false;
+
+		// 1. Seed cache with pictures from items that already have them
+		for (const req of requests) {
+			for (const item of req.items) {
+				if (item.itemId && item.picture && !next.has(item.itemId)) {
+					next.set(item.itemId, item.picture);
+					hasNewLocalPictures = true;
+				}
+			}
+		}
+
+		// 2. Collect IDs that are missing pictures
 		const missingIds = new Set<string>();
 		for (const req of requests) {
 			for (const item of req.items) {
-				if (item.itemId && !item.picture && !itemPictureCache.has(item.itemId)) {
+				if (item.itemId && !item.picture && !next.has(item.itemId)) {
 					missingIds.add(item.itemId);
 				}
 			}
 		}
 
-		if (missingIds.size === 0) return;
+		if (missingIds.size === 0) {
+			if (hasNewLocalPictures) {
+				itemPictureCache = next;
+			}
+			return;
+		}
 
 		try {
 			const response = await catalogAPI.getCatalog({ availability: 'all', limit: 300 });
-			const next = new Map(itemPictureCache);
 			for (const catalogItem of response.items) {
 				if (missingIds.has(catalogItem.id) && catalogItem.picture) {
 					next.set(catalogItem.id, catalogItem.picture);
@@ -596,7 +615,9 @@
 				inspectionItems = buildInspectionItems(selectedRequest);
 			}
 		} catch {
-			// Keep graceful fallback when catalog pictures are unavailable.
+			if (hasNewLocalPictures) {
+				itemPictureCache = next;
+			}
 		}
 	}
 
@@ -2311,10 +2332,6 @@
 
 						<!-- Requested Items -->
 						{#if selectedRequest.items}
-							{@const totalQty = selectedRequest.items.reduce((sum: number, item: any) => sum + item.quantity, 0)}
-							{@const totalDamaged = selectedRequest.items.reduce((sum: number, item: any) => sum + (item.inspection?.status === 'damaged' ? (item.inspection.replacementQuantity || 0) : 0), 0)}
-							{@const totalMissing = selectedRequest.items.reduce((sum: number, item: any) => sum + (item.inspection?.status === 'missing' ? (item.inspection.replacementQuantity || 0) : 0), 0)}
-							{@const totalGood = totalQty - totalDamaged - totalMissing}
 							<div>
 								<div class="mb-4 flex flex-wrap items-center justify-between gap-4">
 								<h3
@@ -2323,22 +2340,28 @@
 									<div class="h-1 w-1 rounded-full bg-pink-500"></div>
 									Requested Items
 								</h3>
-								<div class="flex flex-wrap items-center gap-2">
-									{#if totalGood > 0}
-										<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200/60 shadow-sm">
-											<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-											{totalGood} Good
-										</span>
-									{/if}
-									<span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200/60 shadow-sm">
-										<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-										{totalDamaged} Damaged
-									</span>
-									<span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200/60 shadow-sm">
-										<span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
-										{totalMissing} Missing
-									</span>
-								</div>
+								{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
+									<div class="flex flex-wrap items-center gap-2">
+										{#if selectedRequest.items.some((i: any) => !i.inspection || i.inspection.status === 'good')}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200/60 shadow-sm">
+												<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+												Good
+											</span>
+										{/if}
+										{#if selectedRequest.items.some((i: any) => i.inspection?.status === 'damaged')}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200/60 shadow-sm">
+												<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+												Damaged
+											</span>
+										{/if}
+										{#if selectedRequest.items.some((i: any) => i.inspection?.status === 'missing')}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200/60 shadow-sm">
+												<span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+												Missing
+											</span>
+										{/if}
+									</div>
+								{/if}
 							</div>
 							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 								<!-- Desktop Table Header -->
@@ -2352,9 +2375,9 @@
 								<div class="divide-y divide-gray-100">
 									{#each selectedRequest.items as item}
 										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-										{@const goodQty = item.inspection ? (item.quantity - (item.inspection.replacementQuantity || 0)) : item.quantity}
-										{@const damagedQty = item.inspection?.status === 'damaged' ? (item.inspection.replacementQuantity || 0) : 0}
-										{@const missingQty = item.inspection?.status === 'missing' ? (item.inspection.replacementQuantity || 0) : 0}
+										{@const isGood = !item.inspection || item.inspection.status === 'good'}
+										{@const isDamaged = item.inspection?.status === 'damaged'}
+										{@const isMissing = item.inspection?.status === 'missing'}
 										<div class="grid items-center gap-3 bg-white p-3 sm:grid-cols-12 sm:p-4 transition-colors hover:bg-gray-50/50">
 											<!-- Item Info -->
 											<div class="col-span-12 flex items-center gap-3 sm:col-span-8 min-w-0">
@@ -2374,22 +2397,22 @@
 													<span class="truncate text-sm font-semibold text-gray-900">{item.name}</span>
 													{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
 														<div class="flex flex-wrap items-center gap-1.5 mt-0.5">
-															{#if goodQty > 0}
+															{#if isGood}
 																<span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200/50">
 																	<span class="h-1 w-1 rounded-full bg-emerald-500"></span>
-																	{goodQty} Good
+																	Good
 																</span>
 															{/if}
-															{#if damagedQty > 0}
+															{#if isDamaged}
 																<span class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 ring-1 ring-amber-200/50">
 																	<span class="h-1 w-1 rounded-full bg-amber-500"></span>
-																	{damagedQty} Damaged
+																	Damaged
 																</span>
 															{/if}
-															{#if missingQty > 0}
+															{#if isMissing}
 																<span class="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200/50">
 																	<span class="h-1 w-1 rounded-full bg-rose-500"></span>
-																	{missingQty} Missing
+																	Missing
 																</span>
 															{/if}
 														</div>
@@ -2411,6 +2434,78 @@
 								</div>
 							</div>
 						</div>
+						
+						<!-- Replacement Obligations Table -->
+						{#if (selectedRequest.status === 'unresolved' || selectedRequest.status === 'history') && selectedRequest.items.some((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0)}
+							<div class="mt-8">
+								<h3 class="mb-4 flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
+									<div class="h-1 w-1 rounded-full bg-amber-500"></div>
+									Replacement Obligations
+								</h3>
+								<div class="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+									<!-- Desktop Table Header -->
+									<div class="hidden sm:grid grid-cols-12 border-b border-amber-100 bg-amber-50/50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-amber-900 uppercase">
+										<span class="col-span-6">Item to Replace</span>
+										<span class="col-span-3 text-center">Qty Required</span>
+										<span class="col-span-3 text-right">Due Date</span>
+									</div>
+									
+									<!-- Table Rows -->
+									<div class="divide-y divide-amber-100/50">
+										{#each selectedRequest.items.filter((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0) as item}
+											{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+											<div class="grid items-center gap-3 bg-white p-3 sm:grid-cols-12 sm:p-4 hover:bg-amber-50/30 transition-colors">
+												<div class="col-span-12 flex items-center gap-3 sm:col-span-6 min-w-0">
+													{#if pic}
+														<img src={pic} alt={item.name} class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-amber-200/50" loading="lazy" />
+													{:else}
+														<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-amber-200/50 text-amber-500/50"><ItemImagePlaceholder size="sm" /></div>
+													{/if}
+													<div class="flex flex-col gap-1 min-w-0">
+														<span class="truncate text-sm font-semibold text-gray-900">{item.name}</span>
+														<span class="text-[10px] font-semibold text-amber-600/80 uppercase">{item.code}</span>
+													</div>
+												</div>
+												<div class="col-span-6 flex items-center justify-between sm:col-span-3 sm:justify-center border-t border-amber-100/50 pt-3 sm:border-0 sm:pt-0">
+													<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden">Qty Required</span>
+													<span class="text-sm font-bold text-amber-700 tabular-nums">{item.inspection.replacementQuantity}</span>
+												</div>
+												<div class="col-span-6 flex items-center justify-between sm:col-span-3 sm:justify-end border-t border-amber-100/50 pt-3 sm:border-0 sm:pt-0 border-l border-amber-100/50 pl-3 sm:border-0 sm:pl-0">
+													<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden">Due Date</span>
+													{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
+														<input
+															type="date"
+															min={new Date().toLocaleDateString('en-CA')}
+															onkeydown={(e) => e.preventDefault()}
+															class="block w-[120px] rounded-md border-0 bg-transparent py-1 pl-2 pr-0 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-amber-500/50 hover:bg-amber-100/50 transition-colors"
+															value={item.inspection.dueDate ? new Date(item.inspection.dueDate).toISOString().split('T')[0] : ''}
+															onchange={async (e) => {
+																const target = e.currentTarget;
+																const newDate = target.value;
+																if (!newDate) return;
+																try {
+																	target.disabled = true;
+																	const res = await fetch(`/api/borrow-requests/${selectedRequest!.rawId}/due-date`, {
+																		method: 'PATCH',
+																		headers: { 'Content-Type': 'application/json' },
+																		body: JSON.stringify({ itemId: item.itemId, dueDate: newDate })
+																	});
+																	if (res.ok) await loadRequests(true);
+																} finally {
+																	target.disabled = false;
+																}
+															}}
+														/>
+													{:else}
+														<span class="text-xs font-semibold text-gray-700">{item.inspection.dueDate ? new Date(item.inspection.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set'}</span>
+													{/if}
+												</div>
+											</div>
+										{/each}
+									</div>
+								</div>
+							</div>
+						{/if}
 						{/if}
 
 						<!-- Overdue Warning -->
@@ -2536,6 +2631,7 @@
 {#if showObligationModal}
 	<ReplacementObligationModal
 		obligations={activeRequestObligations}
+		itemPictures={itemPictureCache}
 		onResolve={handleResolveObligation}
 		onCancel={() => {
 			showObligationModal = false;

@@ -27,6 +27,7 @@ export interface ItemInspection {
 	inspectedBy: ObjectId;
 	notes?: string;
 	replacementQuantity?: number; // Quantity selected for replacement
+	dueDate?: Date;
 }
 
 export interface BorrowRequestItem {
@@ -81,6 +82,8 @@ export interface BorrowRequestResponseItem {
 		inspectedAt: Date;
 		inspectedBy: string;
 		notes?: string;
+		replacementQuantity?: number;
+		dueDate?: Date;
 		unitPrice?: number;
 	};
 }
@@ -152,7 +155,8 @@ export function toBorrowRequestResponse(request: BorrowRequest): BorrowRequestRe
 				inspectedAt: item.inspection.inspectedAt,
 				inspectedBy: item.inspection.inspectedBy.toString(),
 				notes: item.inspection.notes,
-				replacementQuantity: item.inspection.replacementQuantity
+				replacementQuantity: item.inspection.replacementQuantity,
+				dueDate: item.inspection.dueDate
 			} : undefined
 		})),
 		purpose: request.purpose,

@@ -1149,6 +1149,20 @@
 													<td class="px-4 py-3"><span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {getItemStatusClasses(itemStatus)}">{getItemStatusLabel(itemStatus)}</span></td>
 													<td class="px-4 py-3 text-xs text-gray-700">{getSettlementLabel(item, selectedLoan.id)}</td>
 												</tr>
+												{#if item.inspection?.notes || item.inspection?.dueDate}
+													<tr class="bg-amber-50/50">
+														<td colspan="4" class="px-4 py-2 text-xs text-amber-900 border-b border-amber-100/50">
+															<div class="flex flex-col gap-1">
+																{#if item.inspection?.dueDate}
+																	<p><span class="font-semibold text-amber-950">Due to resolve:</span> {new Date(item.inspection.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+																{/if}
+																{#if item.inspection?.notes}
+																	<p><span class="font-semibold text-amber-950">Notes:</span> {item.inspection.notes}</p>
+																{/if}
+															</div>
+														</td>
+													</tr>
+												{/if}
 											{/each}
 										</tbody>
 									</table>

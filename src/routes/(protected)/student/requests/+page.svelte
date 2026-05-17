@@ -1992,32 +1992,44 @@
 								{#each selectedRequest.items as item}
 									{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
 									<div
-										class="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-all hover:border-pink-200 hover:shadow-md"
+										class="group flex flex-col rounded-xl border border-gray-200 bg-white p-3 transition-all hover:border-pink-200 hover:shadow-md"
 									>
-										{#if pic}
-											<img
-												src={pic}
-												alt={item.name}
-												class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-gray-100"
-												loading="lazy"
-											/>
-										{:else}
-											<div
-												class="h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100"
-											>
-												<ItemImagePlaceholder size="sm" />
+										<div class="flex items-center gap-3">
+											{#if pic}
+												<img
+													src={pic}
+													alt={item.name}
+													class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-gray-100"
+													loading="lazy"
+												/>
+											{:else}
+												<div
+													class="h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100"
+												>
+													<ItemImagePlaceholder size="sm" />
+												</div>
+											{/if}
+											<div class="min-w-0 flex-1">
+												<p
+													class="truncate text-sm font-semibold text-gray-900 transition-colors group-hover:text-pink-600"
+												>
+													{item.name}
+												</p>
+												<p class="mt-0.5 text-xs text-gray-500">
+													Code: {item.code} • Qty: {item.quantity}
+												</p>
+											</div>
+										</div>
+										{#if item.inspection?.notes || item.inspection?.dueDate}
+											<div class="mt-3 rounded-lg bg-gray-50 p-2.5 text-xs text-gray-700 border border-gray-100">
+												{#if item.inspection?.dueDate}
+													<p><span class="font-semibold text-gray-900">Due to resolve:</span> {new Date(item.inspection.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
+												{/if}
+												{#if item.inspection?.notes}
+													<p class={item.inspection?.dueDate ? "mt-1.5" : ""}><span class="font-semibold text-gray-900">Notes:</span> {item.inspection.notes}</p>
+												{/if}
 											</div>
 										{/if}
-										<div class="min-w-0 flex-1">
-											<p
-												class="truncate text-sm font-semibold text-gray-900 transition-colors group-hover:text-pink-600"
-											>
-												{item.name}
-											</p>
-											<p class="mt-0.5 text-xs text-gray-500">
-												Code: {item.code} • Qty: {item.quantity}
-											</p>
-										</div>
 									</div>
 								{/each}
 							</div>

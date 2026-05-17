@@ -26,6 +26,7 @@
 	import { confirmStore } from '$lib/stores/confirm';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 	import ReplacementObligationModal from '$lib/components/custodian/ReplacementObligationModal.svelte';
+	import { catalogAPI } from '$lib/api/catalog';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import { Package, AlertCircle, CheckCircle2, TrendingUp } from 'lucide-svelte';
 
@@ -34,6 +35,7 @@
 	let historyFilter = $state<'all' | 'resolved'>('all');
 	let viewMode = $state<'card' | 'list'>('list');
 	let obligations = $state<ReplacementObligation[]>([]);
+	let itemPictureCache = $state<Map<string, string>>(new Map());
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);
 	let currentPage = $state(1);
@@ -454,6 +456,7 @@
 
 		if (cachedObligations) {
 			obligations = cachedObligations.obligations;
+			void backfillItemPictures();
 		}
 		if (cachedDonations) {
 			donations = cachedDonations.donations;
@@ -545,6 +548,30 @@
 		};
 	});
 
+	async function backfillItemPictures(): Promise<void> {
+		const missingIds = new Set<string>();
+		for (const ob of obligations) {
+			if (ob.itemId && !itemPictureCache.has(ob.itemId)) {
+				missingIds.add(ob.itemId);
+			}
+		}
+
+		if (missingIds.size === 0) return;
+
+		try {
+			const response = await catalogAPI.getCatalog({ availability: 'all', limit: 300 });
+			const next = new Map(itemPictureCache);
+			for (const catalogItem of response.items) {
+				if (missingIds.has(catalogItem.id) && catalogItem.picture) {
+					next.set(catalogItem.id, catalogItem.picture);
+				}
+			}
+			itemPictureCache = next;
+		} catch {
+			// Graceful fallback
+		}
+	}
+
 	async function loadObligations(showLoading = true, forceRefresh = false): Promise<void> {
 		if (showLoading) {
 			isLoading = true;
@@ -558,6 +585,7 @@
 			);
 			if (isMounted) {
 				obligations = response.obligations;
+				await backfillItemPictures();
 			}
 		} catch (err) {
 			console.error('Failed to load obligations', err);
@@ -4004,6 +4032,7 @@
 {#if selectedObligation}
 	<ReplacementObligationModal
 		obligation={selectedObligation}
+		itemPictures={itemPictureCache}
 		onResolve={handleResolveObligation}
 		onCancel={() => (selectedObligation = null)}
 	/>

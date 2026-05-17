@@ -12,6 +12,7 @@ import {
 } from '$lib/server/models/BorrowRequest';
 import {
 	BORROW_REQUESTS_COLLECTION,
+	decrementInventoryForBorrow,
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
 	parseObjectId,
@@ -77,6 +78,17 @@ export const POST: RequestHandler = async (event) => {
 			);
 		}
 
+		const inventoryCollection = db.collection<any>('inventory_items');
+
+		// Try to decrement stock again for the appeal
+		const stockResult = await decrementInventoryForBorrow(inventoryCollection, existing.items);
+		if (!stockResult.ok) {
+			return json(
+				{ error: stockResult.message || 'Insufficient stock to appeal this request' },
+				{ status: 409 }
+			);
+		}
+
 		const updated = await collection.findOneAndUpdate(
 			{
 				_id: requestId,
@@ -97,6 +109,13 @@ export const POST: RequestHandler = async (event) => {
 		);
 
 		if (!updated) {
+			// Roll back decrement
+			for (const item of existing.items) {
+				await inventoryCollection.updateOne(
+					{ _id: item.itemId },
+					{ $inc: { quantity: item.quantity }, $set: { updatedAt: new Date() } }
+				);
+			}
 			return json(
 				{ error: 'Failed to submit appeal. The request may have already been appealed.' },
 				{ status: 409 }

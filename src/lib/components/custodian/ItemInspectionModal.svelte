@@ -12,6 +12,8 @@
 				status: 'good' | 'damaged' | 'missing';
 				notes: string;
 				replacementQuantity?: number;
+				dueDate?: string;
+				additionalReturned?: number;
 			}>
 		) => Promise<void>;
 		onCancel: () => void;
@@ -36,6 +38,7 @@
 		reportedQuantity: number;
 		replacementQuantity: number;
 		additionalReturned: number; // units returned beyond the expected quantity (over-return)
+		dueDate?: string; // date needed to resolve the obligation
 		unitRows: UnitRow[];
 	}
 
@@ -71,6 +74,7 @@
 					reportedQuantity: item.quantity,
 					replacementQuantity: 0,
 					additionalReturned: 0,
+					dueDate: '',
 					unitRows: buildUnitRows(item.quantity)
 				}));
 			} else {
@@ -89,6 +93,7 @@
 							reportedQuantity: item.quantity,
 							replacementQuantity: 0,
 							additionalReturned: 0,
+							dueDate: '',
 							unitRows: buildUnitRows(item.quantity)
 						});
 					} else {
@@ -230,10 +235,12 @@
 					itemId: i.itemId,
 					status: derivedStatus,
 					notes: i.notes || '',
+					additionalReturned: i.additionalReturned || 0,
 					// Only send replacementQuantity for damaged/missing — server rejects 0 or undefined for good
-					...(derivedStatus !== 'good' && replacementQty > 0 ? { replacementQuantity: replacementQty } : {})
+					...(derivedStatus !== 'good' && replacementQty > 0 ? { replacementQuantity: replacementQty } : {}),
+					...(i.dueDate ? { dueDate: i.dueDate } : {})
 				};
-
+				
 				// Append per-unit breakdown to notes for audit trail
 				const breakdown = i.unitRows.map((r) => `Unit ${r.unitIndex}: ${r.condition}`).join(', ');
 				const overReturn = i.additionalReturned > 0 ? ` Over-return: +${i.additionalReturned}` : '';
@@ -611,6 +618,26 @@
 									</p>
 								{/if}
 							</div>
+
+							<!-- Due Date (for replacements) -->
+							{#if currentItem.unitRows.some((r) => r.condition === 'damaged' || r.condition === 'missing')}
+								<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+									<label for="dueDate-{currentItem.itemId}" class="mb-1.5 block text-sm font-bold text-gray-900">
+										Date needed to resolve this
+									</label>
+									<p class="mb-3 text-xs text-gray-600">
+										Set a deadline for the student to provide the exact replacement.
+									</p>
+									<input
+										id="dueDate-{currentItem.itemId}"
+										type="date"
+										min={new Date().toLocaleDateString('en-CA')}
+										onkeydown={(e) => e.preventDefault()}
+										bind:value={currentItem.dueDate}
+										class="block w-full max-w-xs rounded-lg border-2 border-gray-200 px-4 py-2.5 text-sm shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
+									/>
+								</div>
+							{/if}
 
 							<!-- Notes -->
 							<div>

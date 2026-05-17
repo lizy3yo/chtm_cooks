@@ -8,7 +8,6 @@ import type { InventoryItem } from '$lib/server/models/InventoryItem';
 import { BorrowRequestStatus, toBorrowRequestResponse, type BorrowRequest } from '$lib/server/models/BorrowRequest';
 import {
 	BORROW_REQUESTS_COLLECTION,
-	decrementInventoryForBorrow,
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
 	parseObjectId,
@@ -53,11 +52,6 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: 'Forbidden: You can only pick up your own requests' }, { status: 403 });
 		}
 
-		const stockResult = await decrementInventoryForBorrow(inventoryCollection, borrowRequest.items);
-		if (!stockResult.ok) {
-			return json({ error: stockResult.message || 'Insufficient stock' }, { status: 409 });
-		}
-
 		const now = new Date();
 		const updated = await requestCollection.findOneAndUpdate(
 			{ _id: requestId, status: BorrowRequestStatus.READY_FOR_PICKUP },
@@ -73,13 +67,6 @@ export const POST: RequestHandler = async (event) => {
 		);
 
 		if (!updated) {
-			// Rollback inventory if status update race condition occurred.
-			for (const item of borrowRequest.items) {
-				await inventoryCollection.updateOne(
-					{ _id: item.itemId },
-					{ $inc: { quantity: item.quantity }, $set: { updatedAt: new Date() } }
-				);
-			}
 			return json({ error: 'Borrow request state changed, please retry' }, { status: 409 });
 		}
 
