@@ -22,7 +22,6 @@
 	import { replacementObligationsAPI } from '$lib/api/replacementObligations';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import { Package } from 'lucide-svelte';
-
 	type Tab = 'pending' | 'ready' | 'active' | 'unresolved' | 'history';
 	type HistorySubTab = 'all' | 'completed' | 'resolved' | 'cancelled';
 	type ViewMode = 'card' | 'list';
@@ -186,7 +185,8 @@
 				itemId: item.itemId,
 				picture: item.picture || null,
 				code: item.itemId.slice(-6).toUpperCase(),
-				quantity: item.quantity
+				quantity: item.quantity,
+				inspection: item.inspection
 			})),
 			status,
 			requestDate: record.createdAt,
@@ -228,7 +228,7 @@
 			title: 'Release for Pickup',
 			message: 'Mark this request as ready for student pickup?',
 			type: 'info',
-			confirmText: 'Mark Ready',
+			confirmText: 'Ready for Pickup',
 			cancelText: 'Cancel'
 		});
 
@@ -341,6 +341,7 @@
 			status: 'good' | 'damaged' | 'missing';
 			notes: string;
 			replacementQuantity?: number;
+			dueDate?: string;
 		}>
 	): Promise<void> {
 		if (!selectedRequest) return;
@@ -572,20 +573,38 @@
 	}
 
 	async function backfillItemPictures(): Promise<void> {
+		const next = new Map(itemPictureCache);
+		let hasNewLocalPictures = false;
+
+		// 1. Seed cache with pictures from items that already have them
+		for (const req of requests) {
+			for (const item of req.items) {
+				if (item.itemId && item.picture && !next.has(item.itemId)) {
+					next.set(item.itemId, item.picture);
+					hasNewLocalPictures = true;
+				}
+			}
+		}
+
+		// 2. Collect IDs that are missing pictures
 		const missingIds = new Set<string>();
 		for (const req of requests) {
 			for (const item of req.items) {
-				if (item.itemId && !item.picture && !itemPictureCache.has(item.itemId)) {
+				if (item.itemId && !item.picture && !next.has(item.itemId)) {
 					missingIds.add(item.itemId);
 				}
 			}
 		}
 
-		if (missingIds.size === 0) return;
+		if (missingIds.size === 0) {
+			if (hasNewLocalPictures) {
+				itemPictureCache = next;
+			}
+			return;
+		}
 
 		try {
 			const response = await catalogAPI.getCatalog({ availability: 'all', limit: 300 });
-			const next = new Map(itemPictureCache);
 			for (const catalogItem of response.items) {
 				if (missingIds.has(catalogItem.id) && catalogItem.picture) {
 					next.set(catalogItem.id, catalogItem.picture);
@@ -596,7 +615,9 @@
 				inspectionItems = buildInspectionItems(selectedRequest);
 			}
 		} catch {
-			// Keep graceful fallback when catalog pictures are unavailable.
+			if (hasNewLocalPictures) {
+				itemPictureCache = next;
+			}
 		}
 	}
 
@@ -785,7 +806,7 @@
 				return { text: 'Ready for Pickup', color: 'bg-green-100 text-green-800' };
 			case 'active':
 				return rawStatus === 'pending_return'
-					? { text: 'Return Requested', color: 'bg-orange-100 text-orange-800' }
+					? { text: 'Awaiting Return Confirmation', color: 'bg-orange-100 text-orange-800' }
 					: { text: 'On Loan', color: 'bg-purple-100 text-purple-800' };
 			case 'unresolved':
 				return { text: 'Unresolved', color: 'bg-amber-100 text-amber-800' };
@@ -795,7 +816,7 @@
 				return isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
 					? { text: 'Cancelled', color: 'bg-slate-100 text-slate-800' }
 					: rawStatus === 'rejected'
-						? { text: 'Rejected', color: 'bg-red-100 text-red-800' }
+						? { text: 'Declined', color: 'bg-red-100 text-red-800' }
 						: { text: 'Completed', color: 'bg-gray-100 text-gray-800' };
 			default:
 				return { text: status, color: 'bg-gray-100 text-gray-800' };
@@ -848,7 +869,7 @@
 			case 'active':
 				if (rawStatus === 'pending_return') {
 					return {
-						text: 'The student has initiated the return. Inspect the items before completing check-in.',
+						text: 'The items are ready for return inspection. Inspect them before completing check-in.',
 						color: 'text-orange-700'
 					};
 				}
@@ -1438,7 +1459,7 @@
 															onclick={() => markReady(request.rawId)}
 															class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
 														>
-															Mark Ready
+															Ready for Pickup
 														</button>
 													{/if}
 													{#if request.status === 'ready'}
@@ -1449,7 +1470,7 @@
 															Confirm Pickup
 														</button>
 													{/if}
-													{#if request.status === 'active' && request.rawStatus === 'pending_return'}
+													{#if request.status === 'active' && ['borrowed', 'pending_return'].includes(request.rawStatus)}
 														<button
 															onclick={() => {
 																closeActionMenu();
@@ -1662,7 +1683,7 @@
 															}}
 															class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700"
 														>
-															Mark Ready
+															Ready for Pickup
 														</button>
 													{/if}
 													{#if request.status === 'ready'}
@@ -1676,7 +1697,7 @@
 															Confirm Pickup
 														</button>
 													{/if}
-													{#if request.status === 'active' && request.rawStatus === 'pending_return'}
+													{#if request.status === 'active' && ['borrowed', 'pending_return'].includes(request.rawStatus)}
 														<button
 															onclick={(e) => {
 																e.stopPropagation();
@@ -2310,47 +2331,182 @@
 						</div>
 
 						<!-- Requested Items -->
-						<div>
-							<h3
-								class="mb-4 flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase"
-							>
-								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
-								Requested Items
-							</h3>
-							<div class="grid gap-3 sm:grid-cols-2">
-								{#each selectedRequest.items as item}
-									{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-									<div
-										class="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-all hover:border-pink-200 hover:shadow-md"
-									>
-										{#if pic}
-											<img
-												src={pic}
-												alt={item.name}
-												class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-gray-100"
-												loading="lazy"
-											/>
-										{:else}
-											<div
-												class="h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100"
-											>
-												<ItemImagePlaceholder size="sm" />
-											</div>
+						{#if selectedRequest.items}
+							<div>
+								<div class="mb-4 flex flex-wrap items-center justify-between gap-4">
+								<h3
+									class="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase"
+								>
+									<div class="h-1 w-1 rounded-full bg-pink-500"></div>
+									Requested Items
+								</h3>
+								{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
+									<div class="flex flex-wrap items-center gap-2">
+										{#if selectedRequest.items.some((i: any) => !i.inspection || i.inspection.status === 'good')}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200/60 shadow-sm">
+												<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+												Good
+											</span>
 										{/if}
-										<div class="min-w-0 flex-1">
-											<p
-												class="truncate text-sm font-semibold text-gray-900 transition-colors group-hover:text-pink-600"
-											>
-												{item.name}
-											</p>
-											<p class="mt-0.5 text-xs text-gray-500">
-												Code: {item.code} • Qty: {item.quantity}
-											</p>
-										</div>
+										{#if selectedRequest.items.some((i: any) => i.inspection?.status === 'damaged')}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200/60 shadow-sm">
+												<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+												Damaged
+											</span>
+										{/if}
+										{#if selectedRequest.items.some((i: any) => i.inspection?.status === 'missing')}
+											<span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200/60 shadow-sm">
+												<span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+												Missing
+											</span>
+										{/if}
 									</div>
-								{/each}
+								{/if}
+							</div>
+							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+								<!-- Desktop Table Header -->
+								<div class="hidden sm:grid grid-cols-12 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+									<span class="col-span-8">Item</span>
+									<span class="col-span-2 text-center">Code</span>
+									<span class="col-span-2 text-center">Qty</span>
+								</div>
+								
+								<!-- Table Rows -->
+								<div class="divide-y divide-gray-100">
+									{#each selectedRequest.items as item}
+										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+										{@const isGood = !item.inspection || item.inspection.status === 'good'}
+										{@const isDamaged = item.inspection?.status === 'damaged'}
+										{@const isMissing = item.inspection?.status === 'missing'}
+										<div class="grid items-center gap-3 bg-white p-3 sm:grid-cols-12 sm:p-4 transition-colors hover:bg-gray-50/50">
+											<!-- Item Info -->
+											<div class="col-span-12 flex items-center gap-3 sm:col-span-8 min-w-0">
+												{#if pic}
+													<img
+														src={pic}
+														alt={item.name}
+														class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-gray-200"
+														loading="lazy"
+													/>
+												{:else}
+													<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-200">
+														<ItemImagePlaceholder size="sm" />
+													</div>
+												{/if}
+												<div class="flex flex-col gap-1 min-w-0">
+													<span class="truncate text-sm font-semibold text-gray-900">{item.name}</span>
+													{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
+														<div class="flex flex-wrap items-center gap-1.5 mt-0.5">
+															{#if isGood}
+																<span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200/50">
+																	<span class="h-1 w-1 rounded-full bg-emerald-500"></span>
+																	Good
+																</span>
+															{/if}
+															{#if isDamaged}
+																<span class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 ring-1 ring-amber-200/50">
+																	<span class="h-1 w-1 rounded-full bg-amber-500"></span>
+																	Damaged
+																</span>
+															{/if}
+															{#if isMissing}
+																<span class="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200/50">
+																	<span class="h-1 w-1 rounded-full bg-rose-500"></span>
+																	Missing
+																</span>
+															{/if}
+														</div>
+													{/if}
+												</div>
+											</div>
+											
+											<!-- Mobile/Desktop Details -->
+											<div class="col-span-6 flex items-center justify-between sm:col-span-2 sm:justify-center border-t border-gray-100 pt-3 sm:border-0 sm:pt-0">
+												<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden">Code</span>
+												<span class="font-mono text-sm font-medium text-gray-600">{item.code}</span>
+											</div>
+											<div class="col-span-6 flex items-center justify-between sm:col-span-2 sm:justify-center border-t border-gray-100 pt-3 sm:border-0 sm:pt-0 border-l border-gray-100 pl-3 sm:border-0 sm:pl-0">
+												<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden">Qty</span>
+												<span class="text-sm font-bold text-gray-900 tabular-nums">{item.quantity}</span>
+											</div>
+										</div>
+									{/each}
+								</div>
 							</div>
 						</div>
+						
+						<!-- Replacement Obligations Table -->
+						{#if (selectedRequest.status === 'unresolved' || selectedRequest.status === 'history') && selectedRequest.items.some((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0)}
+							<div class="mt-8">
+								<h3 class="mb-4 flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
+									<div class="h-1 w-1 rounded-full bg-amber-500"></div>
+									Replacement Obligations
+								</h3>
+								<div class="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+									<!-- Desktop Table Header -->
+									<div class="hidden sm:grid grid-cols-12 border-b border-amber-100 bg-amber-50/50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-amber-900 uppercase">
+										<span class="col-span-6">Item to Replace</span>
+										<span class="col-span-3 text-center">Qty Required</span>
+										<span class="col-span-3 text-right">Due Date</span>
+									</div>
+									
+									<!-- Table Rows -->
+									<div class="divide-y divide-amber-100/50">
+										{#each selectedRequest.items.filter((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0) as item}
+											{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+											<div class="grid items-center gap-3 bg-white p-3 sm:grid-cols-12 sm:p-4 hover:bg-amber-50/30 transition-colors">
+												<div class="col-span-12 flex items-center gap-3 sm:col-span-6 min-w-0">
+													{#if pic}
+														<img src={pic} alt={item.name} class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-amber-200/50" loading="lazy" />
+													{:else}
+														<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-amber-200/50 text-amber-500/50"><ItemImagePlaceholder size="sm" /></div>
+													{/if}
+													<div class="flex flex-col gap-1 min-w-0">
+														<span class="truncate text-sm font-semibold text-gray-900">{item.name}</span>
+														<span class="text-[10px] font-semibold text-amber-600/80 uppercase">{item.code}</span>
+													</div>
+												</div>
+												<div class="col-span-6 flex items-center justify-between sm:col-span-3 sm:justify-center border-t border-amber-100/50 pt-3 sm:border-0 sm:pt-0">
+													<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden">Qty Required</span>
+													<span class="text-sm font-bold text-amber-700 tabular-nums">{item.inspection.replacementQuantity}</span>
+												</div>
+												<div class="col-span-6 flex items-center justify-between sm:col-span-3 sm:justify-end border-t border-amber-100/50 pt-3 sm:border-0 sm:pt-0 border-l border-amber-100/50 pl-3 sm:border-0 sm:pl-0">
+													<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden">Due Date</span>
+													{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
+														<input
+															type="date"
+															min={new Date().toLocaleDateString('en-CA')}
+															onkeydown={(e) => e.preventDefault()}
+															class="block w-[120px] rounded-md border-0 bg-transparent py-1 pl-2 pr-0 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-amber-500/50 hover:bg-amber-100/50 transition-colors"
+															value={item.inspection.dueDate ? new Date(item.inspection.dueDate).toISOString().split('T')[0] : ''}
+															onchange={async (e) => {
+																const target = e.currentTarget;
+																const newDate = target.value;
+																if (!newDate) return;
+																try {
+																	target.disabled = true;
+																	const res = await fetch(`/api/borrow-requests/${selectedRequest!.rawId}/due-date`, {
+																		method: 'PATCH',
+																		headers: { 'Content-Type': 'application/json' },
+																		body: JSON.stringify({ itemId: item.itemId, dueDate: newDate })
+																	});
+																	if (res.ok) await loadRequests(true);
+																} finally {
+																	target.disabled = false;
+																}
+															}}
+														/>
+													{:else}
+														<span class="text-xs font-semibold text-gray-700">{item.inspection.dueDate ? new Date(item.inspection.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set'}</span>
+													{/if}
+												</div>
+											</div>
+										{/each}
+									</div>
+								</div>
+							</div>
+						{/if}
+						{/if}
 
 						<!-- Overdue Warning -->
 						{#if selectedRequest.isOverdue}
@@ -2411,7 +2567,7 @@
 								}}
 								class="rounded-xl bg-linear-to-r from-green-600 to-green-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-green-700 hover:to-green-800 active:scale-[0.98] sm:px-6 sm:py-3"
 							>
-								Mark Ready for Pickup
+								Ready for Pickup
 							</button>
 						{/if}
 						{#if selectedRequest.status === 'ready'}
@@ -2426,7 +2582,7 @@
 								Confirm Pickup
 							</button>
 						{/if}
-						{#if selectedRequest.status === 'active' && selectedRequest.rawStatus === 'pending_return'}
+						{#if selectedRequest.status === 'active' && ['borrowed', 'pending_return'].includes(selectedRequest.rawStatus)}
 							<button
 								onclick={() => {
 									confirmReturn(selectedRequest.rawId);
@@ -2475,6 +2631,7 @@
 {#if showObligationModal}
 	<ReplacementObligationModal
 		obligations={activeRequestObligations}
+		itemPictures={itemPictureCache}
 		onResolve={handleResolveObligation}
 		onCancel={() => {
 			showObligationModal = false;
@@ -2496,3 +2653,5 @@
 		}}
 	/>
 {/if}
+
+

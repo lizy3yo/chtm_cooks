@@ -43,14 +43,14 @@
 		BookOpen
 	} from 'lucide-svelte';
 
-	type StudentTab = 'my-request' | 'instructor-approved' | 'active' | 'history';
+	type StatusFilterType = 'all' | 'pending' | 'approved' | 'ready' | 'active' | 'unresolved' | 'history';
 	type RequestViewMode = 'card' | 'list';
 
 	// Pagination requireds
-	const PAGE_SIZE_CARD = 5;
+	const PAGE_SIZE_CARD = 6;
 	const PAGE_SIZE_LIST = 10;
 
-	let activeTab = $state<StudentTab>('my-request');
+	let statusFilter = $state<StatusFilterType>('all');
 	let highlightedRequestId = $state<string | null>(null);
 	let searchQuery = $state('');
 	let sortBy = $state('newest');
@@ -62,7 +62,6 @@
 	let dateFilter = $state({ from: '', to: '' });
 	let requests = $state<any[]>([]);
 	let loading = $state(true);
-	let loadingReturn = $state<string | null>(null);
 	let loadingCancel = $state<string | null>(null);
 	let showAppealModal = $state(false);
 	let appealRequestTarget = $state<any>(null);
@@ -155,14 +154,15 @@
 				itemId: item.itemId,
 				picture: item.picture || null,
 				code: item.itemId.slice(-6).toUpperCase(),
-				quantity: item.quantity
+				quantity: item.quantity,
+				inspection: item.inspection || null
 			})),
 			status: uiStatus,
 			requestDate: request.createdAt,
 			borrowDate: request.borrowDate,
 			returnDate: request.returnDate,
 			purpose: request.purpose,
-			instructor: request.instructor?.fullName || 'Pending Assignment',
+			instructor: request.instructor?.fullName || 'Pending',
 			instructorData: request.instructor ?? null,
 			custodianData: request.custodian ?? null,
 			classCodeId: request.classCodeId,
@@ -329,12 +329,15 @@
 		// Close any previously opened modal before switching context
 		closeDetailModal();
 
-		// Switch to the correct tab for this request's CURRENT status
-		if (target.status === 'pending') activeTab = 'my-request';
-		else if (['approved', 'ready'].includes(target.status)) activeTab = 'instructor-approved';
-		else if (['picked-up', 'pending-return', 'missing'].includes(target.status))
-			activeTab = 'active';
-		else activeTab = 'history';
+		// Switch statusFilter to match the request's status
+		if (target.status === 'pending') statusFilter = 'pending';
+		else if (target.status === 'approved') statusFilter = 'approved';
+		else if (target.status === 'ready') statusFilter = 'ready';
+		else if (['picked-up', 'pending-return'].includes(target.status))
+			statusFilter = 'active';
+		else if (['unresolved', 'missing'].includes(target.status))
+			statusFilter = 'unresolved';
+		else statusFilter = 'history';
 
 		currentPage = 1;
 		highlightedRequestId = rawId;
@@ -407,6 +410,8 @@
 				return 'bg-orange-100 text-orange-800';
 			case 'missing':
 				return 'bg-rose-100 text-rose-800';
+			case 'unresolved':
+				return 'bg-amber-100 text-amber-800';
 			case 'returned':
 				return 'bg-teal-100 text-teal-800';
 			case 'resolved':
@@ -435,6 +440,8 @@
 			case 'pending-return':
 				return CornerDownLeft;
 			case 'missing':
+				return CircleAlert;
+			case 'unresolved':
 				return CircleAlert;
 			case 'returned':
 				return CheckCircle2;
@@ -465,6 +472,8 @@
 				return 'border-orange-500';
 			case 'missing':
 				return 'border-rose-600';
+			case 'unresolved':
+				return 'border-amber-400';
 			case 'returned':
 				return 'border-teal-500';
 			case 'resolved':
@@ -482,12 +491,13 @@
 
 	function getStatusLabel(status: string): string {
 		const labels: Record<string, string> = {
-			pending: 'Pending Review',
+			pending: 'Under Review',
 			approved: 'Instructor Approved',
 			ready: 'Ready for Pickup',
 			'picked-up': 'Active Loan',
 			'pending-return': 'Return Initiated',
 			missing: 'Item Missing',
+			unresolved: 'Unresolved Case',
 			returned: 'Returned',
 			resolved: 'Resolved',
 			cancelled: 'Cancelled',
@@ -499,15 +509,24 @@
 
 	const filteredRequests = $derived.by(() => {
 		let result = requests.filter((req) => {
-			const isMyRequest = req.status === 'pending';
-			const isInstructorApproved = ['approved', 'ready'].includes(req.status);
-			const isActive = ['picked-up', 'pending-return', 'missing'].includes(req.status);
-			const isHistory = ['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(req.status);
-
-			if (activeTab === 'my-request' && !isMyRequest) return false;
-			if (activeTab === 'instructor-approved' && !isInstructorApproved) return false;
-			if (activeTab === 'active' && !isActive) return false;
-			if (activeTab === 'history' && !isHistory) return false;
+			if (statusFilter === 'pending' && req.status !== 'pending') return false;
+			if (statusFilter === 'approved' && req.status !== 'approved') return false;
+			if (statusFilter === 'ready' && req.status !== 'ready') return false;
+			if (
+				statusFilter === 'active' &&
+				!['picked-up', 'pending-return'].includes(req.status)
+			)
+				return false;
+			if (
+				statusFilter === 'unresolved' &&
+				!['unresolved', 'missing'].includes(req.status)
+			)
+				return false;
+			if (
+				statusFilter === 'history' &&
+				!['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(req.status)
+			)
+				return false;
 			if (
 				searchQuery &&
 				!`${req.id} ${req.purpose} ${req.items.map((item: any) => item.name).join(' ')}`
@@ -553,7 +572,7 @@
 
 	// Reset to page 1 when filters or view mode changes
 	$effect(() => {
-		activeTab;
+		statusFilter;
 		searchQuery;
 		sortBy;
 		dateFilter;
@@ -565,8 +584,7 @@
 		'my-request': requests.filter((r) => r.status === 'pending').length,
 		'instructor-approved': requests.filter((r) => ['approved', 'ready'].includes(r.status)).length,
 		active: requests.filter((r) => ['picked-up', 'pending-return', 'missing'].includes(r.status))
-			.length,
-		history: requests.filter((r) => ['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(r.status)).length
+			.length
 	});
 
 	const stats = $derived({
@@ -605,38 +623,6 @@
 
 	function getReadyPickupMessage(): string {
 		return 'Please proceed to the custodian desk. Pickup will be confirmed by the custodian upon release of items.';
-	}
-
-	async function requestReturnConfirmation(request: any) {
-		if (loadingReturn === request.rawId) return;
-
-		const confirmed = await confirmStore.warning(
-			'Are you ready to return these items? The custodian will inspect and confirm the return.',
-			`Initiate Return for ${request.id}`,
-			'Initiate Return',
-			'Keep Active'
-		);
-
-		if (!confirmed) return;
-
-		const requestId = request.rawId;
-		loadingReturn = requestId;
-
-		try {
-			await borrowRequestsAPI.initiateReturn(requestId);
-			borrowRequestsAPI.invalidateCache();
-			requests = requests.map((req) =>
-				req.rawId === requestId ? { ...req, status: 'pending-return' } : req
-			);
-			toastStore.success(
-				`Return initiated for ${request.id}. The custodian will confirm the return.`
-			);
-		} catch (error: any) {
-			console.error('Failed to initiate return', error);
-			toastStore.error(`Failed to initiate return: ${error?.message || 'Please try again.'}`);
-		} finally {
-			loadingReturn = null;
-		}
 	}
 
 	async function requestCancelConfirmation(request: any) {
@@ -710,7 +696,7 @@
 	}
 
 	function getApprovalTimeline(request: any) {
-		const timeline = [
+		const timeline: Array<{ step: string; status: string; date: string | null; by: string }> = [
 			{ step: 'Request Submitted', status: 'completed', date: request.requestDate, by: 'You' }
 		];
 
@@ -764,7 +750,7 @@
 				by: 'Custodian'
 			});
 			timeline.push({ step: 'Awaiting Return', status: 'pending', date: null, by: 'Student' });
-		} else if (request.status === 'returned') {
+		} else if (request.status === 'returned' || request.status === 'resolved') {
 			timeline.push({
 				step: 'Instructor Approved',
 				status: 'completed',
@@ -789,6 +775,90 @@
 				date: request.returnedDate || request.requestDate,
 				by: 'Student'
 			});
+		} else if (request.status === 'pending_return') {
+			timeline.push({
+				step: 'Instructor Approved',
+				status: 'completed',
+				date: request.approvedDate || request.requestDate,
+				by: request.instructor || 'Primary Admin'
+			});
+			timeline.push({
+				step: 'Custodian Approved',
+				status: 'completed',
+				date: request.releasedDate || request.requestDate,
+				by: 'Custodian'
+			});
+			timeline.push({
+				step: 'Pickup Confirmed',
+				status: 'completed',
+				date: request.pickedUpDate || request.requestDate,
+				by: 'Custodian'
+			});
+			timeline.push({
+				step: 'Return Initiated',
+				status: 'completed',
+				date: request.returnDate || request.requestDate,
+				by: 'You'
+			});
+			timeline.push({
+				step: 'Awaiting Inspection',
+				status: 'pending',
+				date: null,
+				by: 'Custodian'
+			});
+		} else if (
+			request.status === 'missing' ||
+			request.items?.some(
+				(item: any) =>
+					item.inspection?.status === 'missing' || item.inspection?.status === 'damaged'
+			)
+		) {
+			timeline.push({
+				step: 'Instructor Approved',
+				status: 'completed',
+				date: request.approvedDate || request.requestDate,
+				by: request.instructor || 'Primary Admin'
+			});
+			timeline.push({
+				step: 'Custodian Approved',
+				status: 'completed',
+				date: request.releasedDate || request.requestDate,
+				by: 'Custodian'
+			});
+			timeline.push({
+				step: 'Pickup Confirmed',
+				status: 'completed',
+				date: request.pickedUpDate || request.requestDate,
+				by: 'Custodian'
+			});
+
+			const hasMissing =
+				request.status === 'missing' ||
+				request.items?.some((item: any) => item.inspection?.status === 'missing');
+			const hasDamaged = request.items?.some((item: any) => item.inspection?.status === 'damaged');
+
+			if (hasMissing && hasDamaged) {
+				timeline.push({
+					step: 'Unresolved Incidents',
+					status: 'rejected',
+					date: request.missingDate || request.returnedDate || request.requestDate,
+					by: 'Custodian'
+				});
+			} else if (hasMissing) {
+				timeline.push({
+					step: 'Item Missing',
+					status: 'rejected',
+					date: request.missingDate || request.returnedDate || request.requestDate,
+					by: 'Custodian'
+				});
+			} else if (hasDamaged) {
+				timeline.push({
+					step: 'Item Damaged',
+					status: 'rejected',
+					date: request.returnedDate || request.requestDate,
+					by: 'Custodian'
+				});
+			}
 		} else if (request.status === 'cancelled') {
 			timeline.push({
 				step: 'Request Cancelled',
@@ -827,11 +897,84 @@
 		return timeline;
 	}
 
+	function getDetailModalStatusLabel(request: any): string {
+		if (!request) return '';
+		if (request.status === 'resolved' || request.status === 'returned') {
+			return getStatusLabel(request.status);
+		}
+		if (
+			request.status === 'missing' ||
+			request.items?.some(
+				(item: any) =>
+					item.inspection?.status === 'missing' || item.inspection?.status === 'damaged'
+			)
+		) {
+			const hasMissing =
+				request.status === 'missing' ||
+				request.items?.some((item: any) => item.inspection?.status === 'missing');
+			const hasDamaged = request.items?.some((item: any) => item.inspection?.status === 'damaged');
+
+			if (hasMissing && hasDamaged) {
+				return 'Unresolved Incidents';
+			} else if (hasMissing) {
+				return 'Item Missing';
+			} else if (hasDamaged) {
+				return 'Item Damaged';
+			}
+		}
+		return getStatusLabel(request.status);
+	}
+
+	function getDetailModalStatusColor(request: any): string {
+		if (!request) return 'bg-gray-100 text-gray-800';
+		if (request.status === 'resolved' || request.status === 'returned') {
+			return getStatusColor(request.status);
+		}
+		if (
+			request.status === 'missing' ||
+			request.items?.some(
+				(item: any) =>
+					item.inspection?.status === 'missing' || item.inspection?.status === 'damaged'
+			)
+		) {
+			const hasMissing =
+				request.status === 'missing' ||
+				request.items?.some((item: any) => item.inspection?.status === 'missing');
+			const hasDamaged = request.items?.some((item: any) => item.inspection?.status === 'damaged');
+
+			if (hasMissing && hasDamaged) {
+				return 'bg-rose-100 text-rose-800';
+			} else if (hasMissing) {
+				return 'bg-rose-100 text-rose-800';
+			} else if (hasDamaged) {
+				return 'bg-amber-100 text-amber-800';
+			}
+		}
+		return getStatusColor(request.status);
+	}
+
+	function getDetailModalStatusIcon(request: any): any {
+		if (!request) return Clock;
+		if (request.status === 'resolved' || request.status === 'returned') {
+			return getStatusIconComponent(request.status);
+		}
+		if (
+			request.status === 'missing' ||
+			request.items?.some(
+				(item: any) =>
+					item.inspection?.status === 'missing' || item.inspection?.status === 'damaged'
+			)
+		) {
+			return CircleAlert;
+		}
+		return getStatusIconComponent(request.status);
+	}
+
 	const SelectedStatusIcon = $derived.by(() =>
-		selectedRequest ? getStatusIconComponent(selectedRequest.status) : Clock
+		selectedRequest ? getDetailModalStatusIcon(selectedRequest) : Clock
 	);
 	const QrStatusIcon = $derived.by(() =>
-		selectedRequest ? getStatusIconComponent(selectedRequest.status) : Clock
+		selectedRequest ? getDetailModalStatusIcon(selectedRequest) : Clock
 	);
 </script>
 
@@ -902,7 +1045,7 @@
 		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
 			<div class="flex items-center justify-between gap-2">
 				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pickup</p>
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Ready for Pickup</p>
 					<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">
 						{stats.readyForPickup}
 					</p>
@@ -915,76 +1058,6 @@
 				</div>
 			</div>
 		</div>
-	</div>
-
-	<!-- Tabs -->
-	<div class="border-b border-gray-200">
-		<nav class="-mb-px flex" aria-label="Request tabs">
-			<button
-				onclick={() => (activeTab = 'my-request')}
-				class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap sm:text-sm {activeTab ===
-				'my-request'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				Request
-				<span
-					class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'my-request'
-						? 'bg-pink-100 text-pink-600'
-						: 'bg-gray-100 text-gray-600'}"
-				>
-					{tabCounts['my-request']}
-				</span>
-			</button>
-			<button
-				onclick={() => (activeTab = 'instructor-approved')}
-				class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap sm:text-sm {activeTab ===
-				'instructor-approved'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				Approval
-				<span
-					class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'instructor-approved'
-						? 'bg-pink-100 text-pink-600'
-						: 'bg-gray-100 text-gray-600'}"
-				>
-					{tabCounts['instructor-approved']}
-				</span>
-			</button>
-			<button
-				onclick={() => (activeTab = 'active')}
-				class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap sm:text-sm {activeTab ===
-				'active'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				Active
-				<span
-					class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'active'
-						? 'bg-pink-100 text-pink-600'
-						: 'bg-gray-100 text-gray-600'}"
-				>
-					{tabCounts.active}
-				</span>
-			</button>
-			<button
-				onclick={() => (activeTab = 'history')}
-				class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap sm:text-sm {activeTab ===
-				'history'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				History
-				<span
-					class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'history'
-						? 'bg-pink-100 text-pink-600'
-						: 'bg-gray-100 text-gray-600'}"
-				>
-					{tabCounts.history}
-				</span>
-			</button>
-		</nav>
 	</div>
 
 	<div class="rounded-lg bg-white shadow">
@@ -1004,6 +1077,18 @@
 				</div>
 				<div class="flex shrink-0 items-center gap-2">
 					<select
+						bind:value={statusFilter}
+						class="h-10 min-w-40 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-pink-500 focus:ring-2 focus:ring-pink-100 focus:outline-none"
+					>
+						<option value="all">All Statuses</option>
+						<option value="pending">Under Review</option>
+						<option value="approved">Instructor Approved</option>
+						<option value="ready">Ready for Pickup</option>
+						<option value="active">Active Loans</option>
+						<option value="unresolved">Unresolved Incidents</option>
+						<option value="history">History & Resolved</option>
+					</select>
+					<select
 						bind:value={sortBy}
 						class="h-10 min-w-30 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-pink-500 focus:ring-2 focus:ring-pink-100 focus:outline-none"
 					>
@@ -1016,7 +1101,7 @@
 							searchQuery = '';
 							dateFilter = { from: '', to: '' };
 							sortBy = 'newest';
-							activeTab = 'my-request';
+							statusFilter = 'all';
 						}}
 						class="h-10 rounded-xl px-2 text-sm font-semibold text-pink-600 transition-colors hover:bg-pink-50 hover:text-pink-700"
 					>
@@ -1134,7 +1219,7 @@
 							<div style="min-height: 600px;">
 								<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">
 									{#each paginatedRequests as request}
-										{@const StatusIcon = getStatusIconComponent(request.status)}
+										{@const StatusIcon = getDetailModalStatusIcon(request)}
 										<!-- svelte-ignore a11y_click_events_have_key_events -->
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
@@ -1166,12 +1251,12 @@
 														>
 													</div>
 													<span
-														class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getStatusColor(
-															request.status
+														class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getDetailModalStatusColor(
+															request
 														)}"
 													>
 														<StatusIcon size={10} />
-														{getStatusLabel(request.status)}
+														{getDetailModalStatusLabel(request)}
 													</span>
 												</div>
 
@@ -1237,7 +1322,7 @@
 													<span class="truncate">Reviewer: {request.instructor}</span>
 												</div>
 
-												<!-- Rejection Reason -->
+												<!-- Decline Reason -->
 												{#if request.status === 'rejected' && request.rejectionReason}
 													<div class="mt-3 flex items-start gap-2 rounded-lg bg-red-50 p-2.5">
 														<svg
@@ -1253,7 +1338,7 @@
 															/></svg
 														>
 														<div class="min-w-0">
-															<p class="text-[10px] font-semibold text-red-800">Rejection Reason</p>
+															<p class="text-[10px] font-semibold text-red-800">Decline Reason</p>
 															<p class="truncate text-xs text-red-700">{request.rejectionReason}</p>
 														</div>
 													</div>
@@ -1317,18 +1402,6 @@
 															{loadingCancel === request.rawId ? 'Cancelling...' : 'Cancel'}
 														</button>
 													{/if}
-													{#if request.status === 'picked-up'}
-														<button
-															onclick={(e) => {
-																e.stopPropagation();
-																requestReturnConfirmation(request);
-															}}
-															disabled={loadingReturn === request.rawId}
-															class="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-														>
-															{loadingReturn === request.rawId ? 'Processing...' : 'Return'}
-														</button>
-													{/if}
 													{#if request.status === 'rejected'}
 														<button
 															onclick={(e) => {
@@ -1351,7 +1424,7 @@
 							<div style="min-height: 600px;">
 								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 									<div
-										class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1.2fr_1.8fr_1fr_120px] md:items-center md:gap-4"
+										class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1fr_1.5fr_1fr_120px] md:items-center md:gap-4"
 									>
 										<span class="text-center text-gray-400">#</span>
 										<span>Request</span>
@@ -1361,12 +1434,12 @@
 									</div>
 									<div class="divide-y divide-gray-100">
 										{#each paginatedRequests as request, i}
-											{@const StatusIcon = getStatusIconComponent(request.status)}
+											{@const StatusIcon = getDetailModalStatusIcon(request)}
 											{@const rowNum = (currentPage - 1) * PAGE_SIZE_LIST + i + 1}
 											<!-- svelte-ignore a11y_click_events_have_key_events -->
 											<!-- svelte-ignore a11y_no_static_element_interactions -->
 											<div
-												class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[32px_1.2fr_1.8fr_1fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
+												class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[32px_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
 												request.rawId
 													? 'bg-pink-50/50 ring-1 ring-pink-300 ring-inset'
 													: 'hover:bg-gray-50'}"
@@ -1409,7 +1482,7 @@
 														{#each request.items.slice(0, 3) as item}
 															{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
 															<span
-																class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] text-gray-700"
+																class="inline-flex items-center gap-1.5 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-700"
 															>
 																{#if pic}
 																	<img
@@ -1422,13 +1495,13 @@
 																		><ItemImagePlaceholder size="xs" /></span
 																	>
 																{/if}
-																<span class="max-w-[90px] truncate">{item.name}</span>
+																<span class="max-w-[100px] truncate">{item.name}</span>
 															</span>
 														{/each}
 														{#if request.items.length > 3}
 															<span
-																class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600"
-																>+{request.items.length - 3}</span
+																class="inline-flex items-center rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600"
+																>+{request.items.length - 3} more</span
 															>
 														{/if}
 													</div>
@@ -1444,14 +1517,20 @@
 												<!-- Status -->
 												<div class="min-w-0 pt-0.5">
 													<span
-														class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold {getStatusColor(
-															request.status
+														class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold {getDetailModalStatusColor(
+															request
 														)}"
 													>
 														<StatusIcon size={11} />
-														{getStatusLabel(request.status)}
+														{getDetailModalStatusLabel(request)}
 													</span>
-													{#if request.status === 'ready'}
+													{#if request.status === 'picked-up'}
+														<p
+															class="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-slate-500"
+														>
+															<CornerDownLeft size={12} class="shrink-0" /> Return handled by custodian
+														</p>
+													{:else if request.status === 'ready'}
 														<p
 															class="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"
 														>
@@ -1511,18 +1590,6 @@
 															{loadingCancel === request.rawId ? 'Cancelling...' : 'Cancel'}
 														</button>
 													{/if}
-													{#if request.status === 'picked-up'}
-														<button
-															onclick={(e) => {
-																e.stopPropagation();
-																requestReturnConfirmation(request);
-															}}
-															disabled={loadingReturn === request.rawId}
-															class="inline-flex items-center gap-1 rounded-lg bg-orange-500 px-2.5 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-50"
-														>
-															{loadingReturn === request.rawId ? 'Processing...' : 'Return'}
-														</button>
-													{/if}
 													{#if request.status === 'rejected'}
 														<button
 															onclick={(e) => {
@@ -1548,29 +1615,40 @@
 							<div class="text-center">
 								<ClipboardX size={40} class="mx-auto text-pink-600" />
 								<h3 class="mt-2 text-sm font-medium text-gray-900">
-									{#if activeTab === 'my-request'}
+									{#if statusFilter === 'pending'}
 										No pending requests
-									{:else if activeTab === 'instructor-approved'}
+									{:else if statusFilter === 'approved'}
 										No approved requests
-									{:else if activeTab === 'active'}
+									{:else if statusFilter === 'ready'}
+										No requests ready for pickup
+									{:else if statusFilter === 'active'}
 										No active requests
-									{:else}
+									{:else if statusFilter === 'unresolved'}
+										No unresolved cases
+									{:else if statusFilter === 'history'}
 										No request history
+									{:else}
+										No requests found
 									{/if}
 								</h3>
 								<p class="mt-1 text-sm text-gray-500">
-									{#if activeTab === 'my-request'}
-										Your newly submitted requests will appear here while waiting for instructor
-										review.
-									{:else if activeTab === 'instructor-approved'}
-										Instructor-approved and ready-for-pickup requests will appear here.
-									{:else if activeTab === 'active'}
+									{#if statusFilter === 'pending'}
+										Your newly submitted requests will appear here while waiting for instructor review.
+									{:else if statusFilter === 'approved'}
+										Instructor-approved requests will appear here.
+									{:else if statusFilter === 'ready'}
+										Requests approved by custodian and ready for pickup will appear here.
+									{:else if statusFilter === 'active'}
 										Borrowed and return-initiated requests will appear here.
-									{:else}
+									{:else if statusFilter === 'unresolved'}
+										Requests with missing items, damaged equipment, or unresolved obligations will appear here.
+									{:else if statusFilter === 'history'}
 										Returned, cancelled, and rejected requests are archived here.
+									{:else}
+										Get started by creating your first borrow request!
 									{/if}
 								</p>
-								{#if activeTab === 'my-request'}
+								{#if statusFilter === 'all' || statusFilter === 'pending'}
 									<div class="mt-4">
 										<a
 											href="/student/request"
@@ -1641,14 +1719,14 @@
 									{selectedRequest.id}
 								</p>
 								<div
-									class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 {getStatusColor(
-										selectedRequest.status
+									class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 {getDetailModalStatusColor(
+										selectedRequest
 									)} shadow-sm ring-1 ring-black/5"
 								>
 									<SelectedStatusIcon size={12} strokeWidth={2.5} class="sm:hidden" />
 									<SelectedStatusIcon size={14} strokeWidth={2.5} class="hidden sm:block" />
 									<span class="text-[10px] font-bold sm:text-xs"
-										>{getStatusLabel(selectedRequest.status)}</span
+										>{getDetailModalStatusLabel(selectedRequest)}</span
 									>
 								</div>
 							</div>
@@ -1792,7 +1870,7 @@
 														{:else if step.step === 'Request Cancelled'}
 															<CircleX size={18} class="text-slate-400 sm:hidden" />
 															<CircleX size={20} class="hidden text-slate-400 sm:block" />
-														{:else if step.step === 'Request Rejected'}
+														{:else if step.step === 'Request Rejected' || step.step === 'Item Missing' || step.step === 'Item Damaged' || step.step === 'Unresolved Incidents'}
 															<CircleX size={18} class="text-red-600 sm:hidden" />
 															<CircleX size={20} class="hidden text-red-600 sm:block" />
 														{:else}
@@ -1853,7 +1931,7 @@
 									</div>
 									<div class="flex items-center gap-1.5">
 										<div class="h-2 w-2 rounded-full bg-red-600"></div>
-										<span class="text-gray-600">Rejected</span>
+										<span class="text-gray-600">Declined</span>
 									</div>
 									<div class="flex items-center gap-1.5">
 										<div class="h-2 w-2 rounded-full bg-slate-400"></div>
@@ -2041,42 +2119,202 @@
 								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
 								Requested Items
 							</h3>
-							<div class="grid gap-3 sm:grid-cols-2">
-								{#each selectedRequest.items as item}
-									{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-									<div
-										class="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-all hover:border-pink-200 hover:shadow-md"
-									>
-										{#if pic}
-											<img
-												src={pic}
-												alt={item.name}
-												class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-gray-100"
-												loading="lazy"
-											/>
-										{:else}
-											<div
-												class="h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100"
-											>
-												<ItemImagePlaceholder size="sm" />
+							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+								<!-- Desktop Table Header -->
+								<div
+									class="hidden grid-cols-12 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-gray-500 uppercase sm:grid"
+								>
+									<span class="col-span-8">Item</span>
+									<span class="col-span-2 text-center">Code</span>
+									<span class="col-span-2 text-center">Qty</span>
+								</div>
+
+								<!-- Table Rows -->
+								<div class="divide-y divide-gray-100">
+									{#each selectedRequest.items as item}
+										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+										{@const code =
+											item.code ?? (item.itemId ? item.itemId.slice(-6).toUpperCase() : 'N/A')}
+										<div
+											class="grid items-center gap-3 bg-white p-3 transition-colors hover:bg-gray-50/50 sm:grid-cols-12 sm:p-4"
+										>
+											<!-- Item Info -->
+											<div class="col-span-12 flex min-w-0 items-center gap-3 sm:col-span-8">
+												{#if pic}
+													<img
+														src={pic}
+														alt={item.name}
+														class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-gray-200"
+														loading="lazy"
+													/>
+												{:else}
+													<div
+														class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-200"
+													>
+														<ItemImagePlaceholder size="sm" />
+													</div>
+												{/if}
+												<div class="flex min-w-0 flex-col gap-1">
+													<span class="truncate text-sm font-semibold text-gray-900"
+														>{item.name}</span
+													>
+
+													{#if item.inspection}
+														{@const isGood = item.inspection.status === 'good'}
+														{@const isDamaged = item.inspection.status === 'damaged'}
+														{@const isMissing = item.inspection.status === 'missing'}
+														<div class="mt-0.5 flex flex-wrap items-center gap-1.5">
+															{#if isGood}
+																<span
+																	class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200/50"
+																>
+																	<span class="h-1 w-1 rounded-full bg-emerald-500"></span>
+																	Good
+																</span>
+															{/if}
+															{#if isDamaged}
+																<span
+																	class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 ring-1 ring-amber-200/50"
+																>
+																	<span class="h-1 w-1 rounded-full bg-amber-500"></span>
+																	Damaged
+																</span>
+															{/if}
+															{#if isMissing}
+																<span
+																	class="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200/50"
+																>
+																	<span class="h-1 w-1 rounded-full bg-rose-500"></span>
+																	Missing
+																</span>
+															{/if}
+														</div>
+													{/if}
+												</div>
 											</div>
-										{/if}
-										<div class="min-w-0 flex-1">
-											<p
-												class="truncate text-sm font-semibold text-gray-900 transition-colors group-hover:text-pink-600"
+
+											<!-- Mobile/Desktop Details -->
+											<div
+												class="col-span-6 flex items-center justify-between border-t border-gray-100 pt-3 sm:col-span-2 sm:justify-center sm:border-0 sm:pt-0"
 											>
-												{item.name}
-											</p>
-											<p class="mt-0.5 text-xs text-gray-500">
-												Code: {item.code} • Qty: {item.quantity}
-											</p>
+												<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden"
+													>Code</span
+												>
+												<span class="font-mono text-sm font-medium text-gray-600">{code}</span>
+											</div>
+											<div
+												class="col-span-6 flex items-center justify-between border-t border-l border-gray-100 pt-3 pl-3 sm:col-span-2 sm:justify-center sm:border-0 sm:pt-0 sm:pl-0"
+											>
+												<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden"
+													>Qty</span
+												>
+												<span class="text-sm font-bold text-gray-900 tabular-nums"
+													>{item.quantity}</span
+												>
+											</div>
 										</div>
-									</div>
-								{/each}
+									{/each}
+								</div>
 							</div>
 						</div>
 
-						<!-- Rejection Reason -->
+						<!-- Replacement Obligations Table -->
+						{#if selectedRequest.items.some((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0)}
+							<div class="animate-fadeIn mt-8">
+								<h3
+									class="mb-4 flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase"
+								>
+									<div class="h-1 w-1 rounded-full bg-amber-500"></div>
+									Replacement Obligations
+								</h3>
+								<div class="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+									<!-- Desktop Table Header -->
+									<div
+										class="hidden grid-cols-12 border-b border-amber-100 bg-amber-50/50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-amber-900 uppercase sm:grid"
+									>
+										<span class="col-span-6">Item to Replace</span>
+										<span class="col-span-3 text-center">Qty Required</span>
+										<span class="col-span-3 text-right">Due Date</span>
+									</div>
+
+									<!-- Table Rows -->
+									<div class="divide-y divide-amber-100/50">
+										{#each selectedRequest.items.filter((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0) as item}
+											{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+											{@const code =
+												item.code ?? (item.itemId ? item.itemId.slice(-6).toUpperCase() : 'N/A')}
+											<div
+												class="grid items-center gap-3 bg-white p-3 transition-colors hover:bg-amber-50/30 sm:grid-cols-12 sm:p-4"
+											>
+												<div class="col-span-12 flex min-w-0 items-center gap-3 sm:col-span-6">
+													{#if pic}
+														<img
+															src={pic}
+															alt={item.name}
+															class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-amber-200/50"
+															loading="lazy"
+														/>
+													{:else}
+														<div
+															class="h-10 w-10 shrink-0 overflow-hidden rounded-lg text-amber-500/50 ring-1 ring-amber-200/50"
+														>
+															<ItemImagePlaceholder size="sm" />
+														</div>
+													{/if}
+													<div class="flex min-w-0 flex-col gap-1">
+														<span class="truncate text-sm font-semibold text-gray-900"
+															>{item.name}</span
+														>
+														<span class="text-[10px] font-semibold text-amber-600/80 uppercase"
+															>{code}</span
+														>
+														{#if item.inspection?.notes?.replace(/^\[Unit breakdown:[^\]]+\]\s*/i, '')}
+															<span
+																class="text-amber-855 border-amber-250/30 mt-1 w-fit max-w-full rounded-lg border bg-amber-50/50 px-2.5 py-1 text-[11px] leading-relaxed font-medium shadow-xs"
+															>
+																<span class="text-amber-955 font-bold">Note:</span>
+																{item.inspection.notes.replace(
+																	/^\[Unit breakdown:[^\]]+\]\s*/i,
+																	''
+																)}
+															</span>
+														{/if}
+													</div>
+												</div>
+												<div
+													class="col-span-6 flex items-center justify-between border-t border-amber-100/50 pt-3 sm:col-span-3 sm:justify-center sm:border-0 sm:pt-0"
+												>
+													<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden"
+														>Qty Required</span
+													>
+													<span class="text-sm font-bold text-amber-700 tabular-nums"
+														>{item.inspection.replacementQuantity}</span
+													>
+												</div>
+												<div
+													class="col-span-6 flex items-center justify-between border-t border-l border-amber-100/50 pt-3 pl-3 sm:col-span-3 sm:justify-end sm:border-0 sm:pt-0 sm:pl-0"
+												>
+													<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden"
+														>Due Date</span
+													>
+													<span class="text-xs font-semibold text-gray-700">
+														{item.inspection.dueDate
+															? new Date(item.inspection.dueDate).toLocaleDateString('en-US', {
+																	month: 'short',
+																	day: 'numeric',
+																	year: 'numeric'
+																})
+															: 'Not set'}
+													</span>
+												</div>
+											</div>
+										{/each}
+									</div>
+								</div>
+							</div>
+						{/if}
+
+						<!-- Decline Reason -->
 						{#if selectedRequest.status === 'rejected' && selectedRequest.rejectionReason}
 							<div
 								class="rounded-2xl border-2 border-red-200 bg-linear-to-br from-red-50 to-red-100/50 p-5"
@@ -2088,7 +2326,7 @@
 										<CircleAlert size={20} class="text-white" />
 									</div>
 									<div class="min-w-0 flex-1">
-										<p class="text-sm font-bold text-red-900">Rejection Reason</p>
+										<p class="text-sm font-bold text-red-900">Decline Reason</p>
 										<p class="mt-1.5 text-sm leading-relaxed text-red-800">
 											{selectedRequest.rejectionReason}
 										</p>
@@ -2125,16 +2363,48 @@
 
 				<!-- Footer -->
 				<div
-					class="safe-area-bottom sticky bottom-0 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur-sm sm:px-8 sm:py-5"
+					class="safe-area-bottom sticky bottom-0 border-t border-gray-200 bg-white/95 px-4 py-3.5 backdrop-blur-sm sm:px-8 sm:py-4"
 				>
 					<div
 						class="flex flex-col items-stretch justify-end gap-2 sm:flex-row sm:items-center sm:gap-3"
 					>
-						{#if selectedRequest.status === 'pending'}
+						{#if selectedRequest.status === 'missing' || selectedRequest.items?.some((item: any) => item.inspection?.status === 'missing' || item.inspection?.status === 'damaged')}
+							<div
+								class="animate-fadeIn flex-1 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-center text-xs sm:text-left"
+							>
+								<div class="font-bold text-pink-800">
+									An unresolved incident is attached to this request.
+								</div>
+								<div class="mt-0.5 text-pink-700">
+									Coordinate with the custodian to resolve the outstanding case.
+								</div>
+							</div>
+						{:else if selectedRequest.status === 'picked-up'}
+							<div
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
+							>
+								<CornerDownLeft size={14} class="shrink-0 text-pink-400" />
+								<span
+									>Return is handled by the custodian. Bring the item(s) to the custodian desk when
+									ready to return.</span
+								>
+							</div>
+						{:else if selectedRequest.status === 'pending'}
+							<div
+								class="animate-fadeIn flex-1 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
+							>
+								<div class="flex items-center gap-2">
+									<Info size={14} class="shrink-0 text-pink-400" />
+									<span
+										>Your request is under review by your instructor. You can cancel this request at
+										any time before approval.</span
+									>
+								</div>
+							</div>
 							<button
 								onclick={() => requestCancelConfirmation(selectedRequest)}
 								disabled={loadingCancel === selectedRequest.rawId}
-								class="rounded-xl bg-linear-to-r from-red-600 to-red-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-red-700 hover:to-red-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-6 sm:py-3"
+								class="shrink-0 rounded-xl bg-linear-to-r from-red-600 to-red-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-red-700 hover:to-red-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-6 sm:py-3"
 							>
 								{#if loadingCancel === selectedRequest.rawId}
 									<svg
@@ -2161,27 +2431,67 @@
 									Cancel Request
 								{/if}
 							</button>
-						{/if}
-
-						{#if selectedRequest.status === 'ready'}
+						{:else if selectedRequest.status === 'ready'}
 							<div
-								class="rounded-xl border-2 border-blue-200 bg-linear-to-br from-blue-50 to-blue-100/50 px-4 py-2.5 text-xs font-medium text-blue-900 sm:px-5 sm:py-3 sm:text-sm"
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
+							>
+								<Info size={14} class="shrink-0 text-pink-400" />
+								<span
+									>Please proceed to the custodian desk. Pickup will be confirmed by the custodian
+									upon release of items.</span
+								>
+							</div>
+						{:else if selectedRequest.status === 'approved'}
+							<div
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
+							>
+								<Info size={14} class="shrink-0 text-pink-400" />
+								<span
+									>Awaiting custodian release. The custodian will review and approve the release of
+									your equipment.</span
+								>
+							</div>
+						{:else if selectedRequest.status === 'rejected'}
+							<div
+								class="animate-fadeIn flex-1 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
 							>
 								<div class="flex items-center gap-2">
-									<Info size={14} class="shrink-0 sm:hidden" />
-									<Info size={16} class="hidden shrink-0 sm:block" />
-									<span>{getReadyPickupMessage()}</span>
+									<Info size={14} class="shrink-0 text-pink-400" />
+									<span
+										>This request was rejected by your instructor. You may submit an appeal using
+										the button on the right.</span
+									>
 								</div>
 							</div>
-						{/if}
-
-						{#if selectedRequest.status === 'rejected'}
 							<button
 								onclick={() => openAppealModal(selectedRequest)}
-								class="rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] sm:px-6 sm:py-3"
+								class="shrink-0 rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] sm:px-6 sm:py-3"
 							>
 								Appeal Request
 							</button>
+						{:else if selectedRequest.status === 'appealed'}
+							<div
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
+							>
+								<Info size={14} class="shrink-0 text-pink-400" />
+								<span
+									>Your appeal has been submitted. The instructor will review your appeal shortly.</span
+								>
+							</div>
+						{:else if selectedRequest.status === 'returned' || selectedRequest.status === 'resolved'}
+							<div
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-700"
+							>
+								<CheckCircle2 size={14} class="shrink-0 text-emerald-400" />
+								<span>This request has been successfully returned and resolved. Thank you!</span>
+							</div>
+						{:else if selectedRequest.status === 'cancelled'}
+							<div
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-xs text-gray-600"
+							>
+								<Info size={14} class="shrink-0 text-gray-400" />
+								<span>This request was cancelled.</span>
+							</div>
 						{/if}
 					</div>
 				</div>
@@ -2217,7 +2527,7 @@
 								<RotateCcw size={20} class="text-white" />
 							</div>
 							<div>
-								<h3 class="text-lg font-bold text-gray-900">Appeal Rejection</h3>
+								<h3 class="text-lg font-bold text-gray-900">Appeal Decline</h3>
 								<p class="mt-0.5 font-mono text-xs font-semibold text-violet-600">
 									{appealRequestTarget.id}
 								</p>
@@ -2235,11 +2545,11 @@
 
 				<!-- Content -->
 				<div class="px-5 py-5 sm:px-6 sm:py-6">
-					<!-- Original rejection reason -->
+					<!-- Original Decline Reason -->
 					{#if appealRequestTarget.rejectionReason}
 						<div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4">
-							<p class="mb-1 text-xs font-semibold text-red-700 uppercase tracking-wide">
-								Original Rejection Reason
+							<p class="mb-1 text-xs font-semibold tracking-wide text-red-700 uppercase">
+								Original Decline Reason
 							</p>
 							<p class="text-sm text-red-800">{appealRequestTarget.rejectionReason}</p>
 						</div>
@@ -2247,10 +2557,7 @@
 
 					<div class="space-y-4">
 						<div>
-							<label
-								for="appeal-reason"
-								class="mb-1.5 block text-sm font-semibold text-gray-700"
-							>
+							<label for="appeal-reason" class="mb-1.5 block text-sm font-semibold text-gray-700">
 								Appeal Reason
 								<span class="ml-1 font-normal text-gray-400">(required)</span>
 							</label>
@@ -2260,14 +2567,12 @@
 								rows="4"
 								maxlength="500"
 								placeholder="Explain why you believe this request should be reconsidered. Provide any additional context or clarification that may help the instructor review your appeal…"
-								class="block w-full rounded-xl border border-gray-300 px-3.5 py-3 text-sm leading-relaxed text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100 focus:outline-none resize-none"
+								class="block w-full resize-none rounded-xl border border-gray-300 px-3.5 py-3 text-sm leading-relaxed text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100 focus:outline-none"
 							></textarea>
 							<div class="mt-1.5 flex items-center justify-between">
 								<p class="text-xs text-gray-400">Minimum 10 characters</p>
 								<p
-									class="text-xs {appealReason.length > 450
-										? 'text-orange-500'
-										: 'text-gray-400'}"
+									class="text-xs {appealReason.length > 450 ? 'text-orange-500' : 'text-gray-400'}"
 								>
 									{appealReason.length}/500
 								</p>
@@ -2278,8 +2583,8 @@
 							<div class="flex gap-2.5">
 								<Info size={16} class="mt-0.5 shrink-0 text-amber-600" />
 								<p class="text-xs leading-relaxed text-amber-800">
-									You may only appeal a rejected request once. The instructor will review your
-									appeal and either approve or uphold the rejection.
+									You may only appeal a declined request once. The instructor will review your
+									appeal and either approve or uphold the decline.
 								</p>
 							</div>
 						</div>

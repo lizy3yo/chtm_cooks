@@ -13,6 +13,8 @@
 	import { catalogAPI } from '$lib/api/catalog';
 	import { classCodesAPI, type ClassCodeResponse } from '$lib/api/classCodes';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
+	import ActionMenu from '$lib/components/ui/ActionMenu.svelte';
+	import { CheckCircle2 as ApproveIcon, XCircle as RejectIcon } from 'lucide-svelte';
 	import RequestDetailModal from '$lib/components/instructor/RequestDetailModal.svelte';
 	import {
 		Archive,
@@ -520,11 +522,11 @@
 			syncRequestFromServer(updated);
 			clearSelectionForRequest(rawId);
 			closeDetailModalIfMatches(rawId);
-			toastStore.success('Request rejected successfully.');
+			toastStore.success('Request declined successfully.');
 			void loadRequests(true);
 		} catch (error) {
 			console.error('Failed to reject request', error);
-			toastStore.error(getErrorMessage(error, 'Failed to reject request.'));
+			toastStore.error(getErrorMessage(error, 'Failed to decline request.'));
 		} finally {
 			setActionInFlight(rawId, false);
 		}
@@ -586,9 +588,9 @@
 		if (!rejectReason || requestIds.length === 0 || bulkActionInFlight) return;
 
 		const confirmed = await confirmStore.danger(
-			`Reject ${requestIds.length} selected request${requestIds.length === 1 ? '' : 's'} with the provided reason?`,
-			'Confirm Bulk Rejection',
-			'Reject Requests',
+			`Decline ${requestIds.length} selected request${requestIds.length === 1 ? '' : 's'} with the provided reason?`,
+			'Confirm Bulk Decline',
+			'Decline Requests',
 			'Review Again'
 		);
 
@@ -700,7 +702,7 @@
 		rawStatus?: BorrowRequestStatus,
 		rejectionReason?: string
 	): string {
-		if (status === 'pending') return 'Pending Review';
+		if (status === 'pending') return 'Under Review';
 		if (status === 'fulfillment')
 			return rawStatus === 'ready_for_pickup' ? 'Ready for Pickup' : 'In Preparation';
 		if (status === 'borrowed') {
@@ -711,7 +713,7 @@
 		if (status === 'history') {
 			if (rawStatus === 'resolved') return 'Resolved';
 			if (isCancelledRequest(rawStatus ?? 'returned', rejectionReason)) return 'Cancelled';
-			return rawStatus === 'rejected' ? 'Rejected' : 'Returned';
+			return rawStatus === 'rejected' ? 'Declined' : 'Returned';
 		}
 		return status;
 	}
@@ -747,7 +749,7 @@
 	): { text: string; color: string } {
 		if (status === 'pending') {
 			return {
-				text: 'Review the request and decide whether to approve or reject it.',
+				text: 'Review the request and decide whether to approve or decline it.',
 				color: 'text-amber-700'
 			};
 		}
@@ -794,7 +796,7 @@
 				text: isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
 					? 'This request was cancelled by the student before approval and moved to history.'
 					: rawStatus === 'rejected'
-						? 'This request was rejected and moved to the history list.'
+						? 'This request was declined and moved to the history list.'
 						: 'This request has been completed and closed.',
 				color: isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
 					? 'text-slate-700'
@@ -864,7 +866,7 @@
 							: isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
 								? 'Cancelled'
 								: rawStatus === 'rejected'
-									? 'Rejected'
+									? 'Declined'
 									: 'Returned',
 					color:
 						rawStatus === 'resolved'
@@ -880,7 +882,7 @@
 							: isCancelledRequest(rawStatus ?? 'returned', rejectionReason)
 								? 'Cancelled'
 								: rawStatus === 'rejected'
-									? 'Rejected'
+									? 'Declined'
 									: 'Returned'
 				};
 			default:
@@ -1134,7 +1136,7 @@
 							disabled={bulkActionInFlight}
 							class="rounded-md border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
 						>
-							Reject
+							Decline
 						</button>
 						<button
 							onclick={() => (selectedRequests = [])}
@@ -1270,7 +1272,7 @@
 														>
 														{#if request.isAppeal}
 															<span
-																class="shrink-0 inline-flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700"
+																class="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700"
 															>
 																APPEAL
 															</span>
@@ -1333,25 +1335,31 @@
 									<div
 										class="flex justify-end gap-2 border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:px-5"
 									>
-										<div class="relative flex flex-wrap items-center gap-2">
+										<div class="relative flex items-center">
 											{#if request.status === 'pending'}
-												<button
-													onclick={() => approveRequest(request.rawId)}
-													disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
-													class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-												>
-													{isActionInFlight(request.rawId) ? 'Approving…' : 'Approve'}
-												</button>
-												<button
-													onclick={() => {
-														selectedRequests = [request.rawId];
-														showBulkRejectModal = true;
-													}}
-													disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
-													class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-												>
-													Reject
-												</button>
+												<ActionMenu
+													align="right"
+													triggerLabel="Request actions"
+													items={[
+														{
+															label: isActionInFlight(request.rawId) ? 'Approving…' : 'Approve',
+															icon: ApproveIcon,
+															variant: 'success',
+															disabled: isActionInFlight(request.rawId) || bulkActionInFlight,
+															action: () => approveRequest(request.rawId)
+														},
+														{
+															label: 'Decline',
+															icon: RejectIcon,
+															variant: 'danger',
+															disabled: isActionInFlight(request.rawId) || bulkActionInFlight,
+															action: () => {
+																selectedRequests = [request.rawId];
+																showBulkRejectModal = true;
+															}
+														}
+													]}
+												/>
 											{/if}
 										</div>
 									</div>
@@ -1457,7 +1465,7 @@
 													</p>
 													{#if request.isAppeal}
 														<span
-															class="shrink-0 inline-flex items-center rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700"
+															class="inline-flex shrink-0 items-center rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700"
 														>
 															APPEAL
 														</span>
@@ -1520,29 +1528,33 @@
 											</span>
 										</div>
 
-										<div class="relative flex flex-wrap items-center gap-2 md:justify-end">
+										<div class="relative flex items-center justify-end">
 											{#if request.status === 'pending'}
-												<button
-													onclick={(e) => {
-														e.stopPropagation();
-														approveRequest(request.rawId);
-													}}
-													disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
-													class="rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-												>
-													{isActionInFlight(request.rawId) ? 'Approving…' : 'Approve'}
-												</button>
-												<button
-													onclick={(e) => {
-														e.stopPropagation();
-														selectedRequests = [request.rawId];
-														showBulkRejectModal = true;
-													}}
-													disabled={isActionInFlight(request.rawId) || bulkActionInFlight}
-													class="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-												>
-													Reject
-												</button>
+												<div onclick={(e) => e.stopPropagation()} role="none">
+													<ActionMenu
+														align="right"
+														triggerLabel="Request actions"
+														items={[
+															{
+																label: isActionInFlight(request.rawId) ? 'Approving…' : 'Approve',
+																icon: ApproveIcon,
+																variant: 'success',
+																disabled: isActionInFlight(request.rawId) || bulkActionInFlight,
+																action: () => approveRequest(request.rawId)
+															},
+															{
+																label: 'Decline',
+																icon: RejectIcon,
+																variant: 'danger',
+																disabled: isActionInFlight(request.rawId) || bulkActionInFlight,
+																action: () => {
+																	selectedRequests = [request.rawId];
+																	showBulkRejectModal = true;
+																}
+															}
+														]}
+													/>
+												</div>
 											{/if}
 										</div>
 									</div>
@@ -1600,7 +1612,7 @@
 	/>
 {/if}
 
-<!-- Bulk Reject Modal -->
+<!-- Bulk Decline Modal -->
 {#if showBulkRejectModal}
 	<div class="fixed inset-0 z-50 overflow-y-auto">
 		<button
@@ -1613,17 +1625,17 @@
 		<div class="flex min-h-full items-center justify-center p-4">
 			<div class="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
 				<h3 class="text-lg font-semibold text-gray-900">
-					Reject Request{selectedRequests.length > 1 ? 's' : ''}
+					Decline Request{selectedRequests.length > 1 ? 's' : ''}
 				</h3>
 				<p class="mt-1 text-sm text-gray-500">
 					{selectedRequests.length > 1
-						? `Rejecting ${selectedRequests.length} requests.`
-						: 'Provide a reason for rejection.'}
+						? `Declining ${selectedRequests.length} requests.`
+						: 'Provide a reason for declining.'}
 				</p>
 				<div class="mt-4 space-y-4">
 					<div>
 						<label for="reject-reason" class="mb-1.5 block text-sm font-medium text-gray-700"
-							>Rejection Reason</label
+							>Decline Reason</label
 						>
 						<select
 							id="reject-reason"

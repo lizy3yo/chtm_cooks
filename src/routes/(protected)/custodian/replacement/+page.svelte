@@ -26,14 +26,16 @@
 	import { confirmStore } from '$lib/stores/confirm';
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 	import ReplacementObligationModal from '$lib/components/custodian/ReplacementObligationModal.svelte';
+	import { catalogAPI } from '$lib/api/catalog';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import { Package, AlertCircle, CheckCircle2, TrendingUp } from 'lucide-svelte';
 
-	let activeTab = $state<'donations' | 'replacements' | 'history'>('donations');
+	let activeTab = $state<'donations' | 'replacements' | 'adjustments'>('donations');
 	let replacementsFilter = $state<'pending' | 'replaced' | 'all'>('pending');
 	let historyFilter = $state<'all' | 'resolved'>('all');
 	let viewMode = $state<'card' | 'list'>('list');
 	let obligations = $state<ReplacementObligation[]>([]);
+	let itemPictureCache = $state<Map<string, string>>(new Map());
 	let isLoading = $state(false);
 	let error = $state<string | null>(null);
 	let currentPage = $state(1);
@@ -182,9 +184,16 @@
 			: paymentHistory.filter((p) => p.status === historyFilter)
 	);
 
-	const totalDonationsPages = $derived(Math.ceil(donations.length / itemsPerPageDonations));
+	const realDonations = $derived(donations.filter(d => d.donorName !== 'Custodian Stock Adjustment'));
+	const stockAdjustments = $derived(donations.filter(d => d.donorName === 'Custodian Stock Adjustment'));
+
+	const displayedDonations = $derived(
+		activeTab === 'adjustments' ? stockAdjustments : realDonations
+	);
+
+	const totalDonationsPages = $derived(Math.ceil(displayedDonations.length / itemsPerPageDonations));
 	const paginatedDonations = $derived(
-		donations.slice((currentPage - 1) * itemsPerPageDonations, currentPage * itemsPerPageDonations)
+		displayedDonations.slice((currentPage - 1) * itemsPerPageDonations, currentPage * itemsPerPageDonations)
 	);
 
 	const totalHistoryPages = $derived(
@@ -205,10 +214,10 @@
 	let donationSubmitting = $state(false);
 
 	// Stats
-	const totalDonatedItems = $derived(donations.reduce((sum, d) => sum + d.quantity, 0));
-	const uniqueItemTypes = $derived(new Set(donations.map((d) => d.itemName.toLowerCase())).size);
+	const totalDonatedItems = $derived(realDonations.reduce((sum, d) => sum + d.quantity, 0));
+	const uniqueItemTypes = $derived(new Set(realDonations.map((d) => d.itemName.toLowerCase())).size);
 	const recentDonationsCount = $derived(
-		donations.filter((d) => {
+		realDonations.filter((d) => {
 			const sevenDaysAgo = new Date();
 			sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 			return new Date(d.createdAt) >= sevenDaysAgo;
@@ -454,6 +463,7 @@
 
 		if (cachedObligations) {
 			obligations = cachedObligations.obligations;
+			void backfillItemPictures();
 		}
 		if (cachedDonations) {
 			donations = cachedDonations.donations;
@@ -545,6 +555,35 @@
 		};
 	});
 
+	async function backfillItemPictures(): Promise<void> {
+		const missingIds = new Set<string>();
+		for (const ob of obligations) {
+			if (ob.itemId && !itemPictureCache.has(ob.itemId)) {
+				missingIds.add(ob.itemId);
+			}
+		}
+		for (const d of donations) {
+			if (d.inventoryItemId && !itemPictureCache.has(d.inventoryItemId)) {
+				missingIds.add(d.inventoryItemId);
+			}
+		}
+
+		if (missingIds.size === 0) return;
+
+		try {
+			const response = await catalogAPI.getCatalog({ availability: 'all', limit: 300 });
+			const next = new Map(itemPictureCache);
+			for (const catalogItem of response.items) {
+				if (missingIds.has(catalogItem.id) && catalogItem.picture) {
+					next.set(catalogItem.id, catalogItem.picture);
+				}
+			}
+			itemPictureCache = next;
+		} catch {
+			// Graceful fallback
+		}
+	}
+
 	async function loadObligations(showLoading = true, forceRefresh = false): Promise<void> {
 		if (showLoading) {
 			isLoading = true;
@@ -558,6 +597,7 @@
 			);
 			if (isMounted) {
 				obligations = response.obligations;
+				await backfillItemPictures();
 			}
 		} catch (err) {
 			console.error('Failed to load obligations', err);
@@ -604,6 +644,7 @@
 			if (isMounted) {
 				donations = response.donations;
 				console.log('[LOAD-DONATIONS] Donations state updated with', donations.length, 'items');
+				await backfillItemPictures();
 			} else {
 				console.log('[LOAD-DONATIONS] Component not mounted, skipping state update');
 			}
@@ -1062,8 +1103,6 @@
 
 		if (activeTab === 'donations') {
 			maxPages = totalDonationsPages;
-		} else if (activeTab === 'history') {
-			maxPages = totalHistoryPages;
 		} else if (activeTab === 'replacements' && viewMode === 'card') {
 			maxPages = totalRequestPages;
 		}
@@ -1212,14 +1251,13 @@
 				{/if}
 			</button>
 			<button
-				onclick={() => (activeTab = 'history')}
+				onclick={() => (activeTab = 'adjustments')}
 				class="flex flex-1 items-center justify-center gap-1.5 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap transition-colors sm:flex-none sm:px-6 sm:text-sm {activeTab ===
-				'history'
+				'adjustments'
 					? 'border-pink-500 text-pink-600'
 					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 			>
-				<span class="hidden sm:inline">Resolution Log</span>
-				<span class="sm:hidden">History</span>
+				Stock Adjustments
 			</button>
 		</nav>
 	</div>
@@ -1586,23 +1624,31 @@
 														<!-- Item name + purpose -->
 														<td class="px-4 py-3">
 															<div class="flex min-w-0 items-center gap-3">
-																<div
-																	class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"
-																>
-																	<svg
-																		class="h-4 w-4"
-																		fill="none"
-																		stroke="currentColor"
-																		viewBox="0 0 24 24"
+																{#if donation.inventoryItemId && itemPictureCache.has(donation.inventoryItemId)}
+																	<img
+																		src={itemPictureCache.get(donation.inventoryItemId)}
+																		alt={donation.itemName}
+																		class="h-9 w-9 shrink-0 rounded-full object-cover border border-gray-100 shadow-xs"
+																	/>
+																{:else}
+																	<div
+																		class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"
 																	>
-																		<path
-																			stroke-linecap="round"
-																			stroke-linejoin="round"
-																			stroke-width="2"
-																			d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
-																		/>
-																	</svg>
-																</div>
+																		<svg
+																			class="h-4 w-4"
+																			fill="none"
+																			stroke="currentColor"
+																			viewBox="0 0 24 24"
+																		>
+																			<path
+																				stroke-linecap="round"
+																				stroke-linejoin="round"
+																				stroke-width="2"
+																				d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
+																			/>
+																		</svg>
+																	</div>
+																{/if}
 																<div class="min-w-0">
 																	<p
 																		class="max-w-[180px] truncate font-semibold text-gray-900"
@@ -1689,7 +1735,361 @@
 									<Pagination
 										{currentPage}
 										totalPages={totalDonationsPages}
-										totalItems={donations.length}
+										totalItems={displayedDonations.length}
+										itemsPerPage={itemsPerPageDonations}
+										onPageChange={goToPage}
+									/>
+								{/if}
+							{/if}
+						</div>
+					</div>
+				{/if}
+
+				<!-- Stock Adjustments Tab -->
+				{#if activeTab === 'adjustments'}
+					<div class="space-y-6">
+						<!-- Header row -->
+						<div class="flex items-center justify-between">
+							<div>
+								<h3 class="text-lg font-semibold text-gray-900">Stock Adjustments</h3>
+								<p class="mt-0.5 text-sm text-gray-500">
+									Audit and track manual stock level updates, restocks, damages, and loss reconciliations.
+								</p>
+							</div>
+						</div>
+
+						<!-- Search and Toggle -->
+						<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<div class="relative w-full sm:max-w-sm">
+								<svg
+									class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"
+									/>
+								</svg>
+								<input
+									type="search"
+									bind:value={donationsSearch}
+									oninput={() => loadDonations()}
+									placeholder="Search by item or reason"
+									class="block h-10 w-full rounded-xl border border-gray-300 bg-white py-2 pr-3 pl-9 text-sm shadow-sm focus:border-pink-500 focus:ring-2 focus:ring-pink-100 focus:outline-none"
+								/>
+							</div>
+							<div class="flex items-center justify-end gap-2">
+								<div
+									class="flex overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm"
+								>
+									<button
+										onclick={() => (viewMode = 'list')}
+										aria-label="Table view"
+										class="flex h-10 w-10 items-center justify-center text-sm transition-colors {viewMode ===
+										'list'
+											? 'bg-pink-100 text-pink-700'
+											: 'text-gray-600 hover:bg-gray-50'}"
+									>
+										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M4 6h16M4 12h16M4 18h16"
+											/>
+										</svg>
+									</button>
+									<button
+										onclick={() => (viewMode = 'card')}
+										aria-label="Card view"
+										class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {viewMode ===
+										'card'
+											? 'bg-pink-100 text-pink-700'
+											: 'text-gray-600 hover:bg-gray-50'}"
+									>
+										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
+											/>
+										</svg>
+									</button>
+								</div>
+							</div>
+						</div>
+
+						<!-- Stock Adjustments List -->
+						<div>
+							{#if donationsLoading}
+								<div class="space-y-3" role="status" aria-label="Loading stock adjustments">
+									{#each Array(4) as _}
+										<div
+											class="flex items-center gap-4 rounded-xl border border-gray-200 bg-white p-4"
+										>
+											<Skeleton variant="circle" class="h-10 w-10 shrink-0" />
+											<div class="flex-1 space-y-2">
+												<Skeleton class="h-4 w-40" />
+												<Skeleton class="h-3 w-24" />
+											</div>
+											<Skeleton class="h-6 w-20" />
+										</div>
+									{/each}
+								</div>
+							{:else if displayedDonations.length === 0}
+								<div
+									class="py-12 text-center"
+									style="min-height: 600px; display: flex; align-items: center; justify-content: center;"
+								>
+									<div>
+										<svg
+											class="mx-auto h-24 w-24 text-pink-600"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+											></path>
+										</svg>
+										<h3 class="mt-4 text-lg font-medium text-gray-900">No stock adjustments yet</h3>
+										<p class="mt-2 text-sm text-gray-500">
+											Manual stock level increases and decreases performed in the Inventory page will be tracked and audited here.
+										</p>
+									</div>
+								</div>
+							{:else}
+								{#if viewMode === 'card'}
+									<!-- Card view -->
+									<div
+										class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
+										style="min-height: 600px; align-content: start;"
+									>
+										{#each paginatedDonations as donation}
+											{@const isAdd = donation.quantity > 0}
+											<div
+												class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {isAdd
+													? 'border-emerald-400'
+													: 'border-red-400'}"
+											>
+												<div class="p-4 sm:p-5">
+													<div class="mb-3 flex items-start justify-between gap-3">
+														<div class="flex min-w-0 flex-1 flex-col gap-1">
+															<span class="truncate font-semibold text-gray-900"
+																>{donation.itemName}</span
+															>
+															<span class="truncate text-xs text-gray-500"
+																>Audit Ref: {donation.receiptNumber}</span
+															>
+														</div>
+														<span
+															class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {isAdd
+																? 'bg-emerald-100 text-emerald-700'
+																: 'bg-red-100 text-red-700'}"
+														>
+															{isAdd ? 'Restock / Add' : 'Damage / Subtract'}
+														</span>
+													</div>
+													<div class="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500">
+														<div class="flex items-center gap-1.5">
+															<Package class="h-4 w-4" />
+															<span class="font-bold {isAdd ? 'text-emerald-600' : 'text-red-600'}"
+																>{isAdd ? '+' : ''}{donation.quantity.toLocaleString()}</span
+															>
+														</div>
+														<div class="flex items-center gap-1.5">
+															<svg
+																class="h-4 w-4"
+																fill="none"
+																stroke="currentColor"
+																viewBox="0 0 24 24"
+																><path
+																	stroke-linecap="round"
+																	stroke-linejoin="round"
+																	stroke-width="2"
+																	d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+																/></svg
+															>
+															<span
+																>{new Date(donation.createdAt).toLocaleDateString('en-US', {
+																	month: 'short',
+																	day: 'numeric',
+																	year: 'numeric'
+																})}</span
+															>
+														</div>
+													</div>
+													{#if donation.notes}
+														<div
+															class="mt-3 line-clamp-2 border-t border-gray-100 pt-3 text-xs text-gray-500"
+														>
+															<span class="font-medium text-gray-700">Reason:</span>
+															{donation.notes}
+														</div>
+													{/if}
+												</div>
+												<div
+													class="flex justify-end border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:px-5"
+												>
+													<button
+														onclick={() => (selectedDonation = donation)}
+														class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 focus:outline-none"
+													>
+														View Details
+														<svg
+															class="h-3.5 w-3.5"
+															fill="none"
+															stroke="currentColor"
+															viewBox="0 0 24 24"
+															><path
+																stroke-linecap="round"
+																stroke-linejoin="round"
+																stroke-width="2"
+																d="M9 5l7 7-7 7"
+															/></svg
+														>
+													</button>
+												</div>
+											</div>
+										{/each}
+									</div>
+								{:else}
+									<!-- Table list view -->
+									<div
+										class="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm"
+										style="min-height: 600px;"
+									>
+										<table class="w-full border-collapse text-sm">
+											<thead>
+												<tr class="border-b border-gray-200 bg-gray-50/80">
+													<th
+														scope="col"
+														class="w-10 px-4 py-3 text-center text-[11px] font-semibold tracking-wider text-gray-500 uppercase"
+														>#</th
+													>
+													<th
+														scope="col"
+														class="px-4 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 uppercase"
+														>Item</th
+													>
+													<th
+														scope="col"
+														class="px-4 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 uppercase"
+														>Type</th
+													>
+													<th
+														scope="col"
+														class="px-4 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 uppercase"
+														>Qty Change</th
+													>
+													<th
+														scope="col"
+														class="px-4 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 uppercase"
+														>Reason / Note</th
+													>
+													<th
+														scope="col"
+														class="px-4 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 uppercase"
+														>Date</th
+													>
+												</tr>
+											</thead>
+											<tbody class="divide-y divide-gray-100">
+												{#each paginatedDonations as donation, i}
+													{@const isAdd = donation.quantity > 0}
+													<!-- svelte-ignore a11y_click_events_have_key_events -->
+													<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+													<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+													<tr 
+														class="group transition-colors hover:bg-gray-50/70 cursor-pointer"
+														onclick={() => (selectedDonation = donation)}
+														tabindex="0"
+														onkeydown={(e) => e.key === 'Enter' && (selectedDonation = donation)}
+													>
+														<!-- Row # -->
+														<td class="px-4 py-3 text-center">
+															<span
+																class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500"
+															>
+																{(currentPage - 1) * itemsPerPageDonations + i + 1}
+															</span>
+														</td>
+														<!-- Item name -->
+														<td class="px-4 py-3">
+															<div class="flex min-w-0 items-center gap-3">
+																{#if donation.inventoryItemId && itemPictureCache.has(donation.inventoryItemId)}
+																	<img
+																		src={itemPictureCache.get(donation.inventoryItemId)}
+																		alt={donation.itemName}
+																		class="h-9 w-9 shrink-0 rounded-full object-cover border border-gray-100 shadow-xs"
+																	/>
+																{:else}
+																	<div
+																		class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full {isAdd ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}"
+																	>
+																		<Package class="h-4 w-4" />
+																	</div>
+																{/if}
+																<div class="min-w-0">
+																	<p
+																		class="max-w-[200px] truncate font-semibold text-gray-900"
+																		title={donation.itemName}
+																	>
+																		{donation.itemName}
+																	</p>
+																	<p class="mt-0.5 font-mono text-[10px] text-gray-400">
+																		{donation.receiptNumber}
+																	</p>
+																</div>
+															</div>
+														</td>
+														<!-- Type badge -->
+														<td class="px-4 py-3">
+															<span
+																class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold {isAdd
+																	? 'bg-emerald-100 text-emerald-700'
+																	: 'bg-red-100 text-red-700'}"
+															>
+																{isAdd ? 'Restock / Add' : 'Damage / Subtract'}
+															</span>
+														</td>
+														<!-- Qty Change -->
+														<td class="px-4 py-3 font-bold {isAdd ? 'text-emerald-600' : 'text-red-600'}">
+															{isAdd ? '+' : ''}{donation.quantity.toLocaleString()}
+														</td>
+														<!-- Notes -->
+														<td class="px-4 py-3 text-sm text-gray-600 max-w-[250px] truncate" title={donation.notes || ''}>
+															{donation.notes || 'N/A'}
+														</td>
+														<!-- Date -->
+														<td class="px-4 py-3 text-sm whitespace-nowrap text-gray-600">
+															{new Date(donation.createdAt).toLocaleDateString('en-US', {
+																month: 'short',
+																day: 'numeric',
+																year: 'numeric'
+															})}
+														</td>
+													</tr>
+												{/each}
+											</tbody>
+										</table>
+									</div>
+								{/if}
+
+								<!-- Pagination -->
+								{#if totalDonationsPages > 1}
+									<Pagination
+										{currentPage}
+										totalPages={totalDonationsPages}
+										totalItems={displayedDonations.length}
 										itemsPerPage={itemsPerPageDonations}
 										onPageChange={goToPage}
 									/>
@@ -2103,304 +2503,7 @@
 					</div>
 				{/if}
 
-				<!-- Payment History Tab -->
-				{#if activeTab === 'history'}
-					<div class="space-y-6">
-						<!-- Header row -->
-						<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-							<div>
-								<h3 class="text-lg font-semibold text-gray-900">Resolution Log</h3>
-								<p class="mt-0.5 text-sm text-gray-500">
-									Audit trail of all resolved item accountability obligations.
-								</p>
-							</div>
-							<button
-								onclick={exportHistory}
-								class="inline-flex shrink-0 items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none"
-							>
-								<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-									/>
-								</svg>
-								Export to CSV
-							</button>
-						</div>
 
-						<div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-							<div class="text-sm font-semibold text-gray-700">
-								{filteredPaymentHistory.length}
-								{filteredPaymentHistory.length === 1 ? 'record' : 'records'} found
-							</div>
-							<div class="flex items-center gap-2">
-								<div
-									class="flex overflow-hidden rounded-lg border border-gray-300 bg-white shadow-sm"
-								>
-									<button
-										onclick={() => (viewMode = 'list')}
-										aria-label="Table view"
-										class="flex h-10 w-10 items-center justify-center text-sm transition-colors {viewMode ===
-										'list'
-											? 'bg-pink-100 text-pink-700'
-											: 'text-gray-600 hover:bg-gray-50'}"
-									>
-										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M4 6h16M4 12h16M4 18h16"
-											/>
-										</svg>
-									</button>
-									<button
-										onclick={() => (viewMode = 'card')}
-										aria-label="Card view"
-										class="flex h-10 w-10 items-center justify-center border-l border-gray-300 text-sm transition-colors {viewMode ===
-										'card'
-											? 'bg-pink-100 text-pink-700'
-											: 'text-gray-600 hover:bg-gray-50'}"
-									>
-										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"
-											/>
-										</svg>
-									</button>
-								</div>
-							</div>
-						</div>
-
-						{#if filteredPaymentHistory.length === 0}
-							<div
-								class="rounded-lg border-2 border-dashed border-gray-200 py-14 text-center"
-								style="min-height: 600px; display: flex; align-items: center; justify-content: center;"
-							>
-								<div>
-									<svg
-										class="mx-auto h-12 w-12 text-pink-600"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-										></path>
-									</svg>
-									<p class="mt-3 text-sm font-medium text-gray-700">
-										{historyFilter === 'all'
-											? 'No resolution records yet.'
-											: `No ${historyFilter} records.`}
-									</p>
-									<p class="mt-1 text-xs text-gray-500">
-										Resolved obligations will appear here once closed.
-									</p>
-								</div>
-							</div>
-						{:else}
-							{#if viewMode === 'card'}
-								<!-- Card view -->
-								<div
-									class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
-									style="min-height: 600px; align-content: start;"
-								>
-									{#each paginatedHistory as transaction}
-										<div
-											class="overflow-hidden rounded-xl border-l-4 bg-white shadow-sm ring-1 ring-gray-200 transition-all hover:shadow-md {transaction.status ===
-											'resolved'
-												? 'border-emerald-400'
-												: 'border-slate-400'}"
-										>
-											<div class="p-4 sm:p-5">
-												<div class="mb-3 flex items-start justify-between gap-3">
-													<div class="flex min-w-0 flex-1 flex-col gap-1">
-														<span class="truncate font-semibold text-gray-900"
-															>{transaction.name}</span
-														>
-														<span class="truncate font-mono text-xs text-gray-500"
-															>{transaction.receiptNumber}</span
-														>
-													</div>
-													<span
-														class="inline-flex items-center gap-1 rounded-full bg-cyan-100 px-2 py-0.5 text-[10px] font-semibold text-cyan-800"
-													>
-														Replaced
-													</span>
-												</div>
-												<div class="mt-4 flex items-center gap-4 text-xs text-gray-500">
-													<div class="flex items-center gap-1.5">
-														<svg
-															class="h-4 w-4"
-															fill="none"
-															stroke="currentColor"
-															viewBox="0 0 24 24"
-															><path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-															/></svg
-														>
-														<span
-															>{new Date(transaction.date).toLocaleDateString('en-US', {
-																month: 'short',
-																day: 'numeric',
-																year: 'numeric'
-															})}</span
-														>
-													</div>
-												</div>
-											</div>
-											<div
-												class="flex justify-end border-t border-gray-100 bg-gray-50/60 px-4 py-3 sm:px-5"
-											>
-												<button
-													onclick={(e) => {
-														e.stopPropagation();
-														selectedTransaction = transaction;
-													}}
-													class="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:ring-offset-1 focus:outline-none"
-												>
-													View Details
-													<svg
-														class="h-3.5 w-3.5"
-														fill="none"
-														stroke="currentColor"
-														viewBox="0 0 24 24"
-													>
-														<path
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															stroke-width="2"
-															d="M9 5l7 7-7 7"
-														/>
-													</svg>
-												</button>
-											</div>
-										</div>
-									{/each}
-								</div>
-							{:else}
-								<!-- Table list view -->
-								<div
-									class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm"
-									style="min-height: 600px;"
-								>
-									<div
-										class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1fr_1.5fr_1fr] md:items-center md:gap-3"
-									>
-										<span class="text-center text-gray-400">#</span>
-										<span>Receipt</span>
-										<span>Resolution</span>
-										<span>Date</span>
-									</div>
-									<div class="divide-y divide-gray-100">
-										{#each paginatedHistory as transaction, i}
-											<!-- svelte-ignore a11y_click_events_have_key_events -->
-											<!-- svelte-ignore a11y_no_static_element_interactions -->
-											<div
-												class="grid gap-3 p-4 md:grid-cols-[32px_1fr_1.5fr_1fr] md:items-center md:gap-3 transition-colors cursor-pointer hover:bg-gray-50"
-												onclick={() => (selectedTransaction = transaction)}
-												role="button"
-												tabindex="0"
-												onkeydown={(e) => e.key === 'Enter' && (selectedTransaction = transaction)}
-												aria-label="View details for {transaction.receiptNumber}"
-											>
-												<div class="hidden items-center justify-center md:flex">
-													<span
-														class="inline-flex h-5 w-5 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500"
-														>{(currentPage - 1) * itemsPerPageHistory + i + 1}</span
-													>
-												</div>
-												<!-- Receipt -->
-												<div class="min-w-0">
-													<p class="font-mono text-xs font-bold tracking-wider text-gray-900">
-														{transaction.receiptNumber}
-													</p>
-													<span
-														class="mt-1 inline-flex items-center gap-1 rounded-full bg-cyan-100 px-2 py-0.5 text-[10px] font-semibold text-cyan-800"
-													>
-														Replaced
-													</span>
-												</div>
-
-												<!-- Resolution -->
-												<div class="flex min-w-0 items-center gap-3">
-													<div
-														class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full {transaction.status ===
-														'resolved'
-															? 'bg-emerald-100 text-emerald-700'
-															: 'bg-slate-100 text-slate-700'}"
-													>
-														<svg
-															class="h-5 w-5"
-															fill="none"
-															stroke="currentColor"
-															viewBox="0 0 24 24"
-														>
-															{#if transaction.status === 'resolved'}
-																<path
-																	stroke-linecap="round"
-																	stroke-linejoin="round"
-																	stroke-width="2"
-																	d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-																/>
-															{:else}
-																<path
-																	stroke-linecap="round"
-																	stroke-linejoin="round"
-																	stroke-width="2"
-																	d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-																/>
-															{/if}
-														</svg>
-													</div>
-													<div class="min-w-0">
-														<p class="truncate text-sm font-semibold text-gray-900">
-															{transaction.name}
-														</p>
-													</div>
-												</div>
-
-												<!-- Date -->
-												<div class="min-w-0">
-													<p class="text-sm font-medium text-gray-900">
-														{new Date(transaction.date).toLocaleDateString('en-US', {
-															month: 'short',
-															day: 'numeric',
-															year: 'numeric'
-														})}
-													</p>
-												</div>
-
-											</div>
-										{/each}
-									</div>
-								</div>
-							{/if}
-
-							<!-- Pagination -->
-							{#if totalHistoryPages > 1}
-								<Pagination
-									{currentPage}
-									totalPages={totalHistoryPages}
-									totalItems={filteredPaymentHistory.length}
-									itemsPerPage={itemsPerPageHistory}
-									onPageChange={goToPage}
-								/>
-							{/if}
-						{/if}
-					</div>
-				{/if}
 			{/if}
 		</div>
 	</div>
@@ -3565,30 +3668,34 @@
 					<div class="flex items-start justify-between gap-3">
 						<div class="flex min-w-0 flex-1 items-start gap-3">
 							<div
-								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/30 sm:h-12 sm:w-12"
+								class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br {selectedDonation.donorName === 'Custodian Stock Adjustment' ? 'from-blue-500 to-blue-600 shadow-blue-500/30' : 'from-emerald-500 to-emerald-600 shadow-emerald-500/30'} shadow-lg sm:h-12 sm:w-12"
 							>
-								<svg
-									class="h-5 w-5 text-white sm:h-6 sm:w-6"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2.5"
-										d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
-									/>
-								</svg>
+								{#if selectedDonation.donorName === 'Custodian Stock Adjustment'}
+									<Package class="h-5 w-5 text-white sm:h-6 sm:w-6" />
+								{:else}
+									<svg
+										class="h-5 w-5 text-white sm:h-6 sm:w-6"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2.5"
+											d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
+										/>
+									</svg>
+								{/if}
 							</div>
 							<div class="min-w-0 flex-1">
 								<h2
 									id="donation-modal-title"
 									class="text-lg font-bold text-gray-900 sm:text-xl md:text-2xl"
 								>
-									Donation Details
+									{selectedDonation.donorName === 'Custodian Stock Adjustment' ? 'Stock Adjustment Details' : 'Donation Details'}
 								</h2>
-								<p class="mt-0.5 font-mono text-xs font-semibold text-emerald-600 sm:text-sm">
+								<p class="mt-0.5 font-mono text-xs font-semibold {selectedDonation.donorName === 'Custodian Stock Adjustment' ? 'text-blue-600' : 'text-emerald-600'} sm:text-sm">
 									{selectedDonation.receiptNumber}
 								</p>
 							</div>
@@ -3626,18 +3733,30 @@
 							class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6"
 						>
 							<div class="flex items-start gap-4">
-								<div
-									class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-emerald-100 to-emerald-200 text-emerald-700 ring-2 ring-emerald-200"
-								>
-									<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
-										/>
-									</svg>
-								</div>
+								{#if selectedDonation.inventoryItemId && itemPictureCache.has(selectedDonation.inventoryItemId)}
+									<img
+										src={itemPictureCache.get(selectedDonation.inventoryItemId)}
+										alt={selectedDonation.itemName}
+										class="h-14 w-14 shrink-0 rounded-2xl object-cover border border-gray-200 shadow-sm"
+									/>
+								{:else}
+									<div
+										class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br {selectedDonation.donorName === 'Custodian Stock Adjustment' ? 'from-blue-100 to-blue-200 text-blue-700 ring-blue-200' : 'from-emerald-100 to-emerald-200 text-emerald-700 ring-emerald-200'} ring-2"
+									>
+										{#if selectedDonation.donorName === 'Custodian Stock Adjustment'}
+											<Package class="h-7 w-7" />
+										{:else}
+											<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path
+													stroke-linecap="round"
+													stroke-linejoin="round"
+													stroke-width="2"
+													d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 110-4h14a2 2 0 110 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
+												/>
+											</svg>
+										{/if}
+									</div>
+								{/if}
 								<div class="min-w-0 flex-1">
 									<p class="text-lg font-bold text-gray-900">{selectedDonation.itemName}</p>
 									{#if isEditingDonation}
@@ -3651,23 +3770,39 @@
 										</div>
 									{:else}
 										<p class="mt-1 text-sm text-gray-600">
-											Donated by <span class="font-semibold text-gray-900"
-												>{selectedDonation.donorName}</span
-											>
+											{#if selectedDonation.donorName === 'Custodian Stock Adjustment'}
+												Type: <span class="font-semibold text-gray-900">Manual Stock Adjustment</span>
+											{:else}
+												Donated by <span class="font-semibold text-gray-900"
+													>{selectedDonation.donorName}</span
+												>
+											{/if}
 										</p>
 									{/if}
 									<div class="mt-3 flex flex-wrap items-center gap-2">
-										<span
-											class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {selectedDonation.inventoryAction ===
-											'new_item'
-												? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
-												: 'bg-blue-50 text-blue-700 ring-blue-200'}"
-										>
-											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-											{selectedDonation.inventoryAction === 'new_item'
-												? 'New Item'
-												: 'Added to Existing'}
-										</span>
+										{#if selectedDonation.donorName === 'Custodian Stock Adjustment'}
+											{@const isAdd = selectedDonation.quantity > 0}
+											<span
+												class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {isAdd
+													? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+													: 'bg-red-50 text-red-700 ring-red-200'}"
+											>
+												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+												{isAdd ? 'Restock / Add' : 'Damage / Subtract'}
+											</span>
+										{:else}
+											<span
+												class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset {selectedDonation.inventoryAction ===
+												'new_item'
+													? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+													: 'bg-blue-50 text-blue-700 ring-blue-200'}"
+											>
+												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
+												{selectedDonation.inventoryAction === 'new_item'
+													? 'New Item'
+													: 'Added to Existing'}
+											</span>
+										{/if}
 									</div>
 								</div>
 							</div>
@@ -3676,8 +3811,10 @@
 						<!-- Details Card -->
 						<div class="overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
 							<div class="flex items-center justify-between border-b border-gray-200 bg-linear-to-r from-gray-50 to-white px-5 py-3">
-								<h3 class="text-sm font-semibold text-gray-900">Donation Information</h3>
-								{#if !isEditingDonation}
+								<h3 class="text-sm font-semibold text-gray-900">
+									{selectedDonation.donorName === 'Custodian Stock Adjustment' ? 'Adjustment Details' : 'Donation Information'}
+								</h3>
+								{#if !isEditingDonation && selectedDonation.donorName !== 'Custodian Stock Adjustment'}
 									<button
 										onclick={startEditDonation}
 										class="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
@@ -3693,7 +3830,9 @@
 								<div
 									class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
 								>
-									<span class="text-sm font-medium text-gray-600">Quantity</span>
+									<span class="text-sm font-medium text-gray-600">
+										{selectedDonation.donorName === 'Custodian Stock Adjustment' ? 'Quantity Change' : 'Quantity'}
+									</span>
 									{#if isEditingDonation}
 										<input
 											type="number"
@@ -3702,8 +3841,8 @@
 											class="w-24 rounded-md border border-gray-300 px-2 py-1 text-right text-base font-bold text-gray-900 focus:border-emerald-500 focus:ring-emerald-500 focus:outline-none"
 										/>
 									{:else}
-										<span class="text-base font-bold text-gray-900"
-											>{selectedDonation.quantity.toLocaleString()}{selectedDonation.unit
+										<span class="text-base font-bold {selectedDonation.donorName === 'Custodian Stock Adjustment' ? (selectedDonation.quantity > 0 ? 'text-emerald-600' : 'text-red-600') : 'text-gray-900'}"
+											>{selectedDonation.quantity > 0 && selectedDonation.donorName === 'Custodian Stock Adjustment' ? '+' : ''}{selectedDonation.quantity.toLocaleString()}{selectedDonation.unit
 												? ` ${selectedDonation.unit}`
 												: ''}</span
 										>
@@ -3712,7 +3851,9 @@
 								<div
 									class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
 								>
-									<span class="text-sm font-medium text-gray-600">Date Received</span>
+									<span class="text-sm font-medium text-gray-600">
+										{selectedDonation.donorName === 'Custodian Stock Adjustment' ? 'Adjustment Date' : 'Date Received'}
+									</span>
 									{#if isEditingDonation}
 										<input
 											type="date"
@@ -3726,7 +3867,9 @@
 								<div
 									class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
 								>
-									<span class="text-sm font-medium text-gray-600">Purpose</span>
+									<span class="text-sm font-medium text-gray-600">
+										{selectedDonation.donorName === 'Custodian Stock Adjustment' ? 'Adjustment Type' : 'Purpose'}
+									</span>
 									{#if isEditingDonation}
 										<input
 											type="text"
@@ -3742,7 +3885,9 @@
 								<div
 									class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
 								>
-									<span class="text-sm font-medium text-gray-600">Receipt Number</span>
+									<span class="text-sm font-medium text-gray-600">
+										{selectedDonation.donorName === 'Custodian Stock Adjustment' ? 'Audit Reference' : 'Receipt Number'}
+									</span>
 									<span class="font-mono text-sm font-bold text-gray-900"
 										>{selectedDonation.receiptNumber}</span
 									>
@@ -3774,7 +3919,7 @@
 									</div>
 									<div class="min-w-0 flex-1">
 										<p class="mb-1 text-xs font-bold tracking-wide text-blue-900 uppercase">
-											Notes
+											{selectedDonation.donorName === 'Custodian Stock Adjustment' ? 'Reason / Audit Notes' : 'Notes'}
 										</p>
 										{#if isEditingDonation}
 											<textarea
@@ -3825,7 +3970,7 @@
 				<div
 					class="sticky bottom-0 flex items-center justify-between border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8"
 				>
-					{#if !isEditingDonation}
+					{#if !isEditingDonation && selectedDonation.donorName !== 'Custodian Stock Adjustment'}
 						<button
 							onclick={async (e) => {
 								e.stopPropagation();
@@ -4004,6 +4149,7 @@
 {#if selectedObligation}
 	<ReplacementObligationModal
 		obligation={selectedObligation}
+		itemPictures={itemPictureCache}
 		onResolve={handleResolveObligation}
 		onCancel={() => (selectedObligation = null)}
 	/>

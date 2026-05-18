@@ -64,6 +64,7 @@ export interface BorrowRequestItem {
 		notes?: string;
 		replacementQuantity?: number;
 		unitPrice?: number;
+		dueDate?: string;
 	};
 }
 
@@ -426,6 +427,7 @@ export const borrowRequestsAPI = {
 			status: 'good' | 'damaged' | 'missing';
 			notes?: string;
 			replacementQuantity?: number;
+			dueDate?: string;
 		}>
 	): Promise<{ success: boolean; message: string; status: BorrowRequestStatus; obligationsCreated: number }> {
 		const response = await fetch(`/api/borrow-requests/${id}/inspect-items`, getFetchOptions('POST', { items }));

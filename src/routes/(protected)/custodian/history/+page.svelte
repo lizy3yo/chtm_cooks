@@ -918,7 +918,7 @@
 									<option value="returned">Returned</option>
 									<option value="resolved">Resolved</option>
 									<option value="cancelled">Cancelled</option>
-									<option value="rejected">Rejected</option>
+									<option value="rejected">Declined</option>
 								</select>
 							</div>
 
@@ -971,7 +971,7 @@
 							{#if requestHistoryFilterStatus || requestHistoryFilterStartDate || requestHistoryFilterEndDate || requestHistorySearch}
 								No requests match your current filters. Try adjusting your search criteria.
 							{:else}
-								Completed, resolved, cancelled, and rejected requests will appear here.
+								Completed, resolved, cancelled, and declined requests will appear here.
 							{/if}
 						</p>
 					</div>
@@ -1733,41 +1733,51 @@
 								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
 								Requested Items ({selectedHistoryRequest.items.length})
 							</h3>
-							<div class="grid gap-3 sm:grid-cols-2">
-								{#each selectedHistoryRequest.items as item}
-									{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-									<div
-										class="group flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-all hover:border-pink-200 hover:shadow-md"
-									>
-										{#if pic}
-											<img
-												src={pic}
-												alt={item.name}
-												class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-gray-100"
-												loading="lazy"
-											/>
-										{:else}
-											<div
-												class="h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100"
-											>
-												<ItemImagePlaceholder size="sm" />
-											</div>
-										{/if}
-										<div class="min-w-0 flex-1">
-											<p
-												class="truncate text-sm font-semibold text-gray-900 transition-colors group-hover:text-pink-600"
-											>
-												{item.name}
-											</p>
-											<p class="mt-0.5 text-xs text-gray-500">
-												{#if item.category}
-													{item.category} •
+							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+								<!-- Desktop Table Header -->
+								<div class="hidden sm:grid grid-cols-12 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+									<span class="col-span-8">Item</span>
+									<span class="col-span-2 text-center">Code</span>
+									<span class="col-span-2 text-center">Qty</span>
+								</div>
+								
+								<!-- Table Rows -->
+								<div class="divide-y divide-gray-100">
+									{#each selectedHistoryRequest.items as item}
+										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+										{@const code = item.code ?? (item.itemId ? item.itemId.slice(-6).toUpperCase() : 'N/A')}
+										<div class="grid items-center gap-3 bg-white p-3 sm:grid-cols-12 sm:p-4 transition-colors hover:bg-gray-50/50">
+											<!-- Item Info -->
+											<div class="col-span-12 flex items-center gap-3 sm:col-span-8 min-w-0">
+												{#if pic}
+													<img
+														src={pic}
+														alt={item.name}
+														class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-gray-200"
+														loading="lazy"
+													/>
+												{:else}
+													<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-200">
+														<ItemImagePlaceholder size="sm" />
+													</div>
 												{/if}
-												Qty: {item.quantity}
-											</p>
+												<div class="flex flex-col gap-1 min-w-0">
+													<span class="truncate text-sm font-semibold text-gray-900">{item.name}</span>
+												</div>
+											</div>
+											
+											<!-- Mobile/Desktop Details -->
+											<div class="col-span-6 flex items-center justify-between sm:col-span-2 sm:justify-center border-t border-gray-100 pt-3 sm:border-0 sm:pt-0">
+												<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden">Code</span>
+												<span class="font-mono text-sm font-medium text-gray-600">{code}</span>
+											</div>
+											<div class="col-span-6 flex items-center justify-between sm:col-span-2 sm:justify-center border-t border-gray-100 pt-3 sm:border-0 sm:pt-0 border-l border-gray-100 pl-3 sm:border-0 sm:pl-0">
+												<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden">Qty</span>
+												<span class="text-sm font-bold text-gray-900 tabular-nums">{item.quantity}</span>
+											</div>
 										</div>
-									</div>
-								{/each}
+									{/each}
+								</div>
 							</div>
 						</div>
 					</div>
@@ -1788,3 +1798,4 @@
 		</div>
 	</div>
 {/if}
+

@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getDatabase } from '$lib/server/db/mongodb';
 import { ObjectId } from 'mongodb';
-import type { 
+import type {
 	InventoryItem,
 	InventoryItemResponse,
 	UpdateInventoryItemRequest,
@@ -105,7 +105,7 @@ function getDeleteOptionsFromManagedImageUrl(imageUrl: string): DeleteOptions | 
  */
 export const GET: RequestHandler = async (event) => {
 	const { request, params, getClientAddress } = event;
-	
+
 	// Apply rate limiting
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
 	if (rateLimitResult instanceof Response) {
@@ -214,8 +214,8 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 		if (body.categoryId !== undefined) {
 			if (body.categoryId && ObjectId.isValid(body.categoryId)) {
-				const categoryExists = await categoriesCollection.findOne({ 
-					_id: new ObjectId(body.categoryId) 
+				const categoryExists = await categoriesCollection.findOne({
+					_id: new ObjectId(body.categoryId)
 				});
 				if (!categoryExists) {
 					return json({ error: 'Category not found' }, { status: 404 });
@@ -315,6 +315,52 @@ export const PATCH: RequestHandler = async (event) => {
 			action = InventoryAction.QUANTITY_CHANGED;
 		}
 
+		// Record stock adjustment in donations collection as a manual stock receipt/adjustment log if provided
+		if (body.quantity !== undefined && body.quantity !== currentItem.quantity && (body.adjustmentType || body.adjustmentReason)) {
+			try {
+				const donationsCol = db.collection('donations');
+				const totalCount = await donationsCol.countDocuments();
+
+				const year = new Date().getFullYear();
+				const seq = String(totalCount + 1).padStart(6, '0');
+				const receiptNumber = `DON-${year}-${seq}`;
+
+				const delta = body.quantity - currentItem.quantity;
+				const isAdd = delta > 0;
+
+				const newDonation = {
+					receiptNumber,
+					donorName: 'Custodian Stock Adjustment',
+					itemName: currentItem.name,
+					quantity: delta,
+					purpose: isAdd ? 'Restock' : 'Damage/Loss',
+					date: new Date(),
+					notes: body.adjustmentReason || (isAdd ? 'Stock added manually' : 'Stock subtracted manually'),
+					inventoryAction: 'add_to_existing' as const,
+					inventoryItemId: currentItem._id,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+					createdBy: new ObjectId(decoded.userId)
+				};
+
+				const insertResult = await donationsCol.insertOne(newDonation);
+
+				// Also invalidate donation cache
+				const { invalidateDonationCaches } = await import('../../../donations/shared');
+				await invalidateDonationCaches();
+
+				// Publish donation changes via SSE so the Resource Management page updates in real-time!
+				const { publishDonationChange, DONATION_CHANNEL } = await import('$lib/server/realtime/donationEvents');
+				publishDonationChange([DONATION_CHANNEL], {
+					action: 'donation_created',
+					entityId: insertResult.insertedId.toString(),
+					occurredAt: new Date().toISOString()
+				});
+			} catch (err) {
+				logger.error('Failed to log stock adjustment to Resource Management donations', { error: err });
+			}
+		}
+
 		// Log activity, invalidate caches, and publish SSE in parallel.
 		// Old image deletion is fire-and-forget — it's non-critical and should
 		// not block the response.
@@ -337,7 +383,9 @@ export const PATCH: RequestHandler = async (event) => {
 				metadata: {
 					previousStatus: currentItem.status,
 					newStatus: result.status,
-					quantityChange: body.quantity !== undefined ? body.quantity - currentItem.quantity : undefined
+					quantityChange: body.quantity !== undefined ? body.quantity - currentItem.quantity : undefined,
+					adjustmentType: body.adjustmentType || undefined,
+					adjustmentReason: body.adjustmentReason || undefined
 				},
 				ipAddress: getClientAddress(),
 				userAgent: request.headers.get('user-agent') || undefined
@@ -391,7 +439,7 @@ export const PATCH: RequestHandler = async (event) => {
  */
 export const DELETE: RequestHandler = async (event) => {
 	const { request, params, getClientAddress } = event;
-	
+
 	// Apply rate limiting
 	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
 	if (rateLimitResult instanceof Response) {
@@ -401,7 +449,7 @@ export const DELETE: RequestHandler = async (event) => {
 	try {
 		// Verify authentication via cookie
 		let decoded = getUserFromToken(event);
-		
+
 		// Fallback: Check Authorization header if cookie auth failed
 		if (!decoded) {
 			const authHeader = request.headers.get('authorization');
@@ -415,7 +463,7 @@ export const DELETE: RequestHandler = async (event) => {
 				}
 			}
 		}
-		
+
 		if (!decoded) {
 			logger.warn('DELETE item: No valid authentication found', {
 				itemId: params.id,
@@ -522,8 +570,8 @@ export const DELETE: RequestHandler = async (event) => {
 			occurredAt: new Date().toISOString()
 		});
 
-		return json({ 
-			success: true, 
+		return json({
+			success: true,
 			message: 'Item deleted successfully. Recoverable for 30 days.',
 			deletionDate: scheduledDeletion
 		});

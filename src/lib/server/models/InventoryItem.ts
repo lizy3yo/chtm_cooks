@@ -72,4 +72,6 @@ export interface CreateInventoryItemRequest {
 export interface UpdateInventoryItemRequest extends Partial<CreateInventoryItemRequest> {
 	archived?: boolean;
 	replacePicture?: boolean;
+	adjustmentType?: 'add' | 'subtract';
+	adjustmentReason?: string;
 }

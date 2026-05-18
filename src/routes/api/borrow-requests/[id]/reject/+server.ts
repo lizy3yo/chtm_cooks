@@ -83,6 +83,15 @@ export const POST: RequestHandler = async (event) => {
 			return json({ error: `Borrow request is not in ${requiredState} state` }, { status: 409 });
 		}
 
+		// Restore inventory stock
+		const inventoryCollection = db.collection('inventory_items');
+		for (const item of updated.items) {
+			await inventoryCollection.updateOne(
+				{ _id: item.itemId },
+				{ $inc: { quantity: item.quantity }, $set: { updatedAt: new Date() } }
+			);
+		}
+
 		await invalidateBorrowRequestCaches();
 		publishBorrowRequestRealtimeEvent(updated, 'rejected', now);
 		await notifyBorrowRequestLifecycle({

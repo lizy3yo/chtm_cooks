@@ -12,12 +12,21 @@
 				status: 'good' | 'damaged' | 'missing';
 				notes: string;
 				replacementQuantity?: number;
+				dueDate?: string;
+				additionalReturned?: number;
 			}>
 		) => Promise<void>;
 		onCancel: () => void;
 	}
 
 	let { items, requestId, onSubmit, onCancel }: Props = $props();
+
+	type UnitCondition = 'good' | 'damaged' | 'missing' | null;
+
+	interface UnitRow {
+		unitIndex: number; // 1-based display label
+		condition: UnitCondition;
+	}
 
 	interface ItemInspection {
 		itemId: string;
@@ -28,6 +37,21 @@
 		notes: string;
 		reportedQuantity: number;
 		replacementQuantity: number;
+		additionalReturned: number; // units returned beyond the expected quantity (over-return)
+		dueDate?: string; // date needed to resolve the obligation
+		unitRows: UnitRow[];
+	}
+
+	function buildUnitRows(quantity: number): UnitRow[] {
+		return Array.from({ length: quantity }, (_, i) => ({ unitIndex: i + 1, condition: null }));
+	}
+
+	/** Derive the aggregate status from unit rows (worst-case wins: missing > damaged > good). */
+	function deriveStatus(rows: UnitRow[]): 'good' | 'damaged' | 'missing' | null {
+		if (rows.some((r) => r.condition === null)) return null;
+		if (rows.some((r) => r.condition === 'missing')) return 'missing';
+		if (rows.some((r) => r.condition === 'damaged')) return 'damaged';
+		return 'good';
 	}
 
 	// Initialize inspection data from items (stable reference)
@@ -48,7 +72,10 @@
 					status: null,
 					notes: '',
 					reportedQuantity: item.quantity,
-					replacementQuantity: item.quantity
+					replacementQuantity: 0,
+					additionalReturned: 0,
+					dueDate: '',
+					unitRows: buildUnitRows(item.quantity)
 				}));
 			} else {
 				// Prevent resetting local state on background refresh
@@ -64,7 +91,10 @@
 							status: null,
 							notes: '',
 							reportedQuantity: item.quantity,
-							replacementQuantity: item.quantity
+							replacementQuantity: 0,
+							additionalReturned: 0,
+							dueDate: '',
+							unitRows: buildUnitRows(item.quantity)
 						});
 					} else {
 						// Only update non-editable data
@@ -88,12 +118,36 @@
 		return inspections.find((i) => i.itemId === itemId)!;
 	}
 
-	function setInspectionStatus(itemId: string, status: 'good' | 'damaged' | 'missing') {
+	function setUnitCondition(itemId: string, unitIndex: number, condition: UnitCondition) {
 		const inspection = getInspection(itemId);
-		inspection.status = status;
+		inspection.unitRows[unitIndex].condition = condition;
+		// Sync aggregate fields from rows
+		const derived = deriveStatus(inspection.unitRows);
+		inspection.status = derived;
+		inspection.reportedQuantity = inspection.unitRows.filter((r) => r.condition !== null).length;
+		// Always reset to the exact floor (damaged + missing count) when any row changes
+		inspection.replacementQuantity = inspection.unitRows.filter(
+			(r) => r.condition === 'damaged' || r.condition === 'missing'
+		).length;
+		// Reset over-return when rows change — only valid once all rows are confirmed Good
+		inspection.additionalReturned = 0;
 	}
 
-	const allInspected = $derived(inspections.every((i) => i.status !== null));
+	function bulkSetCondition(itemId: string, condition: UnitCondition) {
+		const inspection = getInspection(itemId);
+		inspection.unitRows = inspection.unitRows.map((r) => ({ ...r, condition }));
+		const derived = deriveStatus(inspection.unitRows);
+		inspection.status = derived;
+		inspection.reportedQuantity = inspection.unitRows.length;
+		inspection.replacementQuantity = inspection.unitRows.filter(
+			(r) => r.condition === 'damaged' || r.condition === 'missing'
+		).length;
+		inspection.additionalReturned = 0;
+	}
+
+	const allInspected = $derived(
+		inspections.every((i) => i.unitRows.every((r) => r.condition !== null))
+	);
 	const hasIssues = $derived(
 		inspections.some((i) => i.status === 'damaged' || i.status === 'missing')
 	);
@@ -103,12 +157,11 @@
 	// Professional Lucide icon fallback for missing item images
 	function getItemIcon(name: string) {
 		const normalized = name.toLowerCase();
-		// You can expand this mapping as needed for more item types
-		if (normalized.includes('knife')) return CheckCircle2; // Example: use CheckCircle2 for knife
-		if (normalized.includes('bowl')) return Package; // Example: use Package for bowl
-		if (normalized.includes('scale')) return AlertTriangle; // Example: use AlertTriangle for scale
-		if (normalized.includes('mixer')) return Package; // Example: use Package for mixer
-		if (normalized.includes('processor')) return Package; // Example: use Package for processor
+		if (normalized.includes('knife')) return CheckCircle2;
+		if (normalized.includes('bowl')) return Package;
+		if (normalized.includes('scale')) return AlertTriangle;
+		if (normalized.includes('mixer')) return Package;
+		if (normalized.includes('processor')) return Package;
 		return Package;
 	}
 
@@ -160,19 +213,11 @@
 			return;
 		}
 
-		// Require a valid quantity for all returns
+		// Validate all unit rows are assigned
 		for (const inspection of inspections) {
-			if (!Number.isInteger(inspection.reportedQuantity) || inspection.reportedQuantity <= 0) {
-				error = `Please enter a valid reported quantity for ${inspection.name}`;
-				return;
-			}
-			if (inspection.status === 'good') {
-				inspection.replacementQuantity = inspection.reportedQuantity;
-			} else if (
-				!Number.isInteger(inspection.replacementQuantity) ||
-				inspection.replacementQuantity < 0
-			) {
-				error = `Please enter a valid replacement quantity for ${inspection.name}`;
+			const unassigned = inspection.unitRows.filter((r) => r.condition === null).length;
+			if (unassigned > 0) {
+				error = `Please assign a condition to all ${inspection.quantity} unit(s) of "${inspection.name}".`;
 				return;
 			}
 		}
@@ -182,18 +227,24 @@
 
 		try {
 			const payload = inspections.map((i) => {
+				const replacementQty = i.replacementQuantity;
+				const derivedStatus = deriveStatus(i.unitRows)!;
+				const totalReturned = i.unitRows.filter((r) => r.condition !== null).length + i.additionalReturned;
+
 				const baseInspection: any = {
 					itemId: i.itemId,
-					status: i.status!,
+					status: derivedStatus,
 					notes: i.notes || '',
-					replacementQuantity: i.status === 'good' ? i.reportedQuantity : i.replacementQuantity
+					additionalReturned: i.additionalReturned || 0,
+					// Only send replacementQuantity for damaged/missing — server rejects 0 or undefined for good
+					...(derivedStatus !== 'good' && replacementQty > 0 ? { replacementQuantity: replacementQty } : {}),
+					...(i.dueDate ? { dueDate: i.dueDate } : {})
 				};
-
-				if (i.status !== 'good' && i.reportedQuantity !== i.replacementQuantity) {
-					baseInspection.notes =
-						`[System: Reported ${i.reportedQuantity} ${i.status}, but recorded ${i.replacementQuantity} for replacement] ` +
-						baseInspection.notes;
-				}
+				
+				// Append per-unit breakdown to notes for audit trail
+				const breakdown = i.unitRows.map((r) => `Unit ${r.unitIndex}: ${r.condition}`).join(', ');
+				const overReturn = i.additionalReturned > 0 ? ` Over-return: +${i.additionalReturned}` : '';
+				baseInspection.notes = `[Unit breakdown: ${breakdown}${overReturn}]${i.notes ? ' ' + i.notes : ''}`;
 
 				return baseInspection;
 			});
@@ -356,32 +407,10 @@
 										{currentItem.name}
 									</h3>
 									<div class="mt-1.5 flex items-center gap-2">
-										<label
-											for="expected-qty-{currentItem.itemId}"
-											class="text-sm font-medium text-gray-600">Expected Return Qty:</label
-										>
-										<input
-											id="expected-qty-{currentItem.itemId}"
-											type="number"
-											min="1"
-											step="1"
-											value={currentItem.quantity}
-											oninput={(e) => {
-												const newQty = parseInt(e.currentTarget.value);
-												if (!isNaN(newQty)) {
-													const oldQty = currentItem.quantity;
-													currentItem.quantity = newQty;
-													if (currentItem.reportedQuantity === oldQty) {
-														currentItem.reportedQuantity = newQty;
-													}
-													if (currentItem.replacementQuantity === oldQty) {
-														currentItem.replacementQuantity = newQty;
-													}
-												}
-											}}
-											class="w-20 rounded-lg border-2 border-gray-200 bg-white px-2.5 py-1 text-sm font-bold text-gray-900 shadow-sm transition-colors hover:border-pink-300 focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 focus:outline-none"
-											title="Edit if the physical expected quantity differs from the recorded system quantity"
-										/>
+										<span class="text-sm font-medium text-gray-600">Expected Return Qty:</span>
+										<span class="inline-flex min-w-10 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-sm font-bold text-gray-900">
+											{currentItem.quantity}
+										</span>
 									</div>
 									<div class="mt-2">
 										<span
@@ -400,250 +429,213 @@
 								</div>
 							</div>
 
-							<!-- Status Selection -->
+							<!-- Per-Unit Condition Table -->
 							<div class="mb-5">
-								<div
-									class="mb-3 text-sm font-bold text-gray-900"
-									role="group"
-									aria-label="Condition Status"
-								>
-									Condition Status <span class="text-pink-500">*</span>
+								<div class="mb-3 flex items-center justify-between">
+									<span class="text-sm font-bold text-gray-900">
+										Unit Condition <span class="text-pink-500">*</span>
+									</span>
+									<span class="text-xs text-gray-500">
+										{currentItem.unitRows.filter((r) => r.condition !== null).length} / {currentItem.quantity} inspected
+									</span>
 								</div>
-								<div class="grid grid-cols-3 gap-2 sm:gap-3">
-									<button
-										type="button"
-										class={`group relative rounded-xl border-2 p-3 text-center transition-all hover:scale-105 active:scale-95 sm:p-4 ${
-											currentItem.status === 'good'
-												? 'border-emerald-500 bg-emerald-50 shadow-lg shadow-emerald-500/20'
-												: 'border-gray-200 bg-white hover:border-emerald-300 hover:bg-emerald-50'
-										}`}
-										onclick={() => setInspectionStatus(currentItem.itemId, 'good')}
-										aria-pressed={currentItem.status === 'good'}
-									>
-										<CheckCircle2
-											class={`mx-auto mb-1 h-6 w-6 transition-colors sm:mb-2 sm:h-8 sm:w-8 ${
-												currentItem.status === 'good'
-													? 'text-emerald-600'
-													: 'text-gray-400 group-hover:text-emerald-500'
-											}`}
-										/>
-										<span
-											class={`text-xs font-bold sm:text-sm ${
-												currentItem.status === 'good' ? 'text-emerald-700' : 'text-gray-700'
-											}`}>Good</span
-										>
-										{#if currentItem.status === 'good'}
-											<div
-												class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500"
+
+								<div class="overflow-hidden rounded-xl border border-gray-200">
+									<!-- Bulk Action Bar (only shown when quantity > 1) -->
+									{#if currentItem.quantity > 1}
+										<div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50/80 px-4 py-2">
+											<span class="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Mark all:</span>
+											<button
+												type="button"
+												onclick={() => bulkSetCondition(currentItem.itemId, 'good')}
+												class="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95"
 											>
-												<svg class="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-													<path
-														fill-rule="evenodd"
-														d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-														clip-rule="evenodd"
-													/>
-												</svg>
+												<CheckCircle2 class="h-3 w-3" /> Good
+											</button>
+											<button
+												type="button"
+												onclick={() => bulkSetCondition(currentItem.itemId, 'damaged')}
+												class="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-amber-700 transition-colors hover:bg-amber-50 active:scale-95"
+											>
+												<AlertTriangle class="h-3 w-3" /> Damaged
+											</button>
+											<button
+												type="button"
+												onclick={() => bulkSetCondition(currentItem.itemId, 'missing')}
+												class="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-rose-700 transition-colors hover:bg-rose-50 active:scale-95"
+											>
+												<XCircle class="h-3 w-3" /> Missing
+											</button>
+										</div>
+									{/if}
+
+									<!-- Table Header -->
+									<div class="grid grid-cols-[48px_1fr_1fr_1fr] border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+										<span class="text-center">Unit</span>
+										<span class="text-center">Good</span>
+										<span class="text-center">Damaged</span>
+										<span class="text-center">Missing</span>
+									</div>
+
+									<!-- Unit Rows -->
+									<div class="divide-y divide-gray-100">
+										{#each currentItem.unitRows as row, rowIdx}
+											<div class="grid grid-cols-[48px_1fr_1fr_1fr] items-center px-4 py-3 transition-colors {row.condition ? 'bg-white' : 'bg-gray-50/50'}">
+												<!-- Unit label -->
+												<span class="text-center text-xs font-semibold text-gray-500">#{row.unitIndex}</span>
+
+												<!-- Good -->
+												<div class="flex justify-center">
+													<button
+														type="button"
+														onclick={() => setUnitCondition(currentItem.itemId, rowIdx, 'good')}
+														aria-pressed={row.condition === 'good'}
+														aria-label="Mark unit {row.unitIndex} as good"
+														class="flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all active:scale-95 {row.condition === 'good' ? 'border-emerald-500 bg-emerald-500 shadow-md shadow-emerald-500/30' : 'border-gray-200 bg-white hover:border-emerald-400 hover:bg-emerald-50'}"
+													>
+														<CheckCircle2 class="h-4 w-4 {row.condition === 'good' ? 'text-white' : 'text-gray-400'}" />
+													</button>
+												</div>
+
+												<!-- Damaged -->
+												<div class="flex justify-center">
+													<button
+														type="button"
+														onclick={() => setUnitCondition(currentItem.itemId, rowIdx, 'damaged')}
+														aria-pressed={row.condition === 'damaged'}
+														aria-label="Mark unit {row.unitIndex} as damaged"
+														class="flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all active:scale-95 {row.condition === 'damaged' ? 'border-amber-500 bg-amber-500 shadow-md shadow-amber-500/30' : 'border-gray-200 bg-white hover:border-amber-400 hover:bg-amber-50'}"
+													>
+														<AlertTriangle class="h-4 w-4 {row.condition === 'damaged' ? 'text-white' : 'text-gray-400'}" />
+													</button>
+												</div>
+
+												<!-- Missing -->
+												<div class="flex justify-center">
+													<button
+														type="button"
+														onclick={() => setUnitCondition(currentItem.itemId, rowIdx, 'missing')}
+														aria-pressed={row.condition === 'missing'}
+														aria-label="Mark unit {row.unitIndex} as missing"
+														class="flex h-9 w-9 items-center justify-center rounded-full border-2 transition-all active:scale-95 {row.condition === 'missing' ? 'border-rose-500 bg-rose-500 shadow-md shadow-rose-500/30' : 'border-gray-200 bg-white hover:border-rose-400 hover:bg-rose-50'}"
+													>
+														<XCircle class="h-4 w-4 {row.condition === 'missing' ? 'text-white' : 'text-gray-400'}" />
+													</button>
+												</div>
 											</div>
-										{/if}
-									</button>
+										{/each}
+									</div>
 
-									<button
-										type="button"
-										class={`group relative rounded-xl border-2 p-3 text-center transition-all hover:scale-105 active:scale-95 sm:p-4 ${
-											currentItem.status === 'damaged'
-												? 'border-amber-500 bg-amber-50 shadow-lg shadow-amber-500/20'
-												: 'border-gray-200 bg-white hover:border-amber-300 hover:bg-amber-50'
-										}`}
-										onclick={() => setInspectionStatus(currentItem.itemId, 'damaged')}
-										aria-pressed={currentItem.status === 'damaged'}
-									>
-										<AlertTriangle
-											class={`mx-auto mb-1 h-6 w-6 transition-colors sm:mb-2 sm:h-8 sm:w-8 ${
-												currentItem.status === 'damaged'
-													? 'text-amber-600'
-													: 'text-gray-400 group-hover:text-amber-500'
-											}`}
-										/>
-										<span
-											class={`text-xs font-bold sm:text-sm ${
-												currentItem.status === 'damaged' ? 'text-amber-700' : 'text-gray-700'
-											}`}>Damaged</span
-										>
-										{#if currentItem.status === 'damaged'}
-											<div
-												class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500"
-											>
-												<svg class="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-													<path
-														fill-rule="evenodd"
-														d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-														clip-rule="evenodd"
-													/>
-												</svg>
-											</div>
-										{/if}
-									</button>
-
-									<button
-										type="button"
-										class={`group relative rounded-xl border-2 p-3 text-center transition-all hover:scale-105 active:scale-95 sm:p-4 ${
-											currentItem.status === 'missing'
-												? 'border-rose-500 bg-rose-50 shadow-lg shadow-rose-500/20'
-												: 'border-gray-200 bg-white hover:border-rose-300 hover:bg-rose-50'
-										}`}
-										onclick={() => setInspectionStatus(currentItem.itemId, 'missing')}
-										aria-pressed={currentItem.status === 'missing'}
-									>
-										<XCircle
-											class={`mx-auto mb-1 h-6 w-6 transition-colors sm:mb-2 sm:h-8 sm:w-8 ${
-												currentItem.status === 'missing'
-													? 'text-rose-600'
-													: 'text-gray-400 group-hover:text-rose-500'
-											}`}
-										/>
-										<span
-											class={`text-xs font-bold sm:text-sm ${
-												currentItem.status === 'missing' ? 'text-rose-700' : 'text-gray-700'
-											}`}>Missing</span
-										>
-										{#if currentItem.status === 'missing'}
-											<div
-												class="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500"
-											>
-												<svg class="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-													<path
-														fill-rule="evenodd"
-														d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-														clip-rule="evenodd"
-													/>
-												</svg>
-											</div>
-										{/if}
-									</button>
-								</div>
-							</div>
-
-							<!-- Inspected Quantity -->
-							{#if currentItem.status}
-								<div
-									class="mb-5 rounded-xl border-2 p-4 transition-colors {currentItem.status ===
-									'good'
-										? 'border-emerald-200 bg-emerald-50'
-										: currentItem.status === 'damaged'
-											? 'border-amber-200 bg-amber-50'
-											: 'border-rose-200 bg-rose-50'}"
-								>
-									<label
-										for="inspected-quantity"
-										class="mb-1.5 block text-sm font-bold {currentItem.status === 'good'
-											? 'text-emerald-900'
-											: currentItem.status === 'damaged'
-												? 'text-amber-900'
-												: 'text-rose-900'}"
-									>
-										{#if currentItem.status === 'good'}
-											Items in Good Condition <span class="text-emerald-500">*</span>
-										{:else if currentItem.status === 'damaged'}
-											Reported Damaged Quantity <span class="text-rose-500">*</span>
-										{:else}
-											Reported Missing Quantity <span class="text-rose-500">*</span>
-										{/if}
-									</label>
-
-									<p
-										class="mb-3 text-xs leading-relaxed {currentItem.status === 'good'
-											? 'text-emerald-700'
-											: currentItem.status === 'damaged'
-												? 'text-amber-700'
-												: 'text-rose-700'}"
-									>
-										{#if currentItem.status === 'good'}
-											Number of items returned meeting standard operational condition.
-										{:else if currentItem.status === 'damaged'}
-											Number of items returned with physical damage or operational defects. <span
-												class="font-semibold"
-												>The student is liable for providing an exact replacement.</span
-											>
-										{:else}
-											Number of items not returned. <span class="font-semibold"
-												>The student is liable for providing an exact replacement to clear this
-												discrepancy.</span
-											>
-										{/if}
-									</p>
-
-									<input
-										id="inspected-quantity"
-										type="number"
-										min="1"
-										step="1"
-										bind:value={currentItem.reportedQuantity}
-										class="block w-full rounded-lg border-2 bg-white px-4 py-2.5 text-sm font-medium shadow-sm focus:ring-2 focus:outline-none {currentItem.status ===
-										'good'
-											? 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-500/20'
-											: currentItem.status === 'damaged'
-												? 'border-amber-300 focus:border-amber-500 focus:ring-amber-500/20'
-												: 'border-rose-300 focus:border-rose-500 focus:ring-rose-500/20'}"
-										placeholder="Enter quantity"
-										required
-									/>
-
-									<div
-										class="mt-3 flex items-center justify-between border-t {currentItem.status ===
-										'good'
-											? 'border-emerald-200/60'
-											: currentItem.status === 'damaged'
-												? 'border-amber-200/60'
-												: 'border-rose-200/60'} pt-3 text-xs"
-									>
-										{#if currentItem.status === 'good'}
-											<span class="text-emerald-800">
-												<span class="font-semibold">Total Borrowed:</span>
-												{currentItem.quantity}
-											</span>
-											{#if currentItem.reportedQuantity !== currentItem.quantity}
-												<span
-													class="font-bold {currentItem.reportedQuantity - currentItem.quantity > 0
-														? 'text-blue-600'
-														: 'text-orange-600'}"
-												>
-													Variance: {currentItem.reportedQuantity - currentItem.quantity > 0
-														? '+'
-														: ''}{currentItem.reportedQuantity - currentItem.quantity}
+									<!-- Summary Footer -->
+									{#if currentItem.unitRows.some((r) => r.condition !== null)}
+										{@const goodCount = currentItem.unitRows.filter((r) => r.condition === 'good').length}
+										{@const damagedCount = currentItem.unitRows.filter((r) => r.condition === 'damaged').length}
+										{@const missingCount = currentItem.unitRows.filter((r) => r.condition === 'missing').length}
+										{@const allGood = goodCount === currentItem.quantity && damagedCount === 0 && missingCount === 0}
+										<div class="flex flex-wrap items-center gap-3 border-t border-gray-200 bg-gray-50 px-4 py-2.5 text-xs">
+											{#if goodCount > 0}
+												<span class="flex items-center gap-1 font-semibold text-emerald-700">
+													<CheckCircle2 class="h-3.5 w-3.5" /> {goodCount} Good
 												</span>
 											{/if}
-										{:else}
-											<span
-												class={currentItem.status === 'damaged'
-													? 'text-amber-800'
-													: 'text-rose-800'}
-											>
-												<span class="font-semibold">Total Borrowed:</span>
-												{currentItem.quantity}
-											</span>
-											<div
-												class="flex items-center gap-2 {currentItem.status === 'damaged'
-													? 'text-amber-900'
-													: 'text-rose-900'}"
-											>
-												<label for="replacement-qty-{currentItem.itemId}" class="font-bold"
-													>Required Replacement:</label
-												>
-												<input
-													id="replacement-qty-{currentItem.itemId}"
-													type="number"
-													min="0"
-													step="1"
-													bind:value={currentItem.replacementQuantity}
-													class="w-16 rounded border border-gray-300 bg-white px-1.5 py-0.5 text-xs font-bold shadow-sm focus:ring-2 focus:outline-none {currentItem.status ===
-													'damaged'
-														? 'focus:border-amber-500 focus:ring-amber-500/20'
-														: 'focus:border-rose-500 focus:ring-rose-500/20'}"
-													title="Edit to waive or modify the chargeable replacement amount"
-												/>
-											</div>
-										{/if}
-									</div>
+											{#if damagedCount > 0}
+												<span class="flex items-center gap-1 font-semibold text-amber-700">
+													<AlertTriangle class="h-3.5 w-3.5" /> {damagedCount} Damaged
+												</span>
+											{/if}
+											{#if missingCount > 0}
+												<span class="flex items-center gap-1 font-semibold text-rose-700">
+													<XCircle class="h-3.5 w-3.5" /> {missingCount} Missing
+												</span>
+											{/if}
+
+											{#if allGood}
+												<!-- Over-return input: only relevant when all units are Good -->
+												<div class="ml-auto flex items-center gap-2">
+													<label
+														for="additional-returned-{currentItem.itemId}"
+														class="font-bold text-gray-700"
+													>
+														Additional items returned:
+													</label>
+													<input
+														id="additional-returned-{currentItem.itemId}"
+														type="number"
+														min="0"
+														step="1"
+														bind:value={currentItem.additionalReturned}
+														oninput={(e) => {
+															const val = parseInt(e.currentTarget.value);
+															if (isNaN(val) || val < 0) {
+																currentItem.additionalReturned = 0;
+																e.currentTarget.value = '0';
+															}
+														}}
+														class="w-14 rounded-lg border-2 border-gray-300 bg-white px-2 py-0.5 text-xs font-bold text-gray-900 shadow-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
+														title="Enter the number of extra units returned beyond the expected quantity."
+													/>
+												</div>
+												{#if currentItem.additionalReturned > 0}
+													<span class="ml-2 font-semibold text-blue-600">
+														Over-return: +{currentItem.additionalReturned}
+													</span>
+												{/if}
+											{:else if damagedCount > 0 || missingCount > 0}
+												<div class="ml-auto flex items-center gap-2">
+													<label
+														for="replacement-qty-{currentItem.itemId}"
+														class="font-bold text-gray-700"
+													>
+														Replacement required:
+													</label>
+													<input
+														id="replacement-qty-{currentItem.itemId}"
+														type="number"
+														min={damagedCount + missingCount}
+														step="1"
+														bind:value={currentItem.replacementQuantity}
+														oninput={(e) => {
+															const val = parseInt(e.currentTarget.value);
+															const floor = damagedCount + missingCount;
+															if (!isNaN(val) && val < floor) {
+																currentItem.replacementQuantity = floor;
+																e.currentTarget.value = String(floor);
+															}
+														}}
+														class="w-14 rounded-lg border-2 border-gray-300 bg-white px-2 py-0.5 text-xs font-bold text-gray-900 shadow-sm focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 focus:outline-none"
+														title="Minimum is the number of damaged + missing units. Increase only if additional replacements are required."
+													/>
+												</div>
+											{/if}
+										</div>
+									{/if}
+								</div>
+
+								<!-- Liability notice when issues exist -->
+								{#if currentItem.unitRows.some((r) => r.condition === 'damaged' || r.condition === 'missing')}
+									<p class="mt-2 text-xs text-amber-700">
+										<span class="font-semibold">Note:</span> The student is liable for providing an exact replacement for all damaged or missing units.
+									</p>
+								{/if}
+							</div>
+
+							<!-- Due Date (for replacements) -->
+							{#if currentItem.unitRows.some((r) => r.condition === 'damaged' || r.condition === 'missing')}
+								<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50/50 p-4">
+									<label for="dueDate-{currentItem.itemId}" class="mb-1.5 block text-sm font-bold text-gray-900">
+										Date needed to resolve this
+									</label>
+									<p class="mb-3 text-xs text-gray-600">
+										Set a deadline for the student to provide the exact replacement.
+									</p>
+									<input
+										id="dueDate-{currentItem.itemId}"
+										type="date"
+										min={new Date().toLocaleDateString('en-CA')}
+										onkeydown={(e) => e.preventDefault()}
+										bind:value={currentItem.dueDate}
+										class="block w-full max-w-xs rounded-lg border-2 border-gray-200 px-4 py-2.5 text-sm shadow-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 focus:outline-none"
+									/>
 								</div>
 							{/if}
 

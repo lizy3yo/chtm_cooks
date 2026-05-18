@@ -37,7 +37,7 @@ interface NotifyBorrowRequestLifecycleInput {
 }
 
 const STATUS_LABELS: Record<BorrowRequestStatus, string> = {
-	pending_instructor: 'Pending Review',
+	pending_instructor: 'Under Review',
 	approved_instructor: 'Instructor Approved',
 	ready_for_pickup: 'Ready for Pickup',
 	borrowed: 'Borrowed',
@@ -114,7 +114,7 @@ function buildCopy(event: BorrowLifecycleEvent, role: RoleAudience, requestStatu
 				};
 			}
 			return {
-				title: `New request pending review (${code})`,
+				title: `New request under review (${code})`,
 				message: `A new student request requires instructor review.`,
 				emailSummary: 'A new borrow request was submitted and is waiting for review.'
 			};

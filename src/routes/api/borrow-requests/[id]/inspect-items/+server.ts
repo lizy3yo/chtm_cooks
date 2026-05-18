@@ -18,6 +18,8 @@ interface ItemInspectionInput {
 	status: ItemInspectionStatus;
 	notes?: string;
 	replacementQuantity?: number;
+	dueDate?: string;
+	additionalReturned?: number;
 }
 
 interface InspectItemsRequest {
@@ -137,7 +139,8 @@ export const POST: RequestHandler = async (event) => {
 						inspectedAt: now,
 						inspectedBy: new ObjectId(user.userId),
 						notes: inspection.notes,
-						replacementQuantity: inspection.replacementQuantity
+						replacementQuantity: inspection.replacementQuantity,
+						dueDate: inspection.dueDate ? new Date(inspection.dueDate) : undefined
 					}
 				};
 			}
@@ -191,9 +194,13 @@ export const POST: RequestHandler = async (event) => {
 
 				const replacementQuantity = inspectionItem.replacementQuantity ?? 1;
 
-				// Calculate due date (30 days from incident)
-				const dueDate = new Date(now);
-				dueDate.setDate(dueDate.getDate() + 30);
+				// Calculate due date (use provided date, fallback to 30 days from incident)
+				let dueDate = new Date(now);
+				if (inspectionItem.dueDate) {
+					dueDate = new Date(inspectionItem.dueDate);
+				} else {
+					dueDate.setDate(dueDate.getDate() + 30);
+				}
 
 				const obligation: ReplacementObligation = {
 					borrowRequestId: new ObjectId(requestId),
@@ -223,25 +230,19 @@ export const POST: RequestHandler = async (event) => {
 			await db.collection<ReplacementObligation>(REPLACEMENT_OBLIGATIONS_COLLECTION).insertMany(obligations);
 		}
 
-		// If all good, restore inventory
-		if (allInspected && !hasDamagedOrMissing) {
-			for (const item of borrowRequest.items) {
-				await db
-					.collection('inventory_items')
-					.updateOne({ _id: item.itemId }, { $inc: { quantity: item.quantity } });
-			}
-		}
-
-		// For items marked as good, restore inventory even if other items have issues
+		// Consolidated Inventory Restoration:
+		// For any item marked as 'good', restore its original borrowed quantity to stock,
+		// plus any additional returned quantity (over-return).
 		for (const inspectionItem of body.items) {
 			if (inspectionItem.status === 'good') {
 				const originalItem = borrowRequest.items.find(
 					(item) => item.itemId.toString() === inspectionItem.itemId
 				);
 				if (originalItem) {
+					const addQty = originalItem.quantity + (inspectionItem.additionalReturned || 0);
 					await db
 						.collection('inventory_items')
-						.updateOne({ _id: originalItem.itemId }, { $inc: { quantity: originalItem.quantity } });
+						.updateOne({ _id: originalItem.itemId }, { $inc: { quantity: addQty } });
 				}
 			}
 		}

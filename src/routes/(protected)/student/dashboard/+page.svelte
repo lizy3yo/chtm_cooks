@@ -7,11 +7,26 @@
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import {
-		ClipboardList, Clock, PackageOpen, TriangleAlert,
-		CheckCircle2, CalendarDays, TrendingUp, Package,
-		ArrowRight, CircleCheck, CornerDownLeft, CircleAlert,
-		PackageCheck, CircleX, PackageX,
-		ChevronDown, ChevronUp, Award, ShieldCheck, BellRing
+		ClipboardList,
+		Clock,
+		PackageOpen,
+		TriangleAlert,
+		CheckCircle2,
+		CalendarDays,
+		TrendingUp,
+		Package,
+		ArrowRight,
+		CircleCheck,
+		CornerDownLeft,
+		CircleAlert,
+		PackageCheck,
+		CircleX,
+		PackageX,
+		ChevronDown,
+		ChevronUp,
+		Award,
+		ShieldCheck,
+		BellRing
 	} from 'lucide-svelte';
 
 	// ── types ────────────────────────────────────────────────────────────────
@@ -44,8 +59,14 @@
 
 	// Removed currency formatting - system now tracks item replacement only
 
-	function isCancelledRequest(raw: BorrowRequestRecord['status'], rejectionReason?: string): boolean {
-		return raw === 'cancelled' || (raw === 'rejected' && rejectionReason === 'Request cancelled by student');
+	function isCancelledRequest(
+		raw: BorrowRequestRecord['status'],
+		rejectionReason?: string
+	): boolean {
+		return (
+			raw === 'cancelled' ||
+			(raw === 'rejected' && rejectionReason === 'Request cancelled by student')
+		);
 	}
 
 	function toUiStatus(raw: BorrowRequestRecord['status'], rejectionReason?: string): string {
@@ -66,15 +87,15 @@
 
 	function toStatusLabel(s: string): string {
 		const labels: Record<string, string> = {
-			'pending': 'Pending Review',
-			'approved': 'Instructor Approved',
-			'ready': 'Ready for Pickup',
+			pending: 'Under Review',
+			approved: 'Instructor Approved',
+			ready: 'Ready for Pickup',
 			'picked-up': 'Active Loan',
 			'pending-return': 'Return Initiated',
-			'missing': 'Item Missing',
-			'returned': 'Returned',
-			'cancelled': 'Cancelled',
-			'rejected': 'Rejected'
+			missing: 'Item Missing',
+			returned: 'Returned',
+			cancelled: 'Cancelled',
+			rejected: 'Rejected'
 		};
 		return labels[s] ?? s;
 	}
@@ -132,8 +153,10 @@
 	// ── derived metrics ───────────────────────────────────────────────────────
 	const metrics = $derived({
 		totalRequests: allRequests.length,
-		activeLoans: allRequests.filter((r) => ['picked-up', 'pending-return'].includes(r.status)).length,
-		pendingCount: allRequests.filter((r) => ['pending', 'approved', 'ready'].includes(r.status)).length,
+		activeLoans: allRequests.filter((r) => ['picked-up', 'pending-return'].includes(r.status))
+			.length,
+		pendingCount: allRequests.filter((r) => ['pending', 'approved', 'ready'].includes(r.status))
+			.length,
 		overdueCount: allRequests.filter((r) => r.isOverdue).length,
 		returnedCount: allRequests.filter((r) => r.status === 'returned').length,
 		cancelledCount: allRequests.filter((r) => r.status === 'cancelled').length,
@@ -168,12 +191,48 @@
 	const requestOverview = $derived.by(() => {
 		const missingCount = allRequests.filter((r) => r.status === 'missing').length;
 		const rows = [
-			{ label: 'Returned', value: metrics.returnedCount, dot: 'bg-emerald-500', text: 'text-emerald-700', bar: 'bg-emerald-500' },
-			{ label: 'Active', value: metrics.activeLoans, dot: 'bg-violet-500', text: 'text-violet-700', bar: 'bg-violet-500' },
-			{ label: 'Pending review', value: metrics.pendingCount, dot: 'bg-amber-500', text: 'text-amber-700', bar: 'bg-amber-500' },
-			{ label: 'Cancelled', value: metrics.cancelledCount, dot: 'bg-slate-500', text: 'text-slate-700', bar: 'bg-slate-500' },
-			{ label: 'Rejected', value: metrics.rejectedCount, dot: 'bg-red-500', text: 'text-red-700', bar: 'bg-red-500' },
-			{ label: 'Missing', value: missingCount, dot: 'bg-rose-600', text: 'text-rose-700', bar: 'bg-rose-600' }
+			{
+				label: 'Returned',
+				value: metrics.returnedCount,
+				dot: 'bg-emerald-500',
+				text: 'text-emerald-700',
+				bar: 'bg-emerald-500'
+			},
+			{
+				label: 'Active',
+				value: metrics.activeLoans,
+				dot: 'bg-violet-500',
+				text: 'text-violet-700',
+				bar: 'bg-violet-500'
+			},
+			{
+				label: 'Under Review',
+				value: metrics.pendingCount,
+				dot: 'bg-amber-500',
+				text: 'text-amber-700',
+				bar: 'bg-amber-500'
+			},
+			{
+				label: 'Cancelled',
+				value: metrics.cancelledCount,
+				dot: 'bg-slate-500',
+				text: 'text-slate-700',
+				bar: 'bg-slate-500'
+			},
+			{
+				label: 'Rejected',
+				value: metrics.rejectedCount,
+				dot: 'bg-red-500',
+				text: 'text-red-700',
+				bar: 'bg-red-500'
+			},
+			{
+				label: 'Missing',
+				value: missingCount,
+				dot: 'bg-rose-600',
+				text: 'text-rose-700',
+				bar: 'bg-rose-600'
+			}
 		] as const;
 
 		const max = Math.max(...rows.map((r) => r.value), 1);
@@ -191,15 +250,15 @@
 	// ── status badge helpers ──────────────────────────────────────────────────
 	function statusColor(s: string): string {
 		const map: Record<string, string> = {
-			'pending': 'bg-yellow-100 text-yellow-800',
-			'approved': 'bg-blue-100 text-blue-800',
-			'ready': 'bg-emerald-100 text-emerald-800',
+			pending: 'bg-yellow-100 text-yellow-800',
+			approved: 'bg-blue-100 text-blue-800',
+			ready: 'bg-emerald-100 text-emerald-800',
 			'picked-up': 'bg-violet-100 text-violet-800',
 			'pending-return': 'bg-orange-100 text-orange-800',
-			'missing': 'bg-rose-100 text-rose-800',
-			'returned': 'bg-teal-100 text-teal-800',
-			'cancelled': 'bg-slate-100 text-slate-800',
-			'rejected': 'bg-red-100 text-red-800'
+			missing: 'bg-rose-100 text-rose-800',
+			returned: 'bg-teal-100 text-teal-800',
+			cancelled: 'bg-slate-100 text-slate-800',
+			rejected: 'bg-red-100 text-red-800'
 		};
 		return map[s] ?? 'bg-gray-100 text-gray-700';
 	}
@@ -314,7 +373,11 @@
 	// ── lifecycle ─────────────────────────────────────────────────────────────
 	onMount(() => {
 		if ($justLoggedIn) {
-			toastStore.success('Welcome back! You have successfully logged in.', 'Login Successful', 5000);
+			toastStore.success(
+				'Welcome back! You have successfully logged in.',
+				'Login Successful',
+				5000
+			);
 			authStore.clearJustLoggedIn();
 		}
 
@@ -334,7 +397,6 @@
 </svelte:head>
 
 <div class="space-y-6">
-
 	<!-- ── Header ─────────────────────────────────────────────────────────── -->
 	<div class="flex items-start justify-between gap-3">
 		<div class="min-w-0">
@@ -351,7 +413,7 @@
 		</div>
 		<a
 			href="/student/request"
-			class="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-xs font-medium text-white shadow-sm hover:bg-pink-700 transition-colors sm:px-4 sm:text-sm"
+			class="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-pink-600 px-3 py-2 text-xs font-medium text-white shadow-sm transition-colors hover:bg-pink-700 sm:px-4 sm:text-sm"
 		>
 			<ClipboardList size={13} />
 			New Request
@@ -363,14 +425,14 @@
 		<div class="space-y-6" aria-busy="true">
 			<div class="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
 				{#each Array(4) as _}
-					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-3">
+					<div class="space-y-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
 						<Skeleton class="h-3.5 w-28" />
 						<Skeleton class="h-9 w-16" />
 					</div>
 				{/each}
 			</div>
 			<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-				<div class="lg:col-span-2 rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-5 space-y-4">
+				<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 lg:col-span-2">
 					<Skeleton class="h-5 w-40" />
 					{#each Array(3) as _}
 						<div class="space-y-2">
@@ -379,7 +441,7 @@
 						</div>
 					{/each}
 				</div>
-				<div class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-5 space-y-4">
+				<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
 					<Skeleton class="h-5 w-32" />
 					{#each Array(4) as _}
 						<Skeleton class="h-10 w-full rounded-lg" />
@@ -387,9 +449,7 @@
 				</div>
 			</div>
 		</div>
-
 	{:else}
-
 		{#if performanceStats}
 			{@const trust = trustTierConfig(performanceStats.trustScore.tier)}
 			{@const score = performanceStats.trustScore.score}
@@ -408,9 +468,9 @@
 									fill="none"
 									stroke-width="10"
 									stroke-linecap="round"
-									class="{trust.stroke}"
-									stroke-dasharray="{Math.PI * 2 * 50}"
-									stroke-dashoffset="{Math.PI * 2 * 50 * (1 - score / 100)}"
+									class={trust.stroke}
+									stroke-dasharray={Math.PI * 2 * 50}
+									stroke-dashoffset={Math.PI * 2 * 50 * (1 - score / 100)}
 									style="transition: stroke-dashoffset 700ms ease;"
 								/>
 							</svg>
@@ -419,7 +479,11 @@
 								<p class="text-[9px] text-gray-500 sm:text-[10px]">/ 100</p>
 							</div>
 						</div>
-						<span class="inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium {trustTierBadgeClass(performanceStats.trustScore.tier)} sm:text-xs">
+						<span
+							class="inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[10px] font-medium {trustTierBadgeClass(
+								performanceStats.trustScore.tier
+							)} sm:text-xs"
+						>
 							<ShieldCheck class="h-2.5 w-2.5 sm:h-3 sm:w-3" />
 							{trust.label}
 						</span>
@@ -441,11 +505,30 @@
 						</div>
 
 						<div class="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-gray-500 sm:text-xs">
-							<span><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-red-500 sm:h-1.5 sm:w-1.5"></span>Critical &lt;40</span>
-							<span><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-orange-500 sm:h-1.5 sm:w-1.5"></span>Poor 40-59</span>
-							<span><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-amber-500 sm:h-1.5 sm:w-1.5"></span>Fair 60-74</span>
-							<span><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-pink-500 sm:h-1.5 sm:w-1.5"></span>Good 75-89</span>
-							<span><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-emerald-500 sm:h-1.5 sm:w-1.5"></span>Excellent 90+</span>
+							<span
+								><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-red-500 sm:h-1.5 sm:w-1.5"
+								></span>Critical &lt;40</span
+							>
+							<span
+								><span
+									class="mr-0.5 inline-block h-1 w-1 rounded-full bg-orange-500 sm:h-1.5 sm:w-1.5"
+								></span>Poor 40-59</span
+							>
+							<span
+								><span
+									class="mr-0.5 inline-block h-1 w-1 rounded-full bg-amber-500 sm:h-1.5 sm:w-1.5"
+								></span>Fair 60-74</span
+							>
+							<span
+								><span
+									class="mr-0.5 inline-block h-1 w-1 rounded-full bg-pink-500 sm:h-1.5 sm:w-1.5"
+								></span>Good 75-89</span
+							>
+							<span
+								><span
+									class="mr-0.5 inline-block h-1 w-1 rounded-full bg-emerald-500 sm:h-1.5 sm:w-1.5"
+								></span>Excellent 90+</span
+							>
 						</div>
 
 						<button
@@ -462,25 +545,60 @@
 						{#if showScoreBreakdown}
 							<div class="grid grid-cols-1 gap-3 pt-2 sm:grid-cols-2">
 								<div class="rounded-lg border border-red-100 bg-white p-3">
-									<p class="text-xs font-semibold uppercase tracking-wide text-red-600">Penalties</p>
+									<p class="text-xs font-semibold tracking-wide text-red-600 uppercase">
+										Penalties
+									</p>
 									<div class="mt-2 space-y-1 text-xs text-gray-700">
-										<div class="flex justify-between"><span>Missing items</span><span class="font-semibold text-red-600">-{performanceStats.trustScore.breakdown.missingItemPenalty}</span></div>
-										<div class="flex justify-between"><span>Damaged items</span><span class="font-semibold text-red-600">-{performanceStats.trustScore.breakdown.damagedItemPenalty}</span></div>
-										<div class="flex justify-between"><span>Late returns</span><span class="font-semibold text-red-600">-{performanceStats.trustScore.breakdown.lateReturnPenalty}</span></div>
-										<div class="flex justify-between"><span>Cancelled after approval</span><span class="font-semibold text-red-600">-{performanceStats.trustScore.breakdown.cancelledAfterApprovalPenalty}</span></div>
-										<div class="flex justify-between"><span>Pending obligations</span><span class="font-semibold text-red-600">-{performanceStats.trustScore.breakdown.pendingObligationPenalty}</span></div>
+										<div class="flex justify-between">
+											<span>Missing items</span><span class="font-semibold text-red-600"
+												>-{performanceStats.trustScore.breakdown.missingItemPenalty}</span
+											>
+										</div>
+										<div class="flex justify-between">
+											<span>Damaged items</span><span class="font-semibold text-red-600"
+												>-{performanceStats.trustScore.breakdown.damagedItemPenalty}</span
+											>
+										</div>
+										<div class="flex justify-between">
+											<span>Late returns</span><span class="font-semibold text-red-600"
+												>-{performanceStats.trustScore.breakdown.lateReturnPenalty}</span
+											>
+										</div>
+										<div class="flex justify-between">
+											<span>Cancelled after approval</span><span class="font-semibold text-red-600"
+												>-{performanceStats.trustScore.breakdown
+													.cancelledAfterApprovalPenalty}</span
+											>
+										</div>
+										<div class="flex justify-between">
+											<span>Pending obligations</span><span class="font-semibold text-red-600"
+												>-{performanceStats.trustScore.breakdown.pendingObligationPenalty}</span
+											>
+										</div>
 									</div>
 									<div class="mt-2 border-t border-red-100 pt-2 text-xs font-bold text-red-700">
 										Total penalties: -{performanceStats.trustScore.totalPenalties}
 									</div>
 								</div>
 								<div class="rounded-lg border border-emerald-100 bg-white p-3">
-									<p class="text-xs font-semibold uppercase tracking-wide text-emerald-600">Bonuses</p>
+									<p class="text-xs font-semibold tracking-wide text-emerald-600 uppercase">
+										Bonuses
+									</p>
 									<div class="mt-2 space-y-1 text-xs text-gray-700">
-										<div class="flex justify-between"><span>Clean returns</span><span class="font-semibold text-emerald-600">+{performanceStats.trustScore.breakdown.cleanReturnBonus}</span></div>
-										<div class="flex justify-between"><span>Resolved obligations</span><span class="font-semibold text-emerald-600">+{performanceStats.trustScore.breakdown.resolvedObligationBonus}</span></div>
+										<div class="flex justify-between">
+											<span>Clean returns</span><span class="font-semibold text-emerald-600"
+												>+{performanceStats.trustScore.breakdown.cleanReturnBonus}</span
+											>
+										</div>
+										<div class="flex justify-between">
+											<span>Resolved obligations</span><span class="font-semibold text-emerald-600"
+												>+{performanceStats.trustScore.breakdown.resolvedObligationBonus}</span
+											>
+										</div>
 									</div>
-									<div class="mt-2 border-t border-emerald-100 pt-2 text-xs font-bold text-emerald-700">
+									<div
+										class="mt-2 border-t border-emerald-100 pt-2 text-xs font-bold text-emerald-700"
+									>
 										Total bonuses: +{performanceStats.trustScore.totalBonuses}
 									</div>
 								</div>
@@ -493,9 +611,10 @@
 
 		<!-- ── KPI cards ───────────────────────────────────────────────────── -->
 		<div class="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
-
 			<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 shadow-sm sm:p-4">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-700">
+				<div
+					class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-violet-700 uppercase"
+				>
 					<Package size={12} />
 					<span>Active Loans</span>
 				</div>
@@ -504,7 +623,9 @@
 			</div>
 
 			<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 shadow-sm sm:p-4">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+				<div
+					class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-emerald-700 uppercase"
+				>
 					<CheckCircle2 size={12} />
 					<span>Completed</span>
 				</div>
@@ -513,7 +634,9 @@
 			</div>
 
 			<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 shadow-sm sm:p-4">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-700">
+				<div
+					class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-amber-700 uppercase"
+				>
 					<Clock size={12} />
 					<span>Pending</span>
 				</div>
@@ -521,13 +644,30 @@
 				<p class="mt-0.5 text-xs text-amber-500">Awaiting action</p>
 			</div>
 
-			<div class="rounded-xl border {metrics.overdueCount > 0 ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-gray-50'} p-3 shadow-sm sm:p-4">
-				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {metrics.overdueCount > 0 ? 'text-red-700' : 'text-gray-600'}">
+			<div
+				class="rounded-xl border {metrics.overdueCount > 0
+					? 'border-red-200 bg-red-50'
+					: 'border-gray-200 bg-gray-50'} p-3 shadow-sm sm:p-4"
+			>
+				<div
+					class="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase {metrics.overdueCount >
+					0
+						? 'text-red-700'
+						: 'text-gray-600'}"
+				>
 					<TriangleAlert size={12} />
 					<span>Overdue</span>
 				</div>
-				<p class="mt-2 text-3xl font-bold {metrics.overdueCount > 0 ? 'text-red-700' : 'text-gray-700'} sm:text-4xl">{metrics.overdueCount}</p>
-				<p class="mt-0.5 text-xs {metrics.overdueCount > 0 ? 'text-red-500' : 'text-gray-500'}">Past return date</p>
+				<p
+					class="mt-2 text-3xl font-bold {metrics.overdueCount > 0
+						? 'text-red-700'
+						: 'text-gray-700'} sm:text-4xl"
+				>
+					{metrics.overdueCount}
+				</p>
+				<p class="mt-0.5 text-xs {metrics.overdueCount > 0 ? 'text-red-500' : 'text-gray-500'}">
+					Past return date
+				</p>
 			</div>
 		</div>
 
@@ -545,27 +685,49 @@
 					<div class="space-y-3">
 						<div class="flex items-center justify-between">
 							<span class="text-sm text-gray-500">On-time rate</span>
-							<span class="text-sm font-bold {performanceStats.returnPerformance.onTimeRate === null ? 'text-gray-500' : performanceStats.returnPerformance.onTimeRate >= 80 ? 'text-emerald-600' : performanceStats.returnPerformance.onTimeRate >= 60 ? 'text-amber-600' : 'text-red-600'}">
-								{performanceStats.returnPerformance.onTimeRate === null ? 'N/A' : `${performanceStats.returnPerformance.onTimeRate}%`}
+							<span
+								class="text-sm font-bold {performanceStats.returnPerformance.onTimeRate === null
+									? 'text-gray-500'
+									: performanceStats.returnPerformance.onTimeRate >= 80
+										? 'text-emerald-600'
+										: performanceStats.returnPerformance.onTimeRate >= 60
+											? 'text-amber-600'
+											: 'text-red-600'}"
+							>
+								{performanceStats.returnPerformance.onTimeRate === null
+									? 'N/A'
+									: `${performanceStats.returnPerformance.onTimeRate}%`}
 							</span>
 						</div>
 						<div class="h-2 w-full overflow-hidden rounded-full bg-gray-100">
 							<div
-								class="h-2 rounded-full {performanceStats.returnPerformance.onTimeRate === null ? 'bg-gray-300' : performanceStats.returnPerformance.onTimeRate >= 80 ? 'bg-emerald-500' : performanceStats.returnPerformance.onTimeRate >= 60 ? 'bg-amber-500' : 'bg-red-500'}"
+								class="h-2 rounded-full {performanceStats.returnPerformance.onTimeRate === null
+									? 'bg-gray-300'
+									: performanceStats.returnPerformance.onTimeRate >= 80
+										? 'bg-emerald-500'
+										: performanceStats.returnPerformance.onTimeRate >= 60
+											? 'bg-amber-500'
+											: 'bg-red-500'}"
 								style="width: {performanceStats.returnPerformance.onTimeRate ?? 0}%"
 							></div>
 						</div>
 						<div class="grid grid-cols-3 gap-2 pt-1">
 							<div class="rounded-lg bg-emerald-50 p-2 text-center">
-								<p class="text-2xl font-bold text-emerald-700">{performanceStats.returnPerformance.onTime}</p>
+								<p class="text-2xl font-bold text-emerald-700">
+									{performanceStats.returnPerformance.onTime}
+								</p>
 								<p class="text-xs text-emerald-500">On time</p>
 							</div>
 							<div class="rounded-lg bg-red-50 p-2 text-center">
-								<p class="text-2xl font-bold text-red-700">{performanceStats.returnPerformance.late}</p>
+								<p class="text-2xl font-bold text-red-700">
+									{performanceStats.returnPerformance.late}
+								</p>
 								<p class="text-xs text-red-500">Late</p>
 							</div>
 							<div class="rounded-lg bg-gray-100 p-2 text-center">
-								<p class="text-2xl font-bold text-gray-700">{performanceStats.returnPerformance.unknown}</p>
+								<p class="text-2xl font-bold text-gray-700">
+									{performanceStats.returnPerformance.unknown}
+								</p>
 								<p class="text-xs text-gray-500">Unknown</p>
 							</div>
 						</div>
@@ -609,28 +771,49 @@
 						<div class="space-y-3">
 							<div class="flex items-center justify-between text-sm">
 								<span class="text-gray-500">Good condition rate</span>
-								<span class="font-bold {performanceStats.itemHealth.goodRate === null ? 'text-gray-500' : performanceStats.itemHealth.goodRate >= 90 ? 'text-emerald-600' : performanceStats.itemHealth.goodRate >= 70 ? 'text-amber-600' : 'text-red-600'}">
-									{performanceStats.itemHealth.goodRate === null ? 'N/A' : `${performanceStats.itemHealth.goodRate}%`}
+								<span
+									class="font-bold {performanceStats.itemHealth.goodRate === null
+										? 'text-gray-500'
+										: performanceStats.itemHealth.goodRate >= 90
+											? 'text-emerald-600'
+											: performanceStats.itemHealth.goodRate >= 70
+												? 'text-amber-600'
+												: 'text-red-600'}"
+								>
+									{performanceStats.itemHealth.goodRate === null
+										? 'N/A'
+										: `${performanceStats.itemHealth.goodRate}%`}
 								</span>
 							</div>
 							<div class="h-2 w-full overflow-hidden rounded-full bg-gray-100">
-								<div class="h-2 rounded-full bg-emerald-500" style="width: {performanceStats.itemHealth.goodRate ?? 0}%"></div>
+								<div
+									class="h-2 rounded-full bg-emerald-500"
+									style="width: {performanceStats.itemHealth.goodRate ?? 0}%"
+								></div>
 							</div>
 							<div class="grid grid-cols-3 gap-2 pt-1">
 								<div class="rounded-lg bg-emerald-50 p-2 text-center">
-									<p class="text-2xl font-bold text-emerald-700">{performanceStats.itemHealth.goodCondition}</p>
+									<p class="text-2xl font-bold text-emerald-700">
+										{performanceStats.itemHealth.goodCondition}
+									</p>
 									<p class="text-xs text-emerald-500">Good</p>
 								</div>
 								<div class="rounded-lg bg-orange-50 p-2 text-center">
-									<p class="text-2xl font-bold text-orange-700">{performanceStats.itemHealth.damaged}</p>
+									<p class="text-2xl font-bold text-orange-700">
+										{performanceStats.itemHealth.damaged}
+									</p>
 									<p class="text-xs text-orange-500">Damaged</p>
 								</div>
 								<div class="rounded-lg bg-red-50 p-2 text-center">
-									<p class="text-2xl font-bold text-red-700">{performanceStats.itemHealth.missing}</p>
+									<p class="text-2xl font-bold text-red-700">
+										{performanceStats.itemHealth.missing}
+									</p>
 									<p class="text-xs text-red-500">Missing</p>
 								</div>
 							</div>
-							<p class="text-xs text-gray-400">{performanceStats.itemHealth.totalInspected} items inspected</p>
+							<p class="text-xs text-gray-400">
+								{performanceStats.itemHealth.totalInspected} items inspected
+							</p>
 						</div>
 					{/if}
 				</div>
@@ -679,32 +862,58 @@
 						<div class="space-y-3">
 							<div class="flex items-center justify-between text-sm">
 								<span class="text-gray-500">Outstanding items</span>
-								<span class="font-bold {performanceStats.replacement.balance > 0 ? 'text-red-600' : 'text-emerald-600'}">
-									{performanceStats.replacement.balance} item{performanceStats.replacement.balance !== 1 ? 's' : ''}
+								<span
+									class="font-bold {performanceStats.replacement.balance > 0
+										? 'text-red-600'
+										: 'text-emerald-600'}"
+								>
+									{performanceStats.replacement.balance} item{performanceStats.replacement
+										.balance !== 1
+										? 's'
+										: ''}
 								</span>
 							</div>
 							<div class="grid grid-cols-2 gap-2">
 								<div class="rounded-lg bg-red-50 p-2 text-center">
-									<p class="text-2xl font-bold text-red-700">{performanceStats.replacement.pendingCount}</p>
+									<p class="text-2xl font-bold text-red-700">
+										{performanceStats.replacement.pendingCount}
+									</p>
 									<p class="text-xs text-red-500">Pending cases</p>
 								</div>
 								<div class="rounded-lg bg-emerald-50 p-2 text-center">
-									<p class="text-2xl font-bold text-emerald-700">{performanceStats.replacement.resolvedCount}</p>
+									<p class="text-2xl font-bold text-emerald-700">
+										{performanceStats.replacement.resolvedCount}
+									</p>
 									<p class="text-xs text-emerald-500">Resolved cases</p>
 								</div>
 							</div>
 							<div class="space-y-1 text-xs text-gray-400">
 								<div class="flex justify-between">
 									<span>Recorded ({performanceStats.periodLabel})</span>
-									<span>{performanceStats.replacement.periodIncurredAmount} item{performanceStats.replacement.periodIncurredAmount !== 1 ? 's' : ''}</span>
+									<span
+										>{performanceStats.replacement.periodIncurredAmount} item{performanceStats
+											.replacement.periodIncurredAmount !== 1
+											? 's'
+											: ''}</span
+									>
 								</div>
 								<div class="flex justify-between">
 									<span>Total items affected</span>
-									<span>{performanceStats.replacement.totalAmount} item{performanceStats.replacement.totalAmount !== 1 ? 's' : ''}</span>
+									<span
+										>{performanceStats.replacement.totalAmount} item{performanceStats.replacement
+											.totalAmount !== 1
+											? 's'
+											: ''}</span
+									>
 								</div>
 								<div class="flex justify-between">
 									<span>Items replaced</span>
-									<span class="text-emerald-600">{performanceStats.replacement.amountPaid} item{performanceStats.replacement.amountPaid !== 1 ? 's' : ''}</span>
+									<span class="text-emerald-600"
+										>{performanceStats.replacement.amountPaid} item{performanceStats.replacement
+											.amountPaid !== 1
+											? 's'
+											: ''}</span
+									>
 								</div>
 							</div>
 						</div>
@@ -715,10 +924,8 @@
 
 		<!-- ── Main 2-col grid ─────────────────────────────────────────────── -->
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-
 			<!-- LEFT col ────────────────────────────────────────────────────── -->
 			<div class="space-y-6 lg:col-span-2">
-
 				<!-- Active Loans -->
 				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 					<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
@@ -726,7 +933,10 @@
 							<PackageOpen size={18} class="text-violet-600" />
 							<h2 class="text-sm font-semibold text-gray-900">Active Loans</h2>
 						</div>
-						<a href="/student/borrowed" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+						<a
+							href="/student/borrowed"
+							class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700"
+						>
 							View all <ArrowRight size={13} />
 						</a>
 					</div>
@@ -741,10 +951,10 @@
 							{#each activeRequests as req}
 								{@const Icon = statusIcon(req.status)}
 								{@const badge = req.daysUntilDue !== null ? dueBadge(req.daysUntilDue) : null}
-								<li class="px-4 py-3 hover:bg-gray-50/60 transition-colors sm:px-5 sm:py-4">
+								<li class="px-4 py-3 transition-colors hover:bg-gray-50/60 sm:px-5 sm:py-4">
 									<div class="flex items-start gap-3">
 										<!-- Item images -->
-										<div class="flex -space-x-2 shrink-0">
+										<div class="flex shrink-0 -space-x-2">
 											{#each req.items.slice(0, 2) as item}
 												{#if item.picture}
 													{@const imgId = `al-${req.rawId}-${item.name}`}
@@ -753,15 +963,31 @@
 														alt={item.name}
 														id={imgId}
 														class="h-10 w-10 rounded-lg object-cover ring-2 ring-white sm:h-12 sm:w-12"
-														onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }}
+														onerror={(e) => {
+															(e.currentTarget as HTMLImageElement).style.display = 'none';
+															(
+																e.currentTarget as HTMLImageElement
+															).nextElementSibling?.removeAttribute('style');
+														}}
 													/>
-													<div class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12" style="display:none"><ItemImagePlaceholder size="sm" /></div>
+													<div
+														class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12"
+														style="display:none"
+													>
+														<ItemImagePlaceholder size="sm" />
+													</div>
 												{:else}
-													<div class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12"><ItemImagePlaceholder size="sm" /></div>
+													<div
+														class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12"
+													>
+														<ItemImagePlaceholder size="sm" />
+													</div>
 												{/if}
 											{/each}
 											{#if req.items.length > 2}
-												<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200 ring-2 ring-white text-[10px] font-semibold text-gray-600 sm:h-12 sm:w-12 sm:text-xs">
+												<div
+													class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200 text-[10px] font-semibold text-gray-600 ring-2 ring-white sm:h-12 sm:w-12 sm:text-xs"
+												>
 													+{req.items.length - 2}
 												</div>
 											{/if}
@@ -770,21 +996,36 @@
 										<!-- Content -->
 										<div class="min-w-0 flex-1">
 											<p class="truncate text-sm font-semibold text-gray-900 sm:text-base">
-												{req.items[0]?.name || 'Item'}{req.items.length > 1 ? ` +${req.items.length - 1}` : ''}
+												{req.items[0]?.name || 'Item'}{req.items.length > 1
+													? ` +${req.items.length - 1}`
+													: ''}
 											</p>
-											<div class="mt-1 flex flex-col gap-0.5 text-xs text-gray-500 sm:flex-row sm:items-center sm:gap-2">
+											<div
+												class="mt-1 flex flex-col gap-0.5 text-xs text-gray-500 sm:flex-row sm:items-center sm:gap-2"
+											>
 												<span class="font-mono text-[11px] sm:text-xs">{req.id}</span>
 												<span class="hidden sm:inline">·</span>
-												<span class="text-[11px] sm:text-xs">Due {new Date(req.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+												<span class="text-[11px] sm:text-xs"
+													>Due {new Date(req.returnDate).toLocaleDateString('en-US', {
+														month: 'short',
+														day: 'numeric'
+													})}</span
+												>
 											</div>
 											<!-- Status badges on mobile -->
 											<div class="mt-2 flex flex-wrap items-center gap-1.5 sm:hidden">
-												<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium {statusColor(req.status)}">
+												<span
+													class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium {statusColor(
+														req.status
+													)}"
+												>
 													<Icon size={10} />
 													{req.statusLabel}
 												</span>
 												{#if badge}
-													<span class="rounded-full px-2 py-0.5 text-[10px] font-semibold {badge.color}">
+													<span
+														class="rounded-full px-2 py-0.5 text-[10px] font-semibold {badge.color}"
+													>
 														{badge.label}
 													</span>
 												{/if}
@@ -793,7 +1034,11 @@
 
 										<!-- Status badges on desktop -->
 										<div class="hidden shrink-0 flex-col items-end gap-1.5 sm:flex">
-											<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium {statusColor(req.status)}">
+											<span
+												class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium {statusColor(
+													req.status
+												)}"
+											>
 												<Icon size={11} />
 												{req.statusLabel}
 											</span>
@@ -817,7 +1062,10 @@
 							<Clock size={18} class="text-yellow-500" />
 							<h2 class="text-sm font-semibold text-gray-900">Pending Requests</h2>
 						</div>
-						<a href="/student/requests" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+						<a
+							href="/student/requests"
+							class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700"
+						>
 							View all <ArrowRight size={13} />
 						</a>
 					</div>
@@ -831,25 +1079,41 @@
 						<ul class="max-h-64 divide-y divide-gray-50 overflow-y-auto lg:h-63">
 							{#each pendingRequests as req}
 								{@const Icon = statusIcon(req.status)}
-								<li class="px-4 py-3 hover:bg-gray-50/60 transition-colors sm:px-5 sm:py-4">
+								<li class="px-4 py-3 transition-colors hover:bg-gray-50/60 sm:px-5 sm:py-4">
 									<div class="flex items-start gap-3">
 										<!-- Item images -->
-										<div class="flex -space-x-2 shrink-0">
+										<div class="flex shrink-0 -space-x-2">
 											{#each req.items.slice(0, 2) as item}
 												{#if item.picture}
 													<img
 														src={item.picture}
 														alt={item.name}
 														class="h-10 w-10 rounded-lg object-cover ring-2 ring-white sm:h-12 sm:w-12"
-														onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }}
+														onerror={(e) => {
+															(e.currentTarget as HTMLImageElement).style.display = 'none';
+															(
+																e.currentTarget as HTMLImageElement
+															).nextElementSibling?.removeAttribute('style');
+														}}
 													/>
-													<div class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12" style="display:none"><ItemImagePlaceholder size="sm" /></div>
+													<div
+														class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12"
+														style="display:none"
+													>
+														<ItemImagePlaceholder size="sm" />
+													</div>
 												{:else}
-													<div class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12"><ItemImagePlaceholder size="sm" /></div>
+													<div
+														class="h-10 w-10 overflow-hidden rounded-lg ring-2 ring-white sm:h-12 sm:w-12"
+													>
+														<ItemImagePlaceholder size="sm" />
+													</div>
 												{/if}
 											{/each}
 											{#if req.items.length > 2}
-												<div class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200 ring-2 ring-white text-[10px] font-semibold text-gray-600 sm:h-12 sm:w-12 sm:text-xs">
+												<div
+													class="flex h-10 w-10 items-center justify-center rounded-lg bg-gray-200 text-[10px] font-semibold text-gray-600 ring-2 ring-white sm:h-12 sm:w-12 sm:text-xs"
+												>
 													+{req.items.length - 2}
 												</div>
 											{/if}
@@ -858,19 +1122,35 @@
 										<!-- Content -->
 										<div class="min-w-0 flex-1">
 											<p class="truncate text-sm font-semibold text-gray-900 sm:text-base">
-												{req.items[0]?.name || 'Item'}{req.items.length > 1 ? ` +${req.items.length - 1}` : ''}
+												{req.items[0]?.name || 'Item'}{req.items.length > 1
+													? ` +${req.items.length - 1}`
+													: ''}
 											</p>
-											<div class="mt-1 flex flex-col gap-0.5 text-xs text-gray-500 sm:flex-row sm:items-center sm:gap-2">
+											<div
+												class="mt-1 flex flex-col gap-0.5 text-xs text-gray-500 sm:flex-row sm:items-center sm:gap-2"
+											>
 												<span class="font-mono text-[11px] sm:text-xs">{req.id}</span>
 												<span class="hidden sm:inline">·</span>
 												<span class="flex items-center gap-1 text-[11px] sm:text-xs">
 													<CalendarDays size={11} class="shrink-0" />
-													<span class="truncate">{new Date(req.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – {new Date(req.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+													<span class="truncate"
+														>{new Date(req.borrowDate).toLocaleDateString('en-US', {
+															month: 'short',
+															day: 'numeric'
+														})} – {new Date(req.returnDate).toLocaleDateString('en-US', {
+															month: 'short',
+															day: 'numeric'
+														})}</span
+													>
 												</span>
 											</div>
 											<!-- Status badge on mobile -->
 											<div class="mt-2 sm:hidden">
-												<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium {statusColor(req.status)}">
+												<span
+													class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium {statusColor(
+														req.status
+													)}"
+												>
 													<Icon size={10} />
 													{req.statusLabel}
 												</span>
@@ -879,7 +1159,11 @@
 
 										<!-- Status badge on desktop -->
 										<div class="hidden shrink-0 sm:block">
-											<span class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium {statusColor(req.status)}">
+											<span
+												class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium {statusColor(
+													req.status
+												)}"
+											>
 												<Icon size={11} />
 												{req.statusLabel}
 											</span>
@@ -899,22 +1183,32 @@
 								<CheckCircle2 size={18} class="text-teal-500" />
 								<h2 class="text-sm font-semibold text-gray-900">Recent History</h2>
 							</div>
-							<a href="/student/account/history" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+							<a
+								href="/student/account/history"
+								class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700"
+							>
 								View all <ArrowRight size={13} />
 							</a>
 						</div>
 						<ul class="divide-y divide-gray-50">
 							{#each recentHistory as req}
 								{@const Icon = statusIcon(req.status)}
-								<li class="flex items-center gap-4 px-5 py-4 hover:bg-gray-50/60 transition-colors">
+								<li class="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-gray-50/60">
 									<div class="min-w-0 flex-1">
 										<p class="truncate text-sm font-medium text-gray-800">
-											{req.items.slice(0, 2).map((i) => i.name).join(', ')}{req.items.length > 2 ? ` +${req.items.length - 2}` : ''}
+											{req.items
+												.slice(0, 2)
+												.map((i) => i.name)
+												.join(', ')}{req.items.length > 2 ? ` +${req.items.length - 2}` : ''}
 										</p>
 										<p class="mt-0.5 font-mono text-xs text-gray-400">{req.id}</p>
 									</div>
 									<div class="flex shrink-0 flex-col items-end gap-1">
-										<span class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(req.status)}">
+										<span
+											class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium {statusColor(
+												req.status
+											)}"
+										>
 											<Icon size={10} />
 											{req.statusLabel}
 										</span>
@@ -925,12 +1219,10 @@
 						</ul>
 					</div>
 				{/if}
-
 			</div>
 
 			<!-- RIGHT sidebar ─────────────────────────────────────────────── -->
 			<div class="space-y-6 lg:sticky lg:top-6 lg:self-start">
-
 				<!-- Notifications -->
 				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 					<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
@@ -939,7 +1231,10 @@
 							<h2 class="text-sm font-semibold text-gray-900">Notifications</h2>
 						</div>
 						{#if dueSoon.length > 0}
-							<span class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700">{dueSoon.length}</span>
+							<span
+								class="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700"
+								>{dueSoon.length}</span
+							>
 						{/if}
 					</div>
 
@@ -956,17 +1251,25 @@
 									<div class="flex items-start justify-between gap-2">
 										<div class="min-w-0 flex-1">
 											<p class="truncate text-xs font-semibold text-gray-800">
-												Return alert: {req.items[0]?.name ?? '—'}{req.items.length > 1 ? ` +${req.items.length - 1}` : ''}
+												Return alert: {req.items[0]?.name ?? '—'}{req.items.length > 1
+													? ` +${req.items.length - 1}`
+													: ''}
 											</p>
 											<p class="mt-0.5 font-mono text-[11px] text-gray-400">{req.id}</p>
 										</div>
-										<span class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold {badge.color}">{badge.label}</span>
+										<span
+											class="shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold {badge.color}"
+											>{badge.label}</span
+										>
 									</div>
 								</li>
 							{/each}
 						</ul>
 						<div class="border-t border-gray-100 px-5 py-3">
-							<a href="/student/borrowed" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+							<a
+								href="/student/borrowed"
+								class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700"
+							>
 								Review notifications <ArrowRight size={12} />
 							</a>
 						</div>
@@ -995,9 +1298,7 @@
 						{/each}
 					</div>
 				</div>
-
 			</div>
 		</div>
-
 	{/if}
 </div>

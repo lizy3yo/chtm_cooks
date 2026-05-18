@@ -147,7 +147,7 @@
 			const msgs: Record<string, string> = {
 				created: 'New borrow request submitted',
 				approved: 'Request approved',
-				rejected: 'Request rejected',
+				rejected: 'Request declined',
 				released: 'Equipment released',
 				picked_up: 'Equipment picked up',
 				return_initiated: 'Return initiated',
@@ -283,7 +283,7 @@
 
 	function getStatusLabel(status: string): string {
 		const labels: Record<string, string> = {
-			pending_instructor: 'Pending Review',
+			pending_instructor: 'Under Review',
 			approved_instructor: 'Instructor Approved',
 			ready_for_pickup: 'Ready for Pickup',
 			borrowed: 'Active Loan',
@@ -291,7 +291,7 @@
 			missing: 'Item Missing',
 			returned: 'Returned',
 			resolved: 'Resolved',
-			rejected: 'Rejected',
+			rejected: 'Declined',
 			cancelled: 'Cancelled'
 		};
 		return labels[status] || status;
@@ -324,10 +324,10 @@
 				await borrowRequestsAPI.approve(request.id);
 				toastStore.success('Request approved');
 			} else if (action === 'reject') {
-				const confirmed = await confirmStore.danger('Reject this request?', 'Reject Request', 'Reject');
+				const confirmed = await confirmStore.danger('Decline this request?', 'Decline Request', 'Decline');
 				if (!confirmed) return;
 				await borrowRequestsAPI.reject(request.id, 'Superadmin Override');
-				toastStore.success('Request rejected');
+				toastStore.success('Request declined');
 			} else if (action === 'cancel') {
 				const confirmed = await confirmStore.danger('Cancel this request?', 'Cancel Request', 'Cancel');
 				if (!confirmed) return;
@@ -589,7 +589,7 @@
 											<div class="absolute right-0 z-20 mt-2 w-48 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
 												<div class="py-1" role="menu" aria-orientation="vertical">
 													<button onclick={() => handleAction('approve', request)} class="block w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100" role="menuitem">Emergency Approve</button>
-													<button onclick={() => handleAction('reject', request)} class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100" role="menuitem">Reject Request</button>
+													<button onclick={() => handleAction('reject', request)} class="block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100" role="menuitem">Decline Request</button>
 													{#if overdue}
 														<button onclick={() => handleAction('remind', request)} class="block w-full px-4 py-2 text-left text-sm text-orange-600 hover:bg-gray-100" role="menuitem">Send Reminder</button>
 													{/if}
@@ -919,4 +919,5 @@
 		</div>
 	</div>
 {/if}
+
 

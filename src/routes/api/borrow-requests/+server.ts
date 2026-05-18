@@ -19,6 +19,7 @@ import {
 	BORROW_REQUESTS_COLLECTION,
 	BORROW_REQUESTS_CACHE_TAG,
 	buildBorrowRequestListCacheKey,
+	decrementInventoryForBorrow,
 	getAuthenticatedUser,
 	invalidateBorrowRequestCaches,
 	isBorrowRequestStatus,
@@ -399,8 +400,26 @@ export const POST: RequestHandler = async (event) => {
 			createdBy: new ObjectId(user.userId)
 		};
 
-		const result = await requestCollection.insertOne(newRequest);
-		newRequest._id = result.insertedId;
+		// Decrement inventory stock on request creation
+		const stockResult = await decrementInventoryForBorrow(inventoryCollection, newRequest.items);
+		if (!stockResult.ok) {
+			return json({ error: stockResult.message || 'Insufficient stock' }, { status: 409 });
+		}
+
+		let result;
+		try {
+			result = await requestCollection.insertOne(newRequest);
+			newRequest._id = result.insertedId;
+		} catch (dbError) {
+			// Roll back decrement
+			for (const item of newRequest.items) {
+				await inventoryCollection.updateOne(
+					{ _id: item.itemId },
+					{ $inc: { quantity: item.quantity }, $set: { updatedAt: new Date() } }
+				);
+			}
+			throw dbError;
+		}
 
 		// Invalidate caches, publish realtime event, and dispatch notifications in parallel.
 		// Notifications fire-and-forget after the DB write — the response is not blocked by

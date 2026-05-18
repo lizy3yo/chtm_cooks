@@ -172,6 +172,15 @@ export const DELETE: RequestHandler = async (event) => {
 			);
 		}
 
+		// Restore inventory stock
+		const inventoryCollection = db.collection('inventory_items');
+		for (const item of updated.items) {
+			await inventoryCollection.updateOne(
+				{ _id: item.itemId },
+				{ $inc: { quantity: item.quantity }, $set: { updatedAt: new Date() } }
+			);
+		}
+
 		// Invalidate caches
 		await invalidateBorrowRequestCaches();
 		publishBorrowRequestRealtimeEvent(updated, 'cancelled');

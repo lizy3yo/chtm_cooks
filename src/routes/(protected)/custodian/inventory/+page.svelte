@@ -18,13 +18,30 @@
 	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
-	import { Package, FolderTree, AlertTriangle, Star, Archive, Trash2 } from 'lucide-svelte';
+	import {
+		Package,
+		FolderTree,
+		AlertTriangle,
+		Star,
+		Archive,
+		Trash2,
+		Edit,
+		Sliders
+	} from 'lucide-svelte';
 	import ActionMenu from '$lib/components/ui/ActionMenu.svelte';
 
 	type Tab = 'all-items' | 'required-items' | 'categories' | 'low-stock';
 
 	let activeTab = $state<Tab>('all-items');
 	let showAddItemModal = $state(false);
+
+	// Stock adjustment modal states
+	let showAdjustStockModal = $state(false);
+	let adjustingItem = $state<InventoryItem | null>(null);
+	let adjustmentType = $state<'add' | 'subtract'>('add');
+	let adjustmentQuantity = $state<number>(1);
+	let adjustmentReason = $state<string>('');
+	let adjustStockLoading = $state(false);
 
 	// Check for cached data before mounting to avoid unnecessary loading states
 	const cachedStore = browser ? get(inventoryStore) : null;
@@ -789,6 +806,66 @@
 		showFullImage = false;
 	}
 
+	function openAdjustStock(item: InventoryItem) {
+		adjustingItem = item;
+		adjustmentType = 'add';
+		adjustmentQuantity = 1;
+		adjustmentReason = '';
+		showAdjustStockModal = true;
+	}
+
+	function closeAdjustStock() {
+		showAdjustStockModal = false;
+		adjustingItem = null;
+	}
+
+	async function handleAdjustStock() {
+		const targetItem = adjustingItem;
+		if (!targetItem) return;
+		if (adjustmentQuantity <= 0) {
+			toastStore.error('Quantity must be greater than 0');
+			return;
+		}
+
+		adjustStockLoading = true;
+		try {
+			let newQuantity = targetItem.quantity;
+			if (adjustmentType === 'add') {
+				newQuantity += adjustmentQuantity;
+			} else {
+				if (newQuantity < adjustmentQuantity) {
+					toastStore.error('Cannot subtract more than current stock quantity');
+					adjustStockLoading = false;
+					return;
+				}
+				newQuantity -= adjustmentQuantity;
+			}
+
+			const updatedItem = await inventoryItemsAPI.update(targetItem.id, {
+				quantity: newQuantity,
+				adjustmentType: adjustmentType,
+				adjustmentReason: adjustmentReason
+			});
+
+			const itemIndex = items.findIndex((i) => i.id === targetItem.id);
+			if (itemIndex !== -1) {
+				items[itemIndex] = updatedItem;
+			}
+			if (selectedItem && selectedItem.id === targetItem.id) {
+				selectedItem = updatedItem;
+			}
+
+			inventoryStore.setItems(items);
+			toastStore.success(`Successfully adjusted stock for "${targetItem.name}"`);
+			closeAdjustStock();
+		} catch (err: any) {
+			toastStore.error(err.message || 'Failed to adjust stock');
+			console.error('Error adjusting stock:', err);
+		} finally {
+			adjustStockLoading = false;
+		}
+	}
+
 	function toggleMenu(e: Event) {
 		e?.stopPropagation?.();
 		showMenu = !showMenu;
@@ -996,11 +1073,11 @@
 		// Confirm action with user
 		const confirmed = await confirmStore.confirm({
 			type: newStatus ? 'info' : 'warning',
-			title: newStatus ? 'Mark as required Item' : 'Remove from required Items',
+			title: newStatus ? 'Mark as Required Item' : 'Remove from Required Items',
 			message: newStatus
-				? `Mark "${item.name}" as a required item? It will always appear on student request forms regardless of availability.`
-				: `Remove "${item.name}" from required items? Students will need to manually add it to their requests.`,
-			confirmText: newStatus ? 'Mark as required' : 'Remove',
+				? `Mark "${item.name}" as a Required item? It will always appear on student request forms regardless of availability.`
+				: `Remove "${item.name}" from Required items? Students will need to manually add it to their requests.`,
+			confirmText: newStatus ? 'Mark as Required' : 'Remove',
 			cancelText: 'Cancel'
 		});
 
@@ -1024,9 +1101,9 @@
 
 			toastStore.success(
 				newStatus
-					? `"${item.name}" is now a required item and will always appear on student request forms`
-					: `"${item.name}" removed from required items`,
-				'required Item Updated'
+					? `"${item.name}" is now a Required item and will always appear on student request forms`
+					: `"${item.name}" removed from Required items`,
+				'Required Item Updated'
 			);
 
 			// Restore loading state if it wasn't loading before
@@ -2713,7 +2790,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													class="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-purple-800 shadow-sm ring-1 ring-purple-200 sm:px-2.5 sm:py-1"
 												>
 													<Star class="h-2.5 w-2.5 fill-current sm:h-3 sm:w-3" />
-													<span class="text-[10px] font-bold sm:text-xs">required</span>
+													<span class="text-[10px] font-bold sm:text-xs">Required</span>
 												</span>
 											{/if}
 										</div>
@@ -3043,55 +3120,54 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						<!-- Footer -->
 						<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm">
 							<div class="px-4 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-5">
-								<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-									<div class="order-2 flex flex-row gap-2 sm:order-1">
-										<button
-											onclick={() => {
-												if (selectedItem) archiveItem(selectedItem);
-											}}
-											class="flex-1 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-amber-700 shadow-sm transition-all hover:bg-amber-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-											title="Move item to archive. Recoverable from History."
-										>
-											Archive
-										</button>
-										<button
-											onclick={() => {
-												if (selectedItem) deleteItem(selectedItem);
-											}}
-											class="flex-1 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-red-600 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-											title="Permanently delete item. Recoverable for 30 days."
-										>
-											Delete
-										</button>
-									</div>
-									<div class="order-1 flex flex-row gap-2 sm:order-2 sm:gap-2">
-										<button
-											onclick={closeModal}
-											class="order-3 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] sm:order-1 sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-										>
-											Close
-										</button>
-										<button
-											onclick={() => {
-												if (selectedItem) togglerequiredStatus(selectedItem);
-											}}
-											class="flex-1 rounded-md border border-purple-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-purple-700 shadow-sm transition-all hover:bg-purple-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-										>
-											{#if selectedItem.isrequired}
-												Remove required
-											{:else}
-												Mark required
-											{/if}
-										</button>
-										<button
-											onclick={() => {
-												if (selectedItem) editItem(selectedItem);
-											}}
-											class="flex-1 rounded-md bg-linear-to-r from-pink-600 to-pink-700 px-3 py-1.5 text-xs font-bold whitespace-nowrap text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-										>
-											Edit Item
-										</button>
-									</div>
+								<div class="flex items-center justify-end">
+									<ActionMenu
+										align="right"
+										side="top"
+										triggerLabel="Actions"
+										items={[
+											{
+												label: selectedItem?.isrequired ? 'Remove Required' : 'Mark Required',
+												icon: Star,
+												variant: 'purple',
+												action: () => {
+													if (selectedItem) togglerequiredStatus(selectedItem);
+												}
+											},
+											{
+												label: 'Adjust Stock',
+												icon: Sliders,
+												variant: 'default',
+												action: () => {
+													if (selectedItem) openAdjustStock(selectedItem);
+												}
+											},
+											{
+												label: 'Edit Item',
+												icon: Edit,
+												variant: 'default',
+												action: () => {
+													if (selectedItem) editItem(selectedItem);
+												}
+											},
+											{
+												label: 'Archive',
+												icon: Archive,
+												variant: 'warning',
+												action: () => {
+													if (selectedItem) archiveItem(selectedItem);
+												}
+											},
+											{
+												label: 'Delete',
+												icon: Trash2,
+												variant: 'danger',
+												action: () => {
+													if (selectedItem) deleteItem(selectedItem);
+												}
+											}
+										]}
+									/>
 								</div>
 							</div>
 						</div>
@@ -3241,7 +3317,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">required Items</p>
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Required Items</p>
 						<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
 							{requiredItems.length}
 						</p>
@@ -3283,7 +3359,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						? 'border-emerald-500 text-emerald-600'
 						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
 				>
-					required
+					Required
 					<span
 						class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'required-items'
 							? 'bg-emerald-100 text-emerald-600'
@@ -3452,7 +3528,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										>
 											{(currentPage - 1) * PAGE_SIZE + i + 1}
 										</span>
-										<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
+										<div
+											class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
+										>
 											{#if item.picture}
 												<img
 													src={item.picture}
@@ -3473,7 +3551,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												{#if item.isrequired}
 													<span
 														class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
-														>required</span
+														>Required</span
 													>
 												{/if}
 												<span
@@ -3561,7 +3639,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 														class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700"
 														>{(currentPage - 1) * PAGE_SIZE + i + 1}</span
 													>
-													<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
+													<div
+														class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
+													>
 														{#if item.picture}
 															<img
 																src={item.picture}
@@ -3633,11 +3713,32 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												{/if}
 											</td>
 											<!-- Actions cell -->
-											<td class="px-4 py-4 text-right whitespace-nowrap" onclick={(e) => e.stopPropagation()}>
+											<td
+												class="px-4 py-4 text-right whitespace-nowrap"
+												onclick={(e) => e.stopPropagation()}
+											>
 												<ActionMenu
 													align="right"
 													triggerLabel="Item actions"
 													items={[
+														{
+															label: item.isrequired ? 'Remove Required' : 'Mark Required',
+															icon: Star,
+															variant: 'purple',
+															action: () => togglerequiredStatus(item)
+														},
+														{
+															label: 'Adjust Stock',
+															icon: Sliders,
+															variant: 'default',
+															action: () => openAdjustStock(item)
+														},
+														{
+															label: 'Edit Item',
+															icon: Edit,
+															variant: 'default',
+															action: () => editItem(item)
+														},
 														{
 															label: 'Archive',
 															icon: Archive,
@@ -4168,10 +4269,10 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					</div>
 				{/if}
 			{:else if activeTab === 'required-items'}
-				<!-- required Items View -->
+				<!-- Required Items View -->
 				<div class="p-4 sm:p-6">
 					<div class="mb-4">
-						<h3 class="text-base font-semibold text-gray-900 sm:text-lg">required Items</h3>
+						<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Required Items</h3>
 						<p class="mt-1 text-sm text-gray-500">
 							Items that always appear on student request forms regardless of availability
 						</p>
@@ -4201,10 +4302,10 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									</svg>
 								</div>
 								<h3 class="mt-6 text-lg font-semibold text-gray-900">
-									No required items configured
+									No Required items configured
 								</h3>
 								<p class="mx-auto mt-2 max-w-sm text-sm text-gray-600">
-									Mark items as required from the Items tab to have them always appear on student
+									Mark items as Required from the Items tab to have them always appear on student
 									request forms, regardless of stock availability.
 								</p>
 								<div class="mt-6 flex items-center justify-center gap-3">
@@ -4247,7 +4348,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											<div class="mt-1 flex flex-wrap items-center gap-1">
 												<span
 													class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
-													>required</span
+													>Required</span
 												>
 												<span
 													class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800"
@@ -4335,7 +4436,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 															loading="lazy"
 														/>
 													{:else}
-														<div class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded bg-gray-100">
+														<div
+															class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded bg-gray-100"
+														>
 															<ItemImagePlaceholder size="sm" />
 														</div>
 													{/if}
@@ -4519,7 +4622,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 								<div class="rounded-xl border border-red-200 bg-red-50 p-4">
 									<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 										<div class="flex items-center gap-3">
-											<div class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
+											<div
+												class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
+											>
 												{#if item.picture}
 													<img
 														src={item.picture}
@@ -4557,6 +4662,212 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		</div>
 	{/if}
 </div>
+
+<!-- Stock Adjustment Modal -->
+{#if showAdjustStockModal && adjustingItem}
+	<div
+		class="fixed inset-0 z-50 overflow-y-auto"
+		role="dialog"
+		aria-modal="true"
+		aria-labelledby="adjust-stock-modal-title"
+	>
+		<div
+			class="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
+			role="button"
+			tabindex="0"
+			aria-label="Close stock adjustment modal"
+			onclick={closeAdjustStock}
+			onkeydown={(e) => {
+				if (e.key === 'Enter' || e.key === ' ') {
+					e.preventDefault();
+					closeAdjustStock();
+				}
+			}}
+		></div>
+		<div class="flex min-h-full items-center justify-center p-4">
+			<div
+				class="animate-scaleIn relative z-50 w-full max-w-md overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-2xl"
+			>
+				<!-- Modal Header -->
+				<div
+					class="flex items-center justify-between border-b border-gray-200 bg-linear-to-r from-gray-50 to-white px-6 py-4"
+				>
+					<div>
+						<h2
+							id="adjust-stock-modal-title"
+							class="text-md flex items-center gap-2 font-bold text-gray-900"
+						>
+							<Sliders class="h-4 w-4 text-pink-600" />
+							Stock Adjustment
+						</h2>
+						<p class="mt-0.5 text-xs text-gray-500">Manually add or subtract stock levels</p>
+					</div>
+					<button
+						onclick={closeAdjustStock}
+						class="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+						aria-label="Close modal"
+						disabled={adjustStockLoading}
+					>
+						<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								stroke-width="2"
+								d="M6 18L18 6M6 6l12 12"
+							/>
+						</svg>
+					</button>
+				</div>
+
+				<!-- Modal Body -->
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						handleAdjustStock();
+					}}
+					class="space-y-4 p-6"
+				>
+					<!-- Item Info Card -->
+					<div
+						class="flex items-center gap-3 rounded-xl border border-gray-200/60 bg-gray-50 p-3.5"
+					>
+						{#if adjustingItem.picture}
+							<img
+								src={adjustingItem.picture}
+								alt={adjustingItem.name}
+								class="h-10 w-10 rounded-lg object-cover ring-2 ring-pink-100"
+							/>
+						{:else}
+							<div
+								class="flex h-10 w-10 items-center justify-center rounded-lg bg-pink-50 text-pink-600"
+							>
+								<Package class="h-5 w-5" />
+							</div>
+						{/if}
+						<div class="min-w-0 flex-1">
+							<h3 class="truncate text-xs font-bold text-gray-900 uppercase">
+								{adjustingItem.name}
+							</h3>
+							<p class="mt-0.5 text-[10px] text-gray-500">
+								Current Stock: <span class="font-bold text-pink-600"
+									>{adjustingItem.currentCount ??
+										getCurrentCount(adjustingItem.quantity, adjustingItem.donations ?? 0)}</span
+								> items
+							</p>
+						</div>
+					</div>
+
+					<!-- Adjustment Type (Segmented Control) -->
+					<div class="space-y-1.5">
+						<span class="block text-xs font-bold tracking-wide text-gray-700 uppercase"
+							>Adjustment Type</span
+						>
+						<div class="grid grid-cols-2 gap-2 rounded-xl border border-gray-200 bg-gray-100 p-1">
+							<button
+								type="button"
+								onclick={() => (adjustmentType = 'add')}
+								class="flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all {adjustmentType ===
+								'add'
+									? 'border border-gray-200/50 bg-white text-emerald-700 shadow-xs'
+									: 'text-gray-500 hover:text-gray-700'}"
+							>
+								<span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+								Restock / Add
+							</button>
+							<button
+								type="button"
+								onclick={() => (adjustmentType = 'subtract')}
+								class="flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all {adjustmentType ===
+								'subtract'
+									? 'border border-gray-200/50 bg-white text-red-700 shadow-xs'
+									: 'text-gray-500 hover:text-gray-700'}"
+							>
+								<span class="h-2 w-2 rounded-full bg-red-500"></span>
+								Damage / Subtract
+							</button>
+						</div>
+					</div>
+
+					<!-- Quantity Input -->
+					<div class="space-y-1.5">
+						<label
+							for="adjustQuantity"
+							class="block text-xs font-bold tracking-wide text-gray-700 uppercase"
+							>Quantity to Adjust *</label
+						>
+						<div class="relative">
+							<input
+								id="adjustQuantity"
+								type="number"
+								min="1"
+								required
+								bind:value={adjustmentQuantity}
+								class="block w-full rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 shadow-xs transition-all focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 focus:outline-none"
+								placeholder="e.g. 3"
+							/>
+						</div>
+					</div>
+
+					<!-- Reason Input -->
+					<div class="space-y-1.5">
+						<label
+							for="adjustReason"
+							class="block text-xs font-bold tracking-wide text-gray-700 uppercase"
+							>Reason / Note</label
+						>
+						<textarea
+							id="adjustReason"
+							rows="3"
+							bind:value={adjustmentReason}
+							class="block w-full resize-none rounded-xl border border-gray-300 px-3.5 py-2.5 text-sm text-gray-900 shadow-xs transition-all focus:border-pink-500 focus:ring-2 focus:ring-pink-500/20 focus:outline-none"
+						></textarea>
+					</div>
+
+					<!-- Modal Footer -->
+					<div class="flex items-center justify-end gap-3 border-t border-gray-100 pt-3">
+						<button
+							type="button"
+							onclick={closeAdjustStock}
+							class="rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-xs font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]"
+							disabled={adjustStockLoading}
+						>
+							Cancel
+						</button>
+						<button
+							type="submit"
+							class="flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-md transition-all active:scale-[0.98] {adjustmentType ===
+							'add'
+								? 'bg-linear-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 focus:ring-emerald-500/20'
+								: 'bg-linear-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 focus:ring-red-500/20'}"
+							disabled={adjustStockLoading}
+						>
+							{#if adjustStockLoading}
+								<svg class="h-3.5 w-3.5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
+									<circle
+										class="opacity-25"
+										cx="12"
+										cy="12"
+										r="10"
+										stroke="currentColor"
+										stroke-width="4"
+									/>
+									<path
+										class="opacity-75"
+										fill="currentColor"
+										d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+									/>
+								</svg>
+								Adjusting...
+							{:else}
+								{adjustmentType === 'add' ? 'Add' : 'Subtract'} {adjustmentQuantity} Items
+							{/if}
+						</button>
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+{/if}
 
 <!-- Add New Item / Edit Item Modal -->
 {#if showAddItemModal}
@@ -5414,32 +5725,42 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 							<!-- Summary -->
 							<div class="grid grid-cols-4 gap-4">
-								<div class="rounded-2xl border border-pink-100 bg-linear-to-br from-pink-50 to-pink-100/50 p-5 shadow-sm">
-									<p class="text-xs font-bold uppercase tracking-wide text-pink-600">Total Rows</p>
+								<div
+									class="rounded-2xl border border-pink-100 bg-linear-to-br from-pink-50 to-pink-100/50 p-5 shadow-sm"
+								>
+									<p class="text-xs font-bold tracking-wide text-pink-600 uppercase">Total Rows</p>
 									<p class="mt-1.5 text-3xl font-black text-pink-900">{importPreviewData.length}</p>
 								</div>
-								<div class="rounded-2xl border border-green-100 bg-linear-to-br from-green-50 to-green-100/50 p-5 shadow-sm">
-									<p class="text-xs font-bold uppercase tracking-wide text-green-600">Create</p>
+								<div
+									class="rounded-2xl border border-green-100 bg-linear-to-br from-green-50 to-green-100/50 p-5 shadow-sm"
+								>
+									<p class="text-xs font-bold tracking-wide text-green-600 uppercase">Create</p>
 									<p class="mt-1.5 text-3xl font-black text-green-900">
 										{importPreviewData.filter((i) => i._importAction === 'create').length}
 									</p>
 								</div>
-								<div class="rounded-2xl border border-emerald-100 bg-linear-to-br from-emerald-50 to-emerald-100/50 p-5 shadow-sm">
-									<p class="text-xs font-bold uppercase tracking-wide text-emerald-600">Update</p>
+								<div
+									class="rounded-2xl border border-emerald-100 bg-linear-to-br from-emerald-50 to-emerald-100/50 p-5 shadow-sm"
+								>
+									<p class="text-xs font-bold tracking-wide text-emerald-600 uppercase">Update</p>
 									<p class="mt-1.5 text-3xl font-black text-emerald-900">
 										{importPreviewData.filter((i) => i._importAction === 'update').length}
 									</p>
 								</div>
-								<div class="rounded-2xl border border-amber-100 bg-linear-to-br from-amber-50 to-amber-100/50 p-5 shadow-sm">
-									<p class="text-xs font-bold uppercase tracking-wide text-amber-600">No Change</p>
+								<div
+									class="rounded-2xl border border-amber-100 bg-linear-to-br from-amber-50 to-amber-100/50 p-5 shadow-sm"
+								>
+									<p class="text-xs font-bold tracking-wide text-amber-600 uppercase">No Change</p>
 									<p class="mt-1.5 text-3xl font-black text-amber-900">
 										{importPreviewData.filter((i) => i._importAction === 'no-change').length}
 									</p>
 								</div>
 							</div>
 							{#if importPreviewData.filter((i) => i._importAction === 'error').length > 0}
-								<div class="mt-4 rounded-2xl border border-red-100 bg-linear-to-br from-red-50 to-red-100/50 p-5 shadow-sm">
-									<p class="text-xs font-bold uppercase tracking-wide text-red-600">Errors</p>
+								<div
+									class="mt-4 rounded-2xl border border-red-100 bg-linear-to-br from-red-50 to-red-100/50 p-5 shadow-sm"
+								>
+									<p class="text-xs font-bold tracking-wide text-red-600 uppercase">Errors</p>
 									<p class="mt-1.5 text-3xl font-black text-red-900">
 										{importPreviewData.filter((i) => i._importAction === 'error').length}
 									</p>
@@ -5447,9 +5768,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							{/if}
 
 							{#if importErrors.length > 0}
-								<div class="mt-4 rounded-2xl border border-yellow-200 bg-linear-to-br from-yellow-50 to-yellow-100/50 p-5 shadow-sm">
+								<div
+									class="mt-4 rounded-2xl border border-yellow-200 bg-linear-to-br from-yellow-50 to-yellow-100/50 p-5 shadow-sm"
+								>
 									<div class="flex items-start">
-										<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-yellow-200/60">
+										<div
+											class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-yellow-200/60"
+										>
 											<svg
 												class="h-5 w-5 text-yellow-700"
 												fill="none"
@@ -5489,22 +5814,28 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									<table class="min-w-full divide-y divide-gray-200">
 										<thead class="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm">
 											<tr>
-												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+												<th
+													class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
 													>Status</th
 												>
-												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+												<th
+													class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
 													>Name</th
 												>
-												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+												<th
+													class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
 													>Category</th
 												>
-												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+												<th
+													class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
 													>Current Count</th
 												>
-												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+												<th
+													class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
 													>Donations</th
 												>
-												<th class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
+												<th
+													class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
 													>Image</th
 												>
 											</tr>
@@ -5677,7 +6008,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				</div>
 
 				<!-- Footer -->
-				<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8 flex items-center justify-between">
+				<div
+					class="sticky bottom-0 flex items-center justify-between border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8"
+				>
 					<button
 						onclick={closeImportModal}
 						class="rounded-xl border-2 border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-400 hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none active:scale-95"
@@ -5688,37 +6021,58 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					{#if importStep === 'upload' && importPreviewData.length > 0}
 						<!-- Next button for upload step -->
 						<button
-							onclick={() => { importStep = 'preview'; }}
-							class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-emerald-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-500/40 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+							onclick={() => {
+								importStep = 'preview';
+							}}
+							class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-emerald-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-500/40 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:pointer-events-none disabled:opacity-50"
 							disabled={importing}
 						>
 							Continue to Preview
 							<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 5l7 7-7 7"
+								/>
 							</svg>
 						</button>
 					{:else if importStep === 'preview'}
 						<div class="flex gap-3">
 							<button
-								onclick={() => { importStep = 'upload'; }}
-								class="inline-flex items-center gap-2 rounded-xl border-2 border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-400 hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
+								onclick={() => {
+									importStep = 'upload';
+								}}
+								class="inline-flex items-center gap-2 rounded-xl border-2 border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-400 hover:bg-gray-50 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:pointer-events-none disabled:opacity-50"
 								disabled={importing}
 							>
 								Back
 							</button>
 							<button
 								onclick={handleImportConfirm}
-								class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-emerald-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-500/40 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:opacity-50 disabled:pointer-events-none"
-								disabled={importing || importPreviewData.filter(i => i._importAction === 'create' || i._importAction === 'update').length === 0}
+								class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-emerald-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-500/40 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:pointer-events-none disabled:opacity-50"
+								disabled={importing ||
+									importPreviewData.filter(
+										(i) => i._importAction === 'create' || i._importAction === 'update'
+									).length === 0}
 							>
 								{#if importing}
-									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white"></div>
+									<div
+										class="h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white"
+									></div>
 									Importing...
 								{:else}
 									<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											stroke-width="2"
+											d="M5 13l4 4L19 7"
+										/>
 									</svg>
-									Apply {importPreviewData.filter(i => i._importAction === 'create' || i._importAction === 'update').length} Changes
+									Apply {importPreviewData.filter(
+										(i) => i._importAction === 'create' || i._importAction === 'update'
+									).length} Changes
 								{/if}
 							</button>
 						</div>
