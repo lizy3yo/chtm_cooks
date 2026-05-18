@@ -1,6 +1,10 @@
 /* CHTM Cooks - Professional Pink Theme */
 /* Based on Material Design Pink palette with corporate refinements */
 
+@theme {
+	--font-primary: "Google Sans", var(--font-sans);
+}
+
 :root {
 	/* Primary Pink Palette - Professional & Sophisticated */
 	--color-primary-50: #fce4ec;
@@ -77,6 +81,7 @@
 	--color-muted: #6b7280;
 	--color-bg: #ffffff;
 	--color-sidebar: #ffffff;
+	--font-primary: "Google Sans", var(--font-sans);
 }
 
 /* Light mode - pure white background */
@@ -85,6 +90,7 @@ html body,
 body {
 	background-color: #ffffff !important;
 	background: #ffffff !important;
+	font-family: var(--font-primary);
 }
 
 /* Dark mode variables and overrides (applies when `html` has class `dark`) */
@@ -1540,7 +1546,7 @@ html.dark .absolute.top-0.left-0.w-20.h-20.bg-gradient-to-br.from-pink-100 {
 }
 
 body {
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+	font-family: var(--font-primary);
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 }

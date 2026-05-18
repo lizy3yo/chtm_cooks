@@ -34,17 +34,18 @@ const cspDirectives: CSPDirectives = {
 		'https://unpkg.com'
 	],
 
-	// Styles: allow inline styles for frameworks
+	// Styles: allow inline styles for frameworks and Google Fonts
 	'style-src': [
 		"'self'",
-		"'unsafe-inline'" // Required for component-scoped styles
+		"'unsafe-inline'", // Required for component-scoped styles
+		'https://fonts.googleapis.com'
 	],
 
 	// Images: allow self-hosted, data URIs, and HTTPS images
 	'img-src': ["'self'", 'data:', 'https:', 'blob:'],
 
-	// Fonts: allow self-hosted and data URIs
-	'font-src': ["'self'", 'data:'],
+	// Fonts: allow self-hosted, data URIs, and Google Fonts
+	'font-src': ["'self'", 'data:', 'https://fonts.gstatic.com'],
 
 	// API connections: restrict to your API endpoints
 	'connect-src': [

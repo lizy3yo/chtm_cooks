@@ -75,7 +75,7 @@ export const PATCH: RequestHandler = async (event) => {
 		// Refetch and publish
 		const updatedDoc = await db.collection<BorrowRequest>(BORROW_REQUESTS_COLLECTION).findOne({ _id: requestId });
 		if (updatedDoc) {
-			publishBorrowRequestRealtimeEvent(updatedDoc, 'item_updated', now);
+			publishBorrowRequestRealtimeEvent(updatedDoc, 'obligation_updated', now);
 		}
 
 		return json({ success: true, message: 'Due date updated' });
