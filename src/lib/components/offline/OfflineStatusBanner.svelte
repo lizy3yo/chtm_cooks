@@ -187,10 +187,10 @@
 	</div>
 {/if}
 
-<!-- Sync Info (Top Right - Desktop Only) -->
+<!-- Sync Info (Bottom Left - Desktop Only) -->
 {#if $syncStatus.online && $syncStatus.lastSync}
 	<div
-		class="hidden md:block fixed top-4 right-4 z-30 bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm"
+		class="hidden md:block fixed bottom-4 left-4 z-40 bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm sync-badge-left transition-all duration-300"
 		transition:fade={{ duration: 200 }}
 	>
 		<div class="flex items-center gap-2">
@@ -200,7 +200,7 @@
 					: 'bg-green-500'}"
 				aria-hidden="true"
 			></div>
-			<span class="text-xs text-gray-600">
+			<span class="text-xs text-gray-600 font-medium">
 				Last sync: {formatLastSync($syncStatus.lastSync)}
 			</span>
 		</div>
@@ -233,5 +233,16 @@
 
 	.animate-pulse {
 		animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+	}
+
+	/* Adjust bottom-left sync badge position dynamically on desktop when a sidebar is present */
+	@media (min-width: 1024px) {
+		:global(body:has(aside)) .sync-badge-left {
+			left: 19rem; /* Sidebar expanded width (18rem/w-72) + left-4 offset (1rem) */
+		}
+
+		:global(body:has(aside:has(.lg\:w-20))) .sync-badge-left {
+			left: 6rem; /* Sidebar collapsed width (5rem/lg:w-20) + left-4 offset (1rem) */
+		}
 	}
 </style>

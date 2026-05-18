@@ -454,8 +454,7 @@
 		{#if performanceStats}
 			{@const trust = trustTierConfig(performanceStats.trustScore.tier)}
 			{@const score = performanceStats.trustScore.score}
-			<!-- ── Trust Score Hero ───────────────────────────────────────── -->
-			<div class="rounded-xl border {trust.border} {trust.bg} p-3 shadow-sm sm:p-4">
+			<div class="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100 sm:p-4">
 				<div class="flex items-center gap-3 sm:gap-4">
 					<!-- Gauge -->
 					<div class="flex shrink-0 flex-col items-center gap-1">
@@ -495,39 +494,30 @@
 						<h2 class="text-base font-semibold {trust.text} sm:text-lg">Trust Score</h2>
 						<p class="text-xs text-gray-600 sm:text-sm">{trust.description}</p>
 
-						<div class="pt-1">
-							<div class="mb-1 flex justify-between text-[10px] text-gray-400 sm:text-xs">
-								<span>0 - Critical</span>
-								<span>100 - Excellent</span>
-							</div>
-							<div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-200 sm:h-2">
-								<div class="h-full rounded-full {trust.ring}" style="width: {score}%"></div>
-							</div>
-						</div>
 
-						<div class="flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-gray-500 sm:text-xs">
-							<span
-								><span class="mr-0.5 inline-block h-1 w-1 rounded-full bg-red-500 sm:h-1.5 sm:w-1.5"
+						<div class="flex flex-wrap gap-x-4 gap-y-1.5 text-[10px] text-gray-500 sm:gap-x-5 sm:text-xs">
+							<span class="inline-flex items-center"
+								><span class="mr-1.5 inline-block h-1 w-1 rounded-full bg-red-500 sm:h-1.5 sm:w-1.5"
 								></span>Critical &lt;40</span
 							>
-							<span
+							<span class="inline-flex items-center"
 								><span
-									class="mr-0.5 inline-block h-1 w-1 rounded-full bg-orange-500 sm:h-1.5 sm:w-1.5"
+									class="mr-1.5 inline-block h-1 w-1 rounded-full bg-orange-500 sm:h-1.5 sm:w-1.5"
 								></span>Poor 40-59</span
 							>
-							<span
+							<span class="inline-flex items-center"
 								><span
-									class="mr-0.5 inline-block h-1 w-1 rounded-full bg-amber-500 sm:h-1.5 sm:w-1.5"
+									class="mr-1.5 inline-block h-1 w-1 rounded-full bg-amber-500 sm:h-1.5 sm:w-1.5"
 								></span>Fair 60-74</span
 							>
-							<span
+							<span class="inline-flex items-center"
 								><span
-									class="mr-0.5 inline-block h-1 w-1 rounded-full bg-pink-500 sm:h-1.5 sm:w-1.5"
+									class="mr-1.5 inline-block h-1 w-1 rounded-full bg-pink-500 sm:h-1.5 sm:w-1.5"
 								></span>Good 75-89</span
 							>
-							<span
+							<span class="inline-flex items-center"
 								><span
-									class="mr-0.5 inline-block h-1 w-1 rounded-full bg-emerald-500 sm:h-1.5 sm:w-1.5"
+									class="mr-1.5 inline-block h-1 w-1 rounded-full bg-emerald-500 sm:h-1.5 sm:w-1.5"
 								></span>Excellent 90+</span
 							>
 						</div>
