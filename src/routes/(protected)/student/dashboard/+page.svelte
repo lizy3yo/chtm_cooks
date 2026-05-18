@@ -78,6 +78,7 @@
 			pending_return: 'pending-return',
 			missing: 'missing',
 			returned: 'returned',
+			resolved: 'returned',
 			cancelled: 'cancelled',
 			rejected: 'rejected'
 		};
@@ -382,7 +383,7 @@
 		}
 
 		void (async () => {
-			await loadDashboard();
+			await loadDashboard(true);
 		})();
 
 		const clockId = setInterval(() => {

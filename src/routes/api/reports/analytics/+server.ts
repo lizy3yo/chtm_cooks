@@ -24,7 +24,7 @@ import { UserRole, type User } from '$lib/server/models/User';
 
 const ANALYTICS_CACHE_TAG = 'reports-analytics';
 const CACHE_TTL = 43200; // 12 hours
-const ANALYTICS_CACHE_VERSION = 'v8';
+const ANALYTICS_CACHE_VERSION = 'v9';
 const TRUST_SCORE_STUDENT_LIMIT = 50; // Reduced from 200 for faster analytics response.
 
 const ALLOWED_ROLES = new Set(['instructor', 'custodian', 'superadmin']);
@@ -56,6 +56,7 @@ type BorrowRequestLite = {
 	status?: string;
 	approvedAt?: Date | null;
 	returnedAt?: Date | null;
+	missingAt?: Date | null;
 	returnDate?: Date | null;
 	items?: Array<{
 		inspection?: {
@@ -136,7 +137,7 @@ function computeTrustStatsForStudent(
 
 	for (const req of requests) {
 		const status = req.status ?? '';
-		if (status === 'returned') {
+		if (status === 'returned' || status === 'resolved') {
 			requestsReturned += 1;
 			returnedCount += 1;
 		}
@@ -146,7 +147,7 @@ function computeTrustStatsForStudent(
 			cancelledAfterApprovalPenalty += 3;
 		}
 
-		const isTerminal = status === 'returned' || status === 'missing';
+		const isTerminal = status === 'returned' || status === 'missing' || status === 'resolved';
 		if (!isTerminal) continue;
 
 		const items = req.items ?? [];
@@ -178,9 +179,10 @@ function computeTrustStatsForStudent(
 		}
 
 		let returnedOnTime = false;
-		if (status === 'returned' && req.returnedAt && req.returnDate) {
+		const returnTimestamp = req.returnedAt || req.missingAt;
+		if ((status === 'returned' || status === 'resolved') && returnTimestamp && req.returnDate) {
 			returnTimestampCoverageCount += 1;
-			const returnedAt = new Date(req.returnedAt);
+			const returnedAt = new Date(returnTimestamp);
 			const dueDate = new Date(req.returnDate);
 			if (returnedAt > dueDate) {
 				const daysLate = Math.ceil((returnedAt.getTime() - dueDate.getTime()) / 86_400_000);
@@ -192,7 +194,7 @@ function computeTrustStatsForStudent(
 		}
 
 		if (
-			status === 'returned' &&
+			(status === 'returned' || status === 'resolved') &&
 			returnedOnTime &&
 			allItemsInspected &&
 			allInspectionsGood &&
@@ -1367,8 +1369,7 @@ export const GET: RequestHandler = async (event) => {
 			borrowRequests
 				.find(
 					{
-						studentId: { $in: studentObjectIds },
-						createdAt: { $gte: start, $lte: end }
+						studentId: { $in: studentObjectIds }
 					},
 					{
 						projection: {
@@ -1376,6 +1377,7 @@ export const GET: RequestHandler = async (event) => {
 							status: 1,
 							approvedAt: 1,
 							returnedAt: 1,
+							missingAt: 1,
 							returnDate: 1,
 							'items.inspection.status': 1
 						}

@@ -57,6 +57,7 @@ export function buildReplacementObligationDetailCacheKey(id: string): string {
 export async function invalidateReplacementObligationCaches(): Promise<void> {
 	await Promise.all([
 		cacheService.deletePattern('replacement-obligations:*'),
+		cacheService.deletePattern('student-stats:*'),
 		cacheService.invalidateByTags([REPLACEMENT_OBLIGATIONS_CACHE_TAG, REPORTS_ANALYTICS_CACHE_TAG])
 	]);
 }
