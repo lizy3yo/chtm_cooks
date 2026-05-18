@@ -43,7 +43,7 @@
 		BookOpen
 	} from 'lucide-svelte';
 
-	type StudentTab = 'my-request' | 'instructor-approved' | 'active' | 'history';
+	type StudentTab = 'my-request' | 'instructor-approved' | 'active';
 	type RequestViewMode = 'card' | 'list';
 
 	// Pagination requireds
@@ -334,7 +334,7 @@
 		else if (['approved', 'ready'].includes(target.status)) activeTab = 'instructor-approved';
 		else if (['picked-up', 'pending-return', 'missing'].includes(target.status))
 			activeTab = 'active';
-		else activeTab = 'history';
+		else return; // Resolved/Cancelled/Rejected are in the separate History page
 
 		currentPage = 1;
 		highlightedRequestId = rawId;
@@ -502,14 +502,10 @@
 			const isMyRequest = req.status === 'pending';
 			const isInstructorApproved = ['approved', 'ready'].includes(req.status);
 			const isActive = ['picked-up', 'pending-return', 'missing'].includes(req.status);
-			const isHistory = ['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(
-				req.status
-			);
 
 			if (activeTab === 'my-request' && !isMyRequest) return false;
 			if (activeTab === 'instructor-approved' && !isInstructorApproved) return false;
 			if (activeTab === 'active' && !isActive) return false;
-			if (activeTab === 'history' && !isHistory) return false;
 			if (
 				searchQuery &&
 				!`${req.id} ${req.purpose} ${req.items.map((item: any) => item.name).join(' ')}`
@@ -567,10 +563,7 @@
 		'my-request': requests.filter((r) => r.status === 'pending').length,
 		'instructor-approved': requests.filter((r) => ['approved', 'ready'].includes(r.status)).length,
 		active: requests.filter((r) => ['picked-up', 'pending-return', 'missing'].includes(r.status))
-			.length,
-		history: requests.filter((r) =>
-			['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(r.status)
-		).length
+			.length
 	});
 
 	const stats = $derived({
@@ -885,6 +878,9 @@
 
 	function getDetailModalStatusLabel(request: any): string {
 		if (!request) return '';
+		if (request.status === 'resolved' || request.status === 'returned') {
+			return getStatusLabel(request.status);
+		}
 		if (
 			request.status === 'missing' ||
 			request.items?.some(
@@ -910,6 +906,9 @@
 
 	function getDetailModalStatusColor(request: any): string {
 		if (!request) return 'bg-gray-100 text-gray-800';
+		if (request.status === 'resolved' || request.status === 'returned') {
+			return getStatusColor(request.status);
+		}
 		if (
 			request.status === 'missing' ||
 			request.items?.some(
@@ -935,6 +934,9 @@
 
 	function getDetailModalStatusIcon(request: any): any {
 		if (!request) return Clock;
+		if (request.status === 'resolved' || request.status === 'returned') {
+			return getStatusIconComponent(request.status);
+		}
 		if (
 			request.status === 'missing' ||
 			request.items?.some(
@@ -1022,7 +1024,7 @@
 		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
 			<div class="flex items-center justify-between gap-2">
 				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pickup</p>
+					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Ready for Pickup</p>
 					<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">
 						{stats.readyForPickup}
 					</p>
@@ -1088,22 +1090,7 @@
 					{tabCounts.active}
 				</span>
 			</button>
-			<button
-				onclick={() => (activeTab = 'history')}
-				class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap sm:text-sm {activeTab ===
-				'history'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				History
-				<span
-					class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'history'
-						? 'bg-pink-100 text-pink-600'
-						: 'bg-gray-100 text-gray-600'}"
-				>
-					{tabCounts.history}
-				</span>
-			</button>
+			<!-- History tab removed -->
 		</nav>
 	</div>
 
