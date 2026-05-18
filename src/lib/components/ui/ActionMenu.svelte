@@ -31,7 +31,7 @@
 		/** Which side of the trigger the panel aligns to (horizontal anchor when side='bottom') */
 		align?: 'left' | 'right';
 		/** Which side of the trigger the panel opens from */
-		side?: 'bottom' | 'left' | 'right';
+		side?: 'bottom' | 'top' | 'left' | 'right';
 	}
 
 	let { items, triggerLabel = 'Open actions', align = 'right', side = 'bottom' }: Props = $props();
@@ -53,7 +53,13 @@
 		let top: number;
 		let left: number;
 
-		if (side === 'left') {
+		if (side === 'top') {
+			// Open above the trigger
+			top = rect.top - estimatedHeight - 4;
+			left = align === 'right'
+				? Math.max(4, rect.right - PANEL_WIDTH)
+				: Math.min(rect.left, window.innerWidth - PANEL_WIDTH - 4);
+		} else if (side === 'left') {
 			// Open to the left of the trigger, vertically centered on it.
 			// Auto-flip right if there's not enough space on the left.
 			const spaceLeft = rect.left;
@@ -123,18 +129,31 @@
 	// Clean up on destroy — nothing to remove since we use svelte:document
 	onDestroy(() => { open = false; });
 
+	function portal(node: HTMLElement) {
+		document.body.appendChild(node);
+		return {
+			destroy() {
+				if (node.parentNode) {
+					node.parentNode.removeChild(node);
+				}
+			}
+		};
+	}
+
 	const variantCls: Record<NonNullable<ActionMenuItem['variant']>, string> = {
 		default: 'text-gray-700 hover:bg-gray-50',
 		danger:  'text-red-600  hover:bg-red-50',
 		warning: 'text-amber-600 hover:bg-amber-50',
-		success: 'text-emerald-600 hover:bg-emerald-50'
+		success: 'text-emerald-600 hover:bg-emerald-50',
+		purple:  'text-purple-700 hover:bg-purple-50'
 	};
 
 	const iconCls: Record<NonNullable<ActionMenuItem['variant']>, string> = {
 		default: 'text-gray-400',
 		danger:  'text-red-400',
 		warning: 'text-amber-400',
-		success: 'text-emerald-500'
+		success: 'text-emerald-500',
+		purple:  'text-purple-500'
 	};
 </script>
 
@@ -163,6 +182,7 @@
 			stacking context — the same technique used by Floating UI / Popper.js.
 		-->
 		<div
+			use:portal
 			bind:this={panelEl}
 			style={panelStyle}
 			class="rounded-xl border border-gray-200 bg-white py-1 shadow-xl ring-1 ring-black/5"

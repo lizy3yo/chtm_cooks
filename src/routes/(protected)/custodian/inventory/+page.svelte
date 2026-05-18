@@ -18,7 +18,7 @@
 	import InventorySkeletonLoader from '$lib/components/ui/InventorySkeletonLoader.svelte';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
-	import { Package, FolderTree, AlertTriangle, Star, Archive, Trash2 } from 'lucide-svelte';
+	import { Package, FolderTree, AlertTriangle, Star, Archive, Trash2, Edit } from 'lucide-svelte';
 	import ActionMenu from '$lib/components/ui/ActionMenu.svelte';
 
 	type Tab = 'all-items' | 'required-items' | 'categories' | 'low-stock';
@@ -3043,55 +3043,46 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						<!-- Footer -->
 						<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 backdrop-blur-sm">
 							<div class="px-4 py-3 sm:px-6 sm:py-4 lg:px-8 lg:py-5">
-								<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-									<div class="order-2 flex flex-row gap-2 sm:order-1">
-										<button
-											onclick={() => {
-												if (selectedItem) archiveItem(selectedItem);
-											}}
-											class="flex-1 rounded-md border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-amber-700 shadow-sm transition-all hover:bg-amber-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-											title="Move item to archive. Recoverable from History."
-										>
-											Archive
-										</button>
-										<button
-											onclick={() => {
-												if (selectedItem) deleteItem(selectedItem);
-											}}
-											class="flex-1 rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-red-600 shadow-sm transition-all hover:bg-red-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-											title="Permanently delete item. Recoverable for 30 days."
-										>
-											Delete
-										</button>
-									</div>
-									<div class="order-1 flex flex-row gap-2 sm:order-2 sm:gap-2">
-										<button
-											onclick={closeModal}
-											class="order-3 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold whitespace-nowrap text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98] sm:order-1 sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-										>
-											Close
-										</button>
-										<button
-											onclick={() => {
-												if (selectedItem) togglerequiredStatus(selectedItem);
-											}}
-											class="flex-1 rounded-md border border-purple-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-purple-700 shadow-sm transition-all hover:bg-purple-50 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-										>
-											{#if selectedItem.isrequired}
-												Remove Required
-											{:else}
-												Mark Required
-											{/if}
-										</button>
-										<button
-											onclick={() => {
-												if (selectedItem) editItem(selectedItem);
-											}}
-											class="flex-1 rounded-md bg-linear-to-r from-pink-600 to-pink-700 px-3 py-1.5 text-xs font-bold whitespace-nowrap text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] sm:flex-none sm:rounded-xl sm:px-4 sm:py-2 sm:text-xs lg:px-4 lg:py-2 lg:text-sm"
-										>
-											Edit Item
-										</button>
-									</div>
+								<div class="flex items-center justify-end">
+									<ActionMenu
+										align="right"
+										side="top"
+										triggerLabel="Actions"
+										items={[
+											{
+												label: selectedItem?.isrequired ? 'Remove Required' : 'Mark Required',
+												icon: Star,
+												variant: 'purple',
+												action: () => {
+													if (selectedItem) togglerequiredStatus(selectedItem);
+												}
+											},
+											{
+												label: 'Edit Item',
+												icon: Edit,
+												variant: 'default',
+												action: () => {
+													if (selectedItem) editItem(selectedItem);
+												}
+											},
+											{
+												label: 'Archive',
+												icon: Archive,
+												variant: 'warning',
+												action: () => {
+													if (selectedItem) archiveItem(selectedItem);
+												}
+											},
+											{
+												label: 'Delete',
+												icon: Trash2,
+												variant: 'danger',
+												action: () => {
+													if (selectedItem) deleteItem(selectedItem);
+												}
+											}
+										]}
+									/>
 								</div>
 							</div>
 						</div>
@@ -3638,6 +3629,18 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													align="right"
 													triggerLabel="Item actions"
 													items={[
+														{
+															label: item.isrequired ? 'Remove Required' : 'Mark Required',
+															icon: Star,
+															variant: 'purple',
+															action: () => togglerequiredStatus(item)
+														},
+														{
+															label: 'Edit Item',
+															icon: Edit,
+															variant: 'default',
+															action: () => editItem(item)
+														},
 														{
 															label: 'Archive',
 															icon: Archive,
