@@ -51,6 +51,8 @@ export interface CreateItemRequest {
 export interface UpdateItemRequest extends Partial<CreateItemRequest> {
 	archived?: boolean;
 	replacePicture?: boolean;
+	adjustmentType?: 'add' | 'subtract';
+	adjustmentReason?: string;
 }
 
 export interface BulkCreateItemsRequest {

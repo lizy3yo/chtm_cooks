@@ -315,6 +315,52 @@ export const PATCH: RequestHandler = async (event) => {
 			action = InventoryAction.QUANTITY_CHANGED;
 		}
 
+		// Record stock adjustment in donations collection as a manual stock receipt/adjustment log if provided
+		if (body.quantity !== undefined && body.quantity !== currentItem.quantity && (body.adjustmentType || body.adjustmentReason)) {
+			try {
+				const donationsCol = db.collection('donations');
+				const totalCount = await donationsCol.countDocuments();
+				
+				const year = new Date().getFullYear();
+				const seq = String(totalCount + 1).padStart(6, '0');
+				const receiptNumber = `DON-${year}-${seq}`;
+				
+				const delta = body.quantity - currentItem.quantity;
+				const isAdd = delta > 0;
+				
+				const newDonation = {
+					receiptNumber,
+					donorName: 'Custodian Stock Adjustment',
+					itemName: currentItem.name,
+					quantity: delta,
+					purpose: isAdd ? 'Manual Stock Restock' : 'Manual Stock Damage/Loss',
+					date: new Date(),
+					notes: body.adjustmentReason || (isAdd ? 'Stock added manually' : 'Stock subtracted manually'),
+					inventoryAction: 'add_to_existing' as const,
+					inventoryItemId: currentItem._id,
+					createdAt: new Date(),
+					updatedAt: new Date(),
+					createdBy: new ObjectId(decoded.userId)
+				};
+				
+				const insertResult = await donationsCol.insertOne(newDonation);
+				
+				// Also invalidate donation cache
+				const { invalidateDonationCaches } = await import('../../../donations/shared');
+				await invalidateDonationCaches();
+				
+				// Publish donation changes via SSE so the Resource Management page updates in real-time!
+				const { publishDonationChange, DONATION_CHANNEL } = await import('$lib/server/realtime/donationEvents');
+				publishDonationChange([DONATION_CHANNEL], {
+					action: 'donation_created',
+					entityId: insertResult.insertedId.toString(),
+					occurredAt: new Date().toISOString()
+				});
+			} catch (err) {
+				logger.error('Failed to log stock adjustment to Resource Management donations', { error: err });
+			}
+		}
+
 		// Log activity, invalidate caches, and publish SSE in parallel.
 		// Old image deletion is fire-and-forget — it's non-critical and should
 		// not block the response.
@@ -337,7 +383,9 @@ export const PATCH: RequestHandler = async (event) => {
 				metadata: {
 					previousStatus: currentItem.status,
 					newStatus: result.status,
-					quantityChange: body.quantity !== undefined ? body.quantity - currentItem.quantity : undefined
+					quantityChange: body.quantity !== undefined ? body.quantity - currentItem.quantity : undefined,
+					adjustmentType: body.adjustmentType || undefined,
+					adjustmentReason: body.adjustmentReason || undefined
 				},
 				ipAddress: getClientAddress(),
 				userAgent: request.headers.get('user-agent') || undefined
