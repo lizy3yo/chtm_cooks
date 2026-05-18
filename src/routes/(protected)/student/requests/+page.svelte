@@ -154,14 +154,15 @@
 				itemId: item.itemId,
 				picture: item.picture || null,
 				code: item.itemId.slice(-6).toUpperCase(),
-				quantity: item.quantity
+				quantity: item.quantity,
+				inspection: item.inspection || null
 			})),
 			status: uiStatus,
 			requestDate: request.createdAt,
 			borrowDate: request.borrowDate,
 			returnDate: request.returnDate,
 			purpose: request.purpose,
-			instructor: request.instructor?.fullName || 'Pending Assignment',
+			instructor: request.instructor?.fullName || 'Pending',
 			instructorData: request.instructor ?? null,
 			custodianData: request.custodian ?? null,
 			classCodeId: request.classCodeId,
@@ -481,7 +482,7 @@
 
 	function getStatusLabel(status: string): string {
 		const labels: Record<string, string> = {
-			pending: 'Pending Review',
+			pending: 'Under Review',
 			approved: 'Instructor Approved',
 			ready: 'Ready for Pickup',
 			'picked-up': 'Active Loan',
@@ -501,7 +502,9 @@
 			const isMyRequest = req.status === 'pending';
 			const isInstructorApproved = ['approved', 'ready'].includes(req.status);
 			const isActive = ['picked-up', 'pending-return', 'missing'].includes(req.status);
-			const isHistory = ['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(req.status);
+			const isHistory = ['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(
+				req.status
+			);
 
 			if (activeTab === 'my-request' && !isMyRequest) return false;
 			if (activeTab === 'instructor-approved' && !isInstructorApproved) return false;
@@ -565,7 +568,9 @@
 		'instructor-approved': requests.filter((r) => ['approved', 'ready'].includes(r.status)).length,
 		active: requests.filter((r) => ['picked-up', 'pending-return', 'missing'].includes(r.status))
 			.length,
-		history: requests.filter((r) => ['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(r.status)).length
+		history: requests.filter((r) =>
+			['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(r.status)
+		).length
 	});
 
 	const stats = $derived({
@@ -677,7 +682,7 @@
 	}
 
 	function getApprovalTimeline(request: any) {
-		const timeline = [
+		const timeline: Array<{ step: string; status: string; date: string | null; by: string }> = [
 			{ step: 'Request Submitted', status: 'completed', date: request.requestDate, by: 'You' }
 		];
 
@@ -731,7 +736,7 @@
 				by: 'Custodian'
 			});
 			timeline.push({ step: 'Awaiting Return', status: 'pending', date: null, by: 'Student' });
-		} else if (request.status === 'returned') {
+		} else if (request.status === 'returned' || request.status === 'resolved') {
 			timeline.push({
 				step: 'Instructor Approved',
 				status: 'completed',
@@ -756,6 +761,90 @@
 				date: request.returnedDate || request.requestDate,
 				by: 'Student'
 			});
+		} else if (request.status === 'pending_return') {
+			timeline.push({
+				step: 'Instructor Approved',
+				status: 'completed',
+				date: request.approvedDate || request.requestDate,
+				by: request.instructor || 'Primary Admin'
+			});
+			timeline.push({
+				step: 'Custodian Approved',
+				status: 'completed',
+				date: request.releasedDate || request.requestDate,
+				by: 'Custodian'
+			});
+			timeline.push({
+				step: 'Pickup Confirmed',
+				status: 'completed',
+				date: request.pickedUpDate || request.requestDate,
+				by: 'Custodian'
+			});
+			timeline.push({
+				step: 'Return Initiated',
+				status: 'completed',
+				date: request.returnDate || request.requestDate,
+				by: 'You'
+			});
+			timeline.push({
+				step: 'Awaiting Inspection',
+				status: 'pending',
+				date: null,
+				by: 'Custodian'
+			});
+		} else if (
+			request.status === 'missing' ||
+			request.items?.some(
+				(item: any) =>
+					item.inspection?.status === 'missing' || item.inspection?.status === 'damaged'
+			)
+		) {
+			timeline.push({
+				step: 'Instructor Approved',
+				status: 'completed',
+				date: request.approvedDate || request.requestDate,
+				by: request.instructor || 'Primary Admin'
+			});
+			timeline.push({
+				step: 'Custodian Approved',
+				status: 'completed',
+				date: request.releasedDate || request.requestDate,
+				by: 'Custodian'
+			});
+			timeline.push({
+				step: 'Pickup Confirmed',
+				status: 'completed',
+				date: request.pickedUpDate || request.requestDate,
+				by: 'Custodian'
+			});
+
+			const hasMissing =
+				request.status === 'missing' ||
+				request.items?.some((item: any) => item.inspection?.status === 'missing');
+			const hasDamaged = request.items?.some((item: any) => item.inspection?.status === 'damaged');
+
+			if (hasMissing && hasDamaged) {
+				timeline.push({
+					step: 'Unresolved Incidents',
+					status: 'rejected',
+					date: request.missingDate || request.returnedDate || request.requestDate,
+					by: 'Custodian'
+				});
+			} else if (hasMissing) {
+				timeline.push({
+					step: 'Item Missing',
+					status: 'rejected',
+					date: request.missingDate || request.returnedDate || request.requestDate,
+					by: 'Custodian'
+				});
+			} else if (hasDamaged) {
+				timeline.push({
+					step: 'Item Damaged',
+					status: 'rejected',
+					date: request.returnedDate || request.requestDate,
+					by: 'Custodian'
+				});
+			}
 		} else if (request.status === 'cancelled') {
 			timeline.push({
 				step: 'Request Cancelled',
@@ -794,11 +883,75 @@
 		return timeline;
 	}
 
+	function getDetailModalStatusLabel(request: any): string {
+		if (!request) return '';
+		if (
+			request.status === 'missing' ||
+			request.items?.some(
+				(item: any) =>
+					item.inspection?.status === 'missing' || item.inspection?.status === 'damaged'
+			)
+		) {
+			const hasMissing =
+				request.status === 'missing' ||
+				request.items?.some((item: any) => item.inspection?.status === 'missing');
+			const hasDamaged = request.items?.some((item: any) => item.inspection?.status === 'damaged');
+
+			if (hasMissing && hasDamaged) {
+				return 'Unresolved Incidents';
+			} else if (hasMissing) {
+				return 'Item Missing';
+			} else if (hasDamaged) {
+				return 'Item Damaged';
+			}
+		}
+		return getStatusLabel(request.status);
+	}
+
+	function getDetailModalStatusColor(request: any): string {
+		if (!request) return 'bg-gray-100 text-gray-800';
+		if (
+			request.status === 'missing' ||
+			request.items?.some(
+				(item: any) =>
+					item.inspection?.status === 'missing' || item.inspection?.status === 'damaged'
+			)
+		) {
+			const hasMissing =
+				request.status === 'missing' ||
+				request.items?.some((item: any) => item.inspection?.status === 'missing');
+			const hasDamaged = request.items?.some((item: any) => item.inspection?.status === 'damaged');
+
+			if (hasMissing && hasDamaged) {
+				return 'bg-rose-100 text-rose-800';
+			} else if (hasMissing) {
+				return 'bg-rose-100 text-rose-800';
+			} else if (hasDamaged) {
+				return 'bg-amber-100 text-amber-800';
+			}
+		}
+		return getStatusColor(request.status);
+	}
+
+	function getDetailModalStatusIcon(request: any): any {
+		if (!request) return Clock;
+		if (
+			request.status === 'missing' ||
+			request.items?.some(
+				(item: any) =>
+					item.inspection?.status === 'missing' || item.inspection?.status === 'damaged'
+			)
+		) {
+			return CircleAlert;
+		}
+		return getStatusIconComponent(request.status);
+	}
+
 	const SelectedStatusIcon = $derived.by(() =>
-		selectedRequest ? getStatusIconComponent(selectedRequest.status) : Clock
+		selectedRequest ? getDetailModalStatusIcon(selectedRequest) : Clock
 	);
 	const QrStatusIcon = $derived.by(() =>
-		selectedRequest ? getStatusIconComponent(selectedRequest.status) : Clock
+		selectedRequest ? getDetailModalStatusIcon(selectedRequest) : Clock
 	);
 </script>
 
@@ -1101,7 +1254,7 @@
 							<div style="min-height: 600px;">
 								<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">
 									{#each paginatedRequests as request}
-										{@const StatusIcon = getStatusIconComponent(request.status)}
+										{@const StatusIcon = getDetailModalStatusIcon(request)}
 										<!-- svelte-ignore a11y_click_events_have_key_events -->
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
@@ -1133,12 +1286,12 @@
 														>
 													</div>
 													<span
-														class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getStatusColor(
-															request.status
+														class="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold {getDetailModalStatusColor(
+															request
 														)}"
 													>
 														<StatusIcon size={10} />
-														{getStatusLabel(request.status)}
+														{getDetailModalStatusLabel(request)}
 													</span>
 												</div>
 
@@ -1316,7 +1469,7 @@
 									</div>
 									<div class="divide-y divide-gray-100">
 										{#each paginatedRequests as request, i}
-											{@const StatusIcon = getStatusIconComponent(request.status)}
+											{@const StatusIcon = getDetailModalStatusIcon(request)}
 											{@const rowNum = (currentPage - 1) * PAGE_SIZE_LIST + i + 1}
 											<!-- svelte-ignore a11y_click_events_have_key_events -->
 											<!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -1399,15 +1552,17 @@
 												<!-- Status -->
 												<div class="min-w-0 pt-0.5">
 													<span
-														class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold {getStatusColor(
-															request.status
+														class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold {getDetailModalStatusColor(
+															request
 														)}"
 													>
 														<StatusIcon size={11} />
-														{getStatusLabel(request.status)}
+														{getDetailModalStatusLabel(request)}
 													</span>
 													{#if request.status === 'picked-up'}
-														<p class="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-slate-500">
+														<p
+															class="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-slate-500"
+														>
 															<CornerDownLeft size={12} class="shrink-0" /> Return handled by custodian
 														</p>
 													{:else if request.status === 'ready'}
@@ -1588,14 +1743,14 @@
 									{selectedRequest.id}
 								</p>
 								<div
-									class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 {getStatusColor(
-										selectedRequest.status
+									class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 {getDetailModalStatusColor(
+										selectedRequest
 									)} shadow-sm ring-1 ring-black/5"
 								>
 									<SelectedStatusIcon size={12} strokeWidth={2.5} class="sm:hidden" />
 									<SelectedStatusIcon size={14} strokeWidth={2.5} class="hidden sm:block" />
 									<span class="text-[10px] font-bold sm:text-xs"
-										>{getStatusLabel(selectedRequest.status)}</span
+										>{getDetailModalStatusLabel(selectedRequest)}</span
 									>
 								</div>
 							</div>
@@ -1739,7 +1894,7 @@
 														{:else if step.step === 'Request Cancelled'}
 															<CircleX size={18} class="text-slate-400 sm:hidden" />
 															<CircleX size={20} class="hidden text-slate-400 sm:block" />
-														{:else if step.step === 'Request Rejected'}
+														{:else if step.step === 'Request Rejected' || step.step === 'Item Missing' || step.step === 'Item Damaged' || step.step === 'Unresolved Incidents'}
 															<CircleX size={18} class="text-red-600 sm:hidden" />
 															<CircleX size={20} class="hidden text-red-600 sm:block" />
 														{:else}
@@ -1988,52 +2143,200 @@
 								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
 								Requested Items
 							</h3>
-							<div class="grid gap-3 sm:grid-cols-2">
-								{#each selectedRequest.items as item}
-									{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-									<div
-										class="group flex flex-col rounded-xl border border-gray-200 bg-white p-3 transition-all hover:border-pink-200 hover:shadow-md"
-									>
-										<div class="flex items-center gap-3">
-											{#if pic}
-												<img
-													src={pic}
-													alt={item.name}
-													class="h-12 w-12 shrink-0 rounded-lg object-cover ring-1 ring-gray-100"
-													loading="lazy"
-												/>
-											{:else}
-												<div
-													class="h-12 w-12 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100"
-												>
-													<ItemImagePlaceholder size="sm" />
+							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+								<!-- Desktop Table Header -->
+								<div
+									class="hidden grid-cols-12 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-gray-500 uppercase sm:grid"
+								>
+									<span class="col-span-8">Item</span>
+									<span class="col-span-2 text-center">Code</span>
+									<span class="col-span-2 text-center">Qty</span>
+								</div>
+
+								<!-- Table Rows -->
+								<div class="divide-y divide-gray-100">
+									{#each selectedRequest.items as item}
+										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+										{@const code =
+											item.code ?? (item.itemId ? item.itemId.slice(-6).toUpperCase() : 'N/A')}
+										<div
+											class="grid items-center gap-3 bg-white p-3 transition-colors hover:bg-gray-50/50 sm:grid-cols-12 sm:p-4"
+										>
+											<!-- Item Info -->
+											<div class="col-span-12 flex min-w-0 items-center gap-3 sm:col-span-8">
+												{#if pic}
+													<img
+														src={pic}
+														alt={item.name}
+														class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-gray-200"
+														loading="lazy"
+													/>
+												{:else}
+													<div
+														class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-200"
+													>
+														<ItemImagePlaceholder size="sm" />
+													</div>
+												{/if}
+												<div class="flex min-w-0 flex-col gap-1">
+													<span class="truncate text-sm font-semibold text-gray-900"
+														>{item.name}</span
+													>
+
+													{#if item.inspection}
+														{@const isGood = item.inspection.status === 'good'}
+														{@const isDamaged = item.inspection.status === 'damaged'}
+														{@const isMissing = item.inspection.status === 'missing'}
+														<div class="mt-0.5 flex flex-wrap items-center gap-1.5">
+															{#if isGood}
+																<span
+																	class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200/50"
+																>
+																	<span class="h-1 w-1 rounded-full bg-emerald-500"></span>
+																	Good
+																</span>
+															{/if}
+															{#if isDamaged}
+																<span
+																	class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 ring-1 ring-amber-200/50"
+																>
+																	<span class="h-1 w-1 rounded-full bg-amber-500"></span>
+																	Damaged
+																</span>
+															{/if}
+															{#if isMissing}
+																<span
+																	class="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200/50"
+																>
+																	<span class="h-1 w-1 rounded-full bg-rose-500"></span>
+																	Missing
+																</span>
+															{/if}
+														</div>
+													{/if}
 												</div>
-											{/if}
-											<div class="min-w-0 flex-1">
-												<p
-													class="truncate text-sm font-semibold text-gray-900 transition-colors group-hover:text-pink-600"
+											</div>
+
+											<!-- Mobile/Desktop Details -->
+											<div
+												class="col-span-6 flex items-center justify-between border-t border-gray-100 pt-3 sm:col-span-2 sm:justify-center sm:border-0 sm:pt-0"
+											>
+												<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden"
+													>Code</span
 												>
-													{item.name}
-												</p>
-												<p class="mt-0.5 text-xs text-gray-500">
-													Code: {item.code} • Qty: {item.quantity}
-												</p>
+												<span class="font-mono text-sm font-medium text-gray-600">{code}</span>
+											</div>
+											<div
+												class="col-span-6 flex items-center justify-between border-t border-l border-gray-100 pt-3 pl-3 sm:col-span-2 sm:justify-center sm:border-0 sm:pt-0 sm:pl-0"
+											>
+												<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden"
+													>Qty</span
+												>
+												<span class="text-sm font-bold text-gray-900 tabular-nums"
+													>{item.quantity}</span
+												>
 											</div>
 										</div>
-										{#if item.inspection?.notes || item.inspection?.dueDate}
-											<div class="mt-3 rounded-lg bg-gray-50 p-2.5 text-xs text-gray-700 border border-gray-100">
-												{#if item.inspection?.dueDate}
-													<p><span class="font-semibold text-gray-900">Due to resolve:</span> {new Date(item.inspection.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-												{/if}
-												{#if item.inspection?.notes}
-													<p class={item.inspection?.dueDate ? "mt-1.5" : ""}><span class="font-semibold text-gray-900">Notes:</span> {item.inspection.notes}</p>
-												{/if}
-											</div>
-										{/if}
-									</div>
-								{/each}
+									{/each}
+								</div>
 							</div>
 						</div>
+
+						<!-- Replacement Obligations Table -->
+						{#if selectedRequest.items.some((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0)}
+							<div class="animate-fadeIn mt-8">
+								<h3
+									class="mb-4 flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase"
+								>
+									<div class="h-1 w-1 rounded-full bg-amber-500"></div>
+									Replacement Obligations
+								</h3>
+								<div class="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+									<!-- Desktop Table Header -->
+									<div
+										class="hidden grid-cols-12 border-b border-amber-100 bg-amber-50/50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-amber-900 uppercase sm:grid"
+									>
+										<span class="col-span-6">Item to Replace</span>
+										<span class="col-span-3 text-center">Qty Required</span>
+										<span class="col-span-3 text-right">Due Date</span>
+									</div>
+
+									<!-- Table Rows -->
+									<div class="divide-y divide-amber-100/50">
+										{#each selectedRequest.items.filter((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0) as item}
+											{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+											{@const code =
+												item.code ?? (item.itemId ? item.itemId.slice(-6).toUpperCase() : 'N/A')}
+											<div
+												class="grid items-center gap-3 bg-white p-3 transition-colors hover:bg-amber-50/30 sm:grid-cols-12 sm:p-4"
+											>
+												<div class="col-span-12 flex min-w-0 items-center gap-3 sm:col-span-6">
+													{#if pic}
+														<img
+															src={pic}
+															alt={item.name}
+															class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-amber-200/50"
+															loading="lazy"
+														/>
+													{:else}
+														<div
+															class="h-10 w-10 shrink-0 overflow-hidden rounded-lg text-amber-500/50 ring-1 ring-amber-200/50"
+														>
+															<ItemImagePlaceholder size="sm" />
+														</div>
+													{/if}
+													<div class="flex min-w-0 flex-col gap-1">
+														<span class="truncate text-sm font-semibold text-gray-900"
+															>{item.name}</span
+														>
+														<span class="text-[10px] font-semibold text-amber-600/80 uppercase"
+															>{code}</span
+														>
+														{#if item.inspection?.notes?.replace(/^\[Unit breakdown:[^\]]+\]\s*/i, '')}
+															<span
+																class="text-amber-855 border-amber-250/30 mt-1 w-fit max-w-full rounded-lg border bg-amber-50/50 px-2.5 py-1 text-[11px] leading-relaxed font-medium shadow-xs"
+															>
+																<span class="text-amber-955 font-bold">Note:</span>
+																{item.inspection.notes.replace(
+																	/^\[Unit breakdown:[^\]]+\]\s*/i,
+																	''
+																)}
+															</span>
+														{/if}
+													</div>
+												</div>
+												<div
+													class="col-span-6 flex items-center justify-between border-t border-amber-100/50 pt-3 sm:col-span-3 sm:justify-center sm:border-0 sm:pt-0"
+												>
+													<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden"
+														>Qty Required</span
+													>
+													<span class="text-sm font-bold text-amber-700 tabular-nums"
+														>{item.inspection.replacementQuantity}</span
+													>
+												</div>
+												<div
+													class="col-span-6 flex items-center justify-between border-t border-l border-amber-100/50 pt-3 pl-3 sm:col-span-3 sm:justify-end sm:border-0 sm:pt-0 sm:pl-0"
+												>
+													<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden"
+														>Due Date</span
+													>
+													<span class="text-xs font-semibold text-gray-700">
+														{item.inspection.dueDate
+															? new Date(item.inspection.dueDate).toLocaleDateString('en-US', {
+																	month: 'short',
+																	day: 'numeric',
+																	year: 'numeric'
+																})
+															: 'Not set'}
+													</span>
+												</div>
+											</div>
+										{/each}
+									</div>
+								</div>
+							</div>
+						{/if}
 
 						<!-- Decline Reason -->
 						{#if selectedRequest.status === 'rejected' && selectedRequest.rejectionReason}
@@ -2084,23 +2387,48 @@
 
 				<!-- Footer -->
 				<div
-					class="safe-area-bottom sticky bottom-0 border-t border-gray-200 bg-white/95 px-4 py-3 backdrop-blur-sm sm:px-8 sm:py-5"
+					class="safe-area-bottom sticky bottom-0 border-t border-gray-200 bg-white/95 px-4 py-3.5 backdrop-blur-sm sm:px-8 sm:py-4"
 				>
 					<div
 						class="flex flex-col items-stretch justify-end gap-2 sm:flex-row sm:items-center sm:gap-3"
 					>
-						{#if selectedRequest.status === 'picked-up'}
-							<div class="flex flex-1 items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-600">
-								<CornerDownLeft size={14} class="shrink-0 text-slate-400" />
-								<span>Return is handled by the custodian. Bring the item(s) to the custodian desk when ready to return.</span>
+						{#if selectedRequest.status === 'missing' || selectedRequest.items?.some((item: any) => item.inspection?.status === 'missing' || item.inspection?.status === 'damaged')}
+							<div
+								class="animate-fadeIn flex-1 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-center text-xs sm:text-left"
+							>
+								<div class="font-bold text-pink-800">
+									An unresolved incident is attached to this request.
+								</div>
+								<div class="mt-0.5 text-pink-700">
+									Coordinate with the custodian to resolve the outstanding case.
+								</div>
 							</div>
-						{/if}
-
-						{#if selectedRequest.status === 'pending'}
+						{:else if selectedRequest.status === 'picked-up'}
+							<div
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
+							>
+								<CornerDownLeft size={14} class="shrink-0 text-pink-400" />
+								<span
+									>Return is handled by the custodian. Bring the item(s) to the custodian desk when
+									ready to return.</span
+								>
+							</div>
+						{:else if selectedRequest.status === 'pending'}
+							<div
+								class="animate-fadeIn flex-1 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
+							>
+								<div class="flex items-center gap-2">
+									<Info size={14} class="shrink-0 text-pink-400" />
+									<span
+										>Your request is under review by your instructor. You can cancel this request at
+										any time before approval.</span
+									>
+								</div>
+							</div>
 							<button
 								onclick={() => requestCancelConfirmation(selectedRequest)}
 								disabled={loadingCancel === selectedRequest.rawId}
-								class="rounded-xl bg-linear-to-r from-red-600 to-red-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-red-700 hover:to-red-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-6 sm:py-3"
+								class="shrink-0 rounded-xl bg-linear-to-r from-red-600 to-red-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-red-700 hover:to-red-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-6 sm:py-3"
 							>
 								{#if loadingCancel === selectedRequest.rawId}
 									<svg
@@ -2127,27 +2455,67 @@
 									Cancel Request
 								{/if}
 							</button>
-						{/if}
-
-						{#if selectedRequest.status === 'ready'}
+						{:else if selectedRequest.status === 'ready'}
 							<div
-								class="rounded-xl border-2 border-blue-200 bg-linear-to-br from-blue-50 to-blue-100/50 px-4 py-2.5 text-xs font-medium text-blue-900 sm:px-5 sm:py-3 sm:text-sm"
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
+							>
+								<Info size={14} class="shrink-0 text-pink-400" />
+								<span
+									>Please proceed to the custodian desk. Pickup will be confirmed by the custodian
+									upon release of items.</span
+								>
+							</div>
+						{:else if selectedRequest.status === 'approved'}
+							<div
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
+							>
+								<Info size={14} class="shrink-0 text-pink-400" />
+								<span
+									>Awaiting custodian release. The custodian will review and approve the release of
+									your equipment.</span
+								>
+							</div>
+						{:else if selectedRequest.status === 'rejected'}
+							<div
+								class="animate-fadeIn flex-1 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
 							>
 								<div class="flex items-center gap-2">
-									<Info size={14} class="shrink-0 sm:hidden" />
-									<Info size={16} class="hidden shrink-0 sm:block" />
-									<span>{getReadyPickupMessage()}</span>
+									<Info size={14} class="shrink-0 text-pink-400" />
+									<span
+										>This request was rejected by your instructor. You may submit an appeal using
+										the button on the right.</span
+									>
 								</div>
 							</div>
-						{/if}
-
-						{#if selectedRequest.status === 'rejected'}
 							<button
 								onclick={() => openAppealModal(selectedRequest)}
-								class="rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] sm:px-6 sm:py-3"
+								class="shrink-0 rounded-xl bg-linear-to-r from-pink-600 to-pink-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition-all hover:from-pink-700 hover:to-pink-800 active:scale-[0.98] sm:px-6 sm:py-3"
 							>
 								Appeal Request
 							</button>
+						{:else if selectedRequest.status === 'appealed'}
+							<div
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs text-pink-700"
+							>
+								<Info size={14} class="shrink-0 text-pink-400" />
+								<span
+									>Your appeal has been submitted. The instructor will review your appeal shortly.</span
+								>
+							</div>
+						{:else if selectedRequest.status === 'returned' || selectedRequest.status === 'resolved'}
+							<div
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-700"
+							>
+								<CheckCircle2 size={14} class="shrink-0 text-emerald-400" />
+								<span>This request has been successfully returned and resolved. Thank you!</span>
+							</div>
+						{:else if selectedRequest.status === 'cancelled'}
+							<div
+								class="animate-fadeIn flex flex-1 items-center gap-2.5 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-xs text-gray-600"
+							>
+								<Info size={14} class="shrink-0 text-gray-400" />
+								<span>This request was cancelled.</span>
+							</div>
 						{/if}
 					</div>
 				</div>
@@ -2204,7 +2572,7 @@
 					<!-- Original Decline Reason -->
 					{#if appealRequestTarget.rejectionReason}
 						<div class="mb-5 rounded-xl border border-red-200 bg-red-50 p-4">
-							<p class="mb-1 text-xs font-semibold text-red-700 uppercase tracking-wide">
+							<p class="mb-1 text-xs font-semibold tracking-wide text-red-700 uppercase">
 								Original Decline Reason
 							</p>
 							<p class="text-sm text-red-800">{appealRequestTarget.rejectionReason}</p>
@@ -2213,10 +2581,7 @@
 
 					<div class="space-y-4">
 						<div>
-							<label
-								for="appeal-reason"
-								class="mb-1.5 block text-sm font-semibold text-gray-700"
-							>
+							<label for="appeal-reason" class="mb-1.5 block text-sm font-semibold text-gray-700">
 								Appeal Reason
 								<span class="ml-1 font-normal text-gray-400">(required)</span>
 							</label>
@@ -2226,14 +2591,12 @@
 								rows="4"
 								maxlength="500"
 								placeholder="Explain why you believe this request should be reconsidered. Provide any additional context or clarification that may help the instructor review your appeal…"
-								class="block w-full rounded-xl border border-gray-300 px-3.5 py-3 text-sm leading-relaxed text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100 focus:outline-none resize-none"
+								class="block w-full resize-none rounded-xl border border-gray-300 px-3.5 py-3 text-sm leading-relaxed text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:ring-2 focus:ring-violet-100 focus:outline-none"
 							></textarea>
 							<div class="mt-1.5 flex items-center justify-between">
 								<p class="text-xs text-gray-400">Minimum 10 characters</p>
 								<p
-									class="text-xs {appealReason.length > 450
-										? 'text-orange-500'
-										: 'text-gray-400'}"
+									class="text-xs {appealReason.length > 450 ? 'text-orange-500' : 'text-gray-400'}"
 								>
 									{appealReason.length}/500
 								</p>
@@ -2429,5 +2792,3 @@
 		</div>
 	</div>
 {/if}
-
-

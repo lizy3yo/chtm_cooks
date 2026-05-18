@@ -1365,7 +1365,7 @@ html.dark .bg-violet-100 {
 }
 html.dark .text-violet-800 { color: #c4b5fd !important; }
 
-/* Yellow status badge (Pending Review) */
+/* Yellow status badge (Under Review) */
 html.dark .bg-yellow-100 {
 	background-color: rgba(234,179,8,0.08) !important;
 }

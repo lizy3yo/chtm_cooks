@@ -13,7 +13,7 @@
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import Pagination from '$lib/components/ui/Pagination.svelte';
 	import QRCode from 'qrcode';
-	import { ClipboardX, Package, AlertCircle, Clock, AlertTriangle, X, BookOpen, User, Calendar, FileText, QrCode } from 'lucide-svelte';
+	import { ClipboardX, Package, AlertCircle, Clock, AlertTriangle, X, BookOpen, User, Calendar, FileText, QrCode, FileCheck, CheckCheck, PackageCheck, Truck, Home, CircleX, CalendarDays, UserCircle, CircleAlert, CornerDownLeft } from 'lucide-svelte';
 	type LoanFilter = 'all' | 'overdue' | 'due-soon' | 'on-track' | 'return-initiated' | 'unresolved';
 	type LoanSort = 'urgent' | 'due-date' | 'latest-borrowed';
 	type ViewMode = 'by-request' | 'by-item';
@@ -47,6 +47,12 @@
 		classCodeString: string;
 		classSubjectString: string;
 		requestDate: string;
+		approvedDate: string | null;
+		releasedDate: string | null;
+		pickedUpDate: string | null;
+		returnedDate: string | null;
+		missingDate: string | null;
+		resolvedDate: string | null;
 	}
 
 	interface ItemRow {
@@ -151,8 +157,83 @@
 			damagedItems,
 			missingItems,
 			hasUnresolvedIssue: unresolvedRequestIds.has(request.id),
-			unresolvedItems
+			unresolvedItems,
+			approvedDate: request.approvedAt || null,
+			releasedDate: request.releasedAt || null,
+			pickedUpDate: request.pickedUpAt || null,
+			returnedDate: request.returnedAt || null,
+			missingDate: request.missingAt || null,
+			resolvedDate: request.resolvedAt || null
 		};
+	}
+
+	function getApprovalTimeline(loan: LoanCard) {
+		const timeline: Array<{ step: string; status: string; date: string | null; by: string; }> = [
+			{ step: 'Request Submitted', status: 'completed', date: loan.requestDate, by: 'You' }
+		];
+
+		timeline.push({
+			step: 'Instructor Approved',
+			status: 'completed',
+			date: loan.approvedDate || loan.requestDate,
+			by: loan.instructorName
+		});
+
+		timeline.push({
+			step: 'Custodian Approved',
+			status: 'completed',
+			date: loan.releasedDate || loan.borrowDate,
+			by: loan.custodianName
+		});
+
+		timeline.push({
+			step: 'Pickup Confirmed',
+			status: 'completed',
+			date: loan.pickedUpDate || loan.borrowDate,
+			by: 'Custodian'
+		});
+
+		if (loan.status === 'borrowed') {
+			timeline.push({ step: 'Awaiting Return', status: 'pending', date: null, by: 'Student' });
+		} else if (loan.status === 'pending_return') {
+			timeline.push({ step: 'Return Initiated', status: 'completed', date: loan.returnDate, by: 'You' });
+			timeline.push({ step: 'Awaiting Inspection', status: 'pending', date: null, by: 'Custodian' });
+		} else if (loan.status === 'returned' || loan.status === 'resolved') {
+			timeline.push({
+				step: 'Returned',
+				status: 'completed',
+				date: loan.returnedDate || loan.returnDate,
+				by: 'Student'
+			});
+		} else {
+			const hasMissing = loan.status === 'missing' || loan.missingItems > 0;
+			const hasDamaged = loan.damagedItems > 0;
+
+			if (hasMissing && hasDamaged) {
+				timeline.push({
+					step: 'Unresolved Incidents',
+					status: 'rejected',
+					date: loan.missingDate || loan.returnedDate || loan.returnDate,
+					by: 'Custodian'
+				});
+			} else if (hasMissing) {
+				timeline.push({
+					step: 'Item Missing',
+					status: 'rejected',
+					date: loan.missingDate || loan.returnDate,
+					by: 'Custodian'
+				});
+			} else if (hasDamaged) {
+				timeline.push({
+					step: 'Item Damaged',
+					status: 'rejected',
+					date: loan.returnedDate || loan.returnDate,
+					by: 'Custodian'
+				});
+			}
+		}
+
+		return timeline;
 	}
 
 	function getItemStatus(item: BorrowRequestRecord['items'][number], loan: LoanCard): ItemOperationalStatus {
@@ -530,6 +611,52 @@
 			document.removeEventListener('visibilitychange', onVisible);
 		};
 	});
+
+	function getDetailModalStatusLabel(loan: LoanCard | null): string {
+		if (!loan) return '';
+		const hasMissing = loan.status === 'missing' || loan.items?.some((item: any) => item.inspection?.status === 'missing');
+		const hasDamaged = loan.items?.some((item: any) => item.inspection?.status === 'damaged');
+
+		if (hasMissing && hasDamaged) {
+			return 'Unresolved Incidents';
+		} else if (hasMissing) {
+			return 'Item Missing';
+		} else if (hasDamaged) {
+			return 'Item Damaged';
+		}
+		return getLoanStateLabel(loan);
+	}
+
+	function getDetailModalStatusColor(loan: LoanCard | null): string {
+		if (!loan) return 'bg-gray-100 text-gray-800';
+		const hasMissing = loan.status === 'missing' || loan.items?.some((item: any) => item.inspection?.status === 'missing');
+		const hasDamaged = loan.items?.some((item: any) => item.inspection?.status === 'damaged');
+
+		if (hasMissing && hasDamaged) {
+			return 'bg-rose-100 text-rose-800';
+		} else if (hasMissing) {
+			return 'bg-rose-100 text-rose-800';
+		} else if (hasDamaged) {
+			return 'bg-amber-100 text-amber-800';
+		}
+		return getLoanBadgeClasses(loan);
+	}
+
+	function getDetailModalStatusIcon(loan: LoanCard | null): any {
+		if (!loan) return Clock;
+		const hasMissing = loan.status === 'missing' || loan.items?.some((item: any) => item.inspection?.status === 'missing');
+		const hasDamaged = loan.items?.some((item: any) => item.inspection?.status === 'damaged');
+
+		if (hasMissing || hasDamaged) {
+			return CircleAlert;
+		}
+		if (loan.status === 'pending_return') return CornerDownLeft;
+		return PackageCheck;
+	}
+
+	const SelectedStatusIcon = $derived.by(() =>
+		selectedLoan ? getDetailModalStatusIcon(selectedLoan) : Clock
+	);
 </script>
 
 <svelte:head>
@@ -934,308 +1061,517 @@
 			></button>
 			
 			<!-- Modal -->
-			<div class="flex min-h-full items-end justify-center p-0 sm:items-center sm:p-4">
+			<div class="flex min-h-full items-end justify-center sm:items-center sm:p-4">
 				<div
-					class="animate-scaleIn relative mx-0 w-full max-w-5xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:mx-auto sm:rounded-3xl"
+					class="animate-scaleIn relative w-full max-w-3xl overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
 					role="dialog"
 					aria-labelledby="loan-modal-title"
 					aria-modal="true"
 				>
 					<!-- Header -->
-					<div class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 backdrop-blur-sm">
-						<div class="px-4 py-4 sm:px-6 sm:py-5 lg:px-8 lg:py-6">
+					<div
+						class="sticky top-0 z-10 border-b border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8 sm:py-6"
+					>
+						<div class="flex items-start justify-between gap-4">
 							<div class="flex items-start gap-3 sm:gap-4">
 								<!-- Icon -->
 								<div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-pink-500 to-pink-600 shadow-lg shadow-pink-500/30 sm:h-14 sm:w-14 sm:rounded-2xl lg:h-16 lg:w-16">
-									<Package class="h-6 w-6 text-white sm:h-7 sm:w-7 lg:h-8 lg:w-8" />
+									<Package class="h-6 w-6 text-white sm:h-7 sm:w-7 lg:h-8 lg:w-8" strokeWidth={2.5} />
 								</div>
 								
 								<div class="min-w-0 flex-1">
-									<h2 id="loan-modal-title" class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">Borrowed Request Details</h2>
+									<h2 id="loan-modal-title" class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">Request Details</h2>
 									<p class="mt-0.5 font-mono text-xs font-semibold text-pink-600 sm:text-sm">{selectedLoan.requestCode}</p>
-									<div class="mt-2 flex flex-wrap items-center gap-2">
-										<span class="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold ring-1 ring-black/5 sm:text-xs {getLoanBadgeClasses(selectedLoan)}">
-											{getLoanStateLabel(selectedLoan)}
-										</span>
-										{#if selectedLoan.hasUnresolvedIssue}
-											<span class="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-bold text-rose-800 ring-1 ring-rose-200 sm:text-xs">
-												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-												{selectedLoan.unresolvedItems} Unresolved
-											</span>
-										{/if}
+									<div
+										class="mt-2 inline-flex items-center gap-2 rounded-full px-2.5 py-1 sm:px-3 sm:py-1.5 {getDetailModalStatusColor(
+											selectedLoan
+										)} shadow-sm ring-1 ring-black/5"
+									>
+										<SelectedStatusIcon size={12} strokeWidth={2.5} class="sm:hidden" />
+										<SelectedStatusIcon size={14} strokeWidth={2.5} class="hidden sm:block" />
+										<span class="text-[10px] font-bold sm:text-xs"
+											>{getDetailModalStatusLabel(selectedLoan)}</span
+										>
 									</div>
 								</div>
+							</div>
 
-								<div class="flex items-center gap-1.5 shrink-0">
-									{#if selectedLoan.status === 'borrowed'}
-										<button
-											type="button"
-											onclick={() => { qrLoan = selectedLoan; qrDataUrl = null; QRCode.toDataURL(selectedLoan!.id, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' }, errorCorrectionLevel: 'H' }).then(url => { qrDataUrl = url; }).catch(() => {}); showQrModal = true; }}
-											class="shrink-0 rounded-lg border border-pink-200 bg-white p-1.5 text-pink-600 shadow-sm transition-all hover:bg-pink-50 active:scale-95 sm:rounded-xl sm:p-2"
-											title="View QR Code"
-											aria-label="View QR Code"
-										>
-											<QrCode class="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2} />
-										</button>
-									{/if}
+							<div class="flex items-center gap-1.5 shrink-0">
+								{#if selectedLoan.status === 'borrowed'}
 									<button
 										type="button"
-										onclick={closeLoanDetails}
-										class="shrink-0 rounded-lg p-1.5 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95 sm:rounded-xl sm:p-2"
-										aria-label="Close modal"
+										onclick={() => { qrLoan = selectedLoan; qrDataUrl = null; QRCode.toDataURL(selectedLoan!.id, { width: 240, margin: 2, color: { dark: '#111827', light: '#ffffff' }, errorCorrectionLevel: 'H' }).then(url => { qrDataUrl = url; }).catch(() => {}); showQrModal = true; }}
+										class="shrink-0 rounded-xl p-2 text-pink-600 transition-all hover:bg-pink-50 active:scale-95 sm:p-2.5"
+										title="View QR Code"
+										aria-label="View QR Code"
 									>
-										<X class="h-5 w-5 sm:h-6 sm:w-6" />
+										<QrCode size={18} strokeWidth={2} class="sm:hidden" />
+										<QrCode size={22} strokeWidth={2} class="hidden sm:block" />
 									</button>
-								</div>
+								{/if}
+								<button
+									type="button"
+									onclick={closeLoanDetails}
+									class="shrink-0 rounded-xl p-2 text-gray-400 transition-all hover:bg-gray-100 hover:text-gray-600 active:scale-95 sm:p-2.5"
+									aria-label="Close modal"
+								>
+									<X size={18} class="sm:hidden" />
+									<X size={22} class="hidden sm:block" />
+								</button>
 							</div>
 						</div>
 					</div>
 
-					<!-- Content -->
-					<div class="max-h-[calc(100vh-240px)] overflow-y-auto sm:max-h-[60vh]">
-						<div class="px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 space-y-6 sm:space-y-8">
-							<h3 class="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-gray-900">
-								<div class="h-1 w-1 rounded-full bg-pink-500"></div>
-								Request Information
-							</h3>
-							<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-								<div class="rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4">
-									<div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
-										<Calendar class="w-3.5 h-3.5 text-pink-500" />
-										Request Date
-									</div>
-									<p class="text-sm font-bold text-gray-900">
-										{new Date(selectedLoan.requestDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-									</p>
-								</div>
-								
-								<div class="rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4">
-									<div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
-										<Calendar class="w-3.5 h-3.5 text-pink-500" />
-										Borrow Period
-									</div>
-									<p class="text-sm font-bold text-gray-900">
-										{new Date(selectedLoan.borrowDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {new Date(selectedLoan.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-									</p>
-								</div>
-
-								<div class="rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4">
-									<div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
-										<BookOpen class="w-3.5 h-3.5 text-pink-500" />
-										Class Code
-									</div>
-									<p class="text-sm font-bold text-gray-900">{selectedLoan.classCodeString}</p>
-									<p class="mt-0.5 text-xs text-gray-500">{selectedLoan.classSubjectString}</p>
-								</div>
-
-								<div class="rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4">
-									<div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-3">
-										<User class="w-3.5 h-3.5 text-pink-500" />
-										Instructor
-									</div>
-									<div class="flex items-center gap-2.5">
-										{#if selectedLoan.instructorPhoto}
-											<img src={selectedLoan.instructorPhoto} alt={selectedLoan.instructorName} class="h-8 w-8 rounded-full object-cover ring-2 ring-pink-100" />
-										{:else}
-											<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pink-100 text-xs font-bold text-pink-600 ring-2 ring-pink-50">
-												{selectedLoan.instructorName.charAt(0).toUpperCase()}
-											</div>
-										{/if}
-										<p class="truncate text-sm font-bold text-gray-900">{selectedLoan.instructorName}</p>
-									</div>
-								</div>
-
-								<div class="rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4">
-									<div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-3">
-										<User class="w-3.5 h-3.5 text-pink-500" />
-										Custodian
-									</div>
-									<div class="flex items-center gap-2.5">
-										{#if selectedLoan.custodianPhoto}
-											<img src={selectedLoan.custodianPhoto} alt={selectedLoan.custodianName} class="h-8 w-8 rounded-full object-cover ring-2 ring-pink-100" />
-										{:else}
-											<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pink-100 text-xs font-bold text-pink-600 ring-2 ring-pink-50">
-												{selectedLoan.custodianName.charAt(0).toUpperCase()}
-											</div>
-										{/if}
-										<p class="truncate text-sm font-bold text-gray-900">{selectedLoan.custodianName}</p>
-									</div>
-								</div>
-
-								<div class="rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 sm:col-span-2 lg:col-span-3">
-									<div class="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
-										<FileText class="w-3.5 h-3.5 text-pink-500" />
-										Purpose
-									</div>
-									<p class="text-sm font-bold text-gray-900">{selectedLoan.purpose}</p>
-								</div>
-							</div>
-
+					<div class="max-h-[70vh] overflow-y-auto px-4 py-5 sm:px-8 sm:py-8">
+						<div class="space-y-6 sm:space-y-8">
+							<!-- Approval Timeline -->
 							<div>
-								<h3 class="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-gray-900">
-									<div class="h-1 w-1 rounded-full bg-pink-500"></div>
-									Borrowed Equipment
-								</h3>
-								<div class="grid gap-3 sm:grid-cols-2">
-									{#each selectedLoan.items as item}
-										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-										<div class="flex items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 transition-all hover:border-pink-200 hover:shadow-sm">
-											{#if pic}
-												<img src={pic} alt={item.name} class="h-11 w-11 shrink-0 rounded-lg object-cover ring-1 ring-gray-100" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} />
-												<div class="h-11 w-11 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100" style="display:none"><ItemImagePlaceholder size="sm" /></div>
-											{:else}
-												<div class="h-11 w-11 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-100"><ItemImagePlaceholder size="sm" /></div>
-											{/if}
-											<div class="min-w-0">
-												<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-												<p class="text-xs text-gray-500">Quantity: {item.quantity}</p>
-											</div>
-										</div>
-									{/each}
-								</div>
-							</div>
+								<div class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-4 sm:p-5">
+									<!-- Timeline Container -->
+									<div class="relative">
+										<!-- SVG Background for connector lines -->
+										<svg class="pointer-events-none absolute inset-0 h-16 w-full" style="z-index: 0;">
+											{#each getApprovalTimeline(selectedLoan) as step, idx}
+												{@const stepCount = getApprovalTimeline(selectedLoan).length}
+												{@const isLastStep = idx === stepCount - 1}
+												{@const stepWidth = 100 / stepCount}
+												{@const x1 = stepWidth * (idx + 0.5)}
+												{@const x2 = stepWidth * (idx + 1.5)}
+												{@const y = 20}
+												{@const currentStep = step}
+												{@const isCurrentCompleted = currentStep.status === 'completed'}
 
-							<div class="grid grid-cols-2 gap-2 text-xs sm:grid-cols-4 xl:grid-cols-5">
-								<div class="rounded-md bg-gray-100 px-2.5 py-1.5 text-gray-700"><span class="font-semibold">Total:</span> {selectedLoan.items.length}</div>
-								<div class="rounded-md bg-emerald-50 px-2.5 py-1.5 text-emerald-700"><span class="font-semibold">Returned:</span> {selectedLoan.returnedItems}</div>
-								<div class="rounded-md bg-amber-50 px-2.5 py-1.5 text-amber-700"><span class="font-semibold">Damaged:</span> {selectedLoan.damagedItems}</div>
-								<div class="rounded-md bg-red-50 px-2.5 py-1.5 text-red-700"><span class="font-semibold">Missing:</span> {selectedLoan.missingItems}</div>
-								<div class="rounded-md {selectedLoan.isOverdue ? 'bg-red-50 text-red-700' : selectedLoan.isDueSoon ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-700'} px-2.5 py-1.5 sm:col-span-2 xl:col-span-1"><span class="font-semibold">Due:</span> {new Date(selectedLoan.returnDate).toLocaleDateString()}</div>
-							</div>
-
-							{#if selectedLoan.isOverdue}
-								<div class="rounded-xl border border-red-200 bg-red-50 p-3">
-									<p class="text-sm font-semibold text-red-800">
-										{`${Math.abs(selectedLoan.daysDelta)} day${Math.abs(selectedLoan.daysDelta) > 1 ? 's' : ''} overdue`}
-									</p>
-									<p class="mt-1 text-xs text-red-700">
-										{`Due ${new Date(selectedLoan.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`}
-									</p>
-								</div>
-							{/if}
-
-							<div>
-								<h3 class="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-gray-900">
-									<div class="h-1 w-1 rounded-full bg-pink-500"></div>
-									Per-item Return and Condition Status
-								</h3>
-								<div class="overflow-x-auto rounded-xl border border-gray-200">
-									<table class="min-w-full border-collapse text-sm">
-										<thead class="bg-gray-50">
-											<tr class="text-left text-xs uppercase tracking-wide text-gray-500">
-												<th class="px-4 py-3 font-semibold">Item</th>
-												<th class="px-4 py-3 font-semibold">Qty</th>
-												<th class="px-4 py-3 font-semibold">Status</th>
-												<th class="px-4 py-3 font-semibold">replacement</th>
-											</tr>
-										</thead>
-										<tbody>
-											{#each selectedLoan.items as item}
-												{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-												{@const itemStatus = getItemStatus(item, selectedLoan)}
-												<tr class="border-t border-gray-100">
-													<td class="px-4 py-3">
-														<div class="flex items-center gap-2">
-															{#if pic}
-																<img src={pic} alt={item.name} class="h-7 w-7 shrink-0 rounded object-cover" loading="lazy" onerror={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; (e.currentTarget as HTMLImageElement).nextElementSibling?.removeAttribute('style'); }} />
-																<span class="h-7 w-7 shrink-0 overflow-hidden rounded" style="display:none"><ItemImagePlaceholder size="xs" /></span>
-															{:else}
-																<span class="h-7 w-7 shrink-0 overflow-hidden rounded"><ItemImagePlaceholder size="xs" /></span>
-															{/if}
-															<span class="font-medium text-gray-900">{item.name}</span>
-														</div>
-													</td>
-													<td class="px-4 py-3 text-gray-700">{item.quantity}</td>
-													<td class="px-4 py-3"><span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ring-1 {getItemStatusClasses(itemStatus)}">{getItemStatusLabel(itemStatus)}</span></td>
-													<td class="px-4 py-3 text-xs text-gray-700">{getSettlementLabel(item, selectedLoan.id)}</td>
-												</tr>
-												{#if item.inspection?.notes || item.inspection?.dueDate}
-													<tr class="bg-amber-50/50">
-														<td colspan="4" class="px-4 py-2 text-xs text-amber-900 border-b border-amber-100/50">
-															<div class="flex flex-col gap-1">
-																{#if item.inspection?.dueDate}
-																	<p><span class="font-semibold text-amber-950">Due to resolve:</span> {new Date(item.inspection.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>
-																{/if}
-																{#if item.inspection?.notes}
-																	<p><span class="font-semibold text-amber-950">Notes:</span> {item.inspection.notes}</p>
-																{/if}
-															</div>
-														</td>
-													</tr>
+												{#if !isLastStep}
+													<line
+														x1="{x1}%"
+														y1={y}
+														x2="{x2}%"
+														y2={y}
+														stroke={isCurrentCompleted ? '#ec4899' : '#e5e7eb'}
+														stroke-width="2"
+														stroke-linecap="round"
+													/>
 												{/if}
 											{/each}
-										</tbody>
-									</table>
+										</svg>
+
+										<!-- Timeline steps -->
+										<div class="relative flex items-start justify-between gap-1 sm:gap-2" style="z-index: 1;">
+											{#each getApprovalTimeline(selectedLoan) as step, idx}
+												{@const isCompleted = step.status === 'completed'}
+												{@const isPending = step.status === 'pending'}
+												{@const isCancelled = step.status === 'cancelled'}
+												{@const isRejected = step.status === 'rejected'}
+
+												<div class="flex flex-1 flex-col items-center">
+													<!-- Icon Circle -->
+													<div class="relative mb-2 flex items-center justify-center">
+														<div
+															class="flex h-10 w-10 items-center justify-center rounded-full border-2 bg-white sm:h-12 sm:w-12 {isCompleted
+																? 'border-pink-600'
+																: isCancelled
+																	? 'border-slate-400'
+																	: isRejected
+																		? 'border-red-600'
+																: 'border-gray-300'}"
+														>
+															{#if step.step === 'Request Submitted'}
+																<FileCheck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+																<FileCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															{:else if step.step === 'Instructor Approved'}
+																<CheckCheck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+																<CheckCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															{:else if step.step === 'Custodian Approved'}
+																<PackageCheck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+																<PackageCheck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															{:else if step.step === 'Pickup Confirmed'}
+																<Truck size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+																<Truck size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															{:else if step.step === 'Awaiting Return' || step.step === 'Returned'}
+																<Home size={18} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} sm:hidden" />
+																<Home size={20} class="{isCompleted ? 'text-pink-600' : 'text-gray-400'} hidden sm:block" />
+															{:else if step.step === 'Item Missing' || step.step === 'Item Damaged' || step.step === 'Unresolved Incidents'}
+																<CircleX size={18} class="text-red-600 sm:hidden" />
+																<CircleX size={20} class="hidden text-red-600 sm:block" />
+															{:else}
+																<Clock size={18} class="animate-pulse text-gray-400 sm:hidden" />
+																<Clock size={20} class="hidden animate-pulse text-gray-400 sm:block" />
+															{/if}
+														</div>
+													</div>
+
+													<!-- Step Label -->
+													<div class="min-w-0 text-center">
+														<p class="line-clamp-2 text-[10px] leading-tight font-semibold text-gray-900 sm:text-xs">
+															{step.step}
+														</p>
+														<p class="mt-0.5 line-clamp-1 text-[9px] text-gray-500 sm:text-xs">
+															{step.by}
+														</p>
+														<p class="text-[9px] font-medium sm:text-xs {isCompleted ? 'text-pink-600' : isCancelled ? 'text-slate-500' : isRejected ? 'text-red-600' : 'text-gray-400'} mt-0.5">
+															{#if step.date}
+																{new Date(step.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+															{:else}
+																Pending
+															{/if}
+														</p>
+													</div>
+												</div>
+											{/each}
+										</div>
+									</div>
+
+									<!-- Status Legend -->
+									<div class="mt-4 flex flex-wrap justify-center gap-3 border-t border-gray-200 pt-3 text-[10px] sm:text-xs">
+										<div class="flex items-center gap-1.5">
+											<div class="h-2 w-2 rounded-full bg-pink-600"></div>
+											<span class="text-gray-600">Completed</span>
+										</div>
+										<div class="flex items-center gap-1.5">
+											<div class="h-2 w-2 rounded-full bg-gray-300"></div>
+											<span class="text-gray-600">Pending</span>
+										</div>
+										<div class="flex items-center gap-1.5">
+											<div class="h-2 w-2 rounded-full bg-red-600"></div>
+											<span class="text-gray-600">Declined</span>
+										</div>
+										<div class="flex items-center gap-1.5">
+											<div class="h-2 w-2 rounded-full bg-slate-400"></div>
+											<span class="text-gray-600">Cancelled</span>
+										</div>
+									</div>
 								</div>
 							</div>
-						</div>
-					</div>
 
-					<!-- Footer -->
-					<div class="sticky bottom-0 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-6 sm:py-5 lg:px-8">
-						<!-- Mobile Layout (stacked) -->
-						<div class="flex flex-col gap-3 sm:hidden">
-							<div class="rounded-lg bg-gray-50 px-4 py-2.5 text-xs text-gray-600 border border-gray-200/50">
-								<div class="flex items-center justify-between gap-4">
-									<span class="font-medium">Loan timeline</span>
-									<span class="font-bold">{selectedLoan.loanPeriodDays} day term</span>
-								</div>
-								<div class="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
-									<div class="h-full rounded-full {getLoanTimelineColorClasses(selectedLoan)} transition-all duration-500 ease-out" style="width: {selectedLoan.remainingProgress}%"></div>
+							<!-- Request Information -->
+							<div>
+								<h3
+									class="mb-4 flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase"
+								>
+									<div class="h-1 w-1 rounded-full bg-pink-500"></div>
+									Request Information
+								</h3>
+								<div class="grid grid-cols-2 gap-3 sm:gap-4">
+									<div
+										class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4"
+									>
+										<div class="mb-2 flex items-center gap-1.5 sm:gap-2">
+											<CalendarDays size={14} class="text-pink-500 sm:hidden" />
+											<CalendarDays size={16} class="hidden text-pink-500 sm:block" />
+											<p
+												class="text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:text-xs"
+											>
+												Request Date
+											</p>
+										</div>
+										<p class="text-sm font-bold text-gray-900 sm:text-base">
+											{new Date(selectedLoan.requestDate).toLocaleDateString('en-US', {
+												month: 'short',
+												day: 'numeric',
+												year: 'numeric'
+											})}
+										</p>
+									</div>
+									<div
+										class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4"
+									>
+										<div class="mb-2 flex items-center gap-1.5 sm:gap-2">
+											<CalendarDays size={14} class="text-pink-500 sm:hidden" />
+											<CalendarDays size={16} class="hidden text-pink-500 sm:block" />
+											<p
+												class="text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:text-xs"
+											>
+												Borrow Period
+											</p>
+										</div>
+										<p class="text-sm font-bold text-gray-900 sm:text-base">
+											{new Date(selectedLoan.borrowDate).toLocaleDateString('en-US', {
+												month: 'short',
+												day: 'numeric'
+											})} – {new Date(selectedLoan.returnDate).toLocaleDateString('en-US', {
+												month: 'short',
+												day: 'numeric',
+												year: 'numeric'
+											})}
+										</p>
+									</div>
+									<div
+										class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4"
+									>
+										<div class="mb-2 flex items-center gap-1.5 sm:gap-2">
+											<BookOpen size={14} class="text-pink-500 sm:hidden" />
+											<BookOpen size={16} class="hidden text-pink-500 sm:block" />
+											<p
+												class="text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:text-xs"
+											>
+												Class Code
+											</p>
+										</div>
+										<p class="text-sm font-bold text-gray-900 sm:text-base">
+											{selectedLoan.classCodeString}
+										</p>
+										<p class="mt-0.5 truncate text-[10px] text-gray-500 sm:text-xs">
+											{selectedLoan.classSubjectString}
+										</p>
+									</div>
+									<div
+										class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4"
+									>
+										<div class="mb-2 flex items-center gap-1.5 sm:gap-2">
+											<UserCircle size={14} class="text-pink-500 sm:hidden" />
+											<UserCircle size={16} class="hidden text-pink-500 sm:block" />
+											<p
+												class="text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:text-xs"
+											>
+												Instructor
+											</p>
+										</div>
+										<div class="flex items-center gap-2.5">
+											<div
+												class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200"
+											>
+												{#if selectedLoan.instructorPhoto}
+													<img
+														src={selectedLoan.instructorPhoto}
+														alt={selectedLoan.instructorName}
+														class="h-full w-full object-cover"
+														loading="lazy"
+													/>
+												{:else}
+													{selectedLoan.instructorName.charAt(0).toUpperCase()}
+												{/if}
+											</div>
+											<p class="text-sm font-bold text-gray-900 sm:text-base">
+												{selectedLoan.instructorName}
+											</p>
+										</div>
+									</div>
+									{#if selectedLoan.custodianName && selectedLoan.custodianName !== 'Pending Custodian'}
+										<div
+											class="group rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4"
+										>
+											<div class="mb-2 flex items-center gap-1.5 sm:gap-2">
+												<UserCircle size={14} class="text-pink-500 sm:hidden" />
+												<UserCircle size={16} class="hidden text-pink-500 sm:block" />
+												<p
+													class="text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:text-xs"
+												>
+													Custodian
+												</p>
+											</div>
+											<div class="flex items-center gap-2.5">
+												<div
+													class="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-pink-100 text-xs font-semibold text-pink-700 ring-1 ring-pink-200"
+												>
+													{#if selectedLoan.custodianPhoto}
+														<img
+															src={selectedLoan.custodianPhoto}
+															alt={selectedLoan.custodianName}
+															class="h-full w-full object-cover"
+															loading="lazy"
+														/>
+													{:else}
+														{selectedLoan.custodianName.charAt(0).toUpperCase()}
+													{/if}
+												</div>
+												<p class="text-sm font-bold text-gray-900 sm:text-base">
+													{selectedLoan.custodianName}
+												</p>
+											</div>
+										</div>
+									{/if}
+									<div
+										class="group col-span-2 rounded-xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-3 transition-all hover:border-pink-200 hover:shadow-md sm:p-4"
+									>
+										<div class="mb-2 flex items-center gap-1.5 sm:gap-2">
+											<FileText size={14} class="text-pink-500 sm:hidden" />
+											<FileText size={16} class="hidden text-pink-500 sm:block" />
+											<p
+												class="text-[10px] font-bold tracking-wider text-gray-500 uppercase sm:text-xs"
+											>
+												Purpose
+											</p>
+										</div>
+										<p class="text-sm font-bold text-gray-900 sm:text-base">
+											{selectedLoan.purpose}
+										</p>
+									</div>
 								</div>
 							</div>
 
-							{#if selectedLoan.hasUnresolvedIssue}
-								<div class="rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs">
-									<div class="font-bold text-pink-800">An unresolved incident is attached to this request.</div>
-									<div class="mt-0.5 text-pink-700">Coordinate with the custodian to resolve the outstanding case.</div>
+							<!-- Requested Items -->
+							<div>
+								<h3 class="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-gray-900">
+									<div class="h-1 w-1 rounded-full bg-pink-500"></div>
+									Requested Items
+								</h3>
+								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+									<!-- Desktop Table Header -->
+									<div class="hidden sm:grid grid-cols-12 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+										<span class="col-span-8">Item</span>
+										<span class="col-span-2 text-center">Code</span>
+										<span class="col-span-2 text-center">Qty</span>
+									</div>
+									
+									<!-- Table Rows -->
+									<div class="divide-y divide-gray-100">
+										{#each selectedLoan.items as item}
+											{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+											{@const code = item.itemId ? item.itemId.slice(-6).toUpperCase() : 'N/A'}
+											<div class="grid items-center gap-3 bg-white p-3 sm:grid-cols-12 sm:p-4 transition-colors hover:bg-gray-50/50">
+												<!-- Item Info -->
+												<div class="col-span-12 flex items-center gap-3 sm:col-span-8 min-w-0">
+													{#if pic}
+														<img
+															src={pic}
+															alt={item.name}
+															class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-gray-200"
+															loading="lazy"
+														/>
+													{:else}
+														<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-200">
+															<ItemImagePlaceholder size="sm" />
+														</div>
+													{/if}
+													<div class="flex flex-col gap-1 min-w-0">
+														<span class="truncate text-sm font-semibold text-gray-900">{item.name}</span>
+														
+														{#if item.inspection}
+															{@const isGood = item.inspection.status === 'good'}
+															{@const isDamaged = item.inspection.status === 'damaged'}
+															{@const isMissing = item.inspection.status === 'missing'}
+															<div class="flex flex-wrap items-center gap-1.5 mt-0.5">
+																{#if isGood}
+																	<span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200/50">
+																		<span class="h-1 w-1 rounded-full bg-emerald-500"></span>
+																		Good
+																	</span>
+																{/if}
+																{#if isDamaged}
+																	<span class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 ring-1 ring-amber-200/50">
+																		<span class="h-1 w-1 rounded-full bg-amber-500"></span>
+																		Damaged
+																	</span>
+																{/if}
+																{#if isMissing}
+																	<span class="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200/50">
+																		<span class="h-1 w-1 rounded-full bg-rose-500"></span>
+																		Missing
+																	</span>
+																{/if}
+															</div>
+														{/if}
+													</div>
+												</div>
+												
+												<!-- Mobile/Desktop Details -->
+												<div class="col-span-6 flex items-center justify-between sm:col-span-2 sm:justify-center border-t border-gray-100 pt-3 sm:border-0 sm:pt-0">
+													<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden">Code</span>
+													<span class="font-mono text-sm font-medium text-gray-600">{code}</span>
+												</div>
+												<div class="col-span-6 flex items-center justify-between sm:col-span-2 sm:justify-center border-t border-gray-100 pt-3 sm:border-0 sm:pt-0 border-l border-gray-100 pl-3 sm:border-0 sm:pl-0">
+													<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden">Qty</span>
+													<span class="text-sm font-bold text-gray-900 tabular-nums">{item.quantity}</span>
+												</div>
+											</div>
+										{/each}
+									</div>
+								</div>
+							</div>
+
+							<!-- Overdue Banner -->
+							{#if selectedLoan.isOverdue}
+								<div
+									class="rounded-2xl border-2 border-red-200 bg-linear-to-br from-red-50 to-red-100/50 p-5"
+								>
+									<div class="flex gap-3">
+										<div
+											class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500"
+										>
+											<CircleAlert size={20} class="text-white" />
+										</div>
+										<div class="min-w-0 flex-1">
+											<p class="text-sm font-bold text-red-900">Overdue Notification</p>
+											<p class="mt-1.5 text-sm leading-relaxed text-red-800">
+												This loan is overdue by {Math.abs(selectedLoan.daysDelta)} day{Math.abs(selectedLoan.daysDelta) > 1 ? 's' : ''}. Please proceed to the custodian desk immediately.
+											</p>
+											<p class="mt-1 text-xs text-red-600">
+												Due date: {new Date(selectedLoan.returnDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+											</p>
+										</div>
+									</div>
 								</div>
 							{/if}
-							
-							<div class="flex items-center gap-2">
-								<button type="button" onclick={closeLoanDetails} class="flex-1 rounded-lg border-2 border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:bg-gray-50 active:scale-[0.98]">
-									Close
-								</button>
-								{#if selectedLoan.isOverdue || selectedLoan.hasUnresolvedIssue || selectedLoan.status === 'missing'}
-									<a href="/student/account/help" class="flex-1 rounded-lg border-2 border-red-300 bg-red-50 px-4 py-2.5 text-center text-sm font-semibold text-red-700 shadow-sm transition-all hover:bg-red-100 active:scale-[0.98]">Get Help</a>
-								{/if}
-								{#if selectedLoan.status === 'borrowed'}
-									<span class="flex-1 rounded-lg bg-slate-100 px-4 py-2.5 text-center text-sm font-semibold text-slate-600 ring-1 ring-slate-200">Return confirmed by custodian</span>
-								{/if}
-							</div>
-						</div>
 
-						<!-- Desktop Layout (single row) -->
-						<div class="hidden items-center justify-between gap-3 sm:flex">
-							<div class="flex items-center gap-3">
-								<div class="rounded-lg bg-gray-50 px-4 py-2.5 text-xs text-gray-600 border border-gray-200/50">
-									<div class="flex items-center justify-between gap-4">
-										<span class="font-medium">Loan timeline</span>
-										<span class="font-bold">{selectedLoan.loanPeriodDays} day term</span>
-									</div>
-									<div class="mt-2 h-2 w-56 max-w-full overflow-hidden rounded-full bg-gray-200">
-										<div class="h-full rounded-full {getLoanTimelineColorClasses(selectedLoan)} transition-all duration-500 ease-out" style="width: {selectedLoan.remainingProgress}%"></div>
+							<!-- Replacement Obligations Table -->
+							{#if selectedLoan.items.some((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0)}
+								<div class="mt-8 animate-fadeIn">
+									<h3 class="mb-4 flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
+										<div class="h-1 w-1 rounded-full bg-amber-500"></div>
+										Replacement Obligations
+									</h3>
+									<div class="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+										<!-- Desktop Table Header -->
+										<div class="hidden sm:grid grid-cols-12 border-b border-amber-100 bg-amber-50/50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-amber-900 uppercase">
+											<span class="col-span-6">Item to Replace</span>
+											<span class="col-span-3 text-center">Qty Required</span>
+											<span class="col-span-3 text-right">Due Date</span>
+										</div>
+										
+										<!-- Table Rows -->
+										<div class="divide-y divide-amber-100/50">
+											{#each selectedLoan.items.filter((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0) as item}
+												{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+												{@const code = item.itemId ? item.itemId.slice(-6).toUpperCase() : 'N/A'}
+												<div class="grid items-center gap-3 bg-white p-3 sm:grid-cols-12 sm:p-4 hover:bg-amber-50/30 transition-colors">
+													<div class="col-span-12 flex items-center gap-3 sm:col-span-6 min-w-0">
+														{#if pic}
+															<img src={pic} alt={item.name} class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-amber-200/50" loading="lazy" />
+														{:else}
+															<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-amber-200/50 text-amber-500/50">
+																<ItemImagePlaceholder size="sm" />
+															</div>
+														{/if}
+														<div class="flex flex-col gap-1 min-w-0">
+															<span class="truncate text-sm font-semibold text-gray-900">{item.name}</span>
+															<span class="text-[10px] font-semibold text-amber-600/80 uppercase">{code}</span>
+															{#if item.inspection?.notes?.replace(/^\[Unit breakdown:[^\]]+\]\s*/i, '')}
+																<span class="text-[11px] leading-relaxed text-amber-855 bg-amber-50/50 border border-amber-250/30 rounded-lg px-2.5 py-1 mt-1 font-medium w-fit max-w-full shadow-xs">
+																	<span class="font-bold text-amber-955">Note:</span> {item.inspection.notes.replace(/^\[Unit breakdown:[^\]]+\]\s*/i, '')}
+																</span>
+															{/if}
+														</div>
+													</div>
+													<div class="col-span-6 flex items-center justify-between sm:col-span-3 sm:justify-center border-t border-amber-100/50 pt-3 sm:border-0 sm:pt-0">
+														<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden">Qty Required</span>
+														<span class="text-sm font-bold text-amber-700 tabular-nums">{item.inspection?.replacementQuantity}</span>
+													</div>
+													<div class="col-span-6 flex items-center justify-between sm:col-span-3 sm:justify-end border-t border-amber-100/50 pt-3 sm:border-0 sm:pt-0 border-l border-amber-100/50 pl-3 sm:border-0 sm:pl-0">
+														<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden">Due Date</span>
+														<span class="text-xs font-semibold text-gray-700">
+															{item.inspection?.dueDate ? new Date(item.inspection.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set'}
+														</span>
+													</div>
+												</div>
+											{/each}
+										</div>
 									</div>
 								</div>
-
-								{#if selectedLoan.hasUnresolvedIssue}
-									<div class="rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs">
-										<div class="font-bold text-pink-800">An unresolved incident is attached to this request.</div>
-										<div class="mt-0.5 text-pink-700">Coordinate with the custodian to resolve the outstanding case.</div>
-									</div>
-								{/if}
-							</div>
-							
-							<div class="flex items-center gap-3">
-								{#if selectedLoan.isOverdue || selectedLoan.hasUnresolvedIssue || selectedLoan.status === 'missing'}
-									<a href="/student/account/help" class="rounded-lg border-2 border-red-300 bg-red-50 px-5 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition-all hover:bg-red-100 active:scale-[0.98]">Get Help</a>
-								{/if}
-								{#if selectedLoan.status === 'borrowed'}
-									<span class="rounded-lg bg-slate-100 px-5 py-2.5 text-sm font-semibold text-slate-600 ring-1 ring-slate-200">Return confirmed by custodian</span>
-								{/if}
+							{/if}
 							</div>
 						</div>
-					</div>
+
+					<!-- Footer -->
+					{#if selectedLoan.hasUnresolvedIssue}
+						<div
+							class="safe-area-bottom sticky bottom-0 border-t border-gray-200 bg-white/95 px-4 py-3.5 backdrop-blur-sm sm:px-8 sm:py-4"
+						>
+							<div class="rounded-lg border border-pink-200 bg-pink-50 px-4 py-2.5 text-xs animate-fadeIn text-center sm:text-left">
+								<div class="font-bold text-pink-800">An unresolved incident is attached to this request.</div>
+								<div class="mt-0.5 text-pink-700">Coordinate with the custodian to resolve the outstanding case.</div>
+							</div>
+						</div>
+					{/if}
 				</div>
 			</div>
 		</div>

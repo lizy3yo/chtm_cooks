@@ -56,7 +56,7 @@
 		{ question: 'What happens if I lose or damage an item?', answer: 'You will be issued a replacement obligation. You are responsible for replacing or paying for the item. Contact the custodian or superadmin immediately if an item is lost or damaged.' },
 		{ question: 'How do I return borrowed items?', answer: 'Bring the borrowed items to the custodian desk. The custodian will inspect the items and confirm the return on their end.' },
 		{ question: 'Why was my request declined?', answer: 'Requests can be declined by your instructor or the custodian. Common reasons include insufficient stock, invalid dates, or missing class enrollment. Check the decline reason in "My Requests" for details.' },
-		{ question: 'Can I cancel a pending request?', answer: 'Yes. While your request is still in "Pending Review" status, you can cancel it from the "My Requests" page. Once approved, cancellation is no longer available.' },
+		{ question: 'Can I cancel a pending request?', answer: 'Yes. While your request is still in "Under Review" status, you can cancel it from the "My Requests" page. Once approved, cancellation is no longer available.' },
 		{ question: 'What is a class code and why do I need one?', answer: 'A class code links your borrow request to a specific course and instructor. You must be enrolled in a class code to submit equipment requests. Contact your instructor if you are not enrolled.' },
 		{ question: 'How do I contact support?', answer: 'Switch to the "Chat Support" tab on this page to send a message directly to the system administrator. You will receive a reply in the same conversation thread.' }
 	];

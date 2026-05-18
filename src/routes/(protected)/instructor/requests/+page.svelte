@@ -702,7 +702,7 @@
 		rawStatus?: BorrowRequestStatus,
 		rejectionReason?: string
 	): string {
-		if (status === 'pending') return 'Pending Review';
+		if (status === 'pending') return 'Under Review';
 		if (status === 'fulfillment')
 			return rawStatus === 'ready_for_pickup' ? 'Ready for Pickup' : 'In Preparation';
 		if (status === 'borrowed') {
@@ -1272,7 +1272,7 @@
 														>
 														{#if request.isAppeal}
 															<span
-																class="shrink-0 inline-flex items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700"
+																class="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700"
 															>
 																APPEAL
 															</span>
@@ -1465,7 +1465,7 @@
 													</p>
 													{#if request.isAppeal}
 														<span
-															class="shrink-0 inline-flex items-center rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700"
+															class="inline-flex shrink-0 items-center rounded-full bg-violet-100 px-1.5 py-0.5 text-[9px] font-bold text-violet-700"
 														>
 															APPEAL
 														</span>
@@ -1684,6 +1684,3 @@
 		</div>
 	</div>
 {/if}
-
-
-
