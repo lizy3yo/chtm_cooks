@@ -164,6 +164,9 @@ export interface InventorySummary {
 	donations: number;
 	requiredCount: number;
 	lowStockCount: number;
+	stockAdjustmentsAdded?: number;
+	stockAdjustmentsDeducted?: number;
+	stockAdjustmentsCount?: number;
 }
 
 export interface requiredInventoryItem {
@@ -183,6 +186,16 @@ export interface StockAlert {
 	category: string;
 	quantity: number;
 	status: string;
+}
+
+export interface StockAdjustmentEntry {
+	id: string;
+	itemName: string;
+	quantity: number;
+	purpose: string;
+	notes: string;
+	createdAt: string;
+	date: string;
 }
 
 export interface ReplacementSummary {
@@ -284,6 +297,7 @@ export interface AnalyticsReport {
 		eomVariance: EomVarianceItem[];
 		varianceDrivers: InventoryVarianceDriver[];
 		stockAlerts: StockAlert[];
+		stockAdjustments: StockAdjustmentEntry[];
 	};
 	replacement: {
 		summary: ReplacementSummary;
@@ -479,7 +493,10 @@ function normalizeAnalyticsReport(raw: AnalyticsReport): AnalyticsReport {
 				variance: 0,
 				donations: 0,
 				requiredCount: 0,
-				lowStockCount: 0
+				lowStockCount: 0,
+				stockAdjustmentsAdded: 0,
+				stockAdjustmentsDeducted: 0,
+				stockAdjustmentsCount: 0
 			},
 			requiredItems: inventory.requiredItems ?? [],
 			mostBorrowedItems: inventory.mostBorrowedItems ?? [],
@@ -487,7 +504,8 @@ function normalizeAnalyticsReport(raw: AnalyticsReport): AnalyticsReport {
 			damageRateItems: inventory.damageRateItems ?? [],
 			eomVariance: inventory.eomVariance ?? [],
 			varianceDrivers: inventory.varianceDrivers ?? [],
-			stockAlerts: inventory.stockAlerts ?? []
+			stockAlerts: inventory.stockAlerts ?? [],
+			stockAdjustments: inventory.stockAdjustments ?? []
 		},
 		replacement: {
 			...replacement,

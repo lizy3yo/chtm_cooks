@@ -1140,7 +1140,7 @@ export const GET: RequestHandler = async (event) => {
 
 		// Donation totals — by item name (last 6 months)
 		const donationTotals = await donationsCol.aggregate([
-			{ $match: { createdAt: { $gte: sixMonthsAgo } } },
+			{ $match: { donorName: { $ne: 'Custodian Stock Adjustment' }, createdAt: { $gte: sixMonthsAgo } } },
 			{
 				$group: {
 					_id: {
@@ -1154,6 +1154,49 @@ export const GET: RequestHandler = async (event) => {
 			},
 			{ $sort: { '_id.year': 1, '_id.month': 1 } },
 			{ $limit: 100 } // Limit results for performance
+		]).toArray();
+
+		// Stock adjustments in the selected period (start to end)
+		const stockAdjustments = await donationsCol.aggregate([
+			{
+				$match: {
+					donorName: 'Custodian Stock Adjustment',
+					createdAt: { $gte: start, $lte: end }
+				}
+			},
+			{
+				$project: {
+					_id: { $toString: '$_id' },
+					itemName: 1,
+					quantity: 1,
+					purpose: 1,
+					notes: 1,
+					createdAt: 1,
+					date: 1
+				}
+			},
+			{ $sort: { createdAt: -1 } }
+		]).toArray();
+
+		const stockAdjustmentsSummary = await donationsCol.aggregate([
+			{
+				$match: {
+					donorName: 'Custodian Stock Adjustment',
+					createdAt: { $gte: start, $lte: end }
+				}
+			},
+			{
+				$group: {
+					_id: null,
+					totalAdded: {
+						$sum: { $cond: [{ $gt: ['$quantity', 0] }, '$quantity', 0] }
+					},
+					totalDeducted: {
+						$sum: { $cond: [{ $lt: ['$quantity', 0] }, { $abs: '$quantity' }, 0] }
+					},
+					count: { $sum: 1 }
+				}
+			}
 		]).toArray();
 
 		logger.info('reports-analytics', 'Replacement queries completed', { duration: Date.now() - replacementStart });
@@ -1503,7 +1546,10 @@ export const GET: RequestHandler = async (event) => {
 					variance: inventorySummary[0]?.variance ?? 0,
 					donations: inventorySummary[0]?.donations ?? 0,
 					requiredCount: inventorySummary[0]?.requiredCount ?? 0,
-					lowStockCount: inventorySummary[0]?.lowStockCount ?? 0
+					lowStockCount: inventorySummary[0]?.lowStockCount ?? 0,
+					stockAdjustmentsAdded: stockAdjustmentsSummary[0]?.totalAdded ?? 0,
+					stockAdjustmentsDeducted: stockAdjustmentsSummary[0]?.totalDeducted ?? 0,
+					stockAdjustmentsCount: stockAdjustmentsSummary[0]?.count ?? 0
 				},
 				requiredItems: requiredItems.map((item) => ({
 					id: item._id?.toString() ?? '',
@@ -1546,7 +1592,16 @@ export const GET: RequestHandler = async (event) => {
 					studentEmail: item.studentEmail,
 					studentProfilePhotoUrl: item.studentProfilePhotoUrl
 				})),
-				stockAlerts
+				stockAlerts,
+				stockAdjustments: stockAdjustments.map((a: any) => ({
+					id: a._id?.toString() ?? '',
+					itemName: a.itemName,
+					quantity: a.quantity,
+					purpose: a.purpose,
+					notes: a.notes,
+					createdAt: a.createdAt,
+					date: a.date
+				}))
 			},
 			replacement: {
 				summary: {
