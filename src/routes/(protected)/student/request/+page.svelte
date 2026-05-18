@@ -1,4 +1,4 @@
-﻿<script lang="ts">
+<script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
@@ -833,14 +833,17 @@
 		selectedItems = selectedItems.filter((i) => i.id !== itemId);
 	}
 
-	function updateItemQuantity(itemId: string, value: string): void {
+	function updateItemQuantity(itemId: string, value: string, element?: HTMLInputElement): void {
 		const parsed = Number.parseInt(value, 10);
+		let finalQty = 1;
+		
 		selectedItems = selectedItems.map((item) => {
 			if (item.id !== itemId) {
 				return item;
 			}
 
 			if (!Number.isFinite(parsed)) {
+				finalQty = 1;
 				return { ...item, requestedQuantity: 1 };
 			}
 
@@ -850,6 +853,7 @@
 				: item.available;
 
 			const newQuantity = Math.max(1, Math.min(effectiveMax, parsed));
+			finalQty = newQuantity;
 
 			// Show feedback if user tried to exceed limit
 			if (parsed > effectiveMax) {
@@ -871,6 +875,10 @@
 				requestedQuantity: newQuantity
 			};
 		});
+
+		if (element) {
+			element.value = String(finalQty);
+		}
 
 		const updatedItem = selectedItems.find((item) => item.id === itemId);
 		if (updatedItem) {
@@ -2045,7 +2053,7 @@
 																: item.available}
 															value={item.requestedQuantity}
 															onchange={(e) =>
-																updateItemQuantity(item.id, (e.target as HTMLInputElement).value)}
+																updateItemQuantity(item.id, (e.target as HTMLInputElement).value, e.target as HTMLInputElement)}
 															class="w-14 rounded-md border {item.isrequired
 																? 'border-emerald-300 bg-emerald-50 text-emerald-900'
 																: 'border-gray-300 bg-white text-gray-900'} px-1.5 py-1 text-center text-xs font-bold focus:border-pink-500 focus:ring-1 focus:ring-pink-500/20"
