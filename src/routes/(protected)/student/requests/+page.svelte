@@ -43,14 +43,14 @@
 		BookOpen
 	} from 'lucide-svelte';
 
-	type StudentTab = 'my-request' | 'instructor-approved' | 'active';
+	type StatusFilterType = 'all' | 'pending' | 'approved' | 'ready' | 'active' | 'unresolved' | 'history';
 	type RequestViewMode = 'card' | 'list';
 
 	// Pagination requireds
-	const PAGE_SIZE_CARD = 5;
+	const PAGE_SIZE_CARD = 6;
 	const PAGE_SIZE_LIST = 10;
 
-	let activeTab = $state<StudentTab>('my-request');
+	let statusFilter = $state<StatusFilterType>('all');
 	let highlightedRequestId = $state<string | null>(null);
 	let searchQuery = $state('');
 	let sortBy = $state('newest');
@@ -329,12 +329,15 @@
 		// Close any previously opened modal before switching context
 		closeDetailModal();
 
-		// Switch to the correct tab for this request's CURRENT status
-		if (target.status === 'pending') activeTab = 'my-request';
-		else if (['approved', 'ready'].includes(target.status)) activeTab = 'instructor-approved';
-		else if (['picked-up', 'pending-return', 'missing'].includes(target.status))
-			activeTab = 'active';
-		else return; // Resolved/Cancelled/Rejected are in the separate History page
+		// Switch statusFilter to match the request's status
+		if (target.status === 'pending') statusFilter = 'pending';
+		else if (target.status === 'approved') statusFilter = 'approved';
+		else if (target.status === 'ready') statusFilter = 'ready';
+		else if (['picked-up', 'pending-return'].includes(target.status))
+			statusFilter = 'active';
+		else if (['unresolved', 'missing'].includes(target.status))
+			statusFilter = 'unresolved';
+		else statusFilter = 'history';
 
 		currentPage = 1;
 		highlightedRequestId = rawId;
@@ -407,6 +410,8 @@
 				return 'bg-orange-100 text-orange-800';
 			case 'missing':
 				return 'bg-rose-100 text-rose-800';
+			case 'unresolved':
+				return 'bg-amber-100 text-amber-800';
 			case 'returned':
 				return 'bg-teal-100 text-teal-800';
 			case 'resolved':
@@ -435,6 +440,8 @@
 			case 'pending-return':
 				return CornerDownLeft;
 			case 'missing':
+				return CircleAlert;
+			case 'unresolved':
 				return CircleAlert;
 			case 'returned':
 				return CheckCircle2;
@@ -465,6 +472,8 @@
 				return 'border-orange-500';
 			case 'missing':
 				return 'border-rose-600';
+			case 'unresolved':
+				return 'border-amber-400';
 			case 'returned':
 				return 'border-teal-500';
 			case 'resolved':
@@ -488,6 +497,7 @@
 			'picked-up': 'Active Loan',
 			'pending-return': 'Return Initiated',
 			missing: 'Item Missing',
+			unresolved: 'Unresolved Case',
 			returned: 'Returned',
 			resolved: 'Resolved',
 			cancelled: 'Cancelled',
@@ -499,13 +509,24 @@
 
 	const filteredRequests = $derived.by(() => {
 		let result = requests.filter((req) => {
-			const isMyRequest = req.status === 'pending';
-			const isInstructorApproved = ['approved', 'ready'].includes(req.status);
-			const isActive = ['picked-up', 'pending-return', 'missing'].includes(req.status);
-
-			if (activeTab === 'my-request' && !isMyRequest) return false;
-			if (activeTab === 'instructor-approved' && !isInstructorApproved) return false;
-			if (activeTab === 'active' && !isActive) return false;
+			if (statusFilter === 'pending' && req.status !== 'pending') return false;
+			if (statusFilter === 'approved' && req.status !== 'approved') return false;
+			if (statusFilter === 'ready' && req.status !== 'ready') return false;
+			if (
+				statusFilter === 'active' &&
+				!['picked-up', 'pending-return'].includes(req.status)
+			)
+				return false;
+			if (
+				statusFilter === 'unresolved' &&
+				!['unresolved', 'missing'].includes(req.status)
+			)
+				return false;
+			if (
+				statusFilter === 'history' &&
+				!['returned', 'resolved', 'rejected', 'cancelled', 'appealed'].includes(req.status)
+			)
+				return false;
 			if (
 				searchQuery &&
 				!`${req.id} ${req.purpose} ${req.items.map((item: any) => item.name).join(' ')}`
@@ -551,7 +572,7 @@
 
 	// Reset to page 1 when filters or view mode changes
 	$effect(() => {
-		activeTab;
+		statusFilter;
 		searchQuery;
 		sortBy;
 		dateFilter;
@@ -1039,61 +1060,6 @@
 		</div>
 	</div>
 
-	<!-- Tabs -->
-	<div class="border-b border-gray-200">
-		<nav class="-mb-px flex" aria-label="Request tabs">
-			<button
-				onclick={() => (activeTab = 'my-request')}
-				class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap sm:text-sm {activeTab ===
-				'my-request'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				Request
-				<span
-					class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'my-request'
-						? 'bg-pink-100 text-pink-600'
-						: 'bg-gray-100 text-gray-600'}"
-				>
-					{tabCounts['my-request']}
-				</span>
-			</button>
-			<button
-				onclick={() => (activeTab = 'instructor-approved')}
-				class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap sm:text-sm {activeTab ===
-				'instructor-approved'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				Approval
-				<span
-					class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'instructor-approved'
-						? 'bg-pink-100 text-pink-600'
-						: 'bg-gray-100 text-gray-600'}"
-				>
-					{tabCounts['instructor-approved']}
-				</span>
-			</button>
-			<button
-				onclick={() => (activeTab = 'active')}
-				class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap sm:text-sm {activeTab ===
-				'active'
-					? 'border-pink-500 text-pink-600'
-					: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-			>
-				Active
-				<span
-					class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'active'
-						? 'bg-pink-100 text-pink-600'
-						: 'bg-gray-100 text-gray-600'}"
-				>
-					{tabCounts.active}
-				</span>
-			</button>
-			<!-- History tab removed -->
-		</nav>
-	</div>
-
 	<div class="rounded-lg bg-white shadow">
 		<div class="p-6">
 			<!-- Search and Filter Bar -->
@@ -1111,6 +1077,18 @@
 				</div>
 				<div class="flex shrink-0 items-center gap-2">
 					<select
+						bind:value={statusFilter}
+						class="h-10 min-w-40 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-pink-500 focus:ring-2 focus:ring-pink-100 focus:outline-none"
+					>
+						<option value="all">All Statuses</option>
+						<option value="pending">Under Review</option>
+						<option value="approved">Instructor Approved</option>
+						<option value="ready">Ready for Pickup</option>
+						<option value="active">Active Loans</option>
+						<option value="unresolved">Unresolved Incidents</option>
+						<option value="history">History & Resolved</option>
+					</select>
+					<select
 						bind:value={sortBy}
 						class="h-10 min-w-30 rounded-xl border border-gray-300 bg-white px-3 text-sm shadow-sm focus:border-pink-500 focus:ring-2 focus:ring-pink-100 focus:outline-none"
 					>
@@ -1123,7 +1101,7 @@
 							searchQuery = '';
 							dateFilter = { from: '', to: '' };
 							sortBy = 'newest';
-							activeTab = 'my-request';
+							statusFilter = 'all';
 						}}
 						class="h-10 rounded-xl px-2 text-sm font-semibold text-pink-600 transition-colors hover:bg-pink-50 hover:text-pink-700"
 					>
@@ -1637,29 +1615,40 @@
 							<div class="text-center">
 								<ClipboardX size={40} class="mx-auto text-pink-600" />
 								<h3 class="mt-2 text-sm font-medium text-gray-900">
-									{#if activeTab === 'my-request'}
+									{#if statusFilter === 'pending'}
 										No pending requests
-									{:else if activeTab === 'instructor-approved'}
+									{:else if statusFilter === 'approved'}
 										No approved requests
-									{:else if activeTab === 'active'}
+									{:else if statusFilter === 'ready'}
+										No requests ready for pickup
+									{:else if statusFilter === 'active'}
 										No active requests
-									{:else}
+									{:else if statusFilter === 'unresolved'}
+										No unresolved cases
+									{:else if statusFilter === 'history'}
 										No request history
+									{:else}
+										No requests found
 									{/if}
 								</h3>
 								<p class="mt-1 text-sm text-gray-500">
-									{#if activeTab === 'my-request'}
-										Your newly submitted requests will appear here while waiting for instructor
-										review.
-									{:else if activeTab === 'instructor-approved'}
-										Instructor-approved and ready-for-pickup requests will appear here.
-									{:else if activeTab === 'active'}
+									{#if statusFilter === 'pending'}
+										Your newly submitted requests will appear here while waiting for instructor review.
+									{:else if statusFilter === 'approved'}
+										Instructor-approved requests will appear here.
+									{:else if statusFilter === 'ready'}
+										Requests approved by custodian and ready for pickup will appear here.
+									{:else if statusFilter === 'active'}
 										Borrowed and return-initiated requests will appear here.
-									{:else}
+									{:else if statusFilter === 'unresolved'}
+										Requests with missing items, damaged equipment, or unresolved obligations will appear here.
+									{:else if statusFilter === 'history'}
 										Returned, cancelled, and rejected requests are archived here.
+									{:else}
+										Get started by creating your first borrow request!
 									{/if}
 								</p>
-								{#if activeTab === 'my-request'}
+								{#if statusFilter === 'all' || statusFilter === 'pending'}
 									<div class="mt-4">
 										<a
 											href="/student/request"
