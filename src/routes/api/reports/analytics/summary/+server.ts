@@ -15,7 +15,7 @@ import { parallelAggregations, ANALYTICS_AGGREGATION_OPTIONS } from '$lib/server
 import { UserRole } from '$lib/server/models/User';
 
 const CACHE_TTL = 60; // 1 minute
-const ANALYTICS_CACHE_VERSION = 'v8';
+const ANALYTICS_CACHE_VERSION = 'v9';
 const ALLOWED_ROLES = new Set(['instructor', 'custodian', 'superadmin']);
 
 function getPeriodRange(period: string, from?: string, to?: string): { start: Date; end: Date } {

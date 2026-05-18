@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Student Statistics Service
  *
  * Enterprise-grade student analytics focused on what students need most:
@@ -176,7 +176,7 @@ function computeTrustScore(allRequests: BorrowRequest[], allObligations: Replace
 	};
 
 	for (const req of allRequests) {
-		const isTerminal = req.status === 'returned' || req.status === 'missing';
+		const isTerminal = req.status === 'returned' || req.status === 'missing' || req.status === 'resolved';
 		if (!isTerminal) continue;
 
 		let hasIssue = false;
@@ -204,8 +204,9 @@ function computeTrustScore(allRequests: BorrowRequest[], allObligations: Replace
 		}
 
 		let returnedOnTime = false;
-		if (req.status === 'returned' && req.returnedAt && req.returnDate) {
-			const returnedAt = new Date(req.returnedAt);
+		const returnTimestamp = req.returnedAt || req.missingAt;
+		if ((req.status === 'returned' || req.status === 'resolved') && returnTimestamp && req.returnDate) {
+			const returnedAt = new Date(returnTimestamp);
 			const dueDate = new Date(req.returnDate);
 			if (returnedAt > dueDate) {
 				const daysLate = Math.ceil((returnedAt.getTime() - dueDate.getTime()) / 86_400_000);
@@ -273,6 +274,7 @@ function computeRequestStats(requests: BorrowRequest[]): RequestStatistics {
 				active++;
 				break;
 			case 'returned':
+			case 'resolved':
 				returned++;
 				break;
 			case 'cancelled':
@@ -291,7 +293,7 @@ function computeRequestStats(requests: BorrowRequest[]): RequestStatistics {
 }
 
 function computeReturnPerformance(requests: BorrowRequest[]): ReturnPerformance {
-	const returned = requests.filter((r) => r.status === 'returned');
+	const returned = requests.filter((r) => r.status === 'returned' || r.status === 'resolved');
 	let onTime = 0;
 	let late = 0;
 	let unknown = 0;
@@ -300,13 +302,14 @@ function computeReturnPerformance(requests: BorrowRequest[]): ReturnPerformance 
 	let eligible = 0;
 
 	for (const req of returned) {
-		if (!req.returnedAt || !req.returnDate) {
+		const returnTimestamp = req.returnedAt || req.missingAt;
+		if (!returnTimestamp || !req.returnDate) {
 			unknown++;
 			continue;
 		}
 
 		eligible++;
-		const returnedAt = new Date(req.returnedAt);
+		const returnedAt = new Date(returnTimestamp);
 		const dueDate = new Date(req.returnDate);
 
 		if (returnedAt <= dueDate) {
@@ -330,19 +333,36 @@ function computeReturnPerformance(requests: BorrowRequest[]): ReturnPerformance 
 	};
 }
 
-function computeItemHealth(requests: BorrowRequest[]): ItemHealthStats {
+function computeItemHealth(requests: BorrowRequest[], allObligations: ReplacementObligation[]): ItemHealthStats {
 	let goodCondition = 0;
 	let damaged = 0;
 	let missing = 0;
 	let totalInspected = 0;
 
+	// Create a quick lookup map for obligations: borrowRequestId_itemId -> obligation
+	const obligationMap = new Map<string, ReplacementObligation>();
+	for (const obl of allObligations) {
+		const key = `${obl.borrowRequestId.toString()}_${obl.itemId.toString()}`;
+		obligationMap.set(key, obl);
+	}
+
 	for (const req of requests) {
-		if (req.status !== 'returned' && req.status !== 'missing') continue;
+		if (req.status !== 'returned' && req.status !== 'missing' && req.status !== 'resolved') continue;
 
 		for (const item of req.items) {
 			if (!item.inspection) continue;
 			totalInspected++;
-			switch (item.inspection.status) {
+
+			let status = item.inspection.status;
+			if (status === 'damaged' || status === 'missing') {
+				const key = `${req._id?.toString()}_${item.itemId.toString()}`;
+				const obl = obligationMap.get(key);
+				if (obl && obl.status === 'replaced') {
+					status = 'good'; // Replaced/resolved items are back in inventory in good condition
+				}
+			}
+
+			switch (status) {
 				case 'good':
 					goodCondition++;
 					break;
@@ -589,7 +609,7 @@ export async function computeStudentStatistics(
 	const trustScore = computeTrustScore(allRequests, allObligations);
 	const requests = computeRequestStats(periodRequests);
 	const returnPerformance = computeReturnPerformance(periodRequests);
-	const itemHealth = computeItemHealth(periodRequests);
+	const itemHealth = computeItemHealth(periodRequests, allObligations);
 	const replacement = computeReplacementStats(allObligations, periodObligations);
 	const dataQuality = computeDataQuality(periodRequests);
 	const chartGranularity: 'day' | 'month' = period === '7d' ? 'day' : 'month';

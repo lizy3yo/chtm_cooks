@@ -64,6 +64,7 @@ export async function invalidateBorrowRequestCaches(): Promise<void> {
 	await Promise.all([
 		cacheService.deletePattern('borrow-requests:*'),
 		cacheService.deletePattern('inventory:items:*'),
+		cacheService.deletePattern('student-stats:*'),
 		cacheService.invalidateByTags(['inventory-catalog', BORROW_REQUESTS_CACHE_TAG, REPORTS_ANALYTICS_CACHE_TAG])
 	]);
 }
