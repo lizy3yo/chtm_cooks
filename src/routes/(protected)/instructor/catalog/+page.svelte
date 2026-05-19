@@ -26,10 +26,27 @@
 	let sortBy = $state('name');
 	let currentPage = $state(1);
 
-	// Data State
+	// Data State & Progressive Loading Controls
 	let catalogData = $state<CatalogResponse | null>(null);
-	let allItems = $derived.by(() => catalogData?.items ?? []);
+	let allItems = $derived.by(() => {
+		if (!catalogData) return [];
+		const items = [...catalogData.items];
+		const total = catalogData.total;
+		while (items.length < total) {
+			items.push({
+				id: 'placeholder-' + items.length,
+				isPlaceholder: true,
+				name: '',
+				categoryId: '',
+				status: 'In Stock',
+				quantity: 0
+			} as any);
+		}
+		return items;
+	});
 	let categories = $derived.by(() => catalogData?.categories ?? []);
+	let inFlightLoadId = 0;
+	const progressivePageSize = 20;
 	
 	// Edit form state
 	let editForm = $state({
@@ -59,7 +76,7 @@
 		if (selectedCondition === 'all') return allItems;
 		const allowedStatuses = conditionStatusMap[selectedCondition];
 		if (!allowedStatuses) return allItems;
-		return allItems.filter((item) => allowedStatuses.includes(item.status));
+		return allItems.filter((item) => item.isPlaceholder || allowedStatuses.includes(item.status));
 	});
 
 	// Client-side pagination
@@ -139,21 +156,63 @@
 
 	async function fetchCatalog(options: { background?: boolean; forceRefresh?: boolean } = {}): Promise<void> {
 		const background = options.background === true;
+		const loadId = ++inFlightLoadId;
+
 		try {
-			if (!background) isLoading = true;
+			if (!background) {
+				isLoading = true;
+			}
 			error = null;
-			const filters: CatalogFilters = {
+
+			const baseFilters: CatalogFilters = {
 				search: searchQuery || undefined,
 				category: selectedCategory !== 'all' ? selectedCategory : undefined,
-				availability: (selectedAvailability as CatalogFilters['availability']) || 'all',				sortBy: (sortBy as CatalogFilters['sortBy']) || 'name',
-				page: 1,
-				limit: 1000 // Get all items for client-side pagination
+				availability: (selectedAvailability as CatalogFilters['availability']) || 'all',
+				sortBy: (sortBy as CatalogFilters['sortBy']) || 'name',
+				limit: progressivePageSize
 			};
-			catalogData = await catalogAPI.getCatalog(filters, { forceRefresh: options.forceRefresh });
+
+			// Step 1: Fetch first page
+			const firstPageRes = await catalogAPI.getCatalog(
+				{ ...baseFilters, page: 1 },
+				{ forceRefresh: options.forceRefresh }
+			);
+
+			if (loadId !== inFlightLoadId) return;
+			catalogData = firstPageRes;
+
+			if (!background) {
+				isLoading = false;
+			}
+
+			// Step 2: Offload remaining pages in the background
+			const totalPagesCount = firstPageRes.pages;
+			if (totalPagesCount > 1) {
+				const remainingPromises = [];
+				for (let p = 2; p <= totalPagesCount; p++) {
+					const pageNum = p;
+					const promise = catalogAPI
+						.getCatalog({ ...baseFilters, page: pageNum }, { forceRefresh: options.forceRefresh })
+						.then((nextRes) => {
+							if (loadId === inFlightLoadId && nextRes && nextRes.items && catalogData) {
+								const existingIds = new Set(catalogData.items.map((i) => i.id));
+								const newItems = nextRes.items.filter((i) => !existingIds.has(i.id));
+								catalogData.items = [...catalogData.items, ...newItems];
+							}
+							return nextRes;
+						});
+					remainingPromises.push(promise);
+				}
+				await Promise.allSettled(remainingPromises);
+			}
 		} catch (err) {
-			if (!background) error = err instanceof Error ? err.message : 'Failed to load catalog';
+			if (loadId === inFlightLoadId && !background) {
+				error = err instanceof Error ? err.message : 'Failed to load catalog';
+			}
 		} finally {
-			if (!background) isLoading = false;
+			if (loadId === inFlightLoadId && !background) {
+				isLoading = false;
+			}
 		}
 	}
 
@@ -322,7 +381,7 @@
 			availability: (selectedAvailability as CatalogFilters['availability']) || 'all',
 			sortBy: (sortBy as CatalogFilters['sortBy']) || 'name',
 			page: 1,
-			limit: 1000 // Get all items for client-side pagination
+			limit: progressivePageSize
 		};
 		const cached = catalogAPI.peekCachedCatalog(filters);
 		if (cached) {
@@ -696,39 +755,53 @@
 	{#if !isLoading && viewMode === 'grid' && filteredItems.length > 0}
 		<div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 lg:gap-3">
 			{#each filteredItems as item (item.id)}
-				<button
-					type="button"
-					onclick={() => openDetailModal(item)}
-					class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md text-left focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1"
-				>
-					<div class="relative aspect-4/3 overflow-hidden bg-gray-100 flex items-center justify-center w-full">
-						{#if item.picture}
-							<img src={item.picture} alt={item.name} class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-						{:else}
-							<svg class="h-10 w-10 sm:h-12 sm:w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-							</svg>
-						{/if}
-						<!-- required badge — top left -->
-						{#if item.isrequired}
-							<span class="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-purple-800 ring-1 ring-purple-200">
-								<svg class="h-2 w-2 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-								required
-							</span>
-						{/if}
-						<!-- Status badge — top right -->
-						<span class="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight {getAvailabilityColor(item.status)}">
-							{item.status === 'In Stock' ? 'In Stock' : item.status === 'Out of Stock' ? 'Out' : item.status}
-						</span>
-					</div>
-					<div class="flex flex-1 flex-col p-2">
-						<h3 class="line-clamp-2 text-xs font-semibold leading-snug text-gray-900 sm:text-sm">{item.name}</h3>
-						<div class="mt-1.5 flex flex-wrap items-center gap-1">
-							<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">{getCategoryName(item.categoryId)}</span>
+				{#if item.isPlaceholder}
+					<div class="animate-pulse overflow-hidden rounded-lg bg-white shadow-sm">
+						<div class="aspect-4/3 bg-gray-200"></div>
+						<div class="space-y-1.5 p-2">
+							<div class="h-3 w-full rounded bg-gray-200"></div>
+							<div class="h-3 w-3/4 rounded bg-gray-200"></div>
+							<div class="flex gap-1 pt-0.5">
+								<div class="h-4 w-14 rounded bg-gray-200"></div>
+							</div>
+							<div class="h-3 w-12 rounded bg-gray-200 mt-1"></div>
 						</div>
-						<p class="mt-1 text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</p>
 					</div>
-				</button>
+				{:else}
+					<button
+						type="button"
+						onclick={() => openDetailModal(item)}
+						class="group flex flex-col overflow-hidden rounded-lg bg-white shadow-sm transition-all hover:shadow-md text-left focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-1"
+					>
+						<div class="relative aspect-4/3 overflow-hidden bg-gray-100 flex items-center justify-center w-full">
+							{#if item.picture}
+								<img src={item.picture} alt={item.name} class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
+							{:else}
+								<svg class="h-10 w-10 sm:h-12 sm:w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+								</svg>
+							{/if}
+							<!-- required badge — top left -->
+							{#if item.isrequired}
+								<span class="absolute left-1.5 top-1.5 inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-purple-800 ring-1 ring-purple-200">
+									<svg class="h-2 w-2 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+									required
+								</span>
+							{/if}
+							<!-- Status badge — top right -->
+							<span class="absolute right-1.5 top-1.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-tight {getAvailabilityColor(item.status)}">
+								{item.status === 'In Stock' ? 'In Stock' : item.status === 'Out of Stock' ? 'Out' : item.status}
+							</span>
+						</div>
+						<div class="flex flex-1 flex-col p-2">
+							<h3 class="line-clamp-2 text-xs font-semibold leading-snug text-gray-900 sm:text-sm">{item.name}</h3>
+							<div class="mt-1.5 flex flex-wrap items-center gap-1">
+								<span class="rounded bg-gray-100 px-1 py-0.5 text-[10px] font-medium text-gray-600">{getCategoryName(item.categoryId)}</span>
+							</div>
+							<p class="mt-1 text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</p>
+						</div>
+					</button>
+				{/if}
 			{/each}
 		</div>
 	{/if}
@@ -737,41 +810,57 @@
 	{#if !isLoading && viewMode === 'list' && filteredItems.length > 0}
 		<div class="overflow-hidden rounded-lg bg-white shadow divide-y divide-gray-100">
 			{#each filteredItems as item, i (item.id)}
-				<button
-					type="button"
-					onclick={() => openDetailModal(item)}
-					class="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-500 sm:px-4 sm:py-3.5"
-				>
-					<!-- Row number -->
-					<span class="hidden sm:inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * itemsPerPage + i + 1}</span>
-
-					<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14 flex items-center justify-center">
-						{#if item.picture}
-							<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
-						{:else}
-							<svg class="h-6 w-6 sm:h-7 sm:w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-							</svg>
-						{/if}
-					</div>
-					<div class="min-w-0 flex-1">
-						<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-						<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
-						<div class="mt-1 flex flex-wrap items-center gap-1">
-							{#if item.isrequired}
-								<span class="inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800 ring-1 ring-purple-200">
-									<svg class="h-2 w-2 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-									required
-								</span>
-							{/if}
-							<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
-							<span class="text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</span>
+				{#if item.isPlaceholder}
+					<div class="flex animate-pulse items-center gap-3 px-3 py-3 sm:px-4 sm:py-3.5">
+						<span class="hidden h-5 w-5 shrink-0 rounded-full bg-gray-200 sm:inline-flex"></span>
+						<div class="h-12 w-12 shrink-0 rounded-md bg-gray-200 sm:h-14 sm:w-14"></div>
+						<div class="min-w-0 flex-1 space-y-2">
+							<div class="h-4 w-1/3 rounded bg-gray-200"></div>
+							<div class="h-3 w-1/2 rounded bg-gray-200"></div>
+							<div class="flex gap-2">
+								<div class="h-4 w-14 rounded bg-gray-200"></div>
+								<div class="h-4 w-10 rounded bg-gray-200"></div>
+							</div>
 						</div>
+						<div class="h-4 w-4 shrink-0 rounded bg-gray-200"></div>
 					</div>
-					<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-					</svg>
-				</button>
+				{:else}
+					<button
+						type="button"
+						onclick={() => openDetailModal(item)}
+						class="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-pink-500 sm:px-4 sm:py-3.5"
+					>
+						<!-- Row number -->
+						<span class="hidden sm:inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-500">{(currentPage - 1) * itemsPerPage + i + 1}</span>
+
+						<div class="h-12 w-12 shrink-0 overflow-hidden rounded-md bg-gray-100 sm:h-14 sm:w-14 flex items-center justify-center">
+							{#if item.picture}
+								<img src={item.picture} alt={item.name} class="h-full w-full object-cover" loading="lazy" />
+							{:else}
+								<svg class="h-6 w-6 sm:h-7 sm:w-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+									<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+								</svg>
+							{/if}
+						</div>
+						<div class="min-w-0 flex-1">
+							<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+							<p class="truncate text-xs text-gray-500">{item.specification || getCategoryName(item.categoryId)}</p>
+							<div class="mt-1 flex flex-wrap items-center gap-1">
+								{#if item.isrequired}
+									<span class="inline-flex items-center gap-0.5 rounded-full bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800 ring-1 ring-purple-200">
+										<svg class="h-2 w-2 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+										required
+									</span>
+								{/if}
+								<span class="rounded px-1.5 py-0.5 text-[10px] font-semibold {getAvailabilityColor(item.status)}">{item.status}</span>
+								<span class="text-[10px] text-gray-400">Qty: {item.currentCount ?? (item.quantity + (item.donations ?? 0))}</span>
+							</div>
+						</div>
+						<svg class="h-4 w-4 shrink-0 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+							<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+						</svg>
+					</button>
+				{/if}
 			{/each}
 		</div>
 	{/if}

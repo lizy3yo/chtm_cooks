@@ -51,9 +51,100 @@
 	// Data from store with client-side caching
 	let items = $state<InventoryItem[]>(hasCachedData ? cachedStore!.items : []);
 	let categories = $state<InventoryCategory[]>(hasCachedData ? cachedStore!.categories : []);
-	let loading = $state(!hasCachedData); // Only show skeleton if no cached data
+	let loading = $state(false); // Only show skeleton if no cached data
 	let uploadingImage = $state(false);
-	let initialLoadComplete = $state(hasCachedData); // Mark as complete if we have cached data
+	let initialLoadComplete = $state(true); // Mark as complete if we have cached data
+
+	let cardsLoading = $state(!hasCachedData);
+	let itemsTabLoading = $state(!hasCachedData);
+	let requiredTabLoading = $state(!hasCachedData);
+	let categoriesTabLoading = $state(!hasCachedData);
+	let lowStockTabLoading = $state(!hasCachedData);
+	let inFlightLoadId = 0;
+	let firstPageResponse: any = null;
+
+	async function fetchItemsPage(page: number, forceRefresh: boolean) {
+		const cacheValid = inventoryStore.isItemsCacheValid();
+		if (!forceRefresh && cacheValid && page === 1) {
+			const storeData = get(inventoryStore);
+			items = storeData.items;
+			firstPageResponse = {
+				items: storeData.items,
+				total: storeData.items.length,
+				page: 1,
+				limit: INVENTORY_FETCH_PAGE_SIZE,
+				pages: 1
+			};
+			return firstPageResponse;
+		}
+
+		const response = await inventoryItemsAPI.getAll({
+			page,
+			limit: INVENTORY_FETCH_PAGE_SIZE,
+			includeArchived: true,
+			forceRefresh
+		});
+
+		if (page === 1) {
+			firstPageResponse = response;
+			items = response.items;
+		} else {
+			const existingIds = new Set(items.map((i) => i.id));
+			const newItems = response.items.filter((i) => !existingIds.has(i.id));
+			items = [...items, ...newItems];
+		}
+
+		inventoryStore.setItems(items);
+		return response;
+	}
+
+	async function loadInventoryProgressive(shouldForceRefresh: boolean) {
+		const loadId = ++inFlightLoadId;
+		try {
+			// Step 1: Load the cards (categories + page 1 items)
+			await Promise.allSettled([
+				loadCategories(shouldForceRefresh),
+				fetchItemsPage(1, shouldForceRefresh)
+			]);
+
+			if (loadId !== inFlightLoadId) return;
+			cardsLoading = false;
+
+			// Step 2: Load/display the items tab
+			itemsTabLoading = false;
+
+			// Step 3: Load/display the required tab
+			requiredTabLoading = false;
+
+			// Step 4: Load/display the categories tab
+			categoriesTabLoading = false;
+
+			// Step 5: Load/display the low stock tab
+			lowStockTabLoading = false;
+
+			// Load the remaining pages of items sequentially in the background
+			const totalPagesCount = firstPageResponse?.pages ?? 1;
+			const cacheValid = inventoryStore.isItemsCacheValid();
+			if (totalPagesCount > 1 && !(!shouldForceRefresh && cacheValid)) {
+				for (let p = 2; p <= totalPagesCount; p++) {
+					if (loadId !== inFlightLoadId) return;
+					await fetchItemsPage(p, shouldForceRefresh);
+				}
+			}
+		} catch (err) {
+			console.error('[INVENTORY-SSE] Progressive load error:', err);
+		} finally {
+			if (loadId === inFlightLoadId) {
+				loading = false;
+				initialLoadComplete = true;
+				cardsLoading = false;
+				itemsTabLoading = false;
+				requiredTabLoading = false;
+				categoriesTabLoading = false;
+				lowStockTabLoading = false;
+			}
+		}
+	}
 
 	// Real-time refresh state
 	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -119,21 +210,8 @@
 			console.log('[INVENTORY-SSE]  Cache valid, using cached data');
 		}
 
-		// Load data asynchronously with proper loading state management
-		Promise.all([loadCategories(shouldForceRefresh), loadItems(shouldForceRefresh)])
-			.then(() => {
-				console.log('[INVENTORY-SSE] ✅ Initial data load complete');
-				// Wait for next tick to ensure derived states are updated
-				setTimeout(() => {
-					loading = false;
-					initialLoadComplete = true;
-				}, 150); // Slightly longer delay to ensure displayItems is populated
-			})
-			.catch((err) => {
-				console.error('[INVENTORY-SSE] ❌ Initial data load failed:', err);
-				loading = false;
-				initialLoadComplete = true;
-			});
+		// Load data using progressive loading flow
+		loadInventoryProgressive(shouldForceRefresh);
 
 		// Keyboard event handler for Escape key
 		const handleKeydown = (e: KeyboardEvent) => {
@@ -3290,7 +3368,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 	</div>
 
 	<!-- Global Skeleton Loading State -->
-	{#if loading || !initialLoadComplete}
+	{#if false}
 		<InventorySkeletonLoader
 			view={activeTab === 'categories'
 				? 'categories'
@@ -3302,72 +3380,88 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		/>
 	{:else}
 		<!-- Stats Overview -->
-		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Items</p>
-						<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
-							{activeItems.length}
-						</p>
+		{#if cardsLoading}
+			<div class="grid grid-cols-2 gap-3 lg:grid-cols-4 animate-pulse">
+				{#each Array(4) as _}
+					<div class="rounded-lg bg-white p-3 shadow sm:p-5 h-[80px] sm:h-[116px]">
+						<div class="flex items-center justify-between gap-2 h-full">
+							<div class="space-y-2 flex-1">
+								<div class="h-4 bg-gray-200 rounded w-2/3"></div>
+								<div class="h-6 bg-gray-200 rounded w-1/3"></div>
+							</div>
+							<div class="h-9 w-9 sm:h-12 sm:w-12 bg-gray-200 rounded-full"></div>
+						</div>
 					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
-					>
-						<Package size={18} class="text-blue-600 sm:hidden" />
-						<Package size={24} class="hidden text-blue-600 sm:block" />
+				{/each}
+			</div>
+		{:else}
+			<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Items</p>
+							<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
+								{activeItems.length}
+							</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
+						>
+							<Package size={18} class="text-blue-600 sm:hidden" />
+							<Package size={24} class="hidden text-blue-600 sm:block" />
+						</div>
+					</div>
+				</div>
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Categories</p>
+							<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
+								{categories.length}
+							</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12"
+						>
+							<FolderTree size={18} class="text-purple-600 sm:hidden" />
+							<FolderTree size={24} class="hidden text-purple-600 sm:block" />
+						</div>
+					</div>
+				</div>
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Low Stock</p>
+							<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">
+								{lowStockItems.length}
+							</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12"
+						>
+							<AlertTriangle size={18} class="text-red-600 sm:hidden" />
+							<AlertTriangle size={24} class="hidden text-red-600 sm:block" />
+						</div>
+					</div>
+				</div>
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Required Items</p>
+							<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
+								{requiredItems.length}
+							</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12"
+						>
+							<Star size={18} class="text-amber-600 sm:hidden" />
+							<Star size={24} class="hidden text-amber-600 sm:block" />
+						</div>
 					</div>
 				</div>
 			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Categories</p>
-						<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
-							{categories.length}
-						</p>
-					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12"
-					>
-						<FolderTree size={18} class="text-purple-600 sm:hidden" />
-						<FolderTree size={24} class="hidden text-purple-600 sm:block" />
-					</div>
-				</div>
-			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Low Stock</p>
-						<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">
-							{lowStockItems.length}
-						</p>
-					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12"
-					>
-						<AlertTriangle size={18} class="text-red-600 sm:hidden" />
-						<AlertTriangle size={24} class="hidden text-red-600 sm:block" />
-					</div>
-				</div>
-			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Required Items</p>
-						<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
-							{requiredItems.length}
-						</p>
-					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12"
-					>
-						<Star size={18} class="text-amber-600 sm:hidden" />
-						<Star size={24} class="hidden text-amber-600 sm:block" />
-					</div>
-				</div>
-			</div>
-		</div>
+		{/if}
 
 		<!-- Tabs Navigation -->
 		<div class="border-b border-gray-200 bg-white">
@@ -3445,8 +3539,11 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		<!-- Tab Content -->
 		<div class="rounded-b-lg bg-white shadow">
 			{#if activeTab === 'all-items'}
-				<!-- All Items View -->
-				<div class="p-4 sm:p-6">
+				{#if itemsTabLoading}
+					<InventorySkeletonLoader view="all-items" />
+				{:else}
+					<!-- All Items View -->
+					<div class="p-4 sm:p-6">
 					<div class="mb-4 flex flex-col gap-3">
 						{#if selectedCategory}
 							<div class="flex items-center gap-2">
@@ -3811,9 +3908,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						{/if}
 					{/if}
 				</div>
+				{/if}
 			{:else if activeTab === 'categories'}
-				<!-- Categories View -->
-				<div class="p-4 sm:p-6">
+				{#if categoriesTabLoading}
+					<InventorySkeletonLoader view="categories" />
+				{:else}
+					<!-- Categories View -->
+					<div class="p-4 sm:p-6">
 					<div class="mb-4 flex flex-col gap-3">
 						<div class="flex items-center justify-between gap-3">
 							<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Item Categories</h3>
@@ -4343,9 +4444,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						</div>
 					</div>
 				{/if}
+				{/if}
 			{:else if activeTab === 'required-items'}
-				<!-- Required Items View -->
-				<div class="p-4 sm:p-6">
+				{#if requiredTabLoading}
+					<InventorySkeletonLoader view="all-items" />
+				{:else}
+					<!-- Required Items View -->
+					<div class="p-4 sm:p-6">
 					<div class="mb-4 flex flex-col gap-3">
 						<div>
 							<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Required Items</h3>
@@ -4677,9 +4782,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						</div>
 					{/if}
 				</div>
+				{/if}
 			{:else if activeTab === 'low-stock'}
-				<!-- Low Stock View -->
-				<div class="p-6">
+				{#if lowStockTabLoading}
+					<InventorySkeletonLoader view="low-stock" />
+				{:else}
+					<!-- Low Stock View -->
+					<div class="p-6">
 					<div class="mb-6 flex flex-col gap-3">
 						<div>
 							<h3 class="text-lg font-semibold text-gray-900">Low Stock Alerts</h3>
@@ -4799,6 +4908,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						</div>
 					{/if}
 				</div>
+				{/if}
 			{/if}
 		</div>
 	{/if}

@@ -51,7 +51,7 @@
 
 	let activeTab = $state<'stock' | 'usage' | 'obligations'>('stock');
 	let sseConnected = $state(false);
-	let loading = $state(true);
+	let loading = $state(false);
 
 	// Data
 	let allItems = $state<InventoryItem[]>([]);
@@ -60,6 +60,107 @@
 		browser ? peekCachedAnalytics({ period: 'month' }) : null
 	);
 	let searchQuery = $state('');
+
+	const hasCachedData = browser && !!inventoryItemsAPI.peekCachedList({ limit: 1000 });
+	let cardsLoading = $state(!hasCachedData);
+	let stockLevelsLoading = $state(!hasCachedData);
+	let requiredItemsLoading = $state(!hasCachedData);
+	let categoriesLoading = $state(!hasCachedData);
+	let usageStatsLoading = $state(!hasCachedData);
+	let inFlightLoadId = 0;
+	let firstPageResponse: any = null;
+
+	const INVENTORY_FETCH_PAGE_SIZE = 500;
+
+	async function fetchItemsPage(page: number, forceRefresh: boolean) {
+		const cachedItems = inventoryItemsAPI.peekCachedList({ limit: 1000 });
+		if (!forceRefresh && cachedItems && page === 1) {
+			allItems = cachedItems.items;
+			firstPageResponse = {
+				items: cachedItems.items,
+				total: cachedItems.items.length,
+				page: 1,
+				limit: INVENTORY_FETCH_PAGE_SIZE,
+				pages: 1
+			};
+			return firstPageResponse;
+		}
+
+		const response = await inventoryItemsAPI.getAll({
+			page,
+			limit: INVENTORY_FETCH_PAGE_SIZE,
+			includeArchived: true,
+			forceRefresh
+		});
+
+		if (page === 1) {
+			firstPageResponse = response;
+			allItems = response.items;
+		} else {
+			const existingIds = new Set(allItems.map((i) => i.id));
+			const newItems = response.items.filter((i) => !existingIds.has(i.id));
+			allItems = [...allItems, ...newItems];
+		}
+
+		return response;
+	}
+
+	async function loadInventoryProgressive(shouldForceRefresh: boolean) {
+		const loadId = ++inFlightLoadId;
+		try {
+			// Step 1: Load cards (categories + page 1 items)
+			await Promise.allSettled([
+				inventoryCategoriesAPI.getAll().then((res) => {
+					categories = res.categories;
+				}),
+				fetchItemsPage(1, shouldForceRefresh)
+			]);
+
+			if (loadId !== inFlightLoadId) return;
+			cardsLoading = false;
+
+			// Step 2: Load stock levels
+			stockLevelsLoading = false;
+
+			// Step 3: Load required items
+			requiredItemsLoading = false;
+
+			// Step 4: Load categories
+			categoriesLoading = false;
+
+			// Step 5: Load usage statistics (analytics)
+			try {
+				const analyticsRes = await fetchAnalytics({ period: 'month', forceRefresh: shouldForceRefresh });
+				if (loadId === inFlightLoadId) {
+					analytics = analyticsRes;
+				}
+			} catch (err) {
+				console.error('[SUPERADMIN-INVENTORY] Failed to fetch analytics:', err);
+			}
+			if (loadId !== inFlightLoadId) return;
+			usageStatsLoading = false;
+
+			// Sequentially fetch remaining pages of items in the background
+			const totalPagesCount = firstPageResponse?.pages ?? 1;
+			if (totalPagesCount > 1 && shouldForceRefresh) {
+				for (let p = 2; p <= totalPagesCount; p++) {
+					if (loadId !== inFlightLoadId) return;
+					await fetchItemsPage(p, shouldForceRefresh);
+				}
+			}
+		} catch (err) {
+			console.error('[SUPERADMIN-INVENTORY] Progressive load error:', err);
+		} finally {
+			if (loadId === inFlightLoadId) {
+				loading = false;
+				cardsLoading = false;
+				stockLevelsLoading = false;
+				requiredItemsLoading = false;
+				categoriesLoading = false;
+				usageStatsLoading = false;
+			}
+		}
+	}
 
 	let _pollInterval: ReturnType<typeof setInterval> | null = null;
 	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -70,6 +171,11 @@
 
 		allItems = cachedItems.items;
 		loading = false;
+		cardsLoading = false;
+		stockLevelsLoading = false;
+		requiredItemsLoading = false;
+		categoriesLoading = false;
+		usageStatsLoading = false;
 		return true;
 	}
 
@@ -156,21 +262,14 @@
 	});
 
 	async function loadAllData(showLoader = true, forceRefresh = true) {
-		if (showLoader && allItems.length === 0) loading = true;
-		try {
-			const [itemsRes, analyticsRes, catsRes] = await Promise.all([
-				inventoryItemsAPI.getAll({ limit: 1000, forceRefresh }),
-				fetchAnalytics({ period: 'month', forceRefresh }),
-				inventoryCategoriesAPI.getAll()
-			]);
-			allItems = itemsRes.items;
-			analytics = analyticsRes;
-			categories = catsRes.categories;
-		} catch (e: any) {
-			toastStore.error(e.message || 'Failed to load inventory data');
-		} finally {
-			loading = false;
+		if (showLoader && allItems.length === 0) {
+			cardsLoading = true;
+			stockLevelsLoading = true;
+			requiredItemsLoading = true;
+			categoriesLoading = true;
+			usageStatsLoading = true;
 		}
+		await loadInventoryProgressive(forceRefresh);
 	}
 
 	/**
@@ -740,90 +839,106 @@
 		</div>
 	</div>
 
-	{#if loading && allItems.length === 0}
+	{#if false}
 		<InventorySkeletonLoader view="all-items" />
 	{:else}
 		<!-- High Level Stats — original superadmin cards -->
-		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Unique Items</p>
-						<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
-							{allItems.length}
-						</p>
-						<p class="mt-0.5 text-xs text-gray-500">
-							Across {new Set(allItems.map((i) => i.category)).size} categories
-						</p>
+		{#if cardsLoading}
+			<div class="grid grid-cols-2 gap-3 lg:grid-cols-4 animate-pulse">
+				{#each Array(4) as _}
+					<div class="rounded-lg bg-white p-3 shadow sm:p-5 h-[80px] sm:h-[116px]">
+						<div class="flex items-center justify-between gap-2 h-full">
+							<div class="space-y-2 flex-1">
+								<div class="h-4 bg-gray-200 rounded w-2/3"></div>
+								<div class="h-6 bg-gray-200 rounded w-1/3"></div>
+							</div>
+							<div class="h-9 w-9 sm:h-12 sm:w-12 bg-gray-200 rounded-full"></div>
+						</div>
 					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12"
-					>
-						<Package size={18} class="text-gray-500 sm:hidden" />
-						<Package size={24} class="hidden text-gray-500 sm:block" />
-					</div>
-				</div>
+				{/each}
 			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">
-							Total Physical Stock
-						</p>
-						<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">
-							{allItems
-								.reduce((acc, curr) => acc + (curr.currentCount ?? curr.quantity), 0)
-								.toLocaleString()}
-						</p>
-						<p class="mt-0.5 text-xs text-gray-500">Total tracked units</p>
-					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12"
-					>
-						<BarChart3 size={18} class="text-emerald-600 sm:hidden" />
-						<BarChart3 size={24} class="hidden text-emerald-600 sm:block" />
-					</div>
-				</div>
-			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Low Stock Alerts</p>
-						<p
-							class="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl {lowStockItems.length > 0
-								? 'text-amber-600'
-								: 'text-gray-900'}"
+		{:else}
+			<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Unique Items</p>
+							<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
+								{allItems.length}
+							</p>
+							<p class="mt-0.5 text-xs text-gray-500">
+								Across {new Set(allItems.map((i) => i.category)).size} categories
+							</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12"
 						>
-							{lowStockItems.length}
-						</p>
-						<p class="mt-0.5 text-xs text-gray-500">Items nearing depletion</p>
+							<Package size={18} class="text-gray-500 sm:hidden" />
+							<Package size={24} class="hidden text-gray-500 sm:block" />
+						</div>
 					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12"
-					>
-						<AlertTriangle size={18} class="text-amber-500 sm:hidden" />
-						<AlertTriangle size={24} class="hidden text-amber-500 sm:block" />
+				</div>
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">
+								Total Physical Stock
+							</p>
+							<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">
+								{allItems
+									.reduce((acc, curr) => acc + (curr.currentCount ?? curr.quantity), 0)
+									.toLocaleString()}
+							</p>
+							<p class="mt-0.5 text-xs text-gray-500">Total tracked units</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12"
+						>
+							<BarChart3 size={18} class="text-emerald-600 sm:hidden" />
+							<BarChart3 size={24} class="hidden text-emerald-600 sm:block" />
+						</div>
+					</div>
+				</div>
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Low Stock Alerts</p>
+							<p
+								class="mt-1 text-2xl font-semibold sm:mt-2 sm:text-3xl {lowStockItems.length > 0
+									? 'text-amber-600'
+									: 'text-gray-900'}"
+							>
+								{lowStockItems.length}
+							</p>
+							<p class="mt-0.5 text-xs text-gray-500">Items nearing depletion</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12"
+						>
+							<AlertTriangle size={18} class="text-amber-500 sm:hidden" />
+							<AlertTriangle size={24} class="hidden text-amber-500 sm:block" />
+						</div>
+					</div>
+				</div>
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">required Items</p>
+							<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
+								{requiredItems.length}
+							</p>
+							<p class="mt-0.5 text-xs text-gray-500">Always on request forms</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12"
+						>
+							<Star size={18} class="text-amber-600 sm:hidden" />
+							<Star size={24} class="hidden text-amber-600 sm:block" />
+						</div>
 					</div>
 				</div>
 			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">required Items</p>
-						<p class="mt-1 text-2xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
-							{requiredItems.length}
-						</p>
-						<p class="mt-0.5 text-xs text-gray-500">Always on request forms</p>
-					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12"
-					>
-						<Star size={18} class="text-amber-600 sm:hidden" />
-						<Star size={24} class="hidden text-amber-600 sm:block" />
-					</div>
-				</div>
-			</div>
-		</div>
+		{/if}
 
 		<!-- Tabs -->
 		<div class="border-b border-gray-200 bg-white">
@@ -848,7 +963,10 @@
 		<!-- Tab Content -->
 		<div class="rounded-b-lg bg-white shadow">
 			{#if mainTab === 'all-items'}
-				<div class="p-4 sm:p-6">
+				{#if stockLevelsLoading}
+					<InventorySkeletonLoader view="all-items" />
+				{:else}
+					<div class="p-4 sm:p-6">
 					<div class="mb-4 flex flex-col gap-3">
 						{#if selectedCategory}
 							<div class="flex items-center gap-2">
@@ -1191,9 +1309,13 @@
 						{/if}
 					{/if}
 				</div>
+				{/if}
 			{/if}
 			{#if mainTab === 'required-items'}
-				<div class="p-4 sm:p-6">
+				{#if requiredItemsLoading}
+					<InventorySkeletonLoader view="all-items" />
+				{:else}
+					<div class="p-4 sm:p-6">
 					<div class="mb-4">
 						<h3 class="text-base font-semibold text-gray-900 sm:text-lg">required Items</h3>
 						<p class="mt-1 text-sm text-gray-500">
@@ -1479,9 +1601,13 @@
 						</div>
 					{/if}
 				</div>
+				{/if}
 			{/if}
 			{#if mainTab === 'categories'}
-				<div class="p-4 sm:p-6">
+				{#if categoriesLoading}
+					<InventorySkeletonLoader view="categories" />
+				{:else}
+					<div class="p-4 sm:p-6">
 					<div class="mb-4 flex items-center justify-between gap-3">
 						<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Item Categories</h3>
 						<button
@@ -1609,10 +1735,19 @@
 						</div>
 					{/if}
 				</div>
+				{/if}
 			{/if}
 
 			{#if mainTab === 'usage'}
-				<div class="p-6">
+				{#if usageStatsLoading}
+					<div class="p-6">
+						<div class="py-16 text-center animate-pulse">
+							<Activity size={40} class="mx-auto mb-3 text-gray-300" />
+							<p class="text-sm text-gray-500">Usage statistics are loading…</p>
+						</div>
+					</div>
+				{:else}
+					<div class="p-6">
 					{#if analytics}
 						<div class="mb-6 flex items-center justify-between">
 							<h3 class="text-lg font-bold text-gray-900">Most Borrowed Items</h3>
@@ -1729,6 +1864,7 @@
 						</div>
 					{/if}
 				</div>
+				{/if}
 			{/if}
 		</div>
 	{/if}
