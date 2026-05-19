@@ -734,7 +734,7 @@
 		{:else if report}
 			<div class="space-y-6 p-6">
 				{#if activeTab === 'overview'}
-					<div data-tab-panel="overview">
+					<div data-tab-panel="overview" class="space-y-6">
 						<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 							<div class="rounded-xl border border-gray-200 bg-white p-5">
 								<div class="flex items-start justify-between">

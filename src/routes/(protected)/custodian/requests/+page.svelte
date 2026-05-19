@@ -1547,7 +1547,7 @@
 							{#if paginatedRequests.length > 0}
 								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 									<div
-										class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4"
+										class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[32px_0.6fr_1fr_2.4fr_0.8fr_120px] md:items-center md:gap-4"
 									>
 										<span class="text-center text-gray-400">#</span>
 										<span>Request</span>
@@ -1561,7 +1561,7 @@
 											<!-- svelte-ignore a11y_click_events_have_key_events -->
 											<!-- svelte-ignore a11y_no_static_element_interactions -->
 											<div
-												class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
+												class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[32px_0.6fr_1fr_2.4fr_0.8fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
 												request.rawId
 													? 'bg-pink-50/50 ring-1 ring-pink-300 ring-inset'
 													: 'hover:bg-gray-50'}"
@@ -2334,178 +2334,259 @@
 						{#if selectedRequest.items}
 							<div>
 								<div class="mb-4 flex flex-wrap items-center justify-between gap-4">
-								<h3
-									class="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase"
-								>
-									<div class="h-1 w-1 rounded-full bg-pink-500"></div>
-									Requested Items
-								</h3>
-								{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
-									<div class="flex flex-wrap items-center gap-2">
-										{#if selectedRequest.items.some((i: any) => !i.inspection || i.inspection.status === 'good')}
-											<span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 ring-1 ring-emerald-200/60 shadow-sm">
-												<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-												Good
-											</span>
-										{/if}
-										{#if selectedRequest.items.some((i: any) => i.inspection?.status === 'damaged')}
-											<span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 ring-1 ring-amber-200/60 shadow-sm">
-												<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-												Damaged
-											</span>
-										{/if}
-										{#if selectedRequest.items.some((i: any) => i.inspection?.status === 'missing')}
-											<span class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 ring-1 ring-rose-200/60 shadow-sm">
-												<span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
-												Missing
-											</span>
-										{/if}
-									</div>
-								{/if}
-							</div>
-							<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-								<!-- Desktop Table Header -->
-								<div class="hidden sm:grid grid-cols-12 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-									<span class="col-span-8">Item</span>
-									<span class="col-span-2 text-center">Code</span>
-									<span class="col-span-2 text-center">Qty</span>
-								</div>
-								
-								<!-- Table Rows -->
-								<div class="divide-y divide-gray-100">
-									{#each selectedRequest.items as item}
-										{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-										{@const isGood = !item.inspection || item.inspection.status === 'good'}
-										{@const isDamaged = item.inspection?.status === 'damaged'}
-										{@const isMissing = item.inspection?.status === 'missing'}
-										<div class="grid items-center gap-3 bg-white p-3 sm:grid-cols-12 sm:p-4 transition-colors hover:bg-gray-50/50">
-											<!-- Item Info -->
-											<div class="col-span-12 flex items-center gap-3 sm:col-span-8 min-w-0">
-												{#if pic}
-													<img
-														src={pic}
-														alt={item.name}
-														class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-gray-200"
-														loading="lazy"
-													/>
-												{:else}
-													<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-200">
-														<ItemImagePlaceholder size="sm" />
-													</div>
-												{/if}
-												<div class="flex flex-col gap-1 min-w-0">
-													<span class="truncate text-sm font-semibold text-gray-900">{item.name}</span>
-													{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
-														<div class="flex flex-wrap items-center gap-1.5 mt-0.5">
-															{#if isGood}
-																<span class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200/50">
-																	<span class="h-1 w-1 rounded-full bg-emerald-500"></span>
-																	Good
-																</span>
-															{/if}
-															{#if isDamaged}
-																<span class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 ring-1 ring-amber-200/50">
-																	<span class="h-1 w-1 rounded-full bg-amber-500"></span>
-																	Damaged
-																</span>
-															{/if}
-															{#if isMissing}
-																<span class="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200/50">
-																	<span class="h-1 w-1 rounded-full bg-rose-500"></span>
-																	Missing
-																</span>
-															{/if}
-														</div>
-													{/if}
-												</div>
-											</div>
-											
-											<!-- Mobile/Desktop Details -->
-											<div class="col-span-6 flex items-center justify-between sm:col-span-2 sm:justify-center border-t border-gray-100 pt-3 sm:border-0 sm:pt-0">
-												<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden">Code</span>
-												<span class="font-mono text-sm font-medium text-gray-600">{item.code}</span>
-											</div>
-											<div class="col-span-6 flex items-center justify-between sm:col-span-2 sm:justify-center border-t border-gray-100 pt-3 sm:border-0 sm:pt-0 border-l border-gray-100 pl-3 sm:border-0 sm:pl-0">
-												<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden">Qty</span>
-												<span class="text-sm font-bold text-gray-900 tabular-nums">{item.quantity}</span>
-											</div>
+									<h3
+										class="flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase"
+									>
+										<div class="h-1 w-1 rounded-full bg-pink-500"></div>
+										Requested Items
+									</h3>
+									{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
+										<div class="flex flex-wrap items-center gap-2">
+											{#if selectedRequest.items.some((i: any) => !i.inspection || i.inspection.status === 'good')}
+												<span
+													class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 shadow-sm ring-1 ring-emerald-200/60"
+												>
+													<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+													Good
+												</span>
+											{/if}
+											{#if selectedRequest.items.some((i: any) => i.inspection?.status === 'damaged')}
+												<span
+													class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 shadow-sm ring-1 ring-amber-200/60"
+												>
+													<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+													Damaged
+												</span>
+											{/if}
+											{#if selectedRequest.items.some((i: any) => i.inspection?.status === 'missing')}
+												<span
+													class="inline-flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 shadow-sm ring-1 ring-rose-200/60"
+												>
+													<span class="h-1.5 w-1.5 rounded-full bg-rose-500"></span>
+													Missing
+												</span>
+											{/if}
 										</div>
-									{/each}
+									{/if}
 								</div>
-							</div>
-						</div>
-						
-						<!-- Replacement Obligations Table -->
-						{#if (selectedRequest.status === 'unresolved' || selectedRequest.status === 'history') && selectedRequest.items.some((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0)}
-							<div class="mt-8">
-								<h3 class="mb-4 flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase">
-									<div class="h-1 w-1 rounded-full bg-amber-500"></div>
-									Replacement Obligations
-								</h3>
-								<div class="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+								<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 									<!-- Desktop Table Header -->
-									<div class="hidden sm:grid grid-cols-12 border-b border-amber-100 bg-amber-50/50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-amber-900 uppercase">
-										<span class="col-span-6">Item to Replace</span>
-										<span class="col-span-3 text-center">Qty Required</span>
-										<span class="col-span-3 text-right">Due Date</span>
+									<div
+										class="hidden grid-cols-12 border-b border-gray-200 bg-gray-50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-gray-500 uppercase sm:grid"
+									>
+										<span class="col-span-8">Item</span>
+										<span class="col-span-2 text-center">Code</span>
+										<span class="col-span-2 text-center">Qty</span>
 									</div>
-									
+
 									<!-- Table Rows -->
-									<div class="divide-y divide-amber-100/50">
-										{#each selectedRequest.items.filter((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0) as item}
+									<div class="divide-y divide-gray-100">
+										{#each selectedRequest.items as item}
 											{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
-											<div class="grid items-center gap-3 bg-white p-3 sm:grid-cols-12 sm:p-4 hover:bg-amber-50/30 transition-colors">
-												<div class="col-span-12 flex items-center gap-3 sm:col-span-6 min-w-0">
+											{@const isGood = !item.inspection || item.inspection.status === 'good'}
+											{@const isDamaged = item.inspection?.status === 'damaged'}
+											{@const isMissing = item.inspection?.status === 'missing'}
+											<div
+												class="grid items-center gap-3 bg-white p-3 transition-colors hover:bg-gray-50/50 sm:grid-cols-12 sm:p-4"
+											>
+												<!-- Item Info -->
+												<div class="col-span-12 flex min-w-0 items-center gap-3 sm:col-span-8">
 													{#if pic}
-														<img src={pic} alt={item.name} class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-amber-200/50" loading="lazy" />
-													{:else}
-														<div class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-amber-200/50 text-amber-500/50"><ItemImagePlaceholder size="sm" /></div>
-													{/if}
-													<div class="flex flex-col gap-1 min-w-0">
-														<span class="truncate text-sm font-semibold text-gray-900">{item.name}</span>
-														<span class="text-[10px] font-semibold text-amber-600/80 uppercase">{item.code}</span>
-													</div>
-												</div>
-												<div class="col-span-6 flex items-center justify-between sm:col-span-3 sm:justify-center border-t border-amber-100/50 pt-3 sm:border-0 sm:pt-0">
-													<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden">Qty Required</span>
-													<span class="text-sm font-bold text-amber-700 tabular-nums">{item.inspection.replacementQuantity}</span>
-												</div>
-												<div class="col-span-6 flex items-center justify-between sm:col-span-3 sm:justify-end border-t border-amber-100/50 pt-3 sm:border-0 sm:pt-0 border-l border-amber-100/50 pl-3 sm:border-0 sm:pl-0">
-													<span class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden">Due Date</span>
-													{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
-														<input
-															type="date"
-															min={new Date().toLocaleDateString('en-CA')}
-															onkeydown={(e) => e.preventDefault()}
-															class="block w-[120px] rounded-md border-0 bg-transparent py-1 pl-2 pr-0 text-xs font-semibold text-gray-700 focus:ring-2 focus:ring-amber-500/50 hover:bg-amber-100/50 transition-colors"
-															value={item.inspection.dueDate ? new Date(item.inspection.dueDate).toISOString().split('T')[0] : ''}
-															onchange={async (e) => {
-																const target = e.currentTarget;
-																const newDate = target.value;
-																if (!newDate) return;
-																try {
-																	target.disabled = true;
-																	const res = await fetch(`/api/borrow-requests/${selectedRequest!.rawId}/due-date`, {
-																		method: 'PATCH',
-																		headers: { 'Content-Type': 'application/json' },
-																		body: JSON.stringify({ itemId: item.itemId, dueDate: newDate })
-																	});
-																	if (res.ok) await loadRequests(true);
-																} finally {
-																	target.disabled = false;
-																}
-															}}
+														<img
+															src={pic}
+															alt={item.name}
+															class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-gray-200"
+															loading="lazy"
 														/>
 													{:else}
-														<span class="text-xs font-semibold text-gray-700">{item.inspection.dueDate ? new Date(item.inspection.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Not set'}</span>
+														<div
+															class="h-10 w-10 shrink-0 overflow-hidden rounded-lg ring-1 ring-gray-200"
+														>
+															<ItemImagePlaceholder size="sm" />
+														</div>
 													{/if}
+													<div class="flex min-w-0 flex-col gap-1">
+														<span class="truncate text-sm font-semibold text-gray-900"
+															>{item.name}</span
+														>
+														{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
+															<div class="mt-0.5 flex flex-wrap items-center gap-1.5">
+																{#if isGood}
+																	<span
+																		class="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 ring-1 ring-emerald-200/50"
+																	>
+																		<span class="h-1 w-1 rounded-full bg-emerald-500"></span>
+																		Good
+																	</span>
+																{/if}
+																{#if isDamaged}
+																	<span
+																		class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 ring-1 ring-amber-200/50"
+																	>
+																		<span class="h-1 w-1 rounded-full bg-amber-500"></span>
+																		Damaged
+																	</span>
+																{/if}
+																{#if isMissing}
+																	<span
+																		class="inline-flex items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 ring-1 ring-rose-200/50"
+																	>
+																		<span class="h-1 w-1 rounded-full bg-rose-500"></span>
+																		Missing
+																	</span>
+																{/if}
+															</div>
+														{/if}
+													</div>
+												</div>
+
+												<!-- Mobile/Desktop Details -->
+												<div
+													class="col-span-6 flex items-center justify-between border-t border-gray-100 pt-3 sm:col-span-2 sm:justify-center sm:border-0 sm:pt-0"
+												>
+													<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden"
+														>Code</span
+													>
+													<span class="font-mono text-sm font-medium text-gray-600"
+														>{item.code}</span
+													>
+												</div>
+												<div
+													class="col-span-6 flex items-center justify-between border-t border-l border-gray-100 pt-3 pl-3 sm:col-span-2 sm:justify-center sm:border-0 sm:pt-0 sm:pl-0"
+												>
+													<span class="text-[10px] font-semibold text-gray-500 uppercase sm:hidden"
+														>Qty</span
+													>
+													<span class="text-sm font-bold text-gray-900 tabular-nums"
+														>{item.quantity}</span
+													>
 												</div>
 											</div>
 										{/each}
 									</div>
 								</div>
 							</div>
-						{/if}
+
+							<!-- Replacement Obligations Table -->
+							{#if (selectedRequest.status === 'unresolved' || selectedRequest.status === 'history') && selectedRequest.items.some((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0)}
+								<div class="mt-8">
+									<h3
+										class="mb-4 flex items-center gap-2 text-sm font-bold tracking-wider text-gray-900 uppercase"
+									>
+										<div class="h-1 w-1 rounded-full bg-amber-500"></div>
+										Replacement Obligations
+									</h3>
+									<div
+										class="overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm"
+									>
+										<!-- Desktop Table Header -->
+										<div
+											class="hidden grid-cols-12 border-b border-amber-100 bg-amber-50/50 px-4 py-2.5 text-[11px] font-semibold tracking-wide text-amber-900 uppercase sm:grid"
+										>
+											<span class="col-span-6">Item to Replace</span>
+											<span class="col-span-3 text-center">Qty Required</span>
+											<span class="col-span-3 text-right">Due Date</span>
+										</div>
+
+										<!-- Table Rows -->
+										<div class="divide-y divide-amber-100/50">
+											{#each selectedRequest.items.filter((item: any) => item.inspection && (item.inspection.replacementQuantity || 0) > 0) as item}
+												{@const pic = item.picture ?? itemPictureCache.get(item.itemId)}
+												<div
+													class="grid items-center gap-3 bg-white p-3 transition-colors hover:bg-amber-50/30 sm:grid-cols-12 sm:p-4"
+												>
+													<div class="col-span-12 flex min-w-0 items-center gap-3 sm:col-span-6">
+														{#if pic}
+															<img
+																src={pic}
+																alt={item.name}
+																class="h-10 w-10 shrink-0 rounded-lg object-cover ring-1 ring-amber-200/50"
+																loading="lazy"
+															/>
+														{:else}
+															<div
+																class="h-10 w-10 shrink-0 overflow-hidden rounded-lg text-amber-500/50 ring-1 ring-amber-200/50"
+															>
+																<ItemImagePlaceholder size="sm" />
+															</div>
+														{/if}
+														<div class="flex min-w-0 flex-col gap-1">
+															<span class="truncate text-sm font-semibold text-gray-900"
+																>{item.name}</span
+															>
+															<span class="text-[10px] font-semibold text-amber-600/80 uppercase"
+																>{item.code}</span
+															>
+														</div>
+													</div>
+													<div
+														class="col-span-6 flex items-center justify-between border-t border-amber-100/50 pt-3 sm:col-span-3 sm:justify-center sm:border-0 sm:pt-0"
+													>
+														<span
+															class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden"
+															>Qty Required</span
+														>
+														<span class="text-sm font-bold text-amber-700 tabular-nums"
+															>{item.inspection.replacementQuantity}</span
+														>
+													</div>
+													<div
+														class="col-span-6 flex items-center justify-between border-t border-l border-amber-100/50 pt-3 pl-3 sm:col-span-3 sm:justify-end sm:border-0 sm:pt-0 sm:pl-0"
+													>
+														<span
+															class="text-[10px] font-semibold text-amber-800 uppercase sm:hidden"
+															>Due Date</span
+														>
+														{#if selectedRequest.status === 'unresolved' || selectedRequest.status === 'history'}
+															<input
+																type="date"
+																min={new Date().toLocaleDateString('en-CA')}
+																onkeydown={(e) => e.preventDefault()}
+																class="block w-[120px] rounded-md border-0 bg-transparent py-1 pr-0 pl-2 text-xs font-semibold text-gray-700 transition-colors hover:bg-amber-100/50 focus:ring-2 focus:ring-amber-500/50"
+																value={item.inspection.dueDate
+																	? new Date(item.inspection.dueDate).toISOString().split('T')[0]
+																	: ''}
+																onchange={async (e) => {
+																	const target = e.currentTarget;
+																	const newDate = target.value;
+																	if (!newDate) return;
+																	try {
+																		target.disabled = true;
+																		const res = await fetch(
+																			`/api/borrow-requests/${selectedRequest!.rawId}/due-date`,
+																			{
+																				method: 'PATCH',
+																				headers: { 'Content-Type': 'application/json' },
+																				body: JSON.stringify({
+																					itemId: item.itemId,
+																					dueDate: newDate
+																				})
+																			}
+																		);
+																		if (res.ok) await loadRequests(true);
+																	} finally {
+																		target.disabled = false;
+																	}
+																}}
+															/>
+														{:else}
+															<span class="text-xs font-semibold text-gray-700"
+																>{item.inspection.dueDate
+																	? new Date(item.inspection.dueDate).toLocaleDateString('en-US', {
+																			month: 'short',
+																			day: 'numeric',
+																			year: 'numeric'
+																		})
+																	: 'Not set'}</span
+															>
+														{/if}
+													</div>
+												</div>
+											{/each}
+										</div>
+									</div>
+								</div>
+							{/if}
 						{/if}
 
 						<!-- Overdue Warning -->
@@ -2653,5 +2734,3 @@
 		}}
 	/>
 {/if}
-
-

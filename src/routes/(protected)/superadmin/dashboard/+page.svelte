@@ -19,7 +19,12 @@
 
 	// ── State ─────────────────────────────────────────────────────────────────
 	const initialReport = browser ? peekCachedAnalytics({ period: 'month' }) : null;
-	let loading = $state(!initialReport);
+	const cachedUsers = browser ? usersAPI.peekCachedUsers({ limit: 5 }) : null;
+	const cachedClassStats = browser ? classCodesAPI.peekCachedStats() : null;
+	const cachedRequests = browser ? borrowRequestsAPI.peekCachedList({ limit: 10, sortBy: 'createdAt' }) : null;
+	const cachedInventory = browser ? inventoryItemsAPI.peekCachedList() : null;
+
+	let loading = $state(!initialReport || !cachedUsers || !cachedClassStats || !cachedRequests || !cachedInventory);
 	let sseConnected = $state(false);
 	let report = $state<AnalyticsReport | null>(initialReport);
 	let currentTime = $state(new Date());
@@ -56,6 +61,40 @@
 	let lowStockItems = $state(0);
 	let outOfStockItems = $state(0);
 	let totalCategories = $state(0);
+
+	// Synchronously populate from cache if they are available
+	if (cachedUsers) {
+		totalUsers = cachedUsers.pagination.total;
+		recentUsers = cachedUsers.users;
+		const roleCount: Record<string, number> = {};
+		cachedUsers.users.forEach((u: UserResponse) => {
+			roleCount[u.role] = (roleCount[u.role] || 0) + 1;
+		});
+		usersByRole = roleCount;
+	}
+
+	if (cachedClassStats) {
+		classStats = cachedClassStats;
+		activeClasses = cachedClassStats.activeClasses;
+	}
+
+	if (cachedRequests) {
+		totalRequests = cachedRequests.total;
+		recentRequests = cachedRequests.requests;
+		pendingRequests = cachedRequests.requests.filter((r: BorrowRequestRecord) => r.status === 'pending_instructor').length;
+		activeLoans = cachedRequests.requests.filter((r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return').length;
+		overdueRequests = cachedRequests.requests.filter((r: BorrowRequestRecord) => 
+			(r.status === 'borrowed' || r.status === 'pending_return') && 
+			new Date(r.returnDate) < new Date()
+		).length;
+	}
+
+	if (cachedInventory) {
+		totalInventory = cachedInventory.total;
+		totalCategories = new Set(cachedInventory.items.map((i: InventoryItem) => i.categoryId)).size;
+		lowStockItems = cachedInventory.items.filter((i: InventoryItem) => i.quantity > 0 && i.quantity <= 5).length;
+		outOfStockItems = cachedInventory.items.filter((i: InventoryItem) => i.quantity === 0).length;
+	}
 
 	// ── Greeting ──────────────────────────────────────────────────────────────
 	const greeting = $derived.by(() => {

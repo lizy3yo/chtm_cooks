@@ -242,11 +242,23 @@
 		}
 	}
 
-	async function updateSelectedItemQuantity(quantity: number): Promise<void> {
+	async function updateSelectedItemQuantity(quantity: number, element?: HTMLInputElement): Promise<void> {
 		if (!selectedItem || !selectedItemRequestEntry) return;
 
+		const maxQty = selectedItemRequestEntry.maxQuantity;
+		let finalQty = quantity;
+		if (isNaN(finalQty) || finalQty < 1) {
+			finalQty = 1;
+		} else if (finalQty > maxQty) {
+			finalQty = maxQty;
+		}
+
+		if (element) {
+			element.value = String(finalQty);
+		}
+
 		try {
-			await requestCartStore.setQuantity(selectedItem.id, quantity);
+			await requestCartStore.setQuantity(selectedItem.id, finalQty);
 		} catch (error) {
 			console.error('Failed to update request quantity:', error);
 			toastStore.error('Unable to update the request quantity. Please try again.', 'Error');
@@ -310,11 +322,28 @@ function maxQuantityForItem(item: CatalogItem): number {
 async function removeItemFromRequest(item: CatalogItem): Promise<void> {
 	if (!cartEntryFor(item.id)) return;
 
+}
+
+async function handleQuantityInput(item: CatalogItem, valueStr: string, element?: HTMLInputElement) {
+	let quantity = parseInt(valueStr, 10);
+	const maxQty = maxQuantityForItem(item);
+	
+	if (isNaN(quantity) || quantity < 1) {
+		quantity = 1;
+	} else if (quantity > maxQty) {
+		quantity = maxQty;
+		toastStore.info(`Clamped to maximum available quantity of ${maxQty}.`, 'Quantity Adjusted');
+	}
+	
+	if (element) {
+		element.value = String(quantity);
+	}
+	
 	try {
-		await requestCartStore.removeItem(item.id);
+		await requestCartStore.setQuantity(item.id, quantity);
 	} catch (err) {
-		console.error('Failed to remove item from request list', err);
-		toastStore.error('Unable to remove the item from your request list. Please try again.', 'Error');
+		console.error('Failed to update quantity', err);
+		toastStore.error('Unable to update quantity', 'Error');
 	}
 }
 
@@ -493,8 +522,18 @@ async function removeItemFromRequest(item: CatalogItem): Promise<void> {
 							</svg>
 						</button>
 
-						<div class="min-w-12 px-2 text-center text-sm font-semibold text-gray-900">
-							{selectedItemRequestEntry.quantity}
+						<div class="relative">
+							<input
+								type="number"
+								min="1"
+								max={selectedItemRequestEntry.maxQuantity}
+								value={selectedItemRequestEntry.quantity}
+								onchange={(e) => updateSelectedItemQuantity(parseInt((e.target as HTMLInputElement).value, 10) || 1, e.target as HTMLInputElement)}
+								class="w-14 rounded-md border {selectedItem?.isrequired
+									? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+									: 'border-gray-300 bg-white text-gray-900'} px-1.5 py-1 text-center text-sm font-bold focus:border-pink-500 focus:ring-1 focus:ring-pink-500/20"
+								title="Enter desired quantity"
+							/>
 						</div>
 
 						<button
@@ -795,9 +834,19 @@ async function removeItemFromRequest(item: CatalogItem): Promise<void> {
 									−
 								</button>
 
-								<span class="inline-flex items-center justify-center px-3 text-sm font-semibold text-gray-900 w-8">
-									{cartEntryFor(item.id)?.quantity ?? 0}
-								</span>
+								<div class="relative" onclick={(e) => e.stopPropagation()} role="none">
+									<input
+										type="number"
+										min="1"
+										max={maxQuantityForItem(item)}
+										value={cartEntryFor(item.id)?.quantity ?? 1}
+										onchange={(e) => handleQuantityInput(item, (e.target as HTMLInputElement).value, e.target as HTMLInputElement)}
+										class="w-12 rounded-md border {item.isrequired
+											? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+											: 'border-gray-300 bg-white text-gray-900'} px-1 py-1 text-center text-xs font-bold focus:border-pink-500 focus:ring-1 focus:ring-pink-500/20"
+										title="Enter desired quantity"
+									/>
+								</div>
 
 								<button
 									onclick={(e) => { e.stopPropagation(); incrementItem(item); }}
@@ -889,7 +938,19 @@ async function removeItemFromRequest(item: CatalogItem): Promise<void> {
 								>
 									−
 								</button>
-									<span class="inline-flex items-center justify-center px-3 text-sm font-semibold text-gray-900 w-8">{cartEntryFor(item.id)?.quantity ?? 0}</span>
+									<div class="relative" onclick={(e) => e.stopPropagation()} role="none">
+										<input
+											type="number"
+											min="1"
+											max={maxQuantityForItem(item)}
+											value={cartEntryFor(item.id)?.quantity ?? 1}
+											onchange={(e) => handleQuantityInput(item, (e.target as HTMLInputElement).value, e.target as HTMLInputElement)}
+											class="w-12 rounded-md border {item.isrequired
+												? 'border-emerald-300 bg-emerald-50 text-emerald-900'
+												: 'border-gray-300 bg-white text-gray-900'} px-1 py-1 text-center text-xs font-bold focus:border-pink-500 focus:ring-1 focus:ring-pink-500/20"
+											title="Enter desired quantity"
+										/>
+									</div>
 								<button
 									onclick={(e) => { e.stopPropagation(); incrementItem(item); }}
 											disabled={entryQuantity >= maxQuantityForItem(item)}

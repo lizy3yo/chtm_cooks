@@ -14,6 +14,7 @@
 	import { classCodesAPI, type ClassCodeResponse } from '$lib/api/classCodes';
 	import ItemImagePlaceholder from '$lib/components/ui/ItemImagePlaceholder.svelte';
 	import ActionMenu from '$lib/components/ui/ActionMenu.svelte';
+	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 	import { CheckCircle2 as ApproveIcon, XCircle as RejectIcon } from 'lucide-svelte';
 	import RequestDetailModal from '$lib/components/instructor/RequestDetailModal.svelte';
 	import {
@@ -1211,7 +1212,94 @@
 			</div>
 
 			<!-- Request Views -->
-			{#if filteredRequests.length > 0}
+			{#if loading}
+				{#if viewMode === 'card'}
+					<div style="min-height: 600px;">
+						<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">
+							{#each Array(6) as _}
+								<div class="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+									<div class="flex items-start justify-between gap-3">
+										<div class="flex min-w-0 flex-1 items-center gap-3">
+											<Skeleton variant="circle" class="h-10 w-10 shrink-0" />
+											<div class="flex flex-col gap-1.5 flex-1">
+												<Skeleton class="h-4 w-3/4 rounded" />
+												<Skeleton class="h-3 w-1/2 rounded" />
+											</div>
+										</div>
+										<Skeleton class="h-5 w-20 rounded-full shrink-0" />
+									</div>
+									<div class="mt-6 space-y-2">
+										<Skeleton class="h-3 w-full rounded" />
+										<Skeleton class="h-3 w-4/5 rounded" />
+									</div>
+									<div class="mt-6 flex items-center justify-between border-t border-gray-100 pt-4">
+										<div class="flex items-center gap-2">
+											<Skeleton class="h-4 w-12 rounded" />
+											<Skeleton class="h-4 w-24 rounded" />
+										</div>
+										<Skeleton variant="circle" class="h-8 w-8 shrink-0" />
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{:else}
+					<div style="min-height: 600px;">
+						<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+							<div
+								class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[auto_32px_0.6fr_1fr_2.4fr_0.8fr_120px] md:items-center md:gap-4"
+							>
+								<span class="w-6 text-center">
+									{#if activeTab === 'pending'}
+										<Skeleton class="mx-auto h-4 w-4 rounded" />
+									{/if}
+								</span>
+								<span class="text-center text-gray-400">#</span>
+								<span>Request</span>
+								<span>Student</span>
+								<span>Items</span>
+								<span>Status</span>
+								<span class="text-right">Actions</span>
+							</div>
+							<div class="divide-y divide-gray-100">
+								{#each Array(5) as _, i}
+									<div class="grid gap-3 p-4 md:grid-cols-[auto_32px_0.6fr_1fr_2.4fr_0.8fr_120px] md:items-center md:gap-4">
+										<div class="flex w-6 justify-center">
+											{#if activeTab === 'pending'}
+												<Skeleton class="h-4 w-4 rounded" />
+											{/if}
+										</div>
+										<div class="hidden items-center justify-center md:flex">
+											<Skeleton variant="circle" class="h-5 w-5" />
+										</div>
+										<div class="space-y-1.5">
+											<Skeleton class="h-3.5 w-20 rounded" />
+											<Skeleton class="h-3 w-16 rounded" />
+										</div>
+										<div class="flex items-center gap-3">
+											<Skeleton variant="circle" class="h-10 w-10 shrink-0" />
+											<div class="space-y-1.5 flex-1 min-w-0">
+												<Skeleton class="h-3.5 w-3/4 rounded" />
+												<Skeleton class="h-3 w-1/2 rounded" />
+											</div>
+										</div>
+										<div class="flex flex-wrap gap-1.5">
+											<Skeleton class="h-6 w-24 rounded-md" />
+											<Skeleton class="h-6 w-20 rounded-md" />
+										</div>
+										<div>
+											<Skeleton class="h-5 w-24 rounded-full" />
+										</div>
+										<div class="flex justify-end">
+											<Skeleton variant="circle" class="h-8 w-8" />
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					</div>
+				{/if}
+			{:else if filteredRequests.length > 0}
 				{#if viewMode === 'card'}
 					<div style="min-height: 600px;">
 						<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">
@@ -1372,7 +1460,7 @@
 					<div style="min-height: 600px;">
 						<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 							<div
-								class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[auto_32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4"
+								class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[auto_32px_0.6fr_1fr_2.4fr_0.8fr_120px] md:items-center md:gap-4"
 							>
 								<span class="w-6 text-center">
 									{#if activeTab === 'pending'}
@@ -1398,7 +1486,7 @@
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div
-										class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[auto_32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
+										class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[auto_32px_0.6fr_1fr_2.4fr_0.8fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
 										request.rawId
 											? 'bg-pink-50/50 ring-1 ring-pink-300 ring-inset'
 											: 'hover:bg-gray-50'}"

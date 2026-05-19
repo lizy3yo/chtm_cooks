@@ -6,6 +6,7 @@
 -->
 
 <script lang="ts">
+	import { page } from '$app/stores';
 	import { syncStatus, forceSyncNow, type SyncResult } from '$lib/services/syncService';
 	import { fade, slide } from 'svelte/transition';
 
@@ -51,7 +52,7 @@
 <!-- Offline Banner -->
 {#if !$syncStatus.online}
 	<div
-		class="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-white px-4 py-2 shadow-lg"
+		class="fixed top-0 right-0 left-0 z-50 bg-yellow-500 px-4 py-2 text-white shadow-lg"
 		transition:slide={{ duration: 200 }}
 		role="alert"
 		aria-live="polite"
@@ -59,7 +60,7 @@
 		<div class="container mx-auto flex items-center justify-between">
 			<div class="flex items-center gap-2">
 				<svg
-					class="w-5 h-5"
+					class="h-5 w-5"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -72,7 +73,7 @@
 						d="M18.364 5.636a9 9 0 010 12.728m0 0l-2.829-2.829m2.829 2.829L21 21M15.536 8.464a5 5 0 010 7.072m0 0l-2.829-2.829m-4.243 2.829a4.978 4.978 0 01-1.414-2.83m-1.414 5.658a9 9 0 01-2.167-9.238m7.824 2.167a1 1 0 111.414 1.414m-1.414-1.414L3 3m8.293 8.293l1.414 1.414"
 					/>
 				</svg>
-				<span class="font-medium text-sm">You're offline</span>
+				<span class="text-sm font-medium">You're offline</span>
 			</div>
 			<span class="text-xs opacity-90">Changes will sync when you're back online</span>
 		</div>
@@ -82,7 +83,7 @@
 <!-- Sync Status Badge (Bottom Right) -->
 {#if $syncStatus.online && ($syncStatus.syncing || $syncStatus.pendingActions > 0 || showSyncResult)}
 	<div
-		class="fixed bottom-4 right-4 z-40"
+		class="fixed right-4 bottom-4 z-40"
 		transition:fade={{ duration: 200 }}
 		role="status"
 		aria-live="polite"
@@ -90,12 +91,12 @@
 		{#if $syncStatus.syncing || syncing}
 			<!-- Syncing -->
 			<button
-				class="bg-blue-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 cursor-wait"
+				class="flex cursor-wait items-center gap-2 rounded-lg bg-blue-500 px-4 py-3 text-white shadow-lg"
 				disabled
 				aria-label="Syncing in progress"
 			>
 				<svg
-					class="w-5 h-5 animate-spin"
+					class="h-5 w-5 animate-spin"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -113,15 +114,15 @@
 		{:else if showSyncResult && syncResult}
 			<!-- Sync Result -->
 			<div
-				class="bg-white border-2 {syncResult.success
+				class="border-2 bg-white {syncResult.success
 					? 'border-green-500'
-					: 'border-red-500'} px-4 py-3 rounded-lg shadow-lg"
+					: 'border-red-500'} rounded-lg px-4 py-3 shadow-lg"
 				transition:fade={{ duration: 200 }}
 			>
 				<div class="flex items-center gap-2">
 					{#if syncResult.success}
 						<svg
-							class="w-5 h-5 text-green-500"
+							class="h-5 w-5 text-green-500"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -137,7 +138,7 @@
 						<span class="text-sm font-medium text-green-700">Synced successfully</span>
 					{:else}
 						<svg
-							class="w-5 h-5 text-red-500"
+							class="h-5 w-5 text-red-500"
 							fill="none"
 							stroke="currentColor"
 							viewBox="0 0 24 24"
@@ -154,18 +155,18 @@
 					{/if}
 				</div>
 				{#if syncResult.syncedActions > 0}
-					<p class="text-xs text-gray-600 mt-1">{syncResult.syncedActions} action(s) synced</p>
+					<p class="mt-1 text-xs text-gray-600">{syncResult.syncedActions} action(s) synced</p>
 				{/if}
 			</div>
 		{:else if $syncStatus.pendingActions > 0}
 			<!-- Pending Actions -->
 			<button
 				onclick={handleManualSync}
-				class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 transition-colors"
+				class="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-3 text-white shadow-lg transition-colors hover:bg-orange-600"
 				aria-label="Sync {$syncStatus.pendingActions} pending action(s)"
 			>
 				<svg
-					class="w-5 h-5"
+					class="h-5 w-5"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"
@@ -187,20 +188,20 @@
 	</div>
 {/if}
 
-<!-- Sync Info (Top Right - Desktop Only) -->
-{#if $syncStatus.online && $syncStatus.lastSync}
+<!-- Sync Info (Bottom Left - Desktop Only) -->
+{#if $syncStatus.online && $syncStatus.lastSync && ($page.url.pathname === '/' || $page.url.pathname.startsWith('/auth'))}
 	<div
-		class="hidden md:block fixed top-4 right-4 z-30 bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm"
+		class="sync-badge-left fixed bottom-4 left-4 z-40 hidden rounded-lg border border-gray-200 bg-white px-3 py-2 shadow-sm transition-all duration-300 md:block"
 		transition:fade={{ duration: 200 }}
 	>
 		<div class="flex items-center gap-2">
 			<div
-				class="w-2 h-2 rounded-full {$syncStatus.syncing
-					? 'bg-blue-500 animate-pulse'
+				class="h-2 w-2 rounded-full {$syncStatus.syncing
+					? 'animate-pulse bg-blue-500'
 					: 'bg-green-500'}"
 				aria-hidden="true"
 			></div>
-			<span class="text-xs text-gray-600">
+			<span class="text-xs font-medium text-gray-600">
 				Last sync: {formatLastSync($syncStatus.lastSync)}
 			</span>
 		</div>
@@ -233,5 +234,16 @@
 
 	.animate-pulse {
 		animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+	}
+
+	/* Adjust bottom-left sync badge position dynamically on desktop when a sidebar is present */
+	@media (min-width: 1024px) {
+		:global(body:has(aside)) .sync-badge-left {
+			left: 19rem; /* Sidebar expanded width (18rem/w-72) + left-4 offset (1rem) */
+		}
+
+		:global(body:has(aside:has(.lg\:w-20))) .sync-badge-left {
+			left: 6rem; /* Sidebar collapsed width (5rem/lg:w-20) + left-4 offset (1rem) */
+		}
 	}
 </style>

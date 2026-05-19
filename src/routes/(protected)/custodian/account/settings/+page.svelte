@@ -2,7 +2,7 @@
 	import { userSettingsStore } from '$lib/stores/userSettings';
 	import { toastStore } from '$lib/stores/toast';
 	import { confirmStore } from '$lib/stores/confirm';
-	import { Moon, Sun, MessageSquare, Bell, Type, Eye, RotateCcw } from 'lucide-svelte';
+	import { Moon, Sun, MessageSquare, Type, Eye, RotateCcw } from 'lucide-svelte';
 
 	let settings = $state($userSettingsStore);
 
@@ -194,34 +194,6 @@
 					>
 						<span
 							class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {settings.aiChatbotEnabled
-								? 'translate-x-6'
-								: 'translate-x-1'}"
-						></span>
-					</button>
-				</div>
-
-				<!-- Notifications -->
-				<div class="flex items-center justify-between px-6 py-4">
-					<div class="flex items-start gap-3">
-						<div class="mt-0.5 rounded-lg bg-pink-50 p-2">
-							<Bell size={18} class="text-pink-600" />
-						</div>
-						<div>
-							<h3 class="text-sm font-medium text-gray-900">Notifications</h3>
-							<p class="mt-0.5 text-xs text-gray-500">Receive updates about inventory, requests, and system activities</p>
-						</div>
-					</div>
-					<button
-						onclick={() => toggleSetting('notificationsEnabled')}
-						class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 {settings.notificationsEnabled
-							? 'bg-pink-600'
-							: 'bg-gray-300'}"
-						role="switch"
-						aria-checked={settings.notificationsEnabled}
-						aria-label="Toggle notifications"
-					>
-						<span
-							class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform {settings.notificationsEnabled
 								? 'translate-x-6'
 								: 'translate-x-1'}"
 						></span>

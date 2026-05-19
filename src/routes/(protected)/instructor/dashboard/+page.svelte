@@ -15,10 +15,11 @@
 
 	// ── state ─────────────────────────────────────────────────────────────────
 	const initialReport = browser ? peekCachedAnalytics({ period: 'semester' }) : null;
+	const initialRequests = browser ? borrowRequestsAPI.peekCachedList({ statuses: ['pending_instructor', 'approved_instructor', 'ready_for_pickup', 'borrowed', 'pending_return'], limit: 50 }) : null;
 	let loading = $state(!initialReport);
 	let report = $state<AnalyticsReport | null>(initialReport);
-	let liveRequests = $state<BorrowRequestRecord[]>([]);
-	let requestsLoading = $state(true);
+	let liveRequests = $state<BorrowRequestRecord[]>(initialRequests ? initialRequests.requests : []);
+	let requestsLoading = $state(!initialRequests);
 	let currentTime = $state(new Date());
 
 	// ── greeting ──────────────────────────────────────────────────────────────
