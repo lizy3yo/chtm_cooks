@@ -4878,7 +4878,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		aria-labelledby="add-item-modal-title"
 	>
 		<div
-			class="fixed inset-0 bg-black/40 transition-opacity"
+			class="fixed inset-0 cursor-default bg-black/40 backdrop-blur-sm transition-opacity"
 			role="button"
 			tabindex="0"
 			aria-label="Close add item modal"
@@ -4891,7 +4891,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 			}}
 		></div>
 		<div class="flex min-h-full items-center justify-center p-4">
-			<div class="relative z-50 w-full max-w-2xl rounded-xl bg-white shadow-2xl">
+			<div class="animate-scaleIn relative z-50 w-full max-w-2xl rounded-xl bg-white shadow-2xl">
 				<!-- Modal Header -->
 				<div class="flex items-center justify-between border-b border-gray-200 px-6 py-4">
 					<div>
