@@ -22,12 +22,26 @@
 	let searchQuery = $state('');
 	let selectedAction = $state('all');
 	let loading = $state(true);
+	let allActivityLoading = $state(true);
+	let userActionsLoading = $state(true);
+	let securityEventsLoading = $state(true);
+	let systemChangesLoading = $state(true);
+	let requestsTabLoading = $state(true);
+	let inFlightLoadId = 0;
 
 	let logs = $state<InventoryHistoryEntry[]>([]);
 
 	// ─── Requests tab state ───────────────────────────────────────────────────
 	let requests = $state<BorrowRequestRecord[]>([]);
 	let requestsLoading = $state(false);
+
+	const activeTabLoading = $derived(
+		activeTab === 'all' ? allActivityLoading :
+		activeTab === 'user-actions' ? userActionsLoading :
+		activeTab === 'security' ? securityEventsLoading :
+		activeTab === 'system' ? systemChangesLoading :
+		requestsTabLoading
+	);
 	let requestsSearchQuery = $state('');
 	let requestsStatusFilter = $state('all');
 	let requestsCurrentPage = $state(1);
@@ -54,13 +68,18 @@
 		if (!cached) return false;
 		logs = cached.history;
 		loading = false;
+		allActivityLoading = false;
+		userActionsLoading = false;
+		securityEventsLoading = false;
+		systemChangesLoading = false;
 		return true;
 	}
 
 	onMount(() => {
 		hydrateFromCache();
-		void loadLogs(logs.length === 0, false);
-		void loadRequests();
+		loadAllAuditProgressive(logs.length === 0).catch((err) => {
+			console.error('Failed progressive load:', err);
+		});
 
 		unsubscribeInventory = subscribeToInventoryChanges(() => {
 			scheduleRefresh();
@@ -90,30 +109,85 @@
 		};
 	});
 
+	async function loadAllAuditProgressive(forceRefresh = true) {
+		const loadId = ++inFlightLoadId;
+
+		const logsPromise = inventoryHistoryAPI.getHistory({ limit: 200, forceRefresh });
+		const requestsPromise = borrowRequestsAPI.list(
+			{ limit: 500, sortBy: 'createdAt' },
+			{ forceRefresh }
+		);
+
+		const results = await Promise.allSettled([logsPromise, requestsPromise]);
+
+		if (loadId !== inFlightLoadId) return;
+
+		const logsRes = results[0];
+		const reqsRes = results[1];
+
+		// 1. All Activity Loading settles (first)
+		if (logsRes.status === 'fulfilled') {
+			logs = logsRes.value.history;
+		}
+		if (reqsRes.status === 'fulfilled') {
+			requests = reqsRes.value.requests;
+		}
+		allActivityLoading = false;
+
+		// 2. User Actions Loading settles (second)
+		await new Promise(r => setTimeout(r, 120));
+		if (loadId !== inFlightLoadId) return;
+		userActionsLoading = false;
+
+		// 3. Security Events Loading settles (third)
+		await new Promise(r => setTimeout(r, 120));
+		if (loadId !== inFlightLoadId) return;
+		securityEventsLoading = false;
+
+		// 4. System Changes Loading settles (fourth)
+		await new Promise(r => setTimeout(r, 120));
+		if (loadId !== inFlightLoadId) return;
+		systemChangesLoading = false;
+
+		// 5. Borrow Requests Loading settles (fifth)
+		await new Promise(r => setTimeout(r, 120));
+		if (loadId !== inFlightLoadId) return;
+		requestsTabLoading = false;
+	}
+
 	async function loadLogs(showLoader = true, _forceRefresh = true) {
-		if (showLoader && logs.length === 0) loading = true;
-		try {
-			const res = await inventoryHistoryAPI.getHistory({ limit: 200, forceRefresh: true });
-			logs = res.history;
-		} catch (error: any) {
-			toastStore.error(error.message || 'Failed to load audit logs');
-		} finally {
-			loading = false;
+		if (showLoader) {
+			if (logs.length === 0) {
+				allActivityLoading = true;
+				userActionsLoading = true;
+				securityEventsLoading = true;
+				systemChangesLoading = true;
+			}
+			await loadAllAuditProgressive(_forceRefresh);
+		} else {
+			try {
+				const res = await inventoryHistoryAPI.getHistory({ limit: 200, forceRefresh: true });
+				logs = res.history;
+			} catch (error: any) {
+				toastStore.error(error.message || 'Failed to load audit logs');
+			}
 		}
 	}
 
-	async function loadRequests() {
-		requestsLoading = true;
-		try {
-			const res = await borrowRequestsAPI.list(
-				{ limit: 500, sortBy: 'createdAt' },
-				{ forceRefresh: true }
-			);
-			requests = res.requests;
-		} catch (error: any) {
-			toastStore.error(error.message || 'Failed to load borrow requests');
-		} finally {
-			requestsLoading = false;
+	async function loadRequests(showLoader = true) {
+		if (showLoader) {
+			if (requests.length === 0) requestsTabLoading = true;
+			await loadAllAuditProgressive(true);
+		} else {
+			try {
+				const res = await borrowRequestsAPI.list(
+					{ limit: 500, sortBy: 'createdAt' },
+					{ forceRefresh: true }
+				);
+				requests = res.requests;
+			} catch (error: any) {
+				toastStore.error(error.message || 'Failed to load borrow requests');
+			}
 		}
 	}
 
@@ -396,7 +470,7 @@
 	<!-- Log Table Area — hidden on requests tab -->
 	{#if activeTab !== 'requests'}
 		<div class="min-h-[500px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-			{#if (loading || requestsLoading) && (activeTab === 'all' ? allActivityFeed.length === 0 : filteredLogs.length === 0)}
+			{#if activeTabLoading && (activeTab === 'all' ? allActivityFeed.length === 0 : filteredLogs.length === 0)}
 				<div class="animate-pulse space-y-4 p-6">
 					{#each Array(6) as _}
 						<div class="flex items-center gap-4 border-b border-gray-100 py-3">
@@ -761,7 +835,7 @@
 
 		<!-- Requests Table -->
 		<div class="min-h-[500px] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-			{#if requestsLoading && requests.length === 0}
+			{#if activeTabLoading && requests.length === 0}
 				<div class="animate-pulse space-y-4 p-6">
 					{#each Array(6) as _}
 						<div class="flex items-center gap-4 border-b border-gray-100 py-3">

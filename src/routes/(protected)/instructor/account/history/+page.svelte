@@ -26,6 +26,9 @@
 	});
 	
 	let initialLoadComplete = $state(false);
+	let activityLogsLoading = $state(true);
+	let requestHistoryLoading = $state(true);
+	let inFlightLoadId = 0;
 
 	// Activity Logs state
 	let activityLogs = $state<InventoryHistoryEntry[]>([]);
@@ -34,6 +37,10 @@
 	let activityLimit = $state(20); // Items per page
 	let activityLogsLoaded = $state(false);
 	let activityLogsRefreshing = $state(false);
+
+	const activeTabLoading = $derived(
+		activeTab === 'activity-logs' ? activityLogsLoading : requestHistoryLoading
+	);
 	
 	// Filters for activity logs
 	let filterAction = $state('');
@@ -91,31 +98,24 @@
 		});
 
 		if (cachedActivityLogs) {
-			// Use cached data for instant render
 			activityLogs = cachedActivityLogs.history;
 			activityTotal = cachedActivityLogs.total;
 			activityLogsLoaded = true;
+			activityLogsLoading = false;
 			initialLoadComplete = true;
 			console.log('[HISTORY-CACHE] Using cached activity logs:', cachedActivityLogs.history.length, 'items');
 			
-			// Fetch fresh data in background
-			loadActivityLogs(true).catch((err) => {
-				console.error('[HISTORY] Background refresh failed:', err);
+			// Background progressive loading
+			loadAllHistoryProgressive(true).catch((err) => {
+				console.error('[HISTORY] Background progressive refresh failed:', err);
 			});
 		} else {
-			// No cache, load normally
-			Promise.all([
-				loadActivityLogs(true) // Force refresh on initial load to get latest data
-			])
-				.then(() => {
-					setTimeout(() => {
-						initialLoadComplete = true;
-					}, 150);
-				})
-				.catch((err) => {
-					console.error('[HISTORY] Failed to load data:', err);
-					initialLoadComplete = true;
-				});
+			loadAllHistoryProgressive(true).then(() => {
+				initialLoadComplete = true;
+			}).catch((err) => {
+				console.error('[HISTORY] Failed progressive load:', err);
+				initialLoadComplete = true;
+			});
 		}
 
 		// Set up periodic background refresh (every 5 minutes)
@@ -139,7 +139,7 @@
 			console.log('[HISTORY-SSE] Refreshing activity logs...');
 			
 			// Refresh activity logs in background when inventory changes
-			loadActivityLogs(true).then(() => {
+			loadActivityLogs(false, true).then(() => {
 				console.log('[HISTORY-SSE] Activity logs refreshed successfully');
 			}).catch((err) => {
 				console.error('[HISTORY-SSE] Failed to refresh activity logs:', err);
@@ -164,32 +164,83 @@
 		}
 	}
 
-	// Load Activity Logs
-	async function loadActivityLogs(forceRefresh = false) {
-		try {
-			activityLogsRefreshing = true;
-			const response = await inventoryHistoryAPI.getHistory({
-				action: filterAction || undefined,
-				entityType: filterEntityType as any || undefined,
-				startDate: filterStartDate || undefined,
-				endDate: filterEndDate || undefined,
-				page: activityPage,
-				limit: activityLimit,
-				forceRefresh
-			});
-			activityLogs = response.history;
-			activityTotal = response.total;
+	async function loadAllHistoryProgressive(forceRefresh = true) {
+		const loadId = ++inFlightLoadId;
+		
+		const activityPromise = inventoryHistoryAPI.getHistory({
+			action: filterAction || undefined,
+			entityType: filterEntityType as any || undefined,
+			startDate: filterStartDate || undefined,
+			endDate: filterEndDate || undefined,
+			page: activityPage,
+			limit: activityLimit,
+			forceRefresh
+		});
+
+		const requestsPromise = borrowRequestsAPI.list({
+			statuses: ['returned', 'resolved', 'cancelled', 'rejected'],
+			page: requestHistoryPage,
+			limit: requestHistoryLimit
+		});
+
+		const results = await Promise.allSettled([activityPromise, requestsPromise]);
+
+		if (loadId !== inFlightLoadId) return;
+
+		// 1. Settle Activity Logs (first)
+		const actRes = results[0];
+		if (actRes.status === 'fulfilled') {
+			activityLogs = actRes.value.history;
+			activityTotal = actRes.value.total;
 			activityLogsLoaded = true;
-		} catch (err: any) {
-			toastStore.error(err.message || 'Failed to load activity logs');
-		} finally {
-			activityLogsRefreshing = false;
+		}
+		activityLogsLoading = false;
+
+		// 2. Settle Request History (second)
+		await new Promise(r => setTimeout(r, 120));
+		if (loadId !== inFlightLoadId) return;
+
+		const reqRes = results[1];
+		if (reqRes.status === 'fulfilled') {
+			requestHistory = reqRes.value.requests;
+			requestHistoryTotal = reqRes.value.total;
+			requestHistoryLoaded = true;
+			await backfillItemPictures();
+		}
+		requestHistoryLoading = false;
+	}
+
+	// Load Activity Logs
+	async function loadActivityLogs(showLoader = true, forceRefresh = false) {
+		if (showLoader) {
+			if (activityLogs.length === 0) activityLogsLoading = true;
+			await loadAllHistoryProgressive(forceRefresh);
+		} else {
+			try {
+				activityLogsRefreshing = true;
+				const response = await inventoryHistoryAPI.getHistory({
+					action: filterAction || undefined,
+					entityType: filterEntityType as any || undefined,
+					startDate: filterStartDate || undefined,
+					endDate: filterEndDate || undefined,
+					page: activityPage,
+					limit: activityLimit,
+					forceRefresh
+				});
+				activityLogs = response.history;
+				activityTotal = response.total;
+				activityLogsLoaded = true;
+			} catch (err: any) {
+				toastStore.error(err.message || 'Failed to load activity logs');
+			} finally {
+				activityLogsRefreshing = false;
+			}
 		}
 	}
 
 	// Refresh activity logs
 	async function refreshActivityLogs() {
-		await loadActivityLogs(true);
+		await loadActivityLogs(true, true);
 		toastStore.success('Activity logs refreshed');
 	}
 
@@ -197,24 +248,29 @@
 	function goToActivityPage(pageNum: number): void {
 		if (pageNum >= 1 && pageNum <= Math.ceil(activityTotal / activityLimit)) {
 			activityPage = pageNum;
-			loadActivityLogs(true);
+			loadActivityLogs(true, true);
 		}
 	}
 
 	// Load Request History
-	async function loadRequestHistory() {
-		try {
-			const response = await borrowRequestsAPI.list({
-				statuses: ['returned', 'resolved', 'cancelled', 'rejected'],
-				page: requestHistoryPage,
-				limit: requestHistoryLimit
-			});
-			requestHistory = response.requests;
-			requestHistoryTotal = response.total;
-			requestHistoryLoaded = true;
-			await backfillItemPictures();
-		} catch (err: any) {
-			toastStore.error(err.message || 'Failed to load request history');
+	async function loadRequestHistory(showLoader = true) {
+		if (showLoader) {
+			if (requestHistory.length === 0) requestHistoryLoading = true;
+			await loadAllHistoryProgressive(true);
+		} else {
+			try {
+				const response = await borrowRequestsAPI.list({
+					statuses: ['returned', 'resolved', 'cancelled', 'rejected'],
+					page: requestHistoryPage,
+					limit: requestHistoryLimit
+				});
+				requestHistory = response.requests;
+				requestHistoryTotal = response.total;
+				requestHistoryLoaded = true;
+				await backfillItemPictures();
+			} catch (err: any) {
+				toastStore.error(err.message || 'Failed to load request history');
+			}
 		}
 	}
 
@@ -448,7 +504,7 @@
 	<title>History - CHTM Cooks</title>
 </svelte:head>
 
-{#if !initialLoadComplete}
+{#if activeTabLoading && (activeTab === 'activity-logs' ? activityLogs.length === 0 : requestHistory.length === 0)}
 	<!-- Professional Skeleton Loader -->
 	<div class="space-y-6 animate-pulse">
 		<!-- Header Skeleton -->

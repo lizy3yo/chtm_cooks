@@ -41,10 +41,16 @@
 	let search = $state('');
 	let statusFilter = $state('');
 	let loading = $state(true);
+	let byRequestLoading = $state(true);
+	let byItemLoading = $state(true);
+	let inFlightLoadId = 0;
+
 	let unsubscribeSSE: (() => void) | null = null;
 	let viewMode = $state<'by-request' | 'by-item'>('by-request');
 	let showDetailModal = $state(false);
 	let selectedRequest = $state<any>(null);
+
+	const activeLoading = $derived(viewMode === 'by-request' ? byRequestLoading : byItemLoading);
 
 	const statusOptions = [
 		{ value: '', label: 'All Statuses' },
@@ -54,9 +60,9 @@
 		{ value: 'rejected', label: 'Rejected' }
 	];
 
-	async function loadHistory() {
+	async function loadHistoryProgressive(forceRefresh = true) {
+		const loadId = ++inFlightLoadId;
 		try {
-			loading = true;
 			let apiStatuses: string[];
 			if (!statusFilter) {
 				apiStatuses = ['returned', 'resolved', 'cancelled', 'rejected'];
@@ -66,34 +72,83 @@
 				apiStatuses = [statusFilter];
 			}
 
-			const response = await borrowRequestsAPI.list({
-				statuses: apiStatuses as any,
-				search: search || undefined,
-				page,
-				limit,
-				sortBy: 'createdAt'
-			});
+			const promise = borrowRequestsAPI.list(
+				{
+					statuses: apiStatuses as any,
+					search: search || undefined,
+					page,
+					limit,
+					sortBy: 'createdAt'
+				},
+				{ forceRefresh }
+			);
 
-			// Don't filter by uiStatus - just use the raw data
-			history = response.requests;
-			total = response.total;
+			const results = await Promise.allSettled([promise]);
 
-			console.log('Loaded history:', history.length, 'requests');
+			if (loadId !== inFlightLoadId) return;
+
+			const listRes = results[0];
+			if (listRes.status === 'fulfilled') {
+				history = listRes.value.requests;
+				total = listRes.value.total;
+			}
+
+			byRequestLoading = false;
+
+			await new Promise((r) => setTimeout(r, 120));
+			if (loadId !== inFlightLoadId) return;
+			byItemLoading = false;
 		} catch (err: any) {
 			console.error('Failed to load history:', err);
 			toastStore.error(err.message || 'Failed to load history');
 			history = [];
 			total = 0;
 		} finally {
-			loading = false;
-			loadingStore.stop();
+			if (loadId === inFlightLoadId) {
+				loading = false;
+				byRequestLoading = false;
+				byItemLoading = false;
+			}
+		}
+	}
+
+	async function loadHistory(showLoader = true) {
+		if (showLoader) {
+			if (history.length === 0) {
+				if (viewMode === 'by-request') byRequestLoading = true;
+				else byItemLoading = true;
+			}
+			await loadHistoryProgressive(true);
+		} else {
+			try {
+				let apiStatuses: string[];
+				if (!statusFilter) {
+					apiStatuses = ['returned', 'resolved', 'cancelled', 'rejected'];
+				} else if (statusFilter === 'cancelled') {
+					apiStatuses = ['cancelled', 'rejected'];
+				} else {
+					apiStatuses = [statusFilter];
+				}
+
+				const response = await borrowRequestsAPI.list({
+					statuses: apiStatuses as any,
+					search: search || undefined,
+					page,
+					limit,
+					sortBy: 'createdAt'
+				});
+				history = response.requests;
+				total = response.total;
+			} catch (err: any) {
+				console.error('Silent load failed', err);
+			}
 		}
 	}
 
 	onMount(() => {
 		loadHistory();
 		unsubscribeSSE = borrowRequestsAPI.subscribeToChanges(() => {
-			loadHistory();
+			loadHistory(false);
 		});
 	});
 
@@ -620,7 +675,7 @@
 	<title>History - Account - Student Portal</title>
 </svelte:head>
 
-{#if loading}
+{#if activeLoading && history.length === 0}
 	<HistorySkeletonLoader />
 {:else}
 	<div class="space-y-4 sm:space-y-6">
