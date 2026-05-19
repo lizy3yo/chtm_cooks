@@ -18,6 +18,12 @@
 	const initialReport = browser ? peekCachedAnalytics({ period: 'semester' }) : null;
 	const initialRequests = browser ? borrowRequestsAPI.peekCachedList({ statuses: ['approved_instructor', 'ready_for_pickup', 'borrowed', 'pending_return'], limit: 50 }) : null;
 	let loading = $state(!initialReport);
+	let cardsLoading = $state(!initialReport);
+	let requestsNeedingActionLoading = $state(!initialRequests);
+	let turnaroundTimesLoading = $state(!initialReport);
+	let threeColBreakdownLoading = $state(!initialReport);
+	let bottomTwoColLoading = $state(!initialReport);
+	let highestIncidentLoading = $state(!initialReport);
 	let report = $state<AnalyticsReport | null>(initialReport);
 	let liveRequests = $state<BorrowRequestRecord[]>(initialRequests ? initialRequests.requests : []);
 	let requestsLoading = $state(!initialRequests);
@@ -113,28 +119,102 @@
 	}
 
 	// ── lifecycle ─────────────────────────────────────────────────────────────
-	async function loadRequests(force = false) {
+	async function loadDashboard(force = false) {
+		const hasCache = !!report && liveRequests.length > 0;
+
 		try {
-			const res = await borrowRequestsAPI.list(
-				{ statuses: ['approved_instructor', 'ready_for_pickup', 'borrowed', 'pending_return'], limit: 50 },
-				{ forceRefresh: force }
-			);
-			liveRequests = res.requests;
-		} catch {
-			// non-fatal — dashboard still works without live requests
+			// 1. cards (loaded from fetchAnalytics)
+			if (force || !hasCache) {
+				cardsLoading = true;
+			}
+			const cardsResult = await Promise.allSettled([
+				fetchAnalytics({ period: 'semester', forceRefresh: force })
+			]);
+			if (cardsResult[0].status === 'fulfilled') {
+				report = cardsResult[0].value;
+			}
+			cardsLoading = false;
+
+			// 2. Requests Needing Action (loaded from borrowRequestsAPI.list)
+			if (force || !hasCache) {
+				requestsNeedingActionLoading = true;
+			}
+			const requestsResult = await Promise.allSettled([
+				borrowRequestsAPI.list(
+					{ statuses: ['approved_instructor', 'ready_for_pickup', 'borrowed', 'pending_return'], limit: 50 },
+					{ forceRefresh: force }
+				)
+			]);
+			if (requestsResult[0].status === 'fulfilled') {
+				liveRequests = requestsResult[0].value.requests;
+			}
+			requestsNeedingActionLoading = false;
+
+			// 3. Avg Approval/Release/Return Time (loaded from fetchAnalytics)
+			if (force || !hasCache) {
+				turnaroundTimesLoading = true;
+			}
+			const turnaroundResult = await Promise.allSettled([
+				fetchAnalytics({ period: 'semester', forceRefresh: force })
+			]);
+			if (turnaroundResult[0].status === 'fulfilled') {
+				report = turnaroundResult[0].value;
+			}
+			turnaroundTimesLoading = false;
+
+			// 4. Request Breakdown, Inventory Variance, and Student Risk (loaded from fetchAnalytics)
+			if (force || !hasCache) {
+				threeColBreakdownLoading = true;
+			}
+			const threeColResult = await Promise.allSettled([
+				fetchAnalytics({ period: 'semester', forceRefresh: force })
+			]);
+			if (threeColResult[0].status === 'fulfilled') {
+				report = threeColResult[0].value;
+			}
+			threeColBreakdownLoading = false;
+
+			// 5. Most Borrowed This Month and Items Currently Out (loaded from fetchAnalytics)
+			if (force || !hasCache) {
+				bottomTwoColLoading = true;
+			}
+			const bottomTwoColResult = await Promise.allSettled([
+				fetchAnalytics({ period: 'semester', forceRefresh: force })
+			]);
+			if (bottomTwoColResult[0].status === 'fulfilled') {
+				report = bottomTwoColResult[0].value;
+			}
+			bottomTwoColLoading = false;
+
+			// 6. Items with Highest Incident Rate (loaded from fetchAnalytics)
+			if (force || !hasCache) {
+				highestIncidentLoading = true;
+			}
+			const highestIncidentResult = await Promise.allSettled([
+				fetchAnalytics({ period: 'semester', forceRefresh: force })
+			]);
+			if (highestIncidentResult[0].status === 'fulfilled') {
+				report = highestIncidentResult[0].value;
+			}
+			highestIncidentLoading = false;
+
+		} catch (err) {
+			console.error('[Custodian Dashboard] Failed to load:', err);
+			toastStore.error('Failed to load dashboard data.', 'Error');
 		} finally {
+			cardsLoading = false;
+			requestsNeedingActionLoading = false;
+			turnaroundTimesLoading = false;
+			threeColBreakdownLoading = false;
+			bottomTwoColLoading = false;
+			highestIncidentLoading = false;
+			loading = false;
 			requestsLoading = false;
 		}
 	}
 
-	async function load(force = false) {
-		try {
-			report = await fetchAnalytics({ period: 'semester', forceRefresh: force });
-		} catch {
-			toastStore.error('Failed to load dashboard data.', 'Error');
-		} finally {
-			loading = false;
-		}
+	async function loadRequests(force = false) {
+		await loadDashboard(force);
 	}
 
 	function studentName(r: BorrowRequestRecord): string {
@@ -164,7 +244,7 @@
 		if (!ok) return;
 		try {
 			await borrowRequestsAPI.pickup(rawId);
-			await loadRequests(true);
+			await loadDashboard(true);
 			toastStore.success('Pickup confirmed successfully.');
 		} catch {
 			toastStore.error('Failed to confirm pickup.');
@@ -176,7 +256,7 @@
 			toastStore.success('Welcome back! You have successfully logged in.', 'Login Successful', 5000);
 			authStore.clearJustLoggedIn();
 		}
-		void Promise.all([load(), loadRequests()]);
+		void loadDashboard();
 		const id = setInterval(() => { currentTime = new Date(); }, 60_000);
 		return () => clearInterval(id);
 	});
@@ -194,33 +274,15 @@
 		</div>
 	</div>
 
-	{#if loading}
-		<div class="space-y-6" aria-busy="true">
-			<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-				{#each Array(5) as _}
-					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-3">
-						<Skeleton class="h-3 w-24" /><Skeleton class="h-8 w-14" /><Skeleton class="h-3 w-20" />
-					</div>
-				{/each}
-			</div>
-			<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-				<div class="lg:col-span-2 rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-5 space-y-4">
-					<Skeleton class="h-5 w-40" />
-					{#each Array(4) as _}
-						<div class="flex items-center gap-3">
-							<Skeleton variant="circle" class="h-9 w-9" />
-							<div class="flex-1 space-y-1.5"><Skeleton class="h-4 w-48" /><Skeleton class="h-3 w-32" /></div>
-						</div>
-					{/each}
+	{#if cardsLoading}
+		<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 animate-pulse">
+			{#each Array(5) as _}
+				<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-3">
+					<Skeleton class="h-3 w-24" /><Skeleton class="h-8 w-14" /><Skeleton class="h-3 w-20" />
 				</div>
-				<div class="rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-5 space-y-3">
-					<Skeleton class="h-5 w-32" />
-					{#each Array(5) as _}<Skeleton class="h-8 w-full rounded-lg" />{/each}
-				</div>
-			</div>
+			{/each}
 		</div>
 	{:else}
-
 		<!-- ── KPI strip ───────────────────────────────────────────────────── -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
 
@@ -264,6 +326,7 @@
 				<p class="mt-0.5 text-xs {pendingObligations > 0 ? 'text-rose-500' : 'text-gray-500'}">Pending cases</p>
 			</div>
 		</div>
+	{/if}
 
 		<!-- ── Requests Needing Action ────────────────────────────────────── -->
 		<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
@@ -271,7 +334,7 @@
 				<div class="flex items-center gap-2">
 					<ClipboardList size={16} class="text-pink-500" />
 					<h2 class="text-sm font-semibold text-gray-900">Requests Needing Action</h2>
-					{#if !requestsLoading}
+					{#if !requestsNeedingActionLoading}
 						{@const total = requestsPendingApproval.length + requestsReadyPickup.length + requestsActive.length}
 						{#if total > 0}
 							<span class="rounded-full bg-pink-100 px-2 py-0.5 text-xs font-semibold text-pink-700">{total}</span>
@@ -283,8 +346,8 @@
 				</a>
 			</div>
 
-			{#if requestsLoading}
-				<div class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3">
+			{#if requestsNeedingActionLoading}
+				<div class="grid grid-cols-1 gap-4 p-5 sm:grid-cols-3 animate-pulse">
 					{#each Array(3) as _}
 						<div class="space-y-3 rounded-xl border border-gray-100 p-4">
 							<Skeleton class="h-4 w-32" />
@@ -430,7 +493,19 @@
 		</div>
 
 		<!-- ── Turnaround times ────────────────────────────────────────────── -->
-		{#if report}
+		{#if turnaroundTimesLoading}
+			<div class="grid grid-cols-1 gap-3 sm:grid-cols-3 animate-pulse">
+				{#each Array(3) as _}
+					<div class="flex items-center gap-4 rounded-xl border border-gray-100 bg-white px-5 py-4 shadow-sm">
+						<Skeleton variant="circle" class="h-7 w-7" />
+						<div class="space-y-2">
+							<Skeleton class="h-3 w-24" />
+							<Skeleton class="h-5 w-16" />
+						</div>
+					</div>
+				{/each}
+			</div>
+		{:else if report}
 			<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
 				{#each [
 					{ label: 'Avg Approval Time',  value: report.borrowRequests.turnaround.avgApprovalHours, color: 'text-blue-600',   bg: 'bg-blue-50',   border: 'border-blue-100'   },
@@ -449,7 +524,23 @@
 		{/if}
 
 		<!-- ── 3-col: Requests breakdown + Inventory variance + Student risk -->
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+		{#if threeColBreakdownLoading}
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-3 animate-pulse">
+				{#each Array(3) as _}
+					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-4">
+						<Skeleton class="h-5 w-40" />
+						<Skeleton class="h-8 w-20" />
+						{#each Array(3) as _}
+							<div class="flex justify-between items-center">
+								<Skeleton class="h-4 w-28" />
+								<Skeleton class="h-4 w-8" />
+							</div>
+						{/each}
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
 			<!-- Borrow request status breakdown -->
 			<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
@@ -584,9 +675,33 @@
 				{/if}
 			</div>
 		</div>
+	{/if}
 
 		<!-- ── Bottom 2-col: Most borrowed + Items currently out ──────────── -->
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+		{#if bottomTwoColLoading}
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-2 animate-pulse">
+				{#each Array(2) as _}
+					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-4">
+						<div class="flex justify-between">
+							<Skeleton class="h-5 w-40" />
+							<Skeleton class="h-4 w-16" />
+						</div>
+						<div class="space-y-3">
+							{#each Array(4) as _}
+								<div class="flex items-center gap-4">
+									<div class="flex-1 space-y-2">
+										<Skeleton class="h-4 w-3/4" />
+										<Skeleton class="h-3 w-1/2" />
+									</div>
+									<Skeleton class="h-4 w-12" />
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
 			<!-- Most borrowed items -->
 			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
@@ -670,9 +785,30 @@
 				{/if}
 			</div>
 		</div>
+	{/if}
 
 		<!-- ── High incident items ─────────────────────────────────────────── -->
-		{#if report && report.inventory.damageRateItems.length > 0}
+		{#if highestIncidentLoading}
+			<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 animate-pulse space-y-4">
+				<div class="flex justify-between items-center">
+					<Skeleton class="h-5 w-48" />
+					<Skeleton class="h-4 w-16" />
+				</div>
+				<div class="space-y-3">
+					{#each Array(3) as _}
+						<div class="grid grid-cols-5 gap-4 items-center">
+							<div class="col-span-2 space-y-1.5">
+								<Skeleton class="h-4 w-3/4" />
+								<Skeleton class="h-3 w-1/2" />
+							</div>
+							<Skeleton class="h-4 w-12" />
+							<Skeleton class="h-4 w-12" />
+							<Skeleton class="h-6 w-16 rounded-full" />
+						</div>
+					{/each}
+				</div>
+			</div>
+		{:else if report && report.inventory.damageRateItems.length > 0}
 			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 				<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
 					<div class="flex items-center gap-2">
@@ -716,6 +852,4 @@
 				</div>
 			</div>
 		{/if}
-
-	{/if}
 </div>

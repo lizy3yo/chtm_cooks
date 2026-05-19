@@ -25,6 +25,10 @@
 	const cachedInventory = browser ? inventoryItemsAPI.peekCachedList() : null;
 
 	let loading = $state(!initialReport || !cachedUsers || !cachedClassStats || !cachedRequests || !cachedInventory);
+	let cardsLoading = $state(!cachedUsers || !cachedClassStats || !cachedRequests || !cachedInventory);
+	let recentUsersRequestsLoading = $state(!cachedUsers || !cachedRequests);
+	let classInventoryLoading = $state(!cachedClassStats || !cachedInventory);
+	let systemPerformanceLoading = $state(!initialReport);
 	let sseConnected = $state(false);
 	let report = $state<AnalyticsReport | null>(initialReport);
 	let currentTime = $state(new Date());
@@ -149,68 +153,119 @@
 
 	// ── Data Loading ──────────────────────────────────────────────────────────
 	async function loadDashboardData(showLoader = true, forceRefresh = true) {
-		if (showLoader) loading = true;
+		const hasCache = !!report && !!recentUsers.length && !!classStats && !!recentRequests.length && totalInventory > 0;
+
 		try {
-			// Load analytics report
-			const analyticsPromise = fetchAnalytics({ period: 'month', forceRefresh });
-
-			// Load users data
-			const usersPromise = usersAPI.getAll({ limit: 5, forceRefresh });
-
-			// Load class codes stats
-			const classStatsPromise = classCodesAPI.getStats(forceRefresh);
-
-			// Load requests data
-			const requestsPromise = borrowRequestsAPI.list(
-				{ limit: 10, sortBy: 'createdAt' },
-				{ forceRefresh }
-			);
-
-			// Load inventory data
-			const inventoryPromise = inventoryItemsAPI.getAll({ forceRefresh });
-
-			// Execute all promises
-			const [analyticsRes, usersRes, classStatsRes, requestsRes, inventoryRes] = await Promise.all([
-				analyticsPromise,
-				usersPromise,
-				classStatsPromise,
-				requestsPromise,
-				inventoryPromise
+			// Step 1: cards (Total Users, Active Classes, Total Requests, Inventory Items, and Health counts)
+			if (forceRefresh || !hasCache) {
+				cardsLoading = true;
+			}
+			const step1Result = await Promise.allSettled([
+				usersAPI.getAll({ limit: 5, forceRefresh }),
+				classCodesAPI.getStats(forceRefresh),
+				borrowRequestsAPI.list({ limit: 10, sortBy: 'createdAt' }, { forceRefresh }),
+				inventoryItemsAPI.getAll({ forceRefresh })
 			]);
 
-			// Set analytics
-			report = analyticsRes;
+			if (step1Result[0].status === 'fulfilled') {
+				const usersRes = step1Result[0].value;
+				totalUsers = usersRes.pagination.total;
+				recentUsers = usersRes.users;
+				const roleCount: Record<string, number> = {};
+				usersRes.users.forEach((u: UserResponse) => {
+					roleCount[u.role] = (roleCount[u.role] || 0) + 1;
+				});
+				usersByRole = roleCount;
+			}
+			if (step1Result[1].status === 'fulfilled') {
+				const classStatsRes = step1Result[1].value;
+				classStats = classStatsRes;
+				activeClasses = classStatsRes.activeClasses;
+			}
+			if (step1Result[2].status === 'fulfilled') {
+				const requestsRes = step1Result[2].value;
+				totalRequests = requestsRes.total;
+				recentRequests = requestsRes.requests;
+				pendingRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'pending_instructor').length;
+				activeLoans = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return').length;
+				overdueRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => 
+					(r.status === 'borrowed' || r.status === 'pending_return') && 
+					new Date(r.returnDate) < new Date()
+				).length;
+			}
+			if (step1Result[3].status === 'fulfilled') {
+				const inventoryRes = step1Result[3].value;
+				totalInventory = inventoryRes.total;
+				totalCategories = new Set(inventoryRes.items.map((i: InventoryItem) => i.categoryId)).size;
+				lowStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity > 0 && i.quantity <= 5).length;
+				outOfStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity === 0).length;
+			}
+			cardsLoading = false;
 
-			// Set users data
-			totalUsers = usersRes.pagination.total;
-			recentUsers = usersRes.users;
-			
-			// Calculate users by role
-			const roleCount: Record<string, number> = {};
-			usersRes.users.forEach((u: UserResponse) => {
-				roleCount[u.role] = (roleCount[u.role] || 0) + 1;
-			});
-			usersByRole = roleCount;
+			// Step 2: Recent Users and Recent Requests
+			if (forceRefresh || !hasCache) {
+				recentUsersRequestsLoading = true;
+			}
+			const step2Result = await Promise.allSettled([
+				usersAPI.getAll({ limit: 5, forceRefresh }),
+				borrowRequestsAPI.list({ limit: 10, sortBy: 'createdAt' }, { forceRefresh })
+			]);
+			if (step2Result[0].status === 'fulfilled') {
+				const usersRes = step2Result[0].value;
+				totalUsers = usersRes.pagination.total;
+				recentUsers = usersRes.users;
+				const roleCount: Record<string, number> = {};
+				usersRes.users.forEach((u: UserResponse) => {
+					roleCount[u.role] = (roleCount[u.role] || 0) + 1;
+				});
+				usersByRole = roleCount;
+			}
+			if (step2Result[1].status === 'fulfilled') {
+				const requestsRes = step2Result[1].value;
+				totalRequests = requestsRes.total;
+				recentRequests = requestsRes.requests;
+				pendingRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'pending_instructor').length;
+				activeLoans = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return').length;
+				overdueRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => 
+					(r.status === 'borrowed' || r.status === 'pending_return') && 
+					new Date(r.returnDate) < new Date()
+				).length;
+			}
+			recentUsersRequestsLoading = false;
 
-			// Set class stats
-			classStats = classStatsRes;
-			activeClasses = classStatsRes.activeClasses;
+			// Step 3: Class Overview and Inventory Health
+			if (forceRefresh || !hasCache) {
+				classInventoryLoading = true;
+			}
+			const step3Result = await Promise.allSettled([
+				classCodesAPI.getStats(forceRefresh),
+				inventoryItemsAPI.getAll({ forceRefresh })
+			]);
+			if (step3Result[0].status === 'fulfilled') {
+				const classStatsRes = step3Result[0].value;
+				classStats = classStatsRes;
+				activeClasses = classStatsRes.activeClasses;
+			}
+			if (step3Result[1].status === 'fulfilled') {
+				const inventoryRes = step3Result[1].value;
+				totalInventory = inventoryRes.total;
+				totalCategories = new Set(inventoryRes.items.map((i: InventoryItem) => i.categoryId)).size;
+				lowStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity > 0 && i.quantity <= 5).length;
+				outOfStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity === 0).length;
+			}
+			classInventoryLoading = false;
 
-			// Set requests data
-			totalRequests = requestsRes.total;
-			recentRequests = requestsRes.requests;
-			pendingRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'pending_instructor').length;
-			activeLoans = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return').length;
-			overdueRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => 
-				(r.status === 'borrowed' || r.status === 'pending_return') && 
-				new Date(r.returnDate) < new Date()
-			).length;
-
-			// Set inventory data - use total from API response, not items.length
-			totalInventory = inventoryRes.total;
-			totalCategories = new Set(inventoryRes.items.map((i: InventoryItem) => i.categoryId)).size;
-			lowStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity > 0 && i.quantity <= 5).length;
-			outOfStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity === 0).length;
+			// Step 4: System Performance (Last 30 Days)
+			if (forceRefresh || !hasCache) {
+				systemPerformanceLoading = true;
+			}
+			const step4Result = await Promise.allSettled([
+				fetchAnalytics({ period: 'month', forceRefresh })
+			]);
+			if (step4Result[0].status === 'fulfilled') {
+				report = step4Result[0].value;
+			}
+			systemPerformanceLoading = false;
 
 		} catch (error: any) {
 			toastStore.error(error.message || 'Failed to load dashboard data', 'Error');
@@ -284,9 +339,23 @@
 
 	</div>
 
-	{#if loading}
-		<!-- ── Skeleton ──────────────────────────────────────────────────── -->
-		<DashboardSkeletonLoader />
+	{#if cardsLoading}
+		<div class="space-y-6 animate-pulse">
+			<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+				{#each Array(4) as _}
+					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-3">
+						<Skeleton class="h-3 w-24" /><Skeleton class="h-8 w-14" /><Skeleton class="h-3 w-20" />
+					</div>
+				{/each}
+			</div>
+			<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+				{#each Array(4) as _}
+					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-3">
+						<Skeleton class="h-3 w-24" /><Skeleton class="h-8 w-14" /><Skeleton class="h-3 w-20" />
+					</div>
+				{/each}
+			</div>
+		</div>
 	{:else}
 
 		<!-- ── KPI Strip ───────────────────────────────────────────────────── -->
@@ -416,9 +485,34 @@
 				</div>
 			</div>
 		</div>
+	{/if}
 
 		<!-- ── Main Content Grid ──────────────────────────────────────────────── -->
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+		{#if recentUsersRequestsLoading}
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-2 animate-pulse">
+				{#each Array(2) as _}
+					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-4">
+						<div class="flex justify-between">
+							<Skeleton class="h-5 w-40" />
+							<Skeleton class="h-4 w-16" />
+						</div>
+						<div class="space-y-3">
+							{#each Array(5) as _}
+								<div class="flex items-center gap-3">
+									<Skeleton variant="circle" class="h-10 w-10" />
+									<div class="flex-1 space-y-2">
+										<Skeleton class="h-4 w-3/4" />
+										<Skeleton class="h-3 w-1/2" />
+									</div>
+									<Skeleton class="h-5 w-16" />
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
 			<!-- Recent Users -->
 			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
@@ -503,6 +597,30 @@
 					</div>
 				{/if}
 			</div>
+		</div>
+	{/if}
+
+		{#if classInventoryLoading}
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-2 animate-pulse">
+				{#each Array(2) as _}
+					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 space-y-4">
+						<div class="flex justify-between">
+							<Skeleton class="h-5 w-40" />
+							<Skeleton class="h-4 w-16" />
+						</div>
+						<div class="grid grid-cols-2 gap-4">
+							{#each Array(4) as _}
+								<div class="rounded-lg border border-gray-100 bg-gray-50 p-4 space-y-2">
+									<Skeleton class="mx-auto h-7 w-12" />
+									<Skeleton class="mx-auto h-3 w-20" />
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 
 			<!-- Class Statistics -->
 			{#if classStats}
@@ -573,9 +691,25 @@
 			</div>
 
 		</div>
+		{/if}
 
 		<!-- ── Analytics Summary (if available) ───────────────────────────────── -->
-		{#if report}
+		{#if systemPerformanceLoading}
+			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100 p-5 space-y-4 animate-pulse">
+				<div class="flex justify-between">
+					<Skeleton class="h-5 w-48" />
+					<Skeleton class="h-4 w-16" />
+				</div>
+				<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+					{#each Array(4) as _}
+						<div class="rounded-lg border border-gray-100 bg-gray-50 p-4 space-y-2 text-center">
+							<Skeleton class="mx-auto h-3 w-16" />
+							<Skeleton class="mx-auto h-7 w-12" />
+						</div>
+					{/each}
+				</div>
+			</div>
+		{:else if report}
 			<div class="overflow-hidden rounded-xl bg-linear-to-br from-pink-50 to-purple-50 shadow-sm ring-1 ring-pink-100">
 				<div class="flex items-center justify-between border-b border-pink-100 bg-white/50 px-5 py-4">
 					<div class="flex items-center gap-2">
@@ -616,6 +750,4 @@
 				</div>
 			</div>
 		{/if}
-
-	{/if}
 </div>
