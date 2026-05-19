@@ -36,6 +36,10 @@
 	let obligations = $state<ReplacementObligation[]>([]);
 	let itemPictureCache = $state<Map<string, string>>(new Map());
 	let isLoading = $state(false);
+	let cardsLoading = $state(true);
+	let donationsTabLoading = $state(true);
+	let accountabilityLoading = $state(true);
+	let adjustmentsLoading = $state(true);
 	let error = $state<string | null>(null);
 	let currentPage = $state(1);
 	const itemsPerPageByRequest = 5; // Cards view - max 5 cards
@@ -427,27 +431,87 @@
 			donations = cachedDonations.donations;
 		}
 
-		// Only show loading indicator if we don't have any cached data
-		const shouldShowLoading = !cachedObligations || !cachedDonations;
-		if (shouldShowLoading) {
-			isLoading = true;
-		}
+		// Initialize loading states based on cache presence
+		const hasObligationsCache = !!cachedObligations;
+		const hasDonationsCache = !!cachedDonations;
 
-		// Parallel reconciliation and data load
+		cardsLoading = !hasObligationsCache || !hasDonationsCache;
+		donationsTabLoading = !hasDonationsCache;
+		accountabilityLoading = !hasObligationsCache;
+		adjustmentsLoading = !hasDonationsCache;
+		isLoading = cardsLoading || donationsTabLoading || accountabilityLoading || adjustmentsLoading;
+
+		// Sequential data offload loading using Promise.allSettled
 		(async () => {
 			try {
 				await replacementObligationsAPI.reconcile();
-				await Promise.all([
-					// Revalidate against source-of-truth to correct any out-of-band DB changes.
-					loadObligations(shouldShowLoading, true),
-					// Revalidate against source-of-truth to correct any out-of-band DB changes.
-					loadDonations(shouldShowLoading, true)
+
+				// 1. Load Cards
+				if (!hasObligationsCache || !hasDonationsCache) {
+					cardsLoading = true;
+				}
+				const cardsResult = await Promise.allSettled([
+					replacementObligationsAPI.getObligations({ limit: 500 }, { forceRefresh: true }),
+					donationsAPI.getAll({ limit: 200, forceRefresh: true })
 				]);
+				if (cardsResult[0].status === 'fulfilled') {
+					obligations = cardsResult[0].value.obligations;
+					void backfillItemPictures();
+				}
+				if (cardsResult[1].status === 'fulfilled') {
+					donations = cardsResult[1].value.donations;
+				}
+				cardsLoading = false;
+
+				// 2. Load Donations Tab
+				if (!hasDonationsCache) {
+					donationsTabLoading = true;
+				}
+				const donationsResult = await Promise.allSettled([
+					donationsAPI.getAll({ limit: 200 })
+				]);
+				if (donationsResult[0].status === 'fulfilled') {
+					donations = donationsResult[0].value.donations;
+				}
+				donationsTabLoading = false;
+
+				// 3. Load Item Accountability
+				if (!hasObligationsCache) {
+					accountabilityLoading = true;
+				}
+				const accountabilityResult = await Promise.allSettled([
+					replacementObligationsAPI.getObligations({ limit: 500 })
+				]);
+				if (accountabilityResult[0].status === 'fulfilled') {
+					obligations = accountabilityResult[0].value.obligations;
+					void backfillItemPictures();
+				}
+				accountabilityLoading = false;
+
+				// 4. Load Stock Adjustment
+				if (!hasDonationsCache) {
+					adjustmentsLoading = true;
+				}
+				const adjustmentsResult = await Promise.allSettled([
+					donationsAPI.getAll({ limit: 200 })
+				]);
+				if (adjustmentsResult[0].status === 'fulfilled') {
+					donations = adjustmentsResult[0].value.donations;
+				}
+				adjustmentsLoading = false;
+
 			} catch (err) {
 				console.error('Initial load failed', err);
 				if (isMounted && !error) {
 					error = 'Failed to load resource management data';
 				}
+			} finally {
+				// Safety check: clear all loading states
+				cardsLoading = false;
+				donationsTabLoading = false;
+				accountabilityLoading = false;
+				adjustmentsLoading = false;
+				isLoading = false;
 			}
 
 			hasInitialized = true;
@@ -545,6 +609,7 @@
 	async function loadObligations(showLoading = true, forceRefresh = false): Promise<void> {
 		if (showLoading) {
 			isLoading = true;
+			accountabilityLoading = true;
 		}
 		error = null;
 
@@ -565,6 +630,7 @@
 		} finally {
 			if (showLoading && isMounted) {
 				isLoading = false;
+				accountabilityLoading = false;
 			}
 		}
 	}
@@ -579,6 +645,8 @@
 
 		if (showLoading && isMounted) {
 			donationsLoading = true;
+			donationsTabLoading = true;
+			adjustmentsLoading = true;
 		}
 
 		try {
@@ -614,6 +682,8 @@
 		} finally {
 			if (showLoading && isMounted) {
 				donationsLoading = false;
+				donationsTabLoading = false;
+				adjustmentsLoading = false;
 			}
 			console.log('[LOAD-DONATIONS] Completed');
 		}
@@ -1082,7 +1152,7 @@
 
 	<!-- Stats Overview -->
 	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-		{#if isLoading}
+		{#if cardsLoading}
 			{#each Array(4) as _}
 				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
 					<div class="flex items-center justify-between gap-2">
@@ -1215,7 +1285,7 @@
 
 	<div class="rounded-lg bg-white shadow">
 		<div class="p-6">
-			{#if isLoading}
+			{#if (activeTab === 'donations' && donationsTabLoading) || (activeTab === 'replacements' && accountabilityLoading) || (activeTab === 'adjustments' && adjustmentsLoading)}
 				<!-- Skeleton: tab content placeholder -->
 				<div class="space-y-4" role="status" aria-label="Loading resource management data">
 					<div class="flex items-center justify-between">
