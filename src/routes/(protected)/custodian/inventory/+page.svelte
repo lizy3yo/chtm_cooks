@@ -789,6 +789,43 @@
 		currentPage = 1;
 	});
 
+	const displayRequiredItems = $derived(
+		requiredItems
+			.filter((item) => {
+				const q = (query || '').toLowerCase();
+				return !q || (item.name || '').toLowerCase().includes(q);
+			})
+			.sort((a, b) =>
+				sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+			)
+	);
+
+	const displayLowStockItems = $derived(
+		lowStockItems
+			.filter((item) => {
+				const q = (query || '').toLowerCase();
+				return !q || (item.name || '').toLowerCase().includes(q);
+			})
+			.sort((a, b) =>
+				sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+			)
+	);
+
+	const displayCategories = $derived(
+		categories
+			.filter((category) => {
+				const q = (query || '').toLowerCase();
+				return (
+					!q ||
+					(category.name || '').toLowerCase().includes(q) ||
+					(category.description || '').toLowerCase().includes(q)
+				);
+			})
+			.sort((a, b) =>
+				sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+			)
+	);
+
 	function openModal(item: InventoryItem) {
 		selectedItem = item;
 	}
@@ -3777,26 +3814,64 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 			{:else if activeTab === 'categories'}
 				<!-- Categories View -->
 				<div class="p-4 sm:p-6">
-					<div class="mb-4 flex items-center justify-between gap-3">
-						<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Item Categories</h3>
-						<button
-							onclick={() => (showCategoryModal = true)}
-							class="inline-flex shrink-0 items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 sm:px-4 sm:py-2 sm:text-sm"
-							disabled={loading}
-						>
-							<svg class="mr-1.5 h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-								<path
-									stroke-linecap="round"
-									stroke-linejoin="round"
-									stroke-width="2"
-									d="M12 4v16m8-8H4"
+					<div class="mb-4 flex flex-col gap-3">
+						<div class="flex items-center justify-between gap-3">
+							<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Item Categories</h3>
+							<button
+								onclick={() => (showCategoryModal = true)}
+								class="inline-flex shrink-0 items-center rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 sm:px-4 sm:py-2 sm:text-sm"
+								disabled={loading}
+							>
+								<svg
+									class="mr-1.5 h-3.5 w-3.5"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M12 4v16m8-8H4"
+									/>
+								</svg>
+								Add Category
+							</button>
+						</div>
+						<!-- Search + Sort row -->
+						<div class="flex gap-2">
+							<div class="relative flex-1">
+								<input
+									type="text"
+									placeholder="Search categories..."
+									bind:value={query}
+									class="w-full rounded-lg border border-gray-300 py-2 pr-3 pl-9 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
 								/>
-							</svg>
-							Add Category
-						</button>
+								<svg
+									class="absolute top-2.5 left-3 h-4 w-4 text-gray-400"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+									/>
+								</svg>
+							</div>
+							<select
+								bind:value={sortOrder}
+								class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+							>
+								<option value="az">A – Z</option>
+								<option value="za">Z – A</option>
+							</select>
+						</div>
 					</div>
 
-					{#if categories.length === 0}
+					{#if displayCategories.length === 0}
 						<div class="py-12 text-center">
 							<svg
 								class="mx-auto h-24 w-24 text-pink-600"
@@ -3832,7 +3907,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						</div>
 					{:else}
 						<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-							{#each categories as category}
+							{#each displayCategories as category}
 								<div
 									onclick={() => openCategory(category)}
 									onkeydown={(e) => {
@@ -4271,14 +4346,47 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 			{:else if activeTab === 'required-items'}
 				<!-- Required Items View -->
 				<div class="p-4 sm:p-6">
-					<div class="mb-4">
-						<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Required Items</h3>
-						<p class="mt-1 text-sm text-gray-500">
-							Items that always appear on student request forms regardless of availability
-						</p>
+					<div class="mb-4 flex flex-col gap-3">
+						<div>
+							<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Required Items</h3>
+							<p class="mt-1 text-sm text-gray-500">
+								Items that always appear on student request forms regardless of availability
+							</p>
+						</div>
+						<!-- Search + Sort row -->
+						<div class="flex gap-2">
+							<div class="relative flex-1">
+								<input
+									type="text"
+									placeholder="Search items..."
+									bind:value={query}
+									class="w-full rounded-lg border border-gray-300 py-2 pr-3 pl-9 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+								/>
+								<svg
+									class="absolute top-2.5 left-3 h-4 w-4 text-gray-400"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+									/>
+								</svg>
+							</div>
+							<select
+								bind:value={sortOrder}
+								class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+							>
+								<option value="az">A – Z</option>
+								<option value="za">Z – A</option>
+							</select>
+						</div>
 					</div>
 
-					{#if requiredItems.length === 0}
+					{#if displayRequiredItems.length === 0}
 						<div
 							class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white"
 							style="min-height: 600px;"
@@ -4329,7 +4437,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					{:else}
 						<!-- Mobile card list -->
 						<div class="divide-y divide-gray-100 sm:hidden">
-							{#each requiredItems as item, i}
+							{#each displayRequiredItems as item, i}
 								<button
 									class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
 									onclick={() => openModal(item)}
@@ -4424,7 +4532,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-gray-200 bg-white">
-									{#each requiredItems as item, i}
+									{#each displayRequiredItems as item, i}
 										<tr class="transition-colors hover:bg-gray-50">
 											<td class="px-6 py-4 whitespace-nowrap">
 												<div class="flex items-center gap-3">
@@ -4572,12 +4680,45 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 			{:else if activeTab === 'low-stock'}
 				<!-- Low Stock View -->
 				<div class="p-6">
-					<div class="mb-6">
-						<h3 class="text-lg font-semibold text-gray-900">Low Stock Alerts</h3>
-						<p class="mt-1 text-sm text-gray-500">Items that need restocking</p>
+					<div class="mb-6 flex flex-col gap-3">
+						<div>
+							<h3 class="text-lg font-semibold text-gray-900">Low Stock Alerts</h3>
+							<p class="mt-1 text-sm text-gray-500">Items that need restocking</p>
+						</div>
+						<!-- Search + Sort row -->
+						<div class="flex gap-2">
+							<div class="relative flex-1">
+								<input
+									type="text"
+									placeholder="Search items..."
+									bind:value={query}
+									class="w-full rounded-lg border border-gray-300 py-2 pr-3 pl-9 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+								/>
+								<svg
+									class="absolute top-2.5 left-3 h-4 w-4 text-gray-400"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24"
+								>
+									<path
+										stroke-linecap="round"
+										stroke-linejoin="round"
+										stroke-width="2"
+										d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+									/>
+								</svg>
+							</div>
+							<select
+								bind:value={sortOrder}
+								class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+							>
+								<option value="az">A – Z</option>
+								<option value="za">Z – A</option>
+							</select>
+						</div>
 					</div>
 
-					{#if lowStockItems.length === 0}
+					{#if displayLowStockItems.length === 0}
 						<div
 							class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white"
 							style="min-height: 600px;"
@@ -4618,7 +4759,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						</div>
 					{:else}
 						<div class="space-y-3">
-							{#each lowStockItems as item}
+							{#each displayLowStockItems as item}
 								<div class="rounded-xl border border-red-200 bg-red-50 p-4">
 									<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 										<div class="flex items-center gap-3">
