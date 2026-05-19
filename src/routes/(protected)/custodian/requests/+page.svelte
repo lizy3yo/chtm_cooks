@@ -46,6 +46,102 @@
 	let viewMode = $state<ViewMode>('list');
 	let loading = $state(!hasCachedData); // Only show skeleton if no cached data
 	let initialLoadComplete = $state(hasCachedData); // Mark as complete if we have cached data
+	let cardsLoading = $state(!hasCachedData);
+	let pendingLoading = $state(!hasCachedData);
+	let readyLoading = $state(!hasCachedData);
+	let activeLoading = $state(!hasCachedData);
+	let unresolvedLoading = $state(!hasCachedData);
+	let historyLoading = $state(!hasCachedData);
+	let inFlightLoadId = 0;
+
+	async function loadRequestsProgressive(forceRefresh = false) {
+		const loadId = ++inFlightLoadId;
+		try {
+			// Step 1: Load cards (and parallel fetch classCodes, reconcile replacement obligations, catalog items)
+			const listPromise = borrowRequestsAPI.list({}, { forceRefresh });
+			const catalogPromise = catalogAPI.getCatalog({ availability: 'all', limit: 300 });
+			const reconcilePromise = replacementObligationsAPI.reconcile();
+
+			const results = await Promise.allSettled([listPromise, catalogPromise, reconcilePromise]);
+
+			if (loadId !== inFlightLoadId) return;
+
+			// Handle list
+			const listResult = results[0];
+			if (listResult.status === 'fulfilled') {
+				requests = listResult.value.requests
+					.filter((record) => record.status !== 'pending_instructor')
+					.map(mapRequest);
+			} else {
+				throw listResult.reason;
+			}
+
+			// Cards are ready!
+			cardsLoading = false;
+
+			// Step 2: Sequentially settle each tab loader
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			if (loadId !== inFlightLoadId) return;
+			pendingLoading = false;
+
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			if (loadId !== inFlightLoadId) return;
+			readyLoading = false;
+
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			if (loadId !== inFlightLoadId) return;
+			activeLoading = false;
+
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			if (loadId !== inFlightLoadId) return;
+			unresolvedLoading = false;
+
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			if (loadId !== inFlightLoadId) return;
+			historyLoading = false;
+
+			// Backfill pictures/classCodes in background
+			const catalogResult = results[1];
+			if (catalogResult.status === 'fulfilled') {
+				const next = new Map(itemPictureCache);
+				const missingIds = new Set<string>();
+				for (const req of requests) {
+					for (const item of req.items) {
+						if (item.itemId && !item.picture && !itemPictureCache.has(item.itemId)) {
+							missingIds.add(item.itemId);
+						}
+					}
+				}
+				for (const catalogItem of catalogResult.value.items) {
+					if (missingIds.has(catalogItem.id) && catalogItem.picture) {
+						next.set(catalogItem.id, catalogItem.picture);
+					}
+				}
+				itemPictureCache = next;
+			}
+
+			await backfillClassCodes();
+			await maybeOpenScannedRequestFromUrl();
+			syncSelectedRequestWithLatestData();
+
+		} catch (error) {
+			console.error('Failed to load custodian requests', error);
+			if (loadId === inFlightLoadId) {
+				requests = [];
+			}
+		} finally {
+			if (loadId === inFlightLoadId) {
+				loading = false;
+				initialLoadComplete = true;
+				cardsLoading = false;
+				pendingLoading = false;
+				readyLoading = false;
+				activeLoading = false;
+				unresolvedLoading = false;
+				historyLoading = false;
+			}
+		}
+	}
 	const PAGE_SIZE_CARD = 5; // Card view - max 5 cards
 	const PAGE_SIZE_LIST = 10; // List view - max 10 items
 	const PAGE_SIZE = $derived(viewMode === 'card' ? PAGE_SIZE_CARD : PAGE_SIZE_LIST);
@@ -418,19 +514,7 @@
 	}
 
 	async function loadRequests(forceRefresh = false): Promise<void> {
-		try {
-			const response = await borrowRequestsAPI.list({}, { forceRefresh });
-			requests = response.requests
-				.filter((record) => record.status !== 'pending_instructor')
-				.map(mapRequest);
-			await backfillItemPictures();
-			await backfillClassCodes();
-			await maybeOpenScannedRequestFromUrl();
-			syncSelectedRequestWithLatestData();
-		} catch (error) {
-			console.error('Failed to load custodian requests', error);
-			requests = [];
-		}
+		await loadRequestsProgressive(forceRefresh);
 	}
 
 	async function maybeOpenScannedRequestFromUrl(): Promise<void> {
@@ -653,27 +737,17 @@
 			requests = cachedRequests.requests
 				.filter((record) => record.status !== 'pending_instructor')
 				.map(mapRequest);
-			console.log('[REQUESTS]  Loaded from cache:', requests.length, 'requests');
+			console.log('[REQUESTS] Loaded from cache:', requests.length, 'requests');
+			cardsLoading = false;
+			pendingLoading = false;
+			readyLoading = false;
+			activeLoading = false;
+			unresolvedLoading = false;
+			historyLoading = false;
 		}
 
 		// Initial load with loading state management
-		Promise.all([
-			replacementObligationsAPI.reconcile().then(({ reconciled }) => {
-				if (reconciled > 0) return loadRequests(true);
-			}),
-			loadRequests(!hasCachedData) // Force refresh only if no cached data
-		])
-			.then(() => {
-				// Wait for next tick to ensure derived states are updated
-				setTimeout(() => {
-					loading = false;
-					initialLoadComplete = true;
-				}, 150);
-			})
-			.catch(() => {
-				loading = false;
-				initialLoadComplete = true;
-			});
+		loadRequests(!hasCachedData);
 
 		const unsubscribeSSE = borrowRequestsAPI.subscribeToChanges(
 			(_event: BorrowRequestRealtimeEvent) => {
@@ -776,6 +850,17 @@
 		historyCancelled: requests.filter(
 			(r) => r.rawStatus === 'cancelled' || r.rawStatus === 'rejected'
 		).length
+	});
+
+	const activeTabLoading = $derived.by(() => {
+		switch (activeTab) {
+			case 'pending': return pendingLoading;
+			case 'ready': return readyLoading;
+			case 'active': return activeLoading;
+			case 'unresolved': return unresolvedLoading;
+			case 'history': return historyLoading;
+			default: return false;
+		}
 	});
 
 	function openDetailModal(request: any) {
@@ -913,9 +998,6 @@
 	<title>Requests & Loans - Custodian Portal</title>
 </svelte:head>
 
-{#if loading || !initialLoadComplete}
-	<RequestsSkeletonLoader {viewMode} />
-{:else}
 	<div class="space-y-6">
 		<!-- Header -->
 		<div>
@@ -924,147 +1006,163 @@
 		</div>
 
 		<!-- Statistics Cards -->
-		<div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
-						<p class="mt-1 text-xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
-							{stats.totalRequests}
-						</p>
+		{#if cardsLoading}
+			<div class="grid grid-cols-2 gap-3 lg:grid-cols-5 animate-pulse">
+				{#each Array(5) as _, idx}
+					<div class="rounded-lg bg-white p-3 shadow sm:p-5 h-[80px] sm:h-[116px] {idx === 4 ? 'col-span-2 lg:col-span-1' : ''}">
+						<div class="flex items-center justify-between gap-2 h-full">
+							<div class="space-y-2 flex-1">
+								<div class="h-4 bg-gray-200 rounded w-2/3"></div>
+								<div class="h-6 bg-gray-200 rounded w-1/3"></div>
+							</div>
+							<div class="h-9 w-9 sm:h-12 sm:w-12 bg-gray-200 rounded-full"></div>
+						</div>
 					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
-					>
-						<svg
-							class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
+				{/each}
+			</div>
+		{:else}
+			<div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
+							<p class="mt-1 text-xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
+								{stats.totalRequests}
+							</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-							/>
-						</svg>
+							<svg
+								class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+								/>
+							</svg>
+						</div>
 					</div>
 				</div>
-			</div>
 
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
-						<p class="mt-1 text-xl font-semibold text-blue-600 sm:mt-2 sm:text-3xl">
-							{stats.pendingCount}
-						</p>
-					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
-					>
-						<svg
-							class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
+							<p class="mt-1 text-xl font-semibold text-blue-600 sm:mt-2 sm:text-3xl">
+								{stats.pendingCount}
+							</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-							/>
-						</svg>
+							<svg
+								class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+								/>
+							</svg>
+						</div>
 					</div>
 				</div>
-			</div>
 
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Ready</p>
-						<p class="mt-1 text-xl font-semibold text-green-600 sm:mt-2 sm:text-3xl">
-							{stats.readyCount}
-						</p>
-					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 sm:h-12 sm:w-12"
-					>
-						<svg
-							class="h-5 w-5 text-green-600 sm:h-6 sm:w-6"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Ready</p>
+							<p class="mt-1 text-xl font-semibold text-green-600 sm:mt-2 sm:text-3xl">
+								{stats.readyCount}
+							</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 sm:h-12 sm:w-12"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-							/>
-						</svg>
+							<svg
+								class="h-5 w-5 text-green-600 sm:h-6 sm:w-6"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
+							</svg>
+						</div>
 					</div>
 				</div>
-			</div>
 
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active</p>
-						<p class="mt-1 text-xl font-semibold text-purple-600 sm:mt-2 sm:text-3xl">
-							{stats.activeCount}
-						</p>
-					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12"
-					>
-						<svg
-							class="h-5 w-5 text-purple-600 sm:h-6 sm:w-6"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active</p>
+							<p class="mt-1 text-xl font-semibold text-purple-600 sm:mt-2 sm:text-3xl">
+								{stats.activeCount}
+							</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-							/>
-						</svg>
+							<svg
+								class="h-5 w-5 text-purple-600 sm:h-6 sm:w-6"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+								/>
+							</svg>
+						</div>
 					</div>
 				</div>
-			</div>
 
-			<div class="col-span-2 rounded-lg bg-white p-3 shadow sm:p-5 lg:col-span-1">
-				<div class="flex items-center justify-between gap-2">
-					<div class="min-w-0">
-						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue</p>
-						<p class="mt-1 text-xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">
-							{stats.overdueCount}
-						</p>
-					</div>
-					<div
-						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12"
-					>
-						<svg
-							class="h-5 w-5 text-red-600 sm:h-6 sm:w-6"
-							fill="none"
-							stroke="currentColor"
-							viewBox="0 0 24 24"
+				<div class="col-span-2 rounded-lg bg-white p-3 shadow sm:p-5 lg:col-span-1">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue</p>
+							<p class="mt-1 text-xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">
+								{stats.overdueCount}
+							</p>
+						</div>
+						<div
+							class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12"
 						>
-							<path
-								stroke-linecap="round"
-								stroke-linejoin="round"
-								stroke-width="2"
-								d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-							/>
-						</svg>
+							<svg
+								class="h-5 w-5 text-red-600 sm:h-6 sm:w-6"
+								fill="none"
+								stroke="currentColor"
+								viewBox="0 0 24 24"
+							>
+								<path
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									stroke-width="2"
+									d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+								/>
+							</svg>
+						</div>
 					</div>
 				</div>
 			</div>
-		</div>
+		{/if}
 
 		<!-- Tabs Navigation -->
 		<div class="border-b border-gray-200">
@@ -1240,6 +1338,9 @@
 					</div>
 				</div>
 				<div class="space-y-4">
+					{#if activeTabLoading}
+						<RequestsSkeletonLoader {viewMode} />
+					{:else}
 					<div
 						class="mb-4 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-4"
 					>
@@ -1783,11 +1884,11 @@
 							class="mt-4"
 						/>
 					{/if}
+					{/if}
 				</div>
 			</div>
 		</div>
 	</div>
-{/if}
 
 <!-- Detail Modal -->
 {#if showDetailModal && selectedRequest}
