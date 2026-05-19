@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { user, authStore, justLoggedIn } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
 	import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
@@ -46,9 +47,12 @@
 	}
 
 	// ── state ─────────────────────────────────────────────────────────────────
-	let loading = $state(true);
+	const initialRequests = browser ? borrowRequestsAPI.peekCachedList({ limit: 100 }) : null;
+	const initialStats = browser ? statisticsAPI.peek('all') : null;
+
+	let loading = $state(!initialRequests || !initialStats);
 	let allRequests = $state<DashboardRequest[]>([]);
-	let performanceStats = $state<StudentStatisticsData | null>(null);
+	let performanceStats = $state<StudentStatisticsData | null>(initialStats);
 	let showScoreBreakdown = $state(false);
 	let currentTime = $state(new Date());
 
@@ -128,6 +132,11 @@
 			daysUntilDue: days,
 			isOverdue: days !== null && days < 0
 		};
+	}
+
+	// Populate initialRequests if present
+	if (initialRequests) {
+		allRequests = initialRequests.requests.map(mapToCard);
 	}
 
 	async function loadDashboard(force = false) {
@@ -383,7 +392,7 @@
 		}
 
 		void (async () => {
-			await loadDashboard(true);
+			await loadDashboard(false);
 		})();
 
 		const clockId = setInterval(() => {
@@ -494,8 +503,9 @@
 						<h2 class="text-base font-semibold {trust.text} sm:text-lg">Trust Score</h2>
 						<p class="text-xs text-gray-600 sm:text-sm">{trust.description}</p>
 
-
-						<div class="flex flex-wrap gap-x-4 gap-y-1.5 text-[10px] text-gray-500 sm:gap-x-5 sm:text-xs">
+						<div
+							class="flex flex-wrap gap-x-4 gap-y-1.5 text-[10px] text-gray-500 sm:gap-x-5 sm:text-xs"
+						>
 							<span class="inline-flex items-center"
 								><span class="mr-1.5 inline-block h-1 w-1 rounded-full bg-red-500 sm:h-1.5 sm:w-1.5"
 								></span>Critical &lt;40</span
