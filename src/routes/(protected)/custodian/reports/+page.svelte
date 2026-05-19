@@ -224,7 +224,6 @@
 				report = studentRiskResult[0].value;
 			}
 			studentRiskLoading = false;
-
 		} catch (err) {
 			console.error('[Reports] Sequential load failed:', err);
 			error = err instanceof Error ? err.message : 'Failed to load analytics';
@@ -240,10 +239,15 @@
 	}
 
 	const totalRequests = $derived(
-		(report?.borrowRequests ?? summaryReport?.borrowRequests)?.statusBreakdown?.reduce((s, i) => s + i.count, 0) ?? 0
+		(report?.borrowRequests ?? summaryReport?.borrowRequests)?.statusBreakdown?.reduce(
+			(s, i) => s + i.count,
+			0
+		) ?? 0
 	);
 	const returnedCount = $derived(
-		(report?.borrowRequests ?? summaryReport?.borrowRequests)?.statusBreakdown?.find((s) => s.status === 'returned')?.count ?? 0
+		(report?.borrowRequests ?? summaryReport?.borrowRequests)?.statusBreakdown?.find(
+			(s) => s.status === 'returned'
+		)?.count ?? 0
 	);
 	const overdueCount = $derived(
 		report?.borrowRequests?.overdueCount ?? summaryReport?.borrowRequests?.overdueCount ?? 0
@@ -686,14 +690,58 @@
 	// ─── Export ───────────────────────────────────────────────────────────
 
 	let exporting = $state(false);
+	let showExportModal = $state(false);
+	let exportTimeframeMode = $state<'current' | 'custom'>('current');
+	let exportCustomFrom = $state(initialFrom);
+	let exportCustomTo = $state(initialTo);
+
+	let exportSections = $state({
+		overview: true,
+		borrowing: true,
+		'loss-damage': true,
+		inventory: true,
+		students: true
+	});
+
+	function toggleAllSections(val: boolean) {
+		exportSections = {
+			overview: val,
+			borrowing: val,
+			'loss-damage': val,
+			inventory: val,
+			students: val
+		};
+	}
 
 	async function exportXLSX() {
 		if (!report || exporting) return;
 		exporting = true;
 		try {
-			const params = new URLSearchParams({ period });
-			if (customFrom) params.set('from', customFrom);
-			if (customTo) params.set('to', customTo);
+			const params = new URLSearchParams();
+
+			if (exportTimeframeMode === 'current') {
+				params.set('period', period);
+				if (customFrom) params.set('from', customFrom);
+				if (customTo) params.set('to', customTo);
+			} else {
+				params.set('period', 'month');
+				if (exportCustomFrom) params.set('from', exportCustomFrom);
+				if (exportCustomTo) params.set('to', exportCustomTo);
+			}
+
+			const selectedKeys = Object.entries(exportSections)
+				.filter(([_, enabled]) => enabled)
+				.map(([key]) => key);
+
+			if (selectedKeys.length > 0) {
+				for (const key of selectedKeys) {
+					params.append('sections', key);
+				}
+			} else {
+				toastStore.error('Please select at least one data section to export.');
+				exporting = false;
+				return;
+			}
 
 			const res = await fetch(`/api/reports/analytics/export?${params.toString()}`);
 			if (!res.ok) throw new Error('Export failed');
@@ -710,6 +758,7 @@
 			document.body.removeChild(link);
 			URL.revokeObjectURL(url);
 			toastStore.success('Report exported as Excel file');
+			showExportModal = false;
 		} catch {
 			toastStore.error('Failed to export report. Please try again.');
 		} finally {
@@ -729,13 +778,13 @@
 		</div>
 		<button
 			onclick={() => {
-				if (report) exportXLSX();
+				if (report) showExportModal = true;
 			}}
 			disabled={!report || exporting}
 			class="flex shrink-0 items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50"
 		>
 			<Download size={15} />
-			{exporting ? 'Exporting…' : 'Export Excel'}
+			Export Excel
 		</button>
 	</div>
 
@@ -1085,1425 +1134,1349 @@
 
 				{#if report}
 					{#if activeTab === 'borrowing'}
-					<div data-tab-panel="borrowing">
-						<div class="space-y-6">
-							<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-								<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-									<div>
-										<h3 class="text-lg font-semibold text-gray-900">Borrowing Analytics</h3>
-										<p class="mt-1 text-sm text-gray-600">Selected range: {formatRangeLabel()}</p>
+						<div data-tab-panel="borrowing">
+							<div class="space-y-6">
+								<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+									<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+										<div>
+											<h3 class="text-lg font-semibold text-gray-900">Borrowing Analytics</h3>
+											<p class="mt-1 text-sm text-gray-600">Selected range: {formatRangeLabel()}</p>
+										</div>
+										<p class="text-xs text-gray-500">
+											All borrowed items and borrowers in the selected period
+										</p>
 									</div>
-									<p class="text-xs text-gray-500">
-										All borrowed items and borrowers in the selected period
-									</p>
+
+									<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+										<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+											<p class="text-sm text-gray-600">Total Requests</p>
+											<p class="mt-2 text-2xl font-bold text-gray-900">
+												{numberFmt.format(
+													summaryReport?.borrowRequests?.borrowingAverages?.totalRequests ??
+														borrowingAvg.totalRequests
+												)}
+											</p>
+										</div>
+										<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+											<p class="text-sm text-gray-600">Avg Items / Request</p>
+											<p class="mt-2 text-2xl font-bold text-pink-700">
+												{(
+													summaryReport?.borrowRequests?.borrowingAverages?.avgItemsPerRequest ??
+													borrowingAvg.avgItemsPerRequest ??
+													0
+												).toFixed(1)}
+											</p>
+										</div>
+										<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+											<p class="text-sm text-gray-600">Avg Quantity / Request</p>
+											<p class="mt-2 text-2xl font-bold text-purple-700">
+												{(
+													summaryReport?.borrowRequests?.borrowingAverages?.avgQuantityPerRequest ??
+													borrowingAvg.avgQuantityPerRequest ??
+													0
+												).toFixed(1)}
+											</p>
+										</div>
+									</div>
 								</div>
 
-								<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-									<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-										<p class="text-sm text-gray-600">Total Requests</p>
-										<p class="mt-2 text-2xl font-bold text-gray-900">
-											{numberFmt.format(
-												summaryReport?.borrowRequests?.borrowingAverages?.totalRequests ??
-													borrowingAvg.totalRequests
-											)}
+								<div class="grid gap-4 lg:grid-cols-2">
+									<div class="rounded-xl border border-gray-200 bg-white p-5">
+										<h3 class="text-lg font-semibold text-gray-900">Borrowed Items</h3>
+										<p class="mt-1 text-xs text-gray-600">
+											{filteredBorrowedItems.length} of {report.borrowRequests.itemEntries.length} borrowed
+											item entries (including currently borrowed items in student possession)
 										</p>
-									</div>
-									<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-										<p class="text-sm text-gray-600">Avg Items / Request</p>
-										<p class="mt-2 text-2xl font-bold text-pink-700">
-											{(
-												summaryReport?.borrowRequests?.borrowingAverages?.avgItemsPerRequest ??
-												borrowingAvg.avgItemsPerRequest ??
-												0
-											).toFixed(1)}
-										</p>
-									</div>
-									<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-										<p class="text-sm text-gray-600">Avg Quantity / Request</p>
-										<p class="mt-2 text-2xl font-bold text-purple-700">
-											{(
-												summaryReport?.borrowRequests?.borrowingAverages?.avgQuantityPerRequest ??
-												borrowingAvg.avgQuantityPerRequest ??
-												0
-											).toFixed(1)}
-										</p>
-									</div>
-								</div>
-							</div>
-
-							<div class="grid gap-4 lg:grid-cols-2">
-								<div class="rounded-xl border border-gray-200 bg-white p-5">
-									<h3 class="text-lg font-semibold text-gray-900">Borrowed Items</h3>
-									<p class="mt-1 text-xs text-gray-600">
-										{filteredBorrowedItems.length} of {report.borrowRequests.itemEntries.length} borrowed
-										item entries (including currently borrowed items in student possession)
-									</p>
-									<div class="mt-3">
-										<label
-											for="borrowed-items-search"
-											class="mb-1 block text-xs font-medium text-gray-600"
-											>Search borrowed items</label
-										>
-										<div class="relative">
-											<Search
-												size={16}
-												class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
-											/>
-											<input
-												id="borrowed-items-search"
-												type="text"
-												bind:value={borrowedItemsQuery}
-												placeholder="Search by item name or category"
-												class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
-											/>
-											{#if borrowedItemsQuery}
-												<button
-													type="button"
-													onclick={() => (borrowedItemsQuery = '')}
-													class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-													aria-label="Clear borrowed items search"
+										<div class="mt-3">
+											<label
+												for="borrowed-items-search"
+												class="mb-1 block text-xs font-medium text-gray-600"
+												>Search borrowed items</label
+											>
+											<div class="relative">
+												<Search
+													size={16}
+													class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
+												/>
+												<input
+													id="borrowed-items-search"
+													type="text"
+													bind:value={borrowedItemsQuery}
+													placeholder="Search by item name or category"
+													class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
+												/>
+												{#if borrowedItemsQuery}
+													<button
+														type="button"
+														onclick={() => (borrowedItemsQuery = '')}
+														class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+														aria-label="Clear borrowed items search"
+													>
+														<X size={14} />
+													</button>
+												{/if}
+											</div>
+										</div>
+										<div class="mt-4 flex min-h-80 flex-col rounded-lg border border-gray-200">
+											{#if report.borrowRequests.itemEntries.length === 0}
+												<div
+													class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
 												>
-													<X size={14} />
-												</button>
+													<div class="max-w-sm">
+														<div
+															class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
+														>
+															<FileText size={32} class="text-pink-600" />
+														</div>
+														<h4 class="mt-6 text-base font-semibold text-gray-900">
+															No borrowed items
+														</h4>
+														<p class="mt-2 text-sm leading-6 text-gray-600">
+															Borrowed items for the selected range will appear here once requests
+															are recorded.
+														</p>
+													</div>
+												</div>
+											{:else if filteredBorrowedItems.length === 0}
+												<div
+													class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+												>
+													<div class="max-w-sm">
+														<div
+															class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
+														>
+															<Search size={32} class="text-pink-600" />
+														</div>
+														<h4 class="mt-6 text-base font-semibold text-gray-900">
+															No matches found
+														</h4>
+														<p class="mt-2 text-sm leading-6 text-gray-600">
+															Try a different item name or category.
+														</p>
+													</div>
+												</div>
+											{:else}
+												<div class="space-y-2 overflow-y-auto p-3">
+													{#each paginatedBorrowedItems as item}
+														<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+															<div class="flex items-center justify-between">
+																<div class="min-w-0 flex-1">
+																	<p class="truncate text-sm font-medium text-gray-900">
+																		{item.name}
+																	</p>
+																	<p class="text-xs text-gray-600">
+																		{item.category} · {item.studentName || 'Unknown Student'}
+																	</p>
+																</div>
+																<div class="ml-3 text-right">
+																	<p class="text-sm font-bold text-pink-600">{item.quantity}</p>
+																	<p class="text-xs text-gray-500">
+																		Qty · #{item.requestId.slice(-6).toUpperCase()}
+																	</p>
+																</div>
+															</div>
+														</div>
+													{/each}
+												</div>
+												{#if borrowedItemsTotalPages > 1}
+													<div
+														class="mt-auto flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
+													>
+														<p class="text-xs text-gray-600">
+															Showing {(borrowedItemsPage - 1) * INVENTORY_PAGE_SIZE + 1}-{Math.min(
+																borrowedItemsPage * INVENTORY_PAGE_SIZE,
+																filteredBorrowedItems.length
+															)} of {filteredBorrowedItems.length} borrowed entries (active included)
+														</p>
+														<div class="flex items-center gap-1.5">
+															<button
+																type="button"
+																onclick={() =>
+																	(borrowedItemsPage = Math.max(1, borrowedItemsPage - 1))}
+																disabled={borrowedItemsPage === 1}
+																class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+																aria-label="Previous borrowed items page"
+															>
+																<svg
+																	class="h-4 w-4"
+																	viewBox="0 0 20 20"
+																	fill="currentColor"
+																	aria-hidden="true"
+																>
+																	<path
+																		fill-rule="evenodd"
+																		d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+																		clip-rule="evenodd"
+																	/>
+																</svg>
+															</button>
+															<nav
+																class="isolate inline-flex items-center gap-1"
+																aria-label="Borrowed items pagination"
+															>
+																{#each borrowedItemsPageTokens as token}
+																	{#if token === 'ellipsis'}
+																		<span
+																			class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
+																			>...</span
+																		>
+																	{:else}
+																		<button
+																			type="button"
+																			onclick={() => (borrowedItemsPage = token)}
+																			class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {borrowedItemsPage ===
+																			token
+																				? 'bg-pink-600 text-white shadow-sm'
+																				: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
+																		>
+																			{token}
+																		</button>
+																	{/if}
+																{/each}
+															</nav>
+															<button
+																type="button"
+																onclick={() =>
+																	(borrowedItemsPage = Math.min(
+																		borrowedItemsTotalPages,
+																		borrowedItemsPage + 1
+																	))}
+																disabled={borrowedItemsPage === borrowedItemsTotalPages}
+																class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+																aria-label="Next borrowed items page"
+															>
+																<svg
+																	class="h-4 w-4"
+																	viewBox="0 0 20 20"
+																	fill="currentColor"
+																	aria-hidden="true"
+																>
+																	<path
+																		fill-rule="evenodd"
+																		d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+																		clip-rule="evenodd"
+																	/>
+																</svg>
+															</button>
+														</div>
+													</div>
+												{/if}
 											{/if}
 										</div>
 									</div>
-									<div class="mt-4 flex min-h-80 flex-col rounded-lg border border-gray-200">
-										{#if report.borrowRequests.itemEntries.length === 0}
-											<div
-												class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+
+									<div class="rounded-xl border border-gray-200 bg-white p-5">
+										<h3 class="text-lg font-semibold text-gray-900">Borrowers</h3>
+										<p class="mt-1 text-xs text-gray-600">
+											{filteredBorrowers.length} of {report.borrowRequests.borrowers.length} students
+											in the selected range
+										</p>
+										<div class="mt-3">
+											<label
+												for="borrowers-search"
+												class="mb-1 block text-xs font-medium text-gray-600">Search borrowers</label
 											>
-												<div class="max-w-sm">
-													<div
-														class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
+											<div class="relative">
+												<Search
+													size={16}
+													class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
+												/>
+												<input
+													id="borrowers-search"
+													type="text"
+													bind:value={borrowersQuery}
+													placeholder="Search by student name or email"
+													class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
+												/>
+												{#if borrowersQuery}
+													<button
+														type="button"
+														onclick={() => (borrowersQuery = '')}
+														class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+														aria-label="Clear borrowers search"
 													>
-														<FileText size={32} class="text-pink-600" />
-													</div>
-													<h4 class="mt-6 text-base font-semibold text-gray-900">
-														No borrowed items
-													</h4>
-													<p class="mt-2 text-sm leading-6 text-gray-600">
-														Borrowed items for the selected range will appear here once requests are
-														recorded.
-													</p>
-												</div>
+														<X size={14} />
+													</button>
+												{/if}
 											</div>
-										{:else if filteredBorrowedItems.length === 0}
-											<div
-												class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-											>
-												<div class="max-w-sm">
-													<div
-														class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
-													>
-														<Search size={32} class="text-pink-600" />
+										</div>
+										<div class="mt-4 flex min-h-80 flex-col rounded-lg border border-gray-200">
+											{#if report.borrowRequests.borrowers.length === 0}
+												<div
+													class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+												>
+													<div class="max-w-sm">
+														<div
+															class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
+														>
+															<FileText size={32} class="text-pink-600" />
+														</div>
+														<h4 class="mt-6 text-base font-semibold text-gray-900">No borrowers</h4>
+														<p class="mt-2 text-sm leading-6 text-gray-600">
+															Borrower records for the selected range will appear here once requests
+															are logged.
+														</p>
 													</div>
-													<h4 class="mt-6 text-base font-semibold text-gray-900">
-														No matches found
-													</h4>
-													<p class="mt-2 text-sm leading-6 text-gray-600">
-														Try a different item name or category.
-													</p>
 												</div>
-											</div>
-										{:else}
-											<div class="space-y-2 overflow-y-auto p-3">
-												{#each paginatedBorrowedItems as item}
-													<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-														<div class="flex items-center justify-between">
-															<div class="min-w-0 flex-1">
-																<p class="truncate text-sm font-medium text-gray-900">
-																	{item.name}
-																</p>
-																<p class="text-xs text-gray-600">
-																	{item.category} · {item.studentName || 'Unknown Student'}
-																</p>
-															</div>
-															<div class="ml-3 text-right">
-																<p class="text-sm font-bold text-pink-600">{item.quantity}</p>
-																<p class="text-xs text-gray-500">
-																	Qty · #{item.requestId.slice(-6).toUpperCase()}
-																</p>
+											{:else if filteredBorrowers.length === 0}
+												<div
+													class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+												>
+													<div class="max-w-sm">
+														<div
+															class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
+														>
+															<Search size={32} class="text-pink-600" />
+														</div>
+														<h4 class="mt-6 text-base font-semibold text-gray-900">
+															No matches found
+														</h4>
+														<p class="mt-2 text-sm leading-6 text-gray-600">
+															Try a different student name or email.
+														</p>
+													</div>
+												</div>
+											{:else}
+												<div class="space-y-2 overflow-y-auto p-3">
+													{#each paginatedBorrowers as borrower}
+														<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+															<p class="text-sm font-medium text-gray-900">
+																{borrower.studentName}
+															</p>
+															<p class="text-xs text-gray-600">{borrower.studentEmail}</p>
+															<div class="mt-1 flex items-center gap-3 text-xs text-gray-500">
+																<span>{borrower.requestCount} requests</span>
+																<span>&middot;</span>
+																<span>{borrower.totalItems} items</span>
 															</div>
 														</div>
-													</div>
-												{/each}
-											</div>
-											{#if borrowedItemsTotalPages > 1}
-												<div
-													class="mt-auto flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
-												>
-													<p class="text-xs text-gray-600">
-														Showing {(borrowedItemsPage - 1) * INVENTORY_PAGE_SIZE + 1}-{Math.min(
-															borrowedItemsPage * INVENTORY_PAGE_SIZE,
-															filteredBorrowedItems.length
-														)} of {filteredBorrowedItems.length} borrowed entries (active included)
-													</p>
-													<div class="flex items-center gap-1.5">
-														<button
-															type="button"
-															onclick={() =>
-																(borrowedItemsPage = Math.max(1, borrowedItemsPage - 1))}
-															disabled={borrowedItemsPage === 1}
-															class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-															aria-label="Previous borrowed items page"
-														>
-															<svg
-																class="h-4 w-4"
-																viewBox="0 0 20 20"
-																fill="currentColor"
-																aria-hidden="true"
-															>
-																<path
-																	fill-rule="evenodd"
-																	d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-																	clip-rule="evenodd"
-																/>
-															</svg>
-														</button>
-														<nav
-															class="isolate inline-flex items-center gap-1"
-															aria-label="Borrowed items pagination"
-														>
-															{#each borrowedItemsPageTokens as token}
-																{#if token === 'ellipsis'}
-																	<span
-																		class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
-																		>...</span
-																	>
-																{:else}
-																	<button
-																		type="button"
-																		onclick={() => (borrowedItemsPage = token)}
-																		class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {borrowedItemsPage ===
-																		token
-																			? 'bg-pink-600 text-white shadow-sm'
-																			: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
-																	>
-																		{token}
-																	</button>
-																{/if}
-															{/each}
-														</nav>
-														<button
-															type="button"
-															onclick={() =>
-																(borrowedItemsPage = Math.min(
-																	borrowedItemsTotalPages,
-																	borrowedItemsPage + 1
-																))}
-															disabled={borrowedItemsPage === borrowedItemsTotalPages}
-															class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-															aria-label="Next borrowed items page"
-														>
-															<svg
-																class="h-4 w-4"
-																viewBox="0 0 20 20"
-																fill="currentColor"
-																aria-hidden="true"
-															>
-																<path
-																	fill-rule="evenodd"
-																	d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-																	clip-rule="evenodd"
-																/>
-															</svg>
-														</button>
-													</div>
+													{/each}
 												</div>
-											{/if}
-										{/if}
-									</div>
-								</div>
-
-								<div class="rounded-xl border border-gray-200 bg-white p-5">
-									<h3 class="text-lg font-semibold text-gray-900">Borrowers</h3>
-									<p class="mt-1 text-xs text-gray-600">
-										{filteredBorrowers.length} of {report.borrowRequests.borrowers.length} students in
-										the selected range
-									</p>
-									<div class="mt-3">
-										<label
-											for="borrowers-search"
-											class="mb-1 block text-xs font-medium text-gray-600">Search borrowers</label
-										>
-										<div class="relative">
-											<Search
-												size={16}
-												class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
-											/>
-											<input
-												id="borrowers-search"
-												type="text"
-												bind:value={borrowersQuery}
-												placeholder="Search by student name or email"
-												class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
-											/>
-											{#if borrowersQuery}
-												<button
-													type="button"
-													onclick={() => (borrowersQuery = '')}
-													class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-													aria-label="Clear borrowers search"
-												>
-													<X size={14} />
-												</button>
+												{#if borrowersTotalPages > 1}
+													<div
+														class="mt-auto flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
+													>
+														<p class="text-xs text-gray-600">
+															Showing {(borrowersPage - 1) * INVENTORY_PAGE_SIZE + 1}-{Math.min(
+																borrowersPage * INVENTORY_PAGE_SIZE,
+																filteredBorrowers.length
+															)} of {filteredBorrowers.length} borrowers
+														</p>
+														<div class="flex items-center gap-1.5">
+															<button
+																type="button"
+																onclick={() => (borrowersPage = Math.max(1, borrowersPage - 1))}
+																disabled={borrowersPage === 1}
+																class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+																aria-label="Previous borrowers page"
+															>
+																<svg
+																	class="h-4 w-4"
+																	viewBox="0 0 20 20"
+																	fill="currentColor"
+																	aria-hidden="true"
+																>
+																	<path
+																		fill-rule="evenodd"
+																		d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+																		clip-rule="evenodd"
+																	/>
+																</svg>
+															</button>
+															<nav
+																class="isolate inline-flex items-center gap-1"
+																aria-label="Borrowers pagination"
+															>
+																{#each borrowersPageTokens as token}
+																	{#if token === 'ellipsis'}
+																		<span
+																			class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
+																			>...</span
+																		>
+																	{:else}
+																		<button
+																			type="button"
+																			onclick={() => (borrowersPage = token)}
+																			class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {borrowersPage ===
+																			token
+																				? 'bg-pink-600 text-white shadow-sm'
+																				: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
+																		>
+																			{token}
+																		</button>
+																	{/if}
+																{/each}
+															</nav>
+															<button
+																type="button"
+																onclick={() =>
+																	(borrowersPage = Math.min(
+																		borrowersTotalPages,
+																		borrowersPage + 1
+																	))}
+																disabled={borrowersPage === borrowersTotalPages}
+																class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+																aria-label="Next borrowers page"
+															>
+																<svg
+																	class="h-4 w-4"
+																	viewBox="0 0 20 20"
+																	fill="currentColor"
+																	aria-hidden="true"
+																>
+																	<path
+																		fill-rule="evenodd"
+																		d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+																		clip-rule="evenodd"
+																	/>
+																</svg>
+															</button>
+														</div>
+													</div>
+												{/if}
 											{/if}
 										</div>
-									</div>
-									<div class="mt-4 flex min-h-80 flex-col rounded-lg border border-gray-200">
-										{#if report.borrowRequests.borrowers.length === 0}
-											<div
-												class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-											>
-												<div class="max-w-sm">
-													<div
-														class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
-													>
-														<FileText size={32} class="text-pink-600" />
-													</div>
-													<h4 class="mt-6 text-base font-semibold text-gray-900">No borrowers</h4>
-													<p class="mt-2 text-sm leading-6 text-gray-600">
-														Borrower records for the selected range will appear here once requests
-														are logged.
-													</p>
-												</div>
-											</div>
-										{:else if filteredBorrowers.length === 0}
-											<div
-												class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-											>
-												<div class="max-w-sm">
-													<div
-														class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
-													>
-														<Search size={32} class="text-pink-600" />
-													</div>
-													<h4 class="mt-6 text-base font-semibold text-gray-900">
-														No matches found
-													</h4>
-													<p class="mt-2 text-sm leading-6 text-gray-600">
-														Try a different student name or email.
-													</p>
-												</div>
-											</div>
-										{:else}
-											<div class="space-y-2 overflow-y-auto p-3">
-												{#each paginatedBorrowers as borrower}
-													<div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-														<p class="text-sm font-medium text-gray-900">{borrower.studentName}</p>
-														<p class="text-xs text-gray-600">{borrower.studentEmail}</p>
-														<div class="mt-1 flex items-center gap-3 text-xs text-gray-500">
-															<span>{borrower.requestCount} requests</span>
-															<span>&middot;</span>
-															<span>{borrower.totalItems} items</span>
-														</div>
-													</div>
-												{/each}
-											</div>
-											{#if borrowersTotalPages > 1}
-												<div
-													class="mt-auto flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
-												>
-													<p class="text-xs text-gray-600">
-														Showing {(borrowersPage - 1) * INVENTORY_PAGE_SIZE + 1}-{Math.min(
-															borrowersPage * INVENTORY_PAGE_SIZE,
-															filteredBorrowers.length
-														)} of {filteredBorrowers.length} borrowers
-													</p>
-													<div class="flex items-center gap-1.5">
-														<button
-															type="button"
-															onclick={() => (borrowersPage = Math.max(1, borrowersPage - 1))}
-															disabled={borrowersPage === 1}
-															class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-															aria-label="Previous borrowers page"
-														>
-															<svg
-																class="h-4 w-4"
-																viewBox="0 0 20 20"
-																fill="currentColor"
-																aria-hidden="true"
-															>
-																<path
-																	fill-rule="evenodd"
-																	d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-																	clip-rule="evenodd"
-																/>
-															</svg>
-														</button>
-														<nav
-															class="isolate inline-flex items-center gap-1"
-															aria-label="Borrowers pagination"
-														>
-															{#each borrowersPageTokens as token}
-																{#if token === 'ellipsis'}
-																	<span
-																		class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
-																		>...</span
-																	>
-																{:else}
-																	<button
-																		type="button"
-																		onclick={() => (borrowersPage = token)}
-																		class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {borrowersPage ===
-																		token
-																			? 'bg-pink-600 text-white shadow-sm'
-																			: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
-																	>
-																		{token}
-																	</button>
-																{/if}
-															{/each}
-														</nav>
-														<button
-															type="button"
-															onclick={() =>
-																(borrowersPage = Math.min(borrowersTotalPages, borrowersPage + 1))}
-															disabled={borrowersPage === borrowersTotalPages}
-															class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-															aria-label="Next borrowers page"
-														>
-															<svg
-																class="h-4 w-4"
-																viewBox="0 0 20 20"
-																fill="currentColor"
-																aria-hidden="true"
-															>
-																<path
-																	fill-rule="evenodd"
-																	d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-																	clip-rule="evenodd"
-																/>
-															</svg>
-														</button>
-													</div>
-												</div>
-											{/if}
-										{/if}
 									</div>
 								</div>
 							</div>
 						</div>
-					</div>
-				{/if}
+					{/if}
 
-				{#if activeTab === 'loss-damage'}
-					<div data-tab-panel="loss-damage">
-						<div class="space-y-6">
-							<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-								<div
-									class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-								>
-									<div class="min-w-0 flex-1">
-										<p class="text-xs font-semibold text-rose-700">Missing</p>
-										<p class="mt-2 text-3xl font-bold text-rose-700">
-											{lossAndDamageSummary.periodMissing}
-										</p>
-										<p class="mt-1 text-xs text-rose-600">In selected range</p>
+					{#if activeTab === 'loss-damage'}
+						<div data-tab-panel="loss-damage">
+							<div class="space-y-6">
+								<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+									<div
+										class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+									>
+										<div class="min-w-0 flex-1">
+											<p class="text-xs font-semibold text-rose-700">Missing</p>
+											<p class="mt-2 text-3xl font-bold text-rose-700">
+												{lossAndDamageSummary.periodMissing}
+											</p>
+											<p class="mt-1 text-xs text-rose-600">In selected range</p>
+										</div>
+										<div
+											class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100"
+										>
+											<AlertCircle size={20} class="text-rose-600" />
+										</div>
 									</div>
 									<div
-										class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-100"
+										class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
 									>
-										<AlertCircle size={20} class="text-rose-600" />
+										<div class="min-w-0 flex-1">
+											<p class="text-xs font-semibold text-amber-700">Damaged</p>
+											<p class="mt-2 text-3xl font-bold text-amber-700">
+												{lossAndDamageSummary.periodDamaged}
+											</p>
+											<p class="mt-1 text-xs text-amber-600">In selected range</p>
+										</div>
+										<div
+											class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100"
+										>
+											<TriangleAlert size={20} class="text-amber-600" />
+										</div>
+									</div>
+									<div
+										class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+									>
+										<div class="min-w-0 flex-1">
+											<p class="text-xs font-semibold text-pink-700">Total Incidents</p>
+											<p class="mt-2 text-3xl font-bold text-pink-700">
+												{lossAndDamageSummary.periodTotal}
+											</p>
+											<p class="mt-1 text-xs text-pink-600">Missing + Damaged</p>
+										</div>
+										<div
+											class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100"
+										>
+											<CheckCircle2 size={20} class="text-pink-600" />
+										</div>
 									</div>
 								</div>
-								<div
-									class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-								>
-									<div class="min-w-0 flex-1">
-										<p class="text-xs font-semibold text-amber-700">Damaged</p>
-										<p class="mt-2 text-3xl font-bold text-amber-700">
-											{lossAndDamageSummary.periodDamaged}
+
+								<div class="rounded-xl border border-gray-200 bg-white p-5">
+									<div class="mb-4 flex items-center justify-between">
+										<h3 class="text-lg font-semibold text-gray-900">Loss & Damage Tracking</h3>
+										<p class="text-sm text-gray-600">
+											{filteredLossDamageTracking.length} of {report.lossAndDamage.tracking.length} incidents
 										</p>
-										<p class="mt-1 text-xs text-amber-600">In selected range</p>
 									</div>
-									<div
-										class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100"
-									>
-										<TriangleAlert size={20} class="text-amber-600" />
+									<div class="mb-4">
+										<label
+											for="loss-damage-search"
+											class="mb-1 block text-xs font-medium text-gray-600">Search incidents</label
+										>
+										<div class="relative max-w-md">
+											<Search
+												size={16}
+												class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
+											/>
+											<input
+												id="loss-damage-search"
+												type="text"
+												bind:value={lossDamageQuery}
+												placeholder="Search by item, student, type, or status"
+												class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
+											/>
+											{#if lossDamageQuery}
+												<button
+													type="button"
+													onclick={() => (lossDamageQuery = '')}
+													class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+													aria-label="Clear loss and damage search"
+												>
+													<X size={14} />
+												</button>
+											{/if}
+										</div>
+									</div>
+									<div class="overflow-x-auto">
+										<table class="min-w-full divide-y divide-gray-200">
+											<thead class="bg-gray-50">
+												<tr>
+													<th
+														class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
+														>Type</th
+													>
+													<th
+														class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
+														>Item</th
+													>
+													<th
+														class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
+														>Student</th
+													>
+													<th
+														class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
+														>Status</th
+													>
+													<th
+														class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
+														>Incident Date</th
+													>
+													<th
+														class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
+														>Days to Resolve</th
+													>
+													<th
+														class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
+														>Request Status</th
+													>
+												</tr>
+											</thead>
+											<tbody class="divide-y divide-gray-200 bg-white">
+												{#if report.lossAndDamage.tracking.length === 0}
+													<tr>
+														<td colspan="7" class="px-4 py-6">
+															<div
+																class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+															>
+																<div class="max-w-sm">
+																	<div
+																		class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
+																	>
+																		<FileText size={32} class="text-pink-600" />
+																	</div>
+																	<h4 class="mt-6 text-base font-semibold text-gray-900">
+																		No loss or damage incidents
+																	</h4>
+																	<p class="mt-2 text-sm leading-6 text-gray-600">
+																		Items reported as missing or damaged will appear here in the
+																		selected period.
+																	</p>
+																</div>
+															</div>
+														</td>
+													</tr>
+												{:else if filteredLossDamageTracking.length === 0}
+													<tr>
+														<td colspan="7" class="px-4 py-6">
+															<div
+																class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+															>
+																<div class="max-w-sm">
+																	<div
+																		class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
+																	>
+																		<Search size={32} class="text-pink-600" />
+																	</div>
+																	<h4 class="mt-6 text-base font-semibold text-gray-900">
+																		No matches found
+																	</h4>
+																	<p class="mt-2 text-sm leading-6 text-gray-600">
+																		Try a different keyword for incident records.
+																	</p>
+																</div>
+															</div>
+														</td>
+													</tr>
+												{:else}
+													{#each paginatedLossDamageTracking as item}
+														<tr class="hover:bg-gray-50">
+															<td class="px-4 py-3">
+																<span
+																	class="inline-flex rounded-full px-2 py-1 text-xs font-medium {item.type ===
+																	'missing'
+																		? 'bg-rose-100 text-rose-700'
+																		: 'bg-amber-100 text-amber-700'}"
+																>
+																	{item.type}
+																</span>
+															</td>
+															<td class="px-4 py-3">
+																<p class="text-sm font-medium text-gray-900">{item.itemName}</p>
+																<p class="text-xs text-gray-600">{item.itemCategory}</p>
+															</td>
+															<td class="px-4 py-3 text-sm text-gray-900">{item.studentName}</td>
+															<td class="px-4 py-3">
+																<span
+																	class="inline-flex rounded-full px-2 py-1 text-xs font-medium {item.status ===
+																	'pending'
+																		? 'bg-yellow-100 text-yellow-700'
+																		: 'bg-green-100 text-green-700'}"
+																>
+																	{item.status}
+																</span>
+															</td>
+															<td class="px-4 py-3 text-sm text-gray-700"
+																>{new Date(item.incidentDate).toLocaleDateString()}</td
+															>
+															<td
+																class="px-4 py-3 text-sm font-medium {item.daysToResolve
+																	? 'text-gray-900'
+																	: 'text-gray-400'}"
+															>
+																{item.daysToResolve ? `${item.daysToResolve} days` : 'Pending'}
+															</td>
+															<td class="px-4 py-3 text-sm text-gray-700"
+																>{item.requestStatus || 'N/A'}</td
+															>
+														</tr>
+													{/each}
+												{/if}
+											</tbody>
+										</table>
+									</div>
+									{#if lossDamageTotalPages > 1}
+										<div
+											class="mt-3 flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
+										>
+											<p class="text-xs text-gray-600">
+												Showing {(lossDamagePage - 1) * INVENTORY_PAGE_SIZE + 1}-{Math.min(
+													lossDamagePage * INVENTORY_PAGE_SIZE,
+													filteredLossDamageTracking.length
+												)} of {filteredLossDamageTracking.length} incidents
+											</p>
+											<div class="flex items-center gap-1.5">
+												<button
+													type="button"
+													onclick={() => (lossDamagePage = Math.max(1, lossDamagePage - 1))}
+													disabled={lossDamagePage === 1}
+													class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+													aria-label="Previous loss and damage page"
+												>
+													<svg
+														class="h-4 w-4"
+														viewBox="0 0 20 20"
+														fill="currentColor"
+														aria-hidden="true"
+													>
+														<path
+															fill-rule="evenodd"
+															d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+															clip-rule="evenodd"
+														/>
+													</svg>
+												</button>
+												<nav
+													class="isolate inline-flex items-center gap-1"
+													aria-label="Loss and damage pagination"
+												>
+													{#each lossDamagePageTokens as token}
+														{#if token === 'ellipsis'}
+															<span
+																class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
+																>...</span
+															>
+														{:else}
+															<button
+																type="button"
+																onclick={() => (lossDamagePage = token)}
+																class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {lossDamagePage ===
+																token
+																	? 'bg-pink-600 text-white shadow-sm'
+																	: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
+															>
+																{token}
+															</button>
+														{/if}
+													{/each}
+												</nav>
+												<button
+													type="button"
+													onclick={() =>
+														(lossDamagePage = Math.min(lossDamageTotalPages, lossDamagePage + 1))}
+													disabled={lossDamagePage === lossDamageTotalPages}
+													class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+													aria-label="Next loss and damage page"
+												>
+													<svg
+														class="h-4 w-4"
+														viewBox="0 0 20 20"
+														fill="currentColor"
+														aria-hidden="true"
+													>
+														<path
+															fill-rule="evenodd"
+															d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+															clip-rule="evenodd"
+														/>
+													</svg>
+												</button>
+											</div>
+										</div>
+									{/if}
+								</div>
+							</div>
+						</div>
+					{/if}
+
+					{#if activeTab === 'inventory'}
+						<div data-tab-panel="inventory">
+							<div class="space-y-6">
+								<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+									<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+										<div>
+											<h3 class="text-lg font-semibold text-gray-900">Inventory Analytics</h3>
+											<p class="mt-1 text-sm text-gray-600">
+												Selected range: {formatRangeLabel()} (scoped to inventory activity in this period)
+											</p>
+										</div>
+										<p class="text-xs text-gray-500">
+											{inventoryVarianceRows.length} items with variance or overage
+										</p>
+									</div>
+
+									<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+										<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+											<p class="text-sm text-gray-600">Current Count</p>
+											<p class="mt-2 text-2xl font-bold text-gray-900">
+												{numberFmt.format(inventorySummary.currentCount)}
+											</p>
+										</div>
+										<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+											<p class="text-sm text-gray-600">EOM Count</p>
+											<p class="mt-2 text-2xl font-bold text-gray-900">
+												{numberFmt.format(inventorySummary.eomCount)}
+											</p>
+										</div>
+										<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+											<p class="text-sm text-gray-600">Over</p>
+											<p
+												class="mt-2 text-2xl font-bold {inventoryOverTotal > 0
+													? 'text-emerald-700'
+													: 'text-gray-900'}"
+											>
+												{inventoryOverTotal > 0 ? '+' : ''}{numberFmt.format(inventoryOverTotal)}
+											</p>
+										</div>
+										<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+											<p class="text-sm text-gray-600">Variance</p>
+											<p
+												class="mt-2 text-2xl font-bold {inventoryShortTotal < 0
+													? 'text-rose-700'
+													: 'text-gray-900'}"
+											>
+												{numberFmt.format(inventoryShortTotal)}
+											</p>
+										</div>
 									</div>
 								</div>
-								<div
-									class="flex items-start justify-between rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-								>
-									<div class="min-w-0 flex-1">
-										<p class="text-xs font-semibold text-pink-700">Total Incidents</p>
-										<p class="mt-2 text-3xl font-bold text-pink-700">
-											{lossAndDamageSummary.periodTotal}
-										</p>
-										<p class="mt-1 text-xs text-pink-600">Missing + Damaged</p>
-									</div>
+
+								<div class="grid gap-4 lg:grid-cols-2">
 									<div
-										class="ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100"
+										class="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
 									>
-										<CheckCircle2 size={20} class="text-pink-600" />
+										<div class="flex items-center justify-between gap-4">
+											<div>
+												<h3 class="text-lg font-semibold text-gray-900">Variance Items</h3>
+												<p class="mt-1 text-xs text-gray-600">
+													Items where current count differs from EOM count
+												</p>
+											</div>
+											<p class="text-xs text-gray-500">
+												{filteredInventoryVarianceRows.length} of {inventoryVarianceRows.length} items
+											</p>
+										</div>
+
+										<div class="mt-3">
+											<label
+												for="inventory-items-search"
+												class="mb-1 block text-xs font-medium text-gray-600"
+												>Search variance items</label
+											>
+											<div class="relative">
+												<Search
+													size={16}
+													class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
+												/>
+												<input
+													id="inventory-items-search"
+													type="text"
+													bind:value={inventoryItemsQuery}
+													placeholder="Search by item name, category, or counts"
+													class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
+												/>
+												{#if inventoryItemsQuery}
+													<button
+														type="button"
+														onclick={() => (inventoryItemsQuery = '')}
+														class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+														aria-label="Clear variance items search"
+													>
+														<X size={14} />
+													</button>
+												{/if}
+											</div>
+										</div>
+
+										<div class="mt-4 flex flex-1 flex-col">
+											{#if inventoryVarianceRows.length === 0}
+												<div
+													class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+												>
+													<div>
+														<div
+															class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100"
+														>
+															<Package size={32} class="text-pink-600" />
+														</div>
+														<h4 class="mt-6 text-base font-semibold text-gray-900">
+															No inventory variance
+														</h4>
+														<p class="mt-2 max-w-sm text-sm leading-6 text-gray-600">
+															All tracked items are aligned with their EOM counts in the selected
+															range.
+														</p>
+													</div>
+												</div>
+											{:else if filteredInventoryVarianceRows.length === 0}
+												<div
+													class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+												>
+													<div>
+														<div
+															class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100"
+														>
+															<Search size={32} class="text-pink-600" />
+														</div>
+														<h4 class="mt-6 text-base font-semibold text-gray-900">
+															No matches found
+														</h4>
+														<p class="mt-2 max-w-sm text-sm leading-6 text-gray-600">
+															Try a different item name, category, or count value.
+														</p>
+													</div>
+												</div>
+											{:else}
+												<div class="flex flex-1 flex-col gap-2">
+													{#each paginatedVarianceItems as item}
+														<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+															<div class="flex items-start justify-between gap-4">
+																<div class="min-w-0 flex-1">
+																	<p class="truncate text-sm font-semibold text-gray-900">
+																		{item.name}
+																	</p>
+																	<p class="text-xs text-gray-600">{item.category}</p>
+																	<div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+																		<span
+																			class="rounded-full bg-white px-2 py-1 ring-1 ring-gray-200"
+																			>Current {item.quantity}</span
+																		>
+																		<span
+																			class="rounded-full bg-white px-2 py-1 ring-1 ring-gray-200"
+																			>EOM {item.eomCount}</span
+																		>
+																	</div>
+																</div>
+																<div class="text-right">
+																	<p
+																		class="text-lg font-bold {item.variance > 0
+																			? 'text-emerald-700'
+																			: 'text-rose-700'}"
+																	>
+																		{item.variance > 0 ? '+' : ''}{numberFmt.format(item.variance)}
+																	</p>
+																	<span
+																		class="inline-flex rounded-full px-2 py-1 text-xs font-medium {item.variance >
+																		0
+																			? 'bg-pink-100 text-emerald-700'
+																			: 'bg-rose-100 text-rose-700'}"
+																	>
+																		{item.variance > 0 ? 'Over' : 'Short'}
+																	</span>
+																</div>
+															</div>
+														</div>
+													{/each}
+
+													{#if varianceItemsTotalPages > 1}
+														<div
+															class="mt-auto flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
+														>
+															<p class="text-xs text-gray-600">
+																Showing {(varianceItemsPage - 1) * INVENTORY_PAGE_SIZE +
+																	1}-{Math.min(
+																	varianceItemsPage * INVENTORY_PAGE_SIZE,
+																	filteredInventoryVarianceRows.length
+																)} of {filteredInventoryVarianceRows.length} items
+															</p>
+															<div class="flex items-center gap-1.5">
+																<button
+																	type="button"
+																	onclick={() =>
+																		(varianceItemsPage = Math.max(1, varianceItemsPage - 1))}
+																	disabled={varianceItemsPage === 1}
+																	class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+																	aria-label="Previous variance items page"
+																>
+																	<svg
+																		class="h-4 w-4"
+																		viewBox="0 0 20 20"
+																		fill="currentColor"
+																		aria-hidden="true"
+																	>
+																		<path
+																			fill-rule="evenodd"
+																			d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+																			clip-rule="evenodd"
+																		/>
+																	</svg>
+																</button>
+																<nav
+																	class="isolate inline-flex items-center gap-1"
+																	aria-label="Variance items pagination"
+																>
+																	{#each varianceItemsPageTokens as token}
+																		{#if token === 'ellipsis'}
+																			<span
+																				class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
+																				>...</span
+																			>
+																		{:else}
+																			<button
+																				type="button"
+																				onclick={() => (varianceItemsPage = token)}
+																				class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {varianceItemsPage ===
+																				token
+																					? 'bg-pink-600 text-white shadow-sm'
+																					: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
+																			>
+																				{token}
+																			</button>
+																		{/if}
+																	{/each}
+																</nav>
+																<button
+																	type="button"
+																	onclick={() =>
+																		(varianceItemsPage = Math.min(
+																			varianceItemsTotalPages,
+																			varianceItemsPage + 1
+																		))}
+																	disabled={varianceItemsPage === varianceItemsTotalPages}
+																	class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+																	aria-label="Next variance items page"
+																>
+																	<svg
+																		class="h-4 w-4"
+																		viewBox="0 0 20 20"
+																		fill="currentColor"
+																		aria-hidden="true"
+																	>
+																		<path
+																			fill-rule="evenodd"
+																			d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+																			clip-rule="evenodd"
+																		/>
+																	</svg>
+																</button>
+															</div>
+														</div>
+													{/if}
+												</div>
+											{/if}
+										</div>
+									</div>
+
+									<div
+										class="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
+									>
+										<div class="flex items-center justify-between gap-4">
+											<div>
+												<h3 class="text-lg font-semibold text-gray-900">Related Requests</h3>
+												<p class="mt-1 text-xs text-gray-600">
+													Latest request linked to each variance item
+												</p>
+											</div>
+											<p class="text-xs text-gray-500">
+												{filteredRelatedRequestRows.length} of {inventoryVarianceRows.length} records
+											</p>
+										</div>
+
+										<div class="mt-3">
+											<label
+												for="related-requests-search"
+												class="mb-1 block text-xs font-medium text-gray-600"
+												>Search related requests</label
+											>
+											<div class="relative">
+												<Search
+													size={16}
+													class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
+												/>
+												<input
+													id="related-requests-search"
+													type="text"
+													bind:value={relatedRequestsQuery}
+													placeholder="Search by request ID, student, status, or item"
+													class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
+												/>
+												{#if relatedRequestsQuery}
+													<button
+														type="button"
+														onclick={() => (relatedRequestsQuery = '')}
+														class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+														aria-label="Clear related requests search"
+													>
+														<X size={14} />
+													</button>
+												{/if}
+											</div>
+										</div>
+
+										<div class="mt-4 flex flex-1 flex-col">
+											{#if inventoryVarianceRows.length === 0}
+												<div
+													class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+												>
+													<div>
+														<div
+															class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100"
+														>
+															<Package size={32} class="text-pink-600" />
+														</div>
+														<h4 class="mt-6 text-base font-semibold text-gray-900">
+															No request context
+														</h4>
+														<p class="mt-2 max-w-sm text-sm leading-6 text-gray-600">
+															Request context will appear here once inventory items are linked to
+															borrowing activity.
+														</p>
+													</div>
+												</div>
+											{:else if filteredRelatedRequestRows.length === 0}
+												<div
+													class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+												>
+													<div>
+														<div
+															class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100"
+														>
+															<Search size={32} class="text-pink-600" />
+														</div>
+														<h4 class="mt-6 text-base font-semibold text-gray-900">
+															No matches found
+														</h4>
+														<p class="mt-2 max-w-sm text-sm leading-6 text-gray-600">
+															Try a different item name or related count.
+														</p>
+													</div>
+												</div>
+											{:else}
+												<div class="flex flex-1 flex-col gap-2">
+													{#each paginatedRelatedRequestRows as item}
+														{@const driver = report.inventory.varianceDrivers.find(
+															(row) => row.id === item._id
+														)}
+														<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+															<div class="flex items-start justify-between gap-4">
+																<div class="min-w-0 flex-1">
+																	<p class="truncate text-sm font-semibold text-gray-900">
+																		{driver?.latestRequestId
+																			? `REQ-${driver.latestRequestId.slice(-6).toUpperCase()}`
+																			: 'N/A'}
+																	</p>
+																	<p class="text-xs text-gray-600">
+																		{driver?.studentName || 'Unknown student'}
+																	</p>
+																	<p class="mt-2 text-xs text-gray-500">
+																		{driver?.latestRequestDate
+																			? new Date(driver.latestRequestDate).toLocaleDateString(
+																					'en-US',
+																					{ month: 'short', day: 'numeric', year: 'numeric' }
+																				)
+																			: 'No request date'} &middot; {driver?.latestRequestStatus ||
+																			'N/A'}
+																	</p>
+																</div>
+																<div class="text-right">
+																	<p class="text-sm font-medium text-gray-900">{item.name}</p>
+																	<p class="text-xs text-gray-600">
+																		{driver?.requestCount ?? 0} requests
+																	</p>
+																	<p class="mt-1 text-xs text-gray-500">
+																		{driver?.totalBorrowedQuantity ?? 0} total borrowed
+																	</p>
+																</div>
+															</div>
+														</div>
+													{/each}
+
+													{#if relatedRequestsTotalPages > 1}
+														<div
+															class="mt-auto flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
+														>
+															<p class="text-xs text-gray-600">
+																Showing {(relatedRequestsPage - 1) * INVENTORY_PAGE_SIZE +
+																	1}-{Math.min(
+																	relatedRequestsPage * INVENTORY_PAGE_SIZE,
+																	filteredRelatedRequestRows.length
+																)} of {filteredRelatedRequestRows.length} items
+															</p>
+															<div class="flex items-center gap-1.5">
+																<button
+																	type="button"
+																	onclick={() =>
+																		(relatedRequestsPage = Math.max(1, relatedRequestsPage - 1))}
+																	disabled={relatedRequestsPage === 1}
+																	class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+																	aria-label="Previous related requests page"
+																>
+																	<svg
+																		class="h-4 w-4"
+																		viewBox="0 0 20 20"
+																		fill="currentColor"
+																		aria-hidden="true"
+																	>
+																		<path
+																			fill-rule="evenodd"
+																			d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+																			clip-rule="evenodd"
+																		/>
+																	</svg>
+																</button>
+																<nav
+																	class="isolate inline-flex items-center gap-1"
+																	aria-label="Related requests pagination"
+																>
+																	{#each relatedRequestsPageTokens as token}
+																		{#if token === 'ellipsis'}
+																			<span
+																				class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
+																				>...</span
+																			>
+																		{:else}
+																			<button
+																				type="button"
+																				onclick={() => (relatedRequestsPage = token)}
+																				class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {relatedRequestsPage ===
+																				token
+																					? 'bg-pink-600 text-white shadow-sm'
+																					: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
+																			>
+																				{token}
+																			</button>
+																		{/if}
+																	{/each}
+																</nav>
+																<button
+																	type="button"
+																	onclick={() =>
+																		(relatedRequestsPage = Math.min(
+																			relatedRequestsTotalPages,
+																			relatedRequestsPage + 1
+																		))}
+																	disabled={relatedRequestsPage === relatedRequestsTotalPages}
+																	class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+																	aria-label="Next related requests page"
+																>
+																	<svg
+																		class="h-4 w-4"
+																		viewBox="0 0 20 20"
+																		fill="currentColor"
+																		aria-hidden="true"
+																	>
+																		<path
+																			fill-rule="evenodd"
+																			d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+																			clip-rule="evenodd"
+																		/>
+																	</svg>
+																</button>
+															</div>
+														</div>
+													{/if}
+												</div>
+											{/if}
+										</div>
 									</div>
 								</div>
 							</div>
 
-							<div class="rounded-xl border border-gray-200 bg-white p-5">
-								<div class="mb-4 flex items-center justify-between">
-									<h3 class="text-lg font-semibold text-gray-900">Loss & Damage Tracking</h3>
-									<p class="text-sm text-gray-600">
-										{filteredLossDamageTracking.length} of {report.lossAndDamage.tracking.length} incidents
-									</p>
-								</div>
-								<div class="mb-4">
-									<label
-										for="loss-damage-search"
-										class="mb-1 block text-xs font-medium text-gray-600">Search incidents</label
-									>
-									<div class="relative max-w-md">
-										<Search
-											size={16}
-											class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
-										/>
-										<input
-											id="loss-damage-search"
-											type="text"
-											bind:value={lossDamageQuery}
-											placeholder="Search by item, student, type, or status"
-											class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
-										/>
-										{#if lossDamageQuery}
-											<button
-												type="button"
-												onclick={() => (lossDamageQuery = '')}
-												class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-												aria-label="Clear loss and damage search"
-											>
-												<X size={14} />
-											</button>
-										{/if}
+							<div class="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+								<div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+									<div>
+										<h3 class="text-lg font-semibold text-gray-900">Stock Adjustment Activity</h3>
+										<p class="mt-1 text-sm text-gray-600">Inventory modifications</p>
+									</div>
+									<div class="flex gap-3 text-xs">
+										<span class="rounded-lg bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700"
+											>Restocked: {numberFmt.format(
+												inventorySummary.stockAdjustmentsAdded ?? 0
+											)}</span
+										>
+										<span class="rounded-lg bg-rose-50 px-2.5 py-1 font-medium text-rose-700"
+											>Loss/Damage: -{numberFmt.format(
+												inventorySummary.stockAdjustmentsDeducted ?? 0
+											)}</span
+										>
 									</div>
 								</div>
+
 								<div class="overflow-x-auto">
 									<table class="min-w-full divide-y divide-gray-200">
 										<thead class="bg-gray-50">
 											<tr>
 												<th
 													class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-													>Type</th
-												>
-												<th
-													class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
 													>Item</th
 												>
 												<th
 													class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-													>Student</th
+													>Type</th
 												>
 												<th
 													class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-													>Status</th
+													>Quantity</th
 												>
 												<th
 													class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-													>Incident Date</th
+													>Reason / Notes</th
 												>
 												<th
 													class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-													>Days to Resolve</th
-												>
-												<th
-													class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-													>Request Status</th
+													>Date</th
 												>
 											</tr>
 										</thead>
 										<tbody class="divide-y divide-gray-200 bg-white">
-											{#if report.lossAndDamage.tracking.length === 0}
+											{#if !report.inventory.stockAdjustments || report.inventory.stockAdjustments.length === 0}
 												<tr>
-													<td colspan="7" class="px-4 py-6">
-														<div
-															class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-														>
-															<div class="max-w-sm">
-																<div
-																	class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
+													<td colspan="5" class="px-4 py-12 text-center text-sm text-gray-500">
+														<div class="flex flex-col items-center justify-center">
+															<div class="mb-2 rounded-full bg-gray-100 p-3 text-gray-400">
+																<svg
+																	class="h-6 w-6"
+																	fill="none"
+																	viewBox="0 0 24 24"
+																	stroke="currentColor"
 																>
-																	<FileText size={32} class="text-pink-600" />
-																</div>
-																<h4 class="mt-6 text-base font-semibold text-gray-900">
-																	No loss or damage incidents
-																</h4>
-																<p class="mt-2 text-sm leading-6 text-gray-600">
-																	Items reported as missing or damaged will appear here in the
-																	selected period.
-																</p>
+																	<path
+																		stroke-linecap="round"
+																		stroke-linejoin="round"
+																		stroke-width="2"
+																		d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+																	/>
+																</svg>
 															</div>
-														</div>
-													</td>
-												</tr>
-											{:else if filteredLossDamageTracking.length === 0}
-												<tr>
-													<td colspan="7" class="px-4 py-6">
-														<div
-															class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-														>
-															<div class="max-w-sm">
-																<div
-																	class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
-																>
-																	<Search size={32} class="text-pink-600" />
-																</div>
-																<h4 class="mt-6 text-base font-semibold text-gray-900">
-																	No matches found
-																</h4>
-																<p class="mt-2 text-sm leading-6 text-gray-600">
-																	Try a different keyword for incident records.
-																</p>
-															</div>
+															<p class="font-medium text-gray-900">No stock adjustments logged</p>
+															<p class="mt-1 text-xs text-gray-600">
+																Manual inventory adjustments will appear here in the selected
+																period.
+															</p>
 														</div>
 													</td>
 												</tr>
 											{:else}
-												{#each paginatedLossDamageTracking as item}
+												{#each report.inventory.stockAdjustments as adj}
 													<tr class="hover:bg-gray-50">
-														<td class="px-4 py-3">
-															<span
-																class="inline-flex rounded-full px-2 py-1 text-xs font-medium {item.type ===
-																'missing'
-																	? 'bg-rose-100 text-rose-700'
-																	: 'bg-amber-100 text-amber-700'}"
-															>
-																{item.type}
-															</span>
-														</td>
-														<td class="px-4 py-3">
-															<p class="text-sm font-medium text-gray-900">{item.itemName}</p>
-															<p class="text-xs text-gray-600">{item.itemCategory}</p>
-														</td>
-														<td class="px-4 py-3 text-sm text-gray-900">{item.studentName}</td>
-														<td class="px-4 py-3">
-															<span
-																class="inline-flex rounded-full px-2 py-1 text-xs font-medium {item.status ===
-																'pending'
-																	? 'bg-yellow-100 text-yellow-700'
-																	: 'bg-green-100 text-green-700'}"
-															>
-																{item.status}
-															</span>
-														</td>
-														<td class="px-4 py-3 text-sm text-gray-700"
-															>{new Date(item.incidentDate).toLocaleDateString()}</td
+														<td class="px-4 py-3 text-sm font-semibold text-gray-900"
+															>{adj.itemName}</td
 														>
+														<td class="px-4 py-3 text-sm">
+															<span
+																class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {adj.quantity >
+																0
+																	? 'bg-emerald-100 text-emerald-800'
+																	: 'bg-rose-100 text-rose-800'}"
+															>
+																{adj.quantity > 0 ? 'Restock' : 'Loss/Damage'}
+															</span>
+														</td>
 														<td
-															class="px-4 py-3 text-sm font-medium {item.daysToResolve
-																? 'text-gray-900'
-																: 'text-gray-400'}"
+															class="px-4 py-3 text-sm font-bold {adj.quantity > 0
+																? 'text-emerald-700'
+																: 'text-rose-700'}"
 														>
-															{item.daysToResolve ? `${item.daysToResolve} days` : 'Pending'}
+															{adj.quantity > 0 ? '+' : ''}{adj.quantity}
 														</td>
-														<td class="px-4 py-3 text-sm text-gray-700"
-															>{item.requestStatus || 'N/A'}</td
-														>
+														<td class="px-4 py-3 text-sm text-gray-600">
+															{#if adj.purpose && !['Manual Stock Restock', 'Manual Stock Damage/Loss', 'Restock', 'Damage/Loss'].includes(adj.purpose)}
+																<div class="font-medium text-gray-800">
+																	{adj.purpose}
+																</div>
+																{#if adj.notes}
+																	<div class="mt-0.5 text-xs text-gray-500">{adj.notes}</div>
+																{/if}
+															{:else}
+																<div class="text-gray-800">
+																	{#if adj.notes}
+																		{adj.notes}
+																	{:else}
+																		<span class="text-gray-400 italic">No notes provided</span>
+																	{/if}
+																</div>
+															{/if}
+														</td>
+														<td class="px-4 py-3 text-sm text-gray-500">
+															{new Date(adj.createdAt || adj.date).toLocaleDateString(undefined, {
+																month: 'short',
+																day: 'numeric',
+																year: 'numeric',
+																hour: '2-digit',
+																minute: '2-digit'
+															})}
+														</td>
 													</tr>
 												{/each}
 											{/if}
 										</tbody>
 									</table>
 								</div>
-								{#if lossDamageTotalPages > 1}
-									<div
-										class="mt-3 flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
-									>
-										<p class="text-xs text-gray-600">
-											Showing {(lossDamagePage - 1) * INVENTORY_PAGE_SIZE + 1}-{Math.min(
-												lossDamagePage * INVENTORY_PAGE_SIZE,
-												filteredLossDamageTracking.length
-											)} of {filteredLossDamageTracking.length} incidents
-										</p>
-										<div class="flex items-center gap-1.5">
-											<button
-												type="button"
-												onclick={() => (lossDamagePage = Math.max(1, lossDamagePage - 1))}
-												disabled={lossDamagePage === 1}
-												class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-												aria-label="Previous loss and damage page"
-											>
-												<svg
-													class="h-4 w-4"
-													viewBox="0 0 20 20"
-													fill="currentColor"
-													aria-hidden="true"
-												>
-													<path
-														fill-rule="evenodd"
-														d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-														clip-rule="evenodd"
-													/>
-												</svg>
-											</button>
-											<nav
-												class="isolate inline-flex items-center gap-1"
-												aria-label="Loss and damage pagination"
-											>
-												{#each lossDamagePageTokens as token}
-													{#if token === 'ellipsis'}
-														<span
-															class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
-															>...</span
-														>
-													{:else}
-														<button
-															type="button"
-															onclick={() => (lossDamagePage = token)}
-															class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {lossDamagePage ===
-															token
-																? 'bg-pink-600 text-white shadow-sm'
-																: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
-														>
-															{token}
-														</button>
-													{/if}
-												{/each}
-											</nav>
-											<button
-												type="button"
-												onclick={() =>
-													(lossDamagePage = Math.min(lossDamageTotalPages, lossDamagePage + 1))}
-												disabled={lossDamagePage === lossDamageTotalPages}
-												class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-												aria-label="Next loss and damage page"
-											>
-												<svg
-													class="h-4 w-4"
-													viewBox="0 0 20 20"
-													fill="currentColor"
-													aria-hidden="true"
-												>
-													<path
-														fill-rule="evenodd"
-														d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-														clip-rule="evenodd"
-													/>
-												</svg>
-											</button>
-										</div>
-									</div>
-								{/if}
 							</div>
 						</div>
-					</div>
-				{/if}
+					{/if}
 
-				{#if activeTab === 'inventory'}
-					<div data-tab-panel="inventory">
-						<div class="space-y-6">
-							<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-								<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-									<div>
-										<h3 class="text-lg font-semibold text-gray-900">Inventory Analytics</h3>
-										<p class="mt-1 text-sm text-gray-600">
-											Selected range: {formatRangeLabel()} (scoped to inventory activity in this period)
-										</p>
-									</div>
-									<p class="text-xs text-gray-500">
-										{inventoryVarianceRows.length} items with variance or overage
-									</p>
-								</div>
-
-								<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-									<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-										<p class="text-sm text-gray-600">Current Count</p>
-										<p class="mt-2 text-2xl font-bold text-gray-900">
-											{numberFmt.format(inventorySummary.currentCount)}
-										</p>
-									</div>
-									<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-										<p class="text-sm text-gray-600">EOM Count</p>
-										<p class="mt-2 text-2xl font-bold text-gray-900">
-											{numberFmt.format(inventorySummary.eomCount)}
-										</p>
-									</div>
-									<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-										<p class="text-sm text-gray-600">Over</p>
-										<p
-											class="mt-2 text-2xl font-bold {inventoryOverTotal > 0
-												? 'text-emerald-700'
-												: 'text-gray-900'}"
-										>
-											{inventoryOverTotal > 0 ? '+' : ''}{numberFmt.format(inventoryOverTotal)}
-										</p>
-									</div>
-									<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-										<p class="text-sm text-gray-600">Variance</p>
-										<p
-											class="mt-2 text-2xl font-bold {inventoryShortTotal < 0
-												? 'text-rose-700'
-												: 'text-gray-900'}"
-										>
-											{numberFmt.format(inventoryShortTotal)}
-										</p>
-									</div>
-								</div>
-							</div>
-
-							<div class="grid gap-4 lg:grid-cols-2">
-								<div
-									class="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-								>
-									<div class="flex items-center justify-between gap-4">
+					{#if activeTab === 'students'}
+						<div data-tab-panel="students">
+							<div class="space-y-6">
+								<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+									<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
 										<div>
-											<h3 class="text-lg font-semibold text-gray-900">Variance Items</h3>
-											<p class="mt-1 text-xs text-gray-600">
-												Items where current count differs from EOM count
-											</p>
+											<h3 class="text-lg font-semibold text-gray-900">Student Risk Overview</h3>
+											<p class="mt-1 text-sm text-gray-600">Selected range: {formatRangeLabel()}</p>
 										</div>
 										<p class="text-xs text-gray-500">
-											{filteredInventoryVarianceRows.length} of {inventoryVarianceRows.length} items
+											Trust score visibility for all tracked students
 										</p>
 									</div>
 
-									<div class="mt-3">
-										<label
-											for="inventory-items-search"
-											class="mb-1 block text-xs font-medium text-gray-600"
-											>Search variance items</label
-										>
-										<div class="relative">
-											<Search
-												size={16}
-												class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
-											/>
-											<input
-												id="inventory-items-search"
-												type="text"
-												bind:value={inventoryItemsQuery}
-												placeholder="Search by item name, category, or counts"
-												class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
-											/>
-											{#if inventoryItemsQuery}
-												<button
-													type="button"
-													onclick={() => (inventoryItemsQuery = '')}
-													class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-													aria-label="Clear variance items search"
-												>
-													<X size={14} />
-												</button>
-											{/if}
-										</div>
-									</div>
-
-									<div class="mt-4 flex flex-1 flex-col">
-										{#if inventoryVarianceRows.length === 0}
-											<div
-												class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-											>
-												<div>
-													<div
-														class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100"
-													>
-														<Package size={32} class="text-pink-600" />
-													</div>
-													<h4 class="mt-6 text-base font-semibold text-gray-900">
-														No inventory variance
-													</h4>
-													<p class="mt-2 max-w-sm text-sm leading-6 text-gray-600">
-														All tracked items are aligned with their EOM counts in the selected
-														range.
-													</p>
-												</div>
-											</div>
-										{:else if filteredInventoryVarianceRows.length === 0}
-											<div
-												class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-											>
-												<div>
-													<div
-														class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100"
-													>
-														<Search size={32} class="text-pink-600" />
-													</div>
-													<h4 class="mt-6 text-base font-semibold text-gray-900">
-														No matches found
-													</h4>
-													<p class="mt-2 max-w-sm text-sm leading-6 text-gray-600">
-														Try a different item name, category, or count value.
-													</p>
-												</div>
-											</div>
-										{:else}
-											<div class="flex flex-1 flex-col gap-2">
-												{#each paginatedVarianceItems as item}
-													<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-														<div class="flex items-start justify-between gap-4">
-															<div class="min-w-0 flex-1">
-																<p class="truncate text-sm font-semibold text-gray-900">
-																	{item.name}
-																</p>
-																<p class="text-xs text-gray-600">{item.category}</p>
-																<div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
-																	<span class="rounded-full bg-white px-2 py-1 ring-1 ring-gray-200"
-																		>Current {item.quantity}</span
-																	>
-																	<span class="rounded-full bg-white px-2 py-1 ring-1 ring-gray-200"
-																		>EOM {item.eomCount}</span
-																	>
-																</div>
-															</div>
-															<div class="text-right">
-																<p
-																	class="text-lg font-bold {item.variance > 0
-																		? 'text-emerald-700'
-																		: 'text-rose-700'}"
-																>
-																	{item.variance > 0 ? '+' : ''}{numberFmt.format(item.variance)}
-																</p>
-																<span
-																	class="inline-flex rounded-full px-2 py-1 text-xs font-medium {item.variance >
-																	0
-																		? 'bg-pink-100 text-emerald-700'
-																		: 'bg-rose-100 text-rose-700'}"
-																>
-																	{item.variance > 0 ? 'Over' : 'Short'}
-																</span>
-															</div>
-														</div>
-													</div>
-												{/each}
-
-												{#if varianceItemsTotalPages > 1}
-													<div
-														class="mt-auto flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
-													>
-														<p class="text-xs text-gray-600">
-															Showing {(varianceItemsPage - 1) * INVENTORY_PAGE_SIZE + 1}-{Math.min(
-																varianceItemsPage * INVENTORY_PAGE_SIZE,
-																filteredInventoryVarianceRows.length
-															)} of {filteredInventoryVarianceRows.length} items
-														</p>
-														<div class="flex items-center gap-1.5">
-															<button
-																type="button"
-																onclick={() =>
-																	(varianceItemsPage = Math.max(1, varianceItemsPage - 1))}
-																disabled={varianceItemsPage === 1}
-																class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-																aria-label="Previous variance items page"
-															>
-																<svg
-																	class="h-4 w-4"
-																	viewBox="0 0 20 20"
-																	fill="currentColor"
-																	aria-hidden="true"
-																>
-																	<path
-																		fill-rule="evenodd"
-																		d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-																		clip-rule="evenodd"
-																	/>
-																</svg>
-															</button>
-															<nav
-																class="isolate inline-flex items-center gap-1"
-																aria-label="Variance items pagination"
-															>
-																{#each varianceItemsPageTokens as token}
-																	{#if token === 'ellipsis'}
-																		<span
-																			class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
-																			>...</span
-																		>
-																	{:else}
-																		<button
-																			type="button"
-																			onclick={() => (varianceItemsPage = token)}
-																			class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {varianceItemsPage ===
-																			token
-																				? 'bg-pink-600 text-white shadow-sm'
-																				: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
-																		>
-																			{token}
-																		</button>
-																	{/if}
-																{/each}
-															</nav>
-															<button
-																type="button"
-																onclick={() =>
-																	(varianceItemsPage = Math.min(
-																		varianceItemsTotalPages,
-																		varianceItemsPage + 1
-																	))}
-																disabled={varianceItemsPage === varianceItemsTotalPages}
-																class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-																aria-label="Next variance items page"
-															>
-																<svg
-																	class="h-4 w-4"
-																	viewBox="0 0 20 20"
-																	fill="currentColor"
-																	aria-hidden="true"
-																>
-																	<path
-																		fill-rule="evenodd"
-																		d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-																		clip-rule="evenodd"
-																	/>
-																</svg>
-															</button>
-														</div>
-													</div>
-												{/if}
-											</div>
-										{/if}
-									</div>
-								</div>
-
-								<div
-									class="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-								>
-									<div class="flex items-center justify-between gap-4">
-										<div>
-											<h3 class="text-lg font-semibold text-gray-900">Related Requests</h3>
-											<p class="mt-1 text-xs text-gray-600">
-												Latest request linked to each variance item
-											</p>
-										</div>
-										<p class="text-xs text-gray-500">
-											{filteredRelatedRequestRows.length} of {inventoryVarianceRows.length} records
-										</p>
-									</div>
-
-									<div class="mt-3">
-										<label
-											for="related-requests-search"
-											class="mb-1 block text-xs font-medium text-gray-600"
-											>Search related requests</label
-										>
-										<div class="relative">
-											<Search
-												size={16}
-												class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
-											/>
-											<input
-												id="related-requests-search"
-												type="text"
-												bind:value={relatedRequestsQuery}
-												placeholder="Search by request ID, student, status, or item"
-												class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
-											/>
-											{#if relatedRequestsQuery}
-												<button
-													type="button"
-													onclick={() => (relatedRequestsQuery = '')}
-													class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-													aria-label="Clear related requests search"
-												>
-													<X size={14} />
-												</button>
-											{/if}
-										</div>
-									</div>
-
-									<div class="mt-4 flex flex-1 flex-col">
-										{#if inventoryVarianceRows.length === 0}
-											<div
-												class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-											>
-												<div>
-													<div
-														class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100"
-													>
-														<Package size={32} class="text-pink-600" />
-													</div>
-													<h4 class="mt-6 text-base font-semibold text-gray-900">
-														No request context
-													</h4>
-													<p class="mt-2 max-w-sm text-sm leading-6 text-gray-600">
-														Request context will appear here once inventory items are linked to
-														borrowing activity.
-													</p>
-												</div>
-											</div>
-										{:else if filteredRelatedRequestRows.length === 0}
-											<div
-												class="flex min-h-70 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-											>
-												<div>
-													<div
-														class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gray-100"
-													>
-														<Search size={32} class="text-pink-600" />
-													</div>
-													<h4 class="mt-6 text-base font-semibold text-gray-900">
-														No matches found
-													</h4>
-													<p class="mt-2 max-w-sm text-sm leading-6 text-gray-600">
-														Try a different item name or related count.
-													</p>
-												</div>
-											</div>
-										{:else}
-											<div class="flex flex-1 flex-col gap-2">
-												{#each paginatedRelatedRequestRows as item}
-													{@const driver = report.inventory.varianceDrivers.find(
-														(row) => row.id === item._id
-													)}
-													<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-														<div class="flex items-start justify-between gap-4">
-															<div class="min-w-0 flex-1">
-																<p class="truncate text-sm font-semibold text-gray-900">
-																	{driver?.latestRequestId
-																		? `REQ-${driver.latestRequestId.slice(-6).toUpperCase()}`
-																		: 'N/A'}
-																</p>
-																<p class="text-xs text-gray-600">
-																	{driver?.studentName || 'Unknown student'}
-																</p>
-																<p class="mt-2 text-xs text-gray-500">
-																	{driver?.latestRequestDate
-																		? new Date(driver.latestRequestDate).toLocaleDateString(
-																				'en-US',
-																				{ month: 'short', day: 'numeric', year: 'numeric' }
-																			)
-																		: 'No request date'} &middot; {driver?.latestRequestStatus ||
-																		'N/A'}
-																</p>
-															</div>
-															<div class="text-right">
-																<p class="text-sm font-medium text-gray-900">{item.name}</p>
-																<p class="text-xs text-gray-600">
-																	{driver?.requestCount ?? 0} requests
-																</p>
-																<p class="mt-1 text-xs text-gray-500">
-																	{driver?.totalBorrowedQuantity ?? 0} total borrowed
-																</p>
-															</div>
-														</div>
-													</div>
-												{/each}
-
-												{#if relatedRequestsTotalPages > 1}
-													<div
-														class="mt-auto flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
-													>
-														<p class="text-xs text-gray-600">
-															Showing {(relatedRequestsPage - 1) * INVENTORY_PAGE_SIZE +
-																1}-{Math.min(
-																relatedRequestsPage * INVENTORY_PAGE_SIZE,
-																filteredRelatedRequestRows.length
-															)} of {filteredRelatedRequestRows.length} items
-														</p>
-														<div class="flex items-center gap-1.5">
-															<button
-																type="button"
-																onclick={() =>
-																	(relatedRequestsPage = Math.max(1, relatedRequestsPage - 1))}
-																disabled={relatedRequestsPage === 1}
-																class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-																aria-label="Previous related requests page"
-															>
-																<svg
-																	class="h-4 w-4"
-																	viewBox="0 0 20 20"
-																	fill="currentColor"
-																	aria-hidden="true"
-																>
-																	<path
-																		fill-rule="evenodd"
-																		d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-																		clip-rule="evenodd"
-																	/>
-																</svg>
-															</button>
-															<nav
-																class="isolate inline-flex items-center gap-1"
-																aria-label="Related requests pagination"
-															>
-																{#each relatedRequestsPageTokens as token}
-																	{#if token === 'ellipsis'}
-																		<span
-																			class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
-																			>...</span
-																		>
-																	{:else}
-																		<button
-																			type="button"
-																			onclick={() => (relatedRequestsPage = token)}
-																			class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {relatedRequestsPage ===
-																			token
-																				? 'bg-pink-600 text-white shadow-sm'
-																				: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
-																		>
-																			{token}
-																		</button>
-																	{/if}
-																{/each}
-															</nav>
-															<button
-																type="button"
-																onclick={() =>
-																	(relatedRequestsPage = Math.min(
-																		relatedRequestsTotalPages,
-																		relatedRequestsPage + 1
-																	))}
-																disabled={relatedRequestsPage === relatedRequestsTotalPages}
-																class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-																aria-label="Next related requests page"
-															>
-																<svg
-																	class="h-4 w-4"
-																	viewBox="0 0 20 20"
-																	fill="currentColor"
-																	aria-hidden="true"
-																>
-																	<path
-																		fill-rule="evenodd"
-																		d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-																		clip-rule="evenodd"
-																	/>
-																</svg>
-															</button>
-														</div>
-													</div>
-												{/if}
-											</div>
-										{/if}
-									</div>
-								</div>
-							</div>
-						</div>
-
-						<div class="mt-6 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-							<div class="mb-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-								<div>
-									<h3 class="text-lg font-semibold text-gray-900">Stock Adjustment Activity</h3>
-									<p class="mt-1 text-sm text-gray-600">Inventory modifications</p>
-								</div>
-								<div class="flex gap-3 text-xs">
-									<span class="rounded-lg bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700"
-										>Restocked: {numberFmt.format(
-											inventorySummary.stockAdjustmentsAdded ?? 0
-										)}</span
-									>
-									<span class="rounded-lg bg-rose-50 px-2.5 py-1 font-medium text-rose-700"
-										>Loss/Damage: -{numberFmt.format(
-											inventorySummary.stockAdjustmentsDeducted ?? 0
-										)}</span
-									>
-								</div>
-							</div>
-
-							<div class="overflow-x-auto">
-								<table class="min-w-full divide-y divide-gray-200">
-									<thead class="bg-gray-50">
-										<tr>
-											<th
-												class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-												>Item</th
-											>
-											<th
-												class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-												>Type</th
-											>
-											<th
-												class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-												>Quantity</th
-											>
-											<th
-												class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-												>Reason / Notes</th
-											>
-											<th
-												class="px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-600 uppercase"
-												>Date</th
-											>
-										</tr>
-									</thead>
-									<tbody class="divide-y divide-gray-200 bg-white">
-										{#if !report.inventory.stockAdjustments || report.inventory.stockAdjustments.length === 0}
-											<tr>
-												<td colspan="5" class="px-4 py-12 text-center text-sm text-gray-500">
-													<div class="flex flex-col items-center justify-center">
-														<div class="mb-2 rounded-full bg-gray-100 p-3 text-gray-400">
-															<svg
-																class="h-6 w-6"
-																fill="none"
-																viewBox="0 0 24 24"
-																stroke="currentColor"
-															>
-																<path
-																	stroke-linecap="round"
-																	stroke-linejoin="round"
-																	stroke-width="2"
-																	d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-																/>
-															</svg>
-														</div>
-														<p class="font-medium text-gray-900">No stock adjustments logged</p>
-														<p class="mt-1 text-xs text-gray-600">
-															Manual inventory adjustments will appear here in the selected period.
-														</p>
-													</div>
-												</td>
-											</tr>
-										{:else}
-											{#each report.inventory.stockAdjustments as adj}
-												<tr class="hover:bg-gray-50">
-													<td class="px-4 py-3 text-sm font-semibold text-gray-900"
-														>{adj.itemName}</td
-													>
-													<td class="px-4 py-3 text-sm">
-														<span
-															class="inline-flex rounded-full px-2 py-0.5 text-xs font-medium {adj.quantity >
-															0
-																? 'bg-emerald-100 text-emerald-800'
-																: 'bg-rose-100 text-rose-800'}"
-														>
-															{adj.quantity > 0 ? 'Restock' : 'Loss/Damage'}
-														</span>
-													</td>
-													<td
-														class="px-4 py-3 text-sm font-bold {adj.quantity > 0
-															? 'text-emerald-700'
-															: 'text-rose-700'}"
-													>
-														{adj.quantity > 0 ? '+' : ''}{adj.quantity}
-													</td>
-													<td class="px-4 py-3 text-sm text-gray-600">
-														{#if adj.purpose && !['Manual Stock Restock', 'Manual Stock Damage/Loss', 'Restock', 'Damage/Loss'].includes(adj.purpose)}
-															<div class="font-medium text-gray-800">
-																{adj.purpose}
-															</div>
-															{#if adj.notes}
-																<div class="mt-0.5 text-xs text-gray-500">{adj.notes}</div>
-															{/if}
-														{:else}
-															<div class="text-gray-800">
-																{#if adj.notes}
-																	{adj.notes}
-																{:else}
-																	<span class="text-gray-400 italic">No notes provided</span>
-																{/if}
-															</div>
-														{/if}
-													</td>
-													<td class="px-4 py-3 text-sm text-gray-500">
-														{new Date(adj.createdAt || adj.date).toLocaleDateString(undefined, {
-															month: 'short',
-															day: 'numeric',
-															year: 'numeric',
-															hour: '2-digit',
-															minute: '2-digit'
-														})}
-													</td>
-												</tr>
-											{/each}
-										{/if}
-									</tbody>
-								</table>
-							</div>
-						</div>
-					</div>
-				{/if}
-
-				{#if activeTab === 'students'}
-					<div data-tab-panel="students">
-						<div class="space-y-6">
-							<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-								<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-									<div>
-										<h3 class="text-lg font-semibold text-gray-900">Student Risk Overview</h3>
-										<p class="mt-1 text-sm text-gray-600">Selected range: {formatRangeLabel()}</p>
-									</div>
-									<p class="text-xs text-gray-500">
-										Trust score visibility for all tracked students
-									</p>
-								</div>
-
-								{#if studentTrustScores.length === 0}
-									<div
-										class="mt-4 flex min-h-55 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-									>
-										<div class="max-w-sm">
-											<div
-												class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
-											>
-												<Users size={32} class="text-pink-600" />
-											</div>
-											<h4 class="mt-6 text-base font-semibold text-gray-900">
-												No student risk data
-											</h4>
-											<p class="mt-2 text-sm leading-6 text-gray-600">
-												Summary metrics will appear here once student activity exists in the
-												selected range.
-											</p>
-										</div>
-									</div>
-								{:else}
-									<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-										<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-											<p class="text-sm text-gray-600">Students</p>
-											<p class="mt-2 text-2xl font-bold text-gray-900">
-												{numberFmt.format(studentTrustScores.length)}
-											</p>
-										</div>
-										<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-											<p class="text-sm text-gray-600">Average Trust Score</p>
-											<p class="mt-2 text-2xl font-bold text-pink-700">{averageTrustScore}</p>
-										</div>
-										<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
-											<p class="text-sm text-gray-600">High Incident Students</p>
-											<p class="mt-2 text-2xl font-bold text-amber-700">
-												{numberFmt.format(report.studentRisk.highIncidentStudents.length)}
-											</p>
-										</div>
-									</div>
-								{/if}
-							</div>
-
-							<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-								<div class="flex items-center justify-between gap-4">
-									<div>
-										<h3 class="text-lg font-semibold text-gray-900">Student Trust Scores</h3>
-										<p class="mt-1 text-xs text-gray-600">
-											Sorted from highest risk to strongest standing
-										</p>
-									</div>
-									<p class="text-xs text-gray-500">
-										{filteredStudentTrustScores.length} of {studentTrustScores.length} students
-									</p>
-								</div>
-
-								<div class="mt-3">
-									<label
-										for="student-trust-search"
-										class="mb-1 block text-xs font-medium text-gray-600">Search students</label
-									>
-									<div class="relative max-w-md">
-										<Search
-											size={16}
-											class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
-										/>
-										<input
-											id="student-trust-search"
-											type="text"
-											bind:value={studentTrustQuery}
-											placeholder="Search by student name, email, or trust tier"
-											class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
-										/>
-										{#if studentTrustQuery}
-											<button
-												type="button"
-												onclick={() => (studentTrustQuery = '')}
-												class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
-												aria-label="Clear student trust search"
-											>
-												<X size={14} />
-											</button>
-										{/if}
-									</div>
-								</div>
-
-								<div class="mt-4 flex min-h-80 flex-col rounded-lg border border-gray-200">
 									{#if studentTrustScores.length === 0}
 										<div
-											class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+											class="mt-4 flex min-h-55 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
 										>
 											<div class="max-w-sm">
 												<div
@@ -2512,173 +2485,486 @@
 													<Users size={32} class="text-pink-600" />
 												</div>
 												<h4 class="mt-6 text-base font-semibold text-gray-900">
-													No trust score data
+													No student risk data
 												</h4>
 												<p class="mt-2 text-sm leading-6 text-gray-600">
-													Student trust scores will appear here once activity exists in the selected
-													date range.
-												</p>
-											</div>
-										</div>
-									{:else if filteredStudentTrustScores.length === 0}
-										<div
-											class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
-										>
-											<div class="max-w-sm">
-												<div
-													class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
-												>
-													<Search size={32} class="text-pink-600" />
-												</div>
-												<h4 class="mt-6 text-base font-semibold text-gray-900">No matches found</h4>
-												<p class="mt-2 text-sm leading-6 text-gray-600">
-													Try a different student name, email, or trust tier keyword.
+													Summary metrics will appear here once student activity exists in the
+													selected range.
 												</p>
 											</div>
 										</div>
 									{:else}
-										<div class="space-y-2 overflow-y-auto p-3">
-											{#each paginatedStudentTrustScores as student}
-												<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
-													<div class="flex items-start justify-between gap-4">
-														<div class="min-w-0 flex-1">
-															<div class="flex flex-wrap items-center gap-2">
-																<p class="truncate text-sm font-semibold text-gray-900">
-																	{student.studentName || 'Unknown Student'}
-																</p>
-																<span
-																	class="inline-flex rounded-full px-2 py-1 text-xs font-medium {getTrustTierClasses(
-																		student.trustTier
-																	)}">{student.trustTierLabel || 'Unrated'}</span
-																>
-															</div>
-															<p class="text-xs text-gray-600">{student.studentEmail || 'N/A'}</p>
-															<div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
-																<span class="rounded-full bg-white px-2 py-1 ring-1 ring-gray-200"
-																	>Requests {student.requestsTotal ?? 0}</span
-																>
-																<span class="rounded-full bg-white px-2 py-1 ring-1 ring-gray-200"
-																	>Returned {student.requestsReturned ?? 0}</span
-																>
-																<span class="rounded-full bg-white px-2 py-1 ring-1 ring-gray-200"
-																	>Obligations {student.activeObligations ?? 0}</span
-																>
-															</div>
-														</div>
-														<div class="w-28 shrink-0 text-right">
-															<p
-																class="text-2xl font-bold {getTrustScoreTextClass(
-																	student.trustTier
-																)}"
-															>
-																{Math.round(student.trustScore ?? 0)}
-															</p>
-															<p
-																class="text-[11px] font-medium tracking-wide text-gray-500 uppercase"
-															>
-																Trust Score
-															</p>
-														</div>
-													</div>
-													<div class="mt-3 h-2 rounded-full bg-gray-200">
-														<div
-															class="h-2 rounded-full {getTrustBarClasses(student.trustScore)}"
-															style={`width: ${Math.max(0, Math.min(100, student.trustScore ?? 0))}%`}
-														></div>
-													</div>
-												</div>
-											{/each}
-										</div>
-										{#if studentTrustTotalPages > 1}
-											<div
-												class="mt-auto flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
-											>
-												<p class="text-xs text-gray-600">
-													Showing {(studentTrustPage - 1) * INVENTORY_PAGE_SIZE + 1}-{Math.min(
-														studentTrustPage * INVENTORY_PAGE_SIZE,
-														filteredStudentTrustScores.length
-													)} of {filteredStudentTrustScores.length} students
+										<div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+											<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+												<p class="text-sm text-gray-600">Students</p>
+												<p class="mt-2 text-2xl font-bold text-gray-900">
+													{numberFmt.format(studentTrustScores.length)}
 												</p>
-												<div class="flex items-center gap-1.5">
-													<button
-														type="button"
-														onclick={() => (studentTrustPage = Math.max(1, studentTrustPage - 1))}
-														disabled={studentTrustPage === 1}
-														class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-														aria-label="Previous student trust page"
+											</div>
+											<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+												<p class="text-sm text-gray-600">Average Trust Score</p>
+												<p class="mt-2 text-2xl font-bold text-pink-700">{averageTrustScore}</p>
+											</div>
+											<div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
+												<p class="text-sm text-gray-600">High Incident Students</p>
+												<p class="mt-2 text-2xl font-bold text-amber-700">
+													{numberFmt.format(report.studentRisk.highIncidentStudents.length)}
+												</p>
+											</div>
+										</div>
+									{/if}
+								</div>
+
+								<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+									<div class="flex items-center justify-between gap-4">
+										<div>
+											<h3 class="text-lg font-semibold text-gray-900">Student Trust Scores</h3>
+											<p class="mt-1 text-xs text-gray-600">
+												Sorted from highest risk to strongest standing
+											</p>
+										</div>
+										<p class="text-xs text-gray-500">
+											{filteredStudentTrustScores.length} of {studentTrustScores.length} students
+										</p>
+									</div>
+
+									<div class="mt-3">
+										<label
+											for="student-trust-search"
+											class="mb-1 block text-xs font-medium text-gray-600">Search students</label
+										>
+										<div class="relative max-w-md">
+											<Search
+												size={16}
+												class="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400"
+											/>
+											<input
+												id="student-trust-search"
+												type="text"
+												bind:value={studentTrustQuery}
+												placeholder="Search by student name, email, or trust tier"
+												class="w-full rounded-lg border border-gray-300 bg-white py-2 pr-9 pl-9 text-sm text-gray-900 placeholder:text-gray-400 focus:border-pink-500 focus:ring-2 focus:ring-pink-200 focus:outline-none"
+											/>
+											{#if studentTrustQuery}
+												<button
+													type="button"
+													onclick={() => (studentTrustQuery = '')}
+													class="absolute top-1/2 right-2 -translate-y-1/2 rounded p-1 text-gray-500 transition hover:bg-gray-100 hover:text-gray-700"
+													aria-label="Clear student trust search"
+												>
+													<X size={14} />
+												</button>
+											{/if}
+										</div>
+									</div>
+
+									<div class="mt-4 flex min-h-80 flex-col rounded-lg border border-gray-200">
+										{#if studentTrustScores.length === 0}
+											<div
+												class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+											>
+												<div class="max-w-sm">
+													<div
+														class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
 													>
-														<svg
-															class="h-4 w-4"
-															viewBox="0 0 20 20"
-															fill="currentColor"
-															aria-hidden="true"
-														>
-															<path
-																fill-rule="evenodd"
-																d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
-																clip-rule="evenodd"
-															/>
-														</svg>
-													</button>
-													<nav
-														class="isolate inline-flex items-center gap-1"
-														aria-label="Student trust pagination"
-													>
-														{#each studentTrustPageTokens as token}
-															{#if token === 'ellipsis'}
-																<span
-																	class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
-																	>...</span
-																>
-															{:else}
-																<button
-																	type="button"
-																	onclick={() => (studentTrustPage = token)}
-																	class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {studentTrustPage ===
-																	token
-																		? 'bg-pink-600 text-white shadow-sm'
-																		: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
-																>
-																	{token}
-																</button>
-															{/if}
-														{/each}
-													</nav>
-													<button
-														type="button"
-														onclick={() =>
-															(studentTrustPage = Math.min(
-																studentTrustTotalPages,
-																studentTrustPage + 1
-															))}
-														disabled={studentTrustPage === studentTrustTotalPages}
-														class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-														aria-label="Next student trust page"
-													>
-														<svg
-															class="h-4 w-4"
-															viewBox="0 0 20 20"
-															fill="currentColor"
-															aria-hidden="true"
-														>
-															<path
-																fill-rule="evenodd"
-																d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
-																clip-rule="evenodd"
-															/>
-														</svg>
-													</button>
+														<Users size={32} class="text-pink-600" />
+													</div>
+													<h4 class="mt-6 text-base font-semibold text-gray-900">
+														No trust score data
+													</h4>
+													<p class="mt-2 text-sm leading-6 text-gray-600">
+														Student trust scores will appear here once activity exists in the
+														selected date range.
+													</p>
 												</div>
 											</div>
+										{:else if filteredStudentTrustScores.length === 0}
+											<div
+												class="flex min-h-80 items-center justify-center rounded-xl border border-dashed border-gray-200 bg-gray-50/60 px-6 py-10 text-center"
+											>
+												<div class="max-w-sm">
+													<div
+														class="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gray-100"
+													>
+														<Search size={32} class="text-pink-600" />
+													</div>
+													<h4 class="mt-6 text-base font-semibold text-gray-900">
+														No matches found
+													</h4>
+													<p class="mt-2 text-sm leading-6 text-gray-600">
+														Try a different student name, email, or trust tier keyword.
+													</p>
+												</div>
+											</div>
+										{:else}
+											<div class="space-y-2 overflow-y-auto p-3">
+												{#each paginatedStudentTrustScores as student}
+													<div class="rounded-lg border border-gray-200 bg-gray-50 p-4">
+														<div class="flex items-start justify-between gap-4">
+															<div class="min-w-0 flex-1">
+																<div class="flex flex-wrap items-center gap-2">
+																	<p class="truncate text-sm font-semibold text-gray-900">
+																		{student.studentName || 'Unknown Student'}
+																	</p>
+																	<span
+																		class="inline-flex rounded-full px-2 py-1 text-xs font-medium {getTrustTierClasses(
+																			student.trustTier
+																		)}">{student.trustTierLabel || 'Unrated'}</span
+																	>
+																</div>
+																<p class="text-xs text-gray-600">{student.studentEmail || 'N/A'}</p>
+																<div class="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+																	<span class="rounded-full bg-white px-2 py-1 ring-1 ring-gray-200"
+																		>Requests {student.requestsTotal ?? 0}</span
+																	>
+																	<span class="rounded-full bg-white px-2 py-1 ring-1 ring-gray-200"
+																		>Returned {student.requestsReturned ?? 0}</span
+																	>
+																	<span class="rounded-full bg-white px-2 py-1 ring-1 ring-gray-200"
+																		>Obligations {student.activeObligations ?? 0}</span
+																	>
+																</div>
+															</div>
+															<div class="w-28 shrink-0 text-right">
+																<p
+																	class="text-2xl font-bold {getTrustScoreTextClass(
+																		student.trustTier
+																	)}"
+																>
+																	{Math.round(student.trustScore ?? 0)}
+																</p>
+																<p
+																	class="text-[11px] font-medium tracking-wide text-gray-500 uppercase"
+																>
+																	Trust Score
+																</p>
+															</div>
+														</div>
+														<div class="mt-3 h-2 rounded-full bg-gray-200">
+															<div
+																class="h-2 rounded-full {getTrustBarClasses(student.trustScore)}"
+																style={`width: ${Math.max(0, Math.min(100, student.trustScore ?? 0))}%`}
+															></div>
+														</div>
+													</div>
+												{/each}
+											</div>
+											{#if studentTrustTotalPages > 1}
+												<div
+													class="mt-auto flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2"
+												>
+													<p class="text-xs text-gray-600">
+														Showing {(studentTrustPage - 1) * INVENTORY_PAGE_SIZE + 1}-{Math.min(
+															studentTrustPage * INVENTORY_PAGE_SIZE,
+															filteredStudentTrustScores.length
+														)} of {filteredStudentTrustScores.length} students
+													</p>
+													<div class="flex items-center gap-1.5">
+														<button
+															type="button"
+															onclick={() => (studentTrustPage = Math.max(1, studentTrustPage - 1))}
+															disabled={studentTrustPage === 1}
+															class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+															aria-label="Previous student trust page"
+														>
+															<svg
+																class="h-4 w-4"
+																viewBox="0 0 20 20"
+																fill="currentColor"
+																aria-hidden="true"
+															>
+																<path
+																	fill-rule="evenodd"
+																	d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z"
+																	clip-rule="evenodd"
+																/>
+															</svg>
+														</button>
+														<nav
+															class="isolate inline-flex items-center gap-1"
+															aria-label="Student trust pagination"
+														>
+															{#each studentTrustPageTokens as token}
+																{#if token === 'ellipsis'}
+																	<span
+																		class="inline-flex h-8 min-w-8 items-center justify-center px-1 text-xs font-medium text-gray-500"
+																		>...</span
+																	>
+																{:else}
+																	<button
+																		type="button"
+																		onclick={() => (studentTrustPage = token)}
+																		class="inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-xs font-semibold {studentTrustPage ===
+																		token
+																			? 'bg-pink-600 text-white shadow-sm'
+																			: 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-100'}"
+																	>
+																		{token}
+																	</button>
+																{/if}
+															{/each}
+														</nav>
+														<button
+															type="button"
+															onclick={() =>
+																(studentTrustPage = Math.min(
+																	studentTrustTotalPages,
+																	studentTrustPage + 1
+																))}
+															disabled={studentTrustPage === studentTrustTotalPages}
+															class="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+															aria-label="Next student trust page"
+														>
+															<svg
+																class="h-4 w-4"
+																viewBox="0 0 20 20"
+																fill="currentColor"
+																aria-hidden="true"
+															>
+																<path
+																	fill-rule="evenodd"
+																	d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z"
+																	clip-rule="evenodd"
+																/>
+															</svg>
+														</button>
+													</div>
+												</div>
+											{/if}
 										{/if}
-									{/if}
+									</div>
 								</div>
 							</div>
 						</div>
-					</div>
-				{/if}
+					{/if}
 				{/if}
 			</div>
 		{/if}
 	</div>
+
+	{#if showExportModal}
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 p-4 backdrop-blur-sm"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="export-modal-title"
+		>
+			<div
+				class="w-full max-w-lg rounded-2xl border border-gray-100 bg-white p-6 shadow-xl transition-all"
+			>
+				<!-- Modal Header -->
+				<div class="flex items-center justify-between border-b border-gray-100 pb-4">
+					<div>
+						<h3 id="export-modal-title" class="text-lg font-bold text-gray-900">
+							Export Analytics Report
+						</h3>
+						<p class="text-xs text-gray-500">
+							Configure range and sections for your spreadsheet export
+						</p>
+					</div>
+					<button
+						type="button"
+						onclick={() => (showExportModal = false)}
+						class="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+						aria-label="Close export settings modal"
+					>
+						<X size={18} />
+					</button>
+				</div>
+
+				<!-- Modal Content -->
+				<div class="mt-4 space-y-5">
+					<!-- Timeframe Picker Section -->
+					<div class="space-y-2">
+						<span class="block text-sm font-semibold text-gray-700">Export Timeframe</span>
+						<div class="grid grid-cols-2 gap-3">
+							<button
+								type="button"
+								onclick={() => (exportTimeframeMode = 'current')}
+								class="flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition {exportTimeframeMode ===
+								'current'
+									? 'border-pink-600 bg-pink-50/40 text-pink-700 ring-1 ring-pink-600'
+									: 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}"
+							>
+								<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
+									>Current View</span
+								>
+								<span class="text-sm font-medium text-gray-800">{formatRangeLabel()}</span>
+							</button>
+							<button
+								type="button"
+								onclick={() => (exportTimeframeMode = 'custom')}
+								class="flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition {exportTimeframeMode ===
+								'custom'
+									? 'border-pink-600 bg-pink-50/40 text-pink-700 ring-1 ring-pink-600'
+									: 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}"
+							>
+								<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
+									>Custom Range</span
+								>
+								<span class="text-sm font-medium text-gray-800">Select specific dates</span>
+							</button>
+						</div>
+
+						{#if exportTimeframeMode === 'custom'}
+							<div
+								class="mt-3 grid grid-cols-2 gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3"
+							>
+								<div>
+									<label for="export-from" class="text-gray-650 block text-xs font-medium"
+										>Start Date</label
+									>
+									<input
+										id="export-from"
+										type="date"
+										bind:value={exportCustomFrom}
+										class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-pink-500 focus:outline-none"
+									/>
+								</div>
+								<div>
+									<label for="export-to" class="text-gray-650 block text-xs font-medium"
+										>End Date</label
+									>
+									<input
+										id="export-to"
+										type="date"
+										bind:value={exportCustomTo}
+										class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-pink-500 focus:outline-none"
+									/>
+								</div>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Section Selector -->
+					<div class="space-y-2">
+						<div class="flex items-center justify-between">
+							<span class="text-sm font-semibold text-gray-700">Include Data Sections</span>
+							<div class="flex gap-2">
+								<button
+									type="button"
+									onclick={() => toggleAllSections(true)}
+									class="text-xs font-semibold text-pink-600 transition hover:text-pink-700"
+								>
+									Select All
+								</button>
+								<span class="text-xs text-gray-300">|</span>
+								<button
+									type="button"
+									onclick={() => toggleAllSections(false)}
+									class="text-xs font-semibold text-pink-600 transition hover:text-pink-700"
+								>
+									Clear All
+								</button>
+							</div>
+						</div>
+
+						<div
+							class="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-gray-200 bg-white p-3.5"
+						>
+							<label
+								class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition hover:bg-gray-50"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportSections.overview}
+									class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+								/>
+								<div class="flex flex-col">
+									<span class="text-sm font-semibold text-gray-800">Overview</span>
+									<span class="text-xs text-gray-500"
+										>Totals, top items, status count, overdue list</span
+									>
+								</div>
+							</label>
+
+							<label
+								class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition hover:bg-gray-50"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportSections.borrowing}
+									class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+								/>
+								<div class="flex flex-col">
+									<span class="text-sm font-semibold text-gray-800">Borrowing Analytics</span>
+									<span class="text-xs text-gray-500"
+										>Time charts, borrower metrics, individual transactions</span
+									>
+								</div>
+							</label>
+
+							<label
+								class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition hover:bg-gray-50"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportSections['loss-damage']}
+									class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+								/>
+								<div class="flex flex-col">
+									<span class="text-sm font-semibold text-gray-800">Loss & Damage</span>
+									<span class="text-xs text-gray-500"
+										>Missing/damaged logs, replacements, cost breakdown</span
+									>
+								</div>
+							</label>
+
+							<label
+								class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition hover:bg-gray-50"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportSections.inventory}
+									class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+								/>
+								<div class="flex flex-col">
+									<span class="text-sm font-semibold text-gray-800">Inventory</span>
+									<span class="text-xs text-gray-500"
+										>EOM Variance, damage rates, alert logs, required counts</span
+									>
+								</div>
+							</label>
+
+							<label
+								class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition hover:bg-gray-50"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportSections.students}
+									class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+								/>
+								<div class="flex flex-col">
+									<span class="text-sm font-semibold text-gray-800">Student Risk</span>
+									<span class="text-xs text-gray-500"
+										>Trust scores, risk tiers, repeat offender profiles</span
+									>
+								</div>
+							</label>
+						</div>
+					</div>
+				</div>
+
+				<!-- Footer Buttons -->
+				<div class="mt-6 flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
+					<button
+						type="button"
+						onclick={() => (showExportModal = false)}
+						class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+					>
+						Cancel
+					</button>
+					<button
+						type="button"
+						onclick={exportXLSX}
+						disabled={exporting || !Object.values(exportSections).some(Boolean)}
+						class="flex items-center gap-2 rounded-xl bg-pink-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						<Download size={15} />
+						{exporting ? 'Generating Report…' : 'Generate Excel'}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
