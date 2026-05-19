@@ -38,6 +38,7 @@
 	let _unsubscribeClass: (() => void) | null = null;
 	let _unsubscribeBorrow: (() => void) | null = null;
 	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+	let inFlightLoadId = 0;
 
 	function scheduleRefresh(forceRefresh = false): void {
 		if (refreshTimer !== null) clearTimeout(refreshTimer);
@@ -155,115 +156,88 @@
 	async function loadDashboardData(showLoader = true, forceRefresh = true) {
 		const hasCache = !!report && !!recentUsers.length && !!classStats && !!recentRequests.length && totalInventory > 0;
 
+		if (showLoader && !hasCache) {
+			cardsLoading = true;
+			recentUsersRequestsLoading = true;
+			classInventoryLoading = true;
+			systemPerformanceLoading = true;
+		}
+
+		const loadId = ++inFlightLoadId;
+
 		try {
-			// Step 1: cards (Total Users, Active Classes, Total Requests, Inventory Items, and Health counts)
-			if (forceRefresh || !hasCache) {
-				cardsLoading = true;
-			}
-			const step1Result = await Promise.allSettled([
-				usersAPI.getAll({ limit: 5, forceRefresh }),
-				classCodesAPI.getStats(forceRefresh),
-				borrowRequestsAPI.list({ limit: 10, sortBy: 'createdAt' }, { forceRefresh }),
-				inventoryItemsAPI.getAll({ forceRefresh })
+			const usersPromise = usersAPI.getAll({ limit: 5, forceRefresh });
+			const classStatsPromise = classCodesAPI.getStats(forceRefresh);
+			const requestsPromise = borrowRequestsAPI.list({ limit: 10, sortBy: 'createdAt' }, { forceRefresh });
+			const inventoryPromise = inventoryItemsAPI.getAll({ forceRefresh });
+			const analyticsPromise = fetchAnalytics({ period: 'month', forceRefresh });
+
+			const results = await Promise.allSettled([
+				usersPromise,
+				classStatsPromise,
+				requestsPromise,
+				inventoryPromise,
+				analyticsPromise
 			]);
 
-			if (step1Result[0].status === 'fulfilled') {
-				const usersRes = step1Result[0].value;
-				totalUsers = usersRes.pagination.total;
-				recentUsers = usersRes.users;
+			if (loadId !== inFlightLoadId) return;
+
+			const usersRes = results[0];
+			const classRes = results[1];
+			const reqsRes = results[2];
+			const invRes = results[3];
+			const analyticsRes = results[4];
+
+			// 1. Cards (KPI Strip & Health counts)
+			if (usersRes.status === 'fulfilled') {
+				const usersResVal = usersRes.value;
+				totalUsers = usersResVal.pagination.total;
+				recentUsers = usersResVal.users;
 				const roleCount: Record<string, number> = {};
-				usersRes.users.forEach((u: UserResponse) => {
+				usersResVal.users.forEach((u: UserResponse) => {
 					roleCount[u.role] = (roleCount[u.role] || 0) + 1;
 				});
 				usersByRole = roleCount;
 			}
-			if (step1Result[1].status === 'fulfilled') {
-				const classStatsRes = step1Result[1].value;
-				classStats = classStatsRes;
-				activeClasses = classStatsRes.activeClasses;
+			if (classRes.status === 'fulfilled') {
+				classStats = classRes.value;
+				activeClasses = classRes.value.activeClasses;
 			}
-			if (step1Result[2].status === 'fulfilled') {
-				const requestsRes = step1Result[2].value;
-				totalRequests = requestsRes.total;
-				recentRequests = requestsRes.requests;
-				pendingRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'pending_instructor').length;
-				activeLoans = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return').length;
-				overdueRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => 
+			if (reqsRes.status === 'fulfilled') {
+				const requestsResVal = reqsRes.value;
+				totalRequests = requestsResVal.total;
+				recentRequests = requestsResVal.requests;
+				pendingRequests = requestsResVal.requests.filter((r: BorrowRequestRecord) => r.status === 'pending_instructor').length;
+				activeLoans = requestsResVal.requests.filter((r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return').length;
+				overdueRequests = requestsResVal.requests.filter((r: BorrowRequestRecord) => 
 					(r.status === 'borrowed' || r.status === 'pending_return') && 
 					new Date(r.returnDate) < new Date()
 				).length;
 			}
-			if (step1Result[3].status === 'fulfilled') {
-				const inventoryRes = step1Result[3].value;
-				totalInventory = inventoryRes.total;
-				totalCategories = new Set(inventoryRes.items.map((i: InventoryItem) => i.categoryId)).size;
-				lowStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity > 0 && i.quantity <= 5).length;
-				outOfStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity === 0).length;
+			if (invRes.status === 'fulfilled') {
+				const inventoryResVal = invRes.value;
+				totalInventory = inventoryResVal.total;
+				totalCategories = new Set(inventoryResVal.items.map((i: InventoryItem) => i.categoryId)).size;
+				lowStockItems = inventoryResVal.items.filter((i: InventoryItem) => i.quantity > 0 && i.quantity <= 5).length;
+				outOfStockItems = inventoryResVal.items.filter((i: InventoryItem) => i.quantity === 0).length;
 			}
 			cardsLoading = false;
 
-			// Step 2: Recent Users and Recent Requests
-			if (forceRefresh || !hasCache) {
-				recentUsersRequestsLoading = true;
-			}
-			const step2Result = await Promise.allSettled([
-				usersAPI.getAll({ limit: 5, forceRefresh }),
-				borrowRequestsAPI.list({ limit: 10, sortBy: 'createdAt' }, { forceRefresh })
-			]);
-			if (step2Result[0].status === 'fulfilled') {
-				const usersRes = step2Result[0].value;
-				totalUsers = usersRes.pagination.total;
-				recentUsers = usersRes.users;
-				const roleCount: Record<string, number> = {};
-				usersRes.users.forEach((u: UserResponse) => {
-					roleCount[u.role] = (roleCount[u.role] || 0) + 1;
-				});
-				usersByRole = roleCount;
-			}
-			if (step2Result[1].status === 'fulfilled') {
-				const requestsRes = step2Result[1].value;
-				totalRequests = requestsRes.total;
-				recentRequests = requestsRes.requests;
-				pendingRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'pending_instructor').length;
-				activeLoans = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return').length;
-				overdueRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => 
-					(r.status === 'borrowed' || r.status === 'pending_return') && 
-					new Date(r.returnDate) < new Date()
-				).length;
-			}
+			// 2. Recent Users and Recent Requests
+			await new Promise(r => setTimeout(r, 120));
+			if (loadId !== inFlightLoadId) return;
 			recentUsersRequestsLoading = false;
 
-			// Step 3: Class Overview and Inventory Health
-			if (forceRefresh || !hasCache) {
-				classInventoryLoading = true;
-			}
-			const step3Result = await Promise.allSettled([
-				classCodesAPI.getStats(forceRefresh),
-				inventoryItemsAPI.getAll({ forceRefresh })
-			]);
-			if (step3Result[0].status === 'fulfilled') {
-				const classStatsRes = step3Result[0].value;
-				classStats = classStatsRes;
-				activeClasses = classStatsRes.activeClasses;
-			}
-			if (step3Result[1].status === 'fulfilled') {
-				const inventoryRes = step3Result[1].value;
-				totalInventory = inventoryRes.total;
-				totalCategories = new Set(inventoryRes.items.map((i: InventoryItem) => i.categoryId)).size;
-				lowStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity > 0 && i.quantity <= 5).length;
-				outOfStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity === 0).length;
-			}
+			// 3. Class Overview and Inventory Health
+			await new Promise(r => setTimeout(r, 120));
+			if (loadId !== inFlightLoadId) return;
 			classInventoryLoading = false;
 
-			// Step 4: System Performance (Last 30 Days)
-			if (forceRefresh || !hasCache) {
-				systemPerformanceLoading = true;
-			}
-			const step4Result = await Promise.allSettled([
-				fetchAnalytics({ period: 'month', forceRefresh })
-			]);
-			if (step4Result[0].status === 'fulfilled') {
-				report = step4Result[0].value;
+			// 4. System Performance (Last 30 Days)
+			await new Promise(r => setTimeout(r, 120));
+			if (loadId !== inFlightLoadId) return;
+			if (analyticsRes.status === 'fulfilled') {
+				report = analyticsRes.value;
 			}
 			systemPerformanceLoading = false;
 
@@ -271,6 +245,10 @@
 			toastStore.error(error.message || 'Failed to load dashboard data', 'Error');
 		} finally {
 			loading = false;
+			cardsLoading = false;
+			recentUsersRequestsLoading = false;
+			classInventoryLoading = false;
+			systemPerformanceLoading = false;
 		}
 	}
 
