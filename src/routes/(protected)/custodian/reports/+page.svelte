@@ -38,6 +38,11 @@
 	let report = $state<AnalyticsReport | null>(initialReport);
 	let summaryReport = $state<Partial<AnalyticsReport> | null>(null);
 	let loading = $state(!initialReport);
+	let overviewLoading = $state(!initialReport);
+	let borrowingLoading = $state(!initialReport);
+	let lossDamageLoading = $state(!initialReport);
+	let inventoryLoading = $state(!initialReport);
+	let studentRiskLoading = $state(!initialReport);
 	let error = $state<string | null>(null);
 	let unsubscribeSSE: (() => void) | null = null;
 	let hasMounted = false;
@@ -133,45 +138,128 @@
 
 	async function loadReport(forceRefresh = false): Promise<void> {
 		if (!browser) return;
-		if (forceRefresh || !report) loading = true;
 		error = null;
+
+		const hasCache = !!report;
+
 		try {
-			const startTime = Date.now();
-			report = await fetchAnalytics({
-				period,
-				from: customFrom || undefined,
-				to: customTo || undefined,
-				forceRefresh
-			});
-			console.log('[Reports] Report loaded successfully in', Date.now() - startTime, 'ms');
+			// 1. Overview
+			if (forceRefresh || !summaryReport) {
+				overviewLoading = true;
+			}
+			const overviewResult = await Promise.allSettled([
+				fetchAnalyticsSummary({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined,
+					forceRefresh
+				})
+			]);
+			if (overviewResult[0].status === 'fulfilled') {
+				summaryReport = overviewResult[0].value as Partial<AnalyticsReport>;
+			}
+			overviewLoading = false;
+
+			// 2. Borrowing Analytics
+			if (forceRefresh || !hasCache) {
+				borrowingLoading = true;
+			}
+			const borrowingResult = await Promise.allSettled([
+				fetchAnalytics({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined,
+					forceRefresh
+				})
+			]);
+			if (borrowingResult[0].status === 'fulfilled') {
+				report = borrowingResult[0].value;
+			}
+			borrowingLoading = false;
+
+			// 3. Loss & Damage
+			if (forceRefresh || !hasCache) {
+				lossDamageLoading = true;
+			}
+			const lossDamageResult = await Promise.allSettled([
+				fetchAnalytics({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined
+				})
+			]);
+			if (lossDamageResult[0].status === 'fulfilled') {
+				report = lossDamageResult[0].value;
+			}
+			lossDamageLoading = false;
+
+			// 4. Inventory
+			if (forceRefresh || !hasCache) {
+				inventoryLoading = true;
+			}
+			const inventoryResult = await Promise.allSettled([
+				fetchAnalytics({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined
+				})
+			]);
+			if (inventoryResult[0].status === 'fulfilled') {
+				report = inventoryResult[0].value;
+			}
+			inventoryLoading = false;
+
+			// 5. Student Risk
+			if (forceRefresh || !hasCache) {
+				studentRiskLoading = true;
+			}
+			const studentRiskResult = await Promise.allSettled([
+				fetchAnalytics({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined
+				})
+			]);
+			if (studentRiskResult[0].status === 'fulfilled') {
+				report = studentRiskResult[0].value;
+			}
+			studentRiskLoading = false;
+
 		} catch (err) {
-			console.error('[Reports] Failed to load report:', err);
+			console.error('[Reports] Sequential load failed:', err);
 			error = err instanceof Error ? err.message : 'Failed to load analytics';
 			toastStore.error(error, 'Analytics');
 		} finally {
+			overviewLoading = false;
+			borrowingLoading = false;
+			lossDamageLoading = false;
+			inventoryLoading = false;
+			studentRiskLoading = false;
 			loading = false;
 		}
 	}
 
 	const totalRequests = $derived(
-		report?.borrowRequests.statusBreakdown.reduce((s, i) => s + i.count, 0) ?? 0
+		(report?.borrowRequests ?? summaryReport?.borrowRequests)?.statusBreakdown?.reduce((s, i) => s + i.count, 0) ?? 0
 	);
 	const returnedCount = $derived(
-		report?.borrowRequests.statusBreakdown.find((s) => s.status === 'returned')?.count ?? 0
+		(report?.borrowRequests ?? summaryReport?.borrowRequests)?.statusBreakdown?.find((s) => s.status === 'returned')?.count ?? 0
 	);
-	const overdueCount = $derived(report?.borrowRequests.overdueCount ?? 0);
+	const overdueCount = $derived(
+		report?.borrowRequests?.overdueCount ?? summaryReport?.borrowRequests?.overdueCount ?? 0
+	);
 	const returnRate = $derived(
 		totalRequests > 0 ? Math.round((returnedCount / totalRequests) * 100) : 0
 	);
 	const borrowingAvg = $derived(
-		report?.borrowRequests.borrowingAverages ?? {
+		(report?.borrowRequests ?? summaryReport?.borrowRequests)?.borrowingAverages ?? {
 			avgItemsPerRequest: 0,
 			avgQuantityPerRequest: 0,
 			totalRequests: 0
 		}
 	);
 	const inventorySummary = $derived(
-		report?.inventory.summary ?? {
+		(report?.inventory ?? summaryReport?.inventory)?.summary ?? {
 			currentCount: 0,
 			eomCount: 0,
 			variance: 0,
@@ -193,7 +281,7 @@
 		inventoryVarianceRows.reduce((sum, item) => (item.variance < 0 ? sum + item.variance : sum), 0)
 	);
 	const lossAndDamageSummary = $derived(
-		report?.lossAndDamage.summary ?? {
+		(report?.lossAndDamage ?? summaryReport?.lossAndDamage)?.summary ?? {
 			todayTotal: 0,
 			todayMissing: 0,
 			todayDamaged: 0,
@@ -222,7 +310,9 @@
 				)
 			: 0
 	);
-	const topBorrowedOverview = $derived((report?.borrowRequests.itemsBorrowed ?? []).slice(0, 6));
+	const topBorrowedOverview = $derived(
+		((report?.borrowRequests ?? summaryReport?.borrowRequests)?.itemsBorrowed ?? []).slice(0, 6)
+	);
 	const filteredBorrowedItems = $derived.by(() => {
 		const items = report?.borrowRequests.itemEntries ?? [];
 		const query = borrowedItemsQuery.trim().toLowerCase();
@@ -451,7 +541,7 @@
 	}
 
 	const statusChartSeries = $derived.by(() => {
-		const rows = report?.borrowRequests.statusBreakdown ?? [];
+		const rows = (report?.borrowRequests ?? summaryReport?.borrowRequests)?.statusBreakdown ?? [];
 		const total = rows.reduce((sum, row) => sum + row.count, 0);
 		if (total === 0)
 			return [] as Array<{ status: string; count: number; pct: number; color: string }>;
@@ -512,20 +602,6 @@
 	onMount(() => {
 		hasMounted = true;
 		if (!initialReport) {
-			// Prefetch a lightweight summary first so the UI can show fast metrics
-			void (async () => {
-				try {
-					const s = await fetchAnalyticsSummary({
-						period,
-						from: customFrom || undefined,
-						to: customTo || undefined
-					});
-					summaryReport = s as Partial<AnalyticsReport>;
-				} catch (err) {
-					console.error('[Reports] Failed to prefetch summary', err);
-				}
-			})();
-
 			void loadReport();
 		}
 		unsubscribeSSE = subscribeToAnalyticsChanges(() => scheduleLoad(true));
@@ -721,7 +797,7 @@
 			</nav>
 		</div>
 
-		{#if loading}
+		{#if (activeTab === 'overview' && overviewLoading) || (activeTab === 'borrowing' && borrowingLoading) || (activeTab === 'loss-damage' && lossDamageLoading) || (activeTab === 'inventory' && inventoryLoading) || (activeTab === 'students' && studentRiskLoading)}
 			<div class="p-6">
 				<ReportsSkeletonLoader view={activeTab} />
 			</div>
@@ -731,7 +807,7 @@
 					{error}
 				</div>
 			</div>
-		{:else if report}
+		{:else if (activeTab === 'overview' && summaryReport) || report}
 			<div class="space-y-6 p-6">
 				{#if activeTab === 'overview'}
 					<div data-tab-panel="overview" class="space-y-6">
@@ -1007,7 +1083,8 @@
 					</div>
 				{/if}
 
-				{#if activeTab === 'borrowing'}
+				{#if report}
+					{#if activeTab === 'borrowing'}
 					<div data-tab-panel="borrowing">
 						<div class="space-y-6">
 							<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
@@ -2599,6 +2676,7 @@
 							</div>
 						</div>
 					</div>
+				{/if}
 				{/if}
 			</div>
 		{/if}
