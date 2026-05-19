@@ -1372,7 +1372,7 @@
 					<div style="min-height: 600px;">
 						<div class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 							<div
-								class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[auto_32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-center md:gap-4"
+								class="hidden border-b border-gray-200 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase md:grid md:grid-cols-[auto_32px_0.6fr_1fr_2.4fr_0.8fr_120px] md:items-center md:gap-4"
 							>
 								<span class="w-6 text-center">
 									{#if activeTab === 'pending'}
@@ -1398,7 +1398,7 @@
 									<!-- svelte-ignore a11y_click_events_have_key_events -->
 									<!-- svelte-ignore a11y_no_static_element_interactions -->
 									<div
-										class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[auto_32px_1.1fr_1fr_1.5fr_1fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
+										class="grid cursor-pointer gap-3 p-4 transition-colors md:grid-cols-[auto_32px_0.6fr_1fr_2.4fr_0.8fr_120px] md:items-start md:gap-4 {highlightedRequestId ===
 										request.rawId
 											? 'bg-pink-50/50 ring-1 ring-pink-300 ring-inset'
 											: 'hover:bg-gray-50'}"

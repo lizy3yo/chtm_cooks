@@ -154,46 +154,41 @@
 			<div class="features-bento-grid">
 				<!-- Card 1 (Pink - Span 2) -->
 				<div class="bento-card bento-dark bento-span-2">
-					<h3 class="bento-title">Dashboard & Trust Score</h3>
+					<h3 class="bento-title">Personal Space</h3>
 					<p class="bento-desc">
-						Your personal hub. Track active loans, monitor due dates, and maintain your Trust Score
-						with on-time returns and performance metrics.
+						Your personal space to check borrowed items, see return dates, and build a good borrowing record by returning equipment on time.
 					</p>
 				</div>
 
 				<!-- Card 2 (Light - Span 3) -->
 				<div class="bento-card bento-light bento-span-3">
-					<h3 class="bento-title">Live Equipment Catalog</h3>
+					<h3 class="bento-title">Available Equipment List</h3>
 					<p class="bento-desc">
-						Browse available laboratory equipment with real-time stock updates. Search, filter, and
-						view detailed specifications before adding items to your request to avoid delays.
+						Browse laboratory equipment that you can borrow. Check available items, view details, and choose what you need before making a request.
 					</p>
 				</div>
 
 				<!-- Card 3 (Light - Span 1) -->
 				<div class="bento-card bento-light bento-span-1-bot">
-					<h3 class="bento-title">Instructor Approvals</h3>
+					<h3 class="bento-title">Instructor Approval</h3>
 					<p class="bento-desc">
-						Submit requests directly to your class instructor. Once approved, the system alerts the
-						custodian to prepare your items for pickup.
+						Send your request directly to your instructor for approval. Once approved, the staff will prepare your equipment for pickup.
 					</p>
 				</div>
 
 				<!-- Card 4 (Light - Span 1) -->
 				<div class="bento-card bento-light bento-span-1-bot">
-					<h3 class="bento-title">Smart QR Codes</h3>
+					<h3 class="bento-title">QR Code Access</h3>
 					<p class="bento-desc">
-						Generate unique digital QR tickets instantly. Present your code at the custodian desk
-						for fast, contactless equipment claiming.
+						Get your own QR code instantly. Simply show it at the laboratory desk for faster and easier claiming of equipment.
 					</p>
 				</div>
 
 				<!-- Card 5 (Pink - Span 1) -->
 				<div class="bento-card bento-dark bento-span-1-bot">
-					<h3 class="bento-title">Real-time Tracking</h3>
+					<h3 class="bento-title">Live Request Updates</h3>
 					<p class="bento-desc">
-						Easily track your request status. Get live updates on approvals, preparation, and return
-						deadlines for a seamless borrowing experience.
+						Track your request in real time. Stay updated on approvals, preparation status, and return schedules for a smoother borrowing process.
 					</p>
 				</div>
 			</div>
@@ -1238,8 +1233,6 @@
 		font-size: clamp(2.5rem, 5vw, 4rem);
 		margin-bottom: 0;
 	}
-
-
 
 	.carousel-container {
 		position: relative;
