@@ -26,9 +26,11 @@
 		Archive,
 		Trash2,
 		Edit,
-		Sliders
+		Sliders,
+		Download
 	} from 'lucide-svelte';
 	import ActionMenu from '$lib/components/ui/ActionMenu.svelte';
+	import ExportModal from '$lib/components/custodian/ExportModal.svelte';
 
 	type Tab = 'all-items' | 'required-items' | 'categories' | 'low-stock';
 
@@ -42,6 +44,10 @@
 	let adjustmentQuantity = $state<number>(1);
 	let adjustmentReason = $state<string>('');
 	let adjustStockLoading = $state(false);
+
+	// Export modal state
+	let showExportModal = $state(false);
+	let isExporting = $state(false);
 
 	// Check for cached data before mounting to avoid unnecessary loading states
 	const cachedStore = browser ? get(inventoryStore) : null;
@@ -328,6 +334,10 @@
 		try {
 			// Fetch just the updated item
 			const updatedItem = await inventoryItemsAPI.getById(itemId);
+			if (!updatedItem) {
+				console.warn('[INVENTORY-SSE] ⚠️ Item not found:', itemId);
+				return;
+			}
 			console.log('[INVENTORY-SSE] ✅ Fetched updated item:', updatedItem.name);
 
 			// Find and update the item in the array
@@ -789,6 +799,8 @@
 
 	function switchTab(tab: Tab) {
 		activeTab = tab;
+		currentPage = 1;
+		query = '';
 		// Note: Don't auto-clear category filter - use clearCategoryFilter() explicitly
 	}
 
@@ -822,26 +834,78 @@
 	const filteredItems = $derived(
 		items.filter((item) => {
 			const isActive = !item.archived;
+			const q = query.toLowerCase().trim();
 
 			// Case-insensitive category matching with trim for robustness
 			const matchesCategory =
 				!selectedCategory ||
-				item.category?.toLowerCase().trim() === selectedCategory.name?.toLowerCase().trim();
-
-			const q = (query || '').toLowerCase();
+				item.category?.toLowerCase()?.trim() === selectedCategory?.name?.toLowerCase()?.trim();
 			const matchesQuery = !q || (item.name || '').toLowerCase().includes(q);
 			return isActive && matchesCategory && matchesQuery;
 		})
 	);
 	const sortedItems = $derived(
 		[...filteredItems].sort((a, b) =>
-			sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+			sortOrder === 'az' 
+				? (a.name || '').localeCompare(b.name || '') 
+				: (b.name || '').localeCompare(a.name || '')
 		)
 	);
 	const totalPages = $derived(Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE)));
 	const displayItems = $derived(
 		sortedItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 	);
+
+	// Derived collections for Required Items with filtering & sorting & pagination
+	const filteredRequiredItems = $derived(
+		items.filter((item) => {
+			const isActive = !item.archived && item.isrequired === true;
+			const q = query.toLowerCase().trim();
+			const matchesCategory =
+				!selectedCategory ||
+				item.category?.toLowerCase()?.trim() === selectedCategory?.name?.toLowerCase()?.trim();
+			const matchesQuery = !q || (item.name || '').toLowerCase().includes(q);
+			return isActive && matchesCategory && matchesQuery;
+		})
+	);
+	const sortedRequiredItems = $derived(
+		[...filteredRequiredItems].sort((a, b) =>
+			sortOrder === 'az'
+				? (a.name || '').localeCompare(b.name || '')
+				: (b.name || '').localeCompare(a.name || '')
+		)
+	);
+	const requiredTotalPages = $derived(Math.max(1, Math.ceil(sortedRequiredItems.length / PAGE_SIZE)));
+	const displayRequiredItems = $derived(
+		sortedRequiredItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+	);
+
+	// Derived collections for Low Stock Items with filtering & sorting & pagination
+	const filteredLowStockItems = $derived(
+		items.filter((item) => {
+			const totalCount = (item.quantity ?? 0) + (item.donations ?? 0);
+			const isLowStock = totalCount <= 5;
+			const isActive = !item.archived && isLowStock;
+			const q = query.toLowerCase().trim();
+			const matchesCategory =
+				!selectedCategory ||
+				item.category?.toLowerCase()?.trim() === selectedCategory?.name?.toLowerCase()?.trim();
+			const matchesQuery = !q || (item.name || '').toLowerCase().includes(q);
+			return isActive && matchesCategory && matchesQuery;
+		})
+	);
+	const sortedLowStockItems = $derived(
+		[...filteredLowStockItems].sort((a, b) =>
+			sortOrder === 'az'
+				? (a.name || '').localeCompare(b.name || '')
+				: (b.name || '').localeCompare(a.name || '')
+		)
+	);
+	const lowStockTotalPages = $derived(Math.max(1, Math.ceil(sortedLowStockItems.length / PAGE_SIZE)));
+	const displayLowStockItems = $derived(
+		sortedLowStockItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+	);
+
 
 	// Debug logging for display items
 	$effect(() => {
@@ -867,27 +931,6 @@
 		currentPage = 1;
 	});
 
-	const displayRequiredItems = $derived(
-		requiredItems
-			.filter((item) => {
-				const q = (query || '').toLowerCase();
-				return !q || (item.name || '').toLowerCase().includes(q);
-			})
-			.sort((a, b) =>
-				sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
-			)
-	);
-
-	const displayLowStockItems = $derived(
-		lowStockItems
-			.filter((item) => {
-				const q = (query || '').toLowerCase();
-				return !q || (item.name || '').toLowerCase().includes(q);
-			})
-			.sort((a, b) =>
-				sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
-			)
-	);
 
 	const displayCategories = $derived(
 		categories
@@ -900,7 +943,9 @@
 				);
 			})
 			.sort((a, b) =>
-				sortOrder === 'az' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)
+				sortOrder === 'az' 
+					? (a.name || '').localeCompare(b.name || '') 
+					: (b.name || '').localeCompare(a.name || '')
 			)
 	);
 
@@ -965,6 +1010,7 @@
 			const itemIndex = items.findIndex((i) => i.id === targetItem.id);
 			if (itemIndex !== -1) {
 				items[itemIndex] = updatedItem;
+				items = [...items];
 			}
 			if (selectedItem && selectedItem.id === targetItem.id) {
 				selectedItem = updatedItem;
@@ -986,6 +1032,54 @@
 		showMenu = !showMenu;
 	}
 
+	async function handleExportConfirm(selections: {
+		sheets: string[];
+		columns: string[];
+		categories: string[];
+		specifications: string[];
+		tools: string[];
+	}) {
+		isExporting = true;
+		try {
+			const params = new URLSearchParams();
+			params.append('sheets', selections.sheets.join(','));
+			params.append('columns', selections.columns.join(','));
+			if (selections.categories.length > 0) {
+				params.append('categories', selections.categories.join(','));
+			}
+			if (selections.specifications.length > 0) {
+				params.append('specifications', selections.specifications.join(','));
+			}
+			if (selections.tools.length > 0) {
+				params.append('tools', selections.tools.join(','));
+			}
+
+			const response = await fetch(`/api/inventory/export?${params.toString()}`);
+
+			if (!response.ok) {
+				throw new Error('Failed to generate export');
+			}
+
+			const blob = await response.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `chtm-cooks-inventory-${new Date().toISOString().slice(0, 10)}.xlsx`;
+			document.body.appendChild(a);
+			a.click();
+			document.body.removeChild(a);
+			URL.revokeObjectURL(url);
+
+			toastStore.success('Inventory export completed');
+			showExportModal = false;
+		} catch (err: any) {
+			console.error('Export error:', err);
+			toastStore.error(err.message || 'Failed to export inventory');
+		} finally {
+			isExporting = false;
+		}
+	}
+
 	async function archiveItem(item: InventoryItem) {
 		const confirmed = await confirmStore.warning(
 			`Are you sure you want to archive "${item.name}"? It will be moved to the History page.`,
@@ -1005,6 +1099,7 @@
 			const itemIndex = items.findIndex((i) => i.id === item.id);
 			if (itemIndex !== -1) {
 				items.splice(itemIndex, 1);
+				items = [...items];
 			}
 
 			// Update category count
@@ -1081,6 +1176,7 @@
 				const itemIndex = items.findIndex((i) => i.id === editingItemId);
 				if (itemIndex !== -1) {
 					items[itemIndex] = savedItem;
+					items = [...items];
 				}
 			} else {
 				// Create new item
@@ -1176,7 +1272,7 @@
 				.filter(
 					(item) =>
 						!item.archived &&
-						item.category?.toLowerCase().trim() === category.name?.toLowerCase().trim()
+						item.category?.toLowerCase()?.trim() === category.name?.toLowerCase()?.trim()
 				)
 				.map((i) => i.name)
 		);
@@ -1209,6 +1305,7 @@
 			const itemIndex = items.findIndex((i) => i.id === item.id);
 			if (itemIndex !== -1) {
 				items[itemIndex] = updatedItem;
+				items = [...items];
 			}
 
 			// Update store with current arrays
@@ -1257,6 +1354,7 @@
 			const itemIndex = items.findIndex((i) => i.id === item.id);
 			if (itemIndex !== -1) {
 				items.splice(itemIndex, 1); // Modify array in place for reactivity
+				items = [...items];
 			}
 
 			// Update category counts
@@ -3349,6 +3447,15 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				<span class="sm:hidden">Import</span>
 			</button>
 			<button
+				onclick={() => (showExportModal = true)}
+				class="inline-flex items-center rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:outline-none sm:px-4"
+				disabled={isExporting || loading}
+			>
+				<Download class="mr-1.5 h-4 w-4" />
+				<span class="hidden sm:inline">Export</span>
+				<span class="sm:hidden">Export</span>
+			</button>
+			<button
 				onclick={openAddItemModal}
 				class="inline-flex items-center rounded-lg bg-pink-600 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-pink-700 focus:ring-2 focus:ring-pink-500 focus:outline-none sm:px-4"
 				disabled={loading}
@@ -3383,7 +3490,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		{#if cardsLoading}
 			<div class="grid grid-cols-2 gap-3 lg:grid-cols-4 animate-pulse">
 				{#each Array(4) as _}
-					<div class="rounded-lg bg-white p-3 shadow sm:p-5 h-[80px] sm:h-[116px]">
+					<div class="rounded-lg bg-white p-3 shadow sm:p-5 h-20 sm:h-28">
 						<div class="flex items-center justify-between gap-2 h-full">
 							<div class="space-y-2 flex-1">
 								<div class="h-4 bg-gray-200 rounded w-2/3"></div>
@@ -4551,8 +4658,22 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										<span
 											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600"
 										>
-											{i + 1}
+											{(currentPage - 1) * PAGE_SIZE + i + 1}
 										</span>
+										<div
+											class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
+										>
+											{#if item.picture}
+												<img
+													src={item.picture}
+													alt={item.name}
+													class="h-full w-full object-cover"
+													loading="lazy"
+												/>
+											{:else}
+												<ItemImagePlaceholder size="sm" />
+											{/if}
+										</div>
 										<div class="min-w-0 flex-1">
 											<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
 											<p class="truncate text-xs text-gray-500">
@@ -4560,7 +4681,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											</p>
 											<div class="mt-1 flex flex-wrap items-center gap-1">
 												<span
-													class="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-800"
+													class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800"
 													>Required</span
 												>
 												<span
@@ -4579,7 +4700,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													>
 												{/if}
 												<span class="text-[10px] text-gray-400"
-													>Qty: {item.quantity} · EOM: {item.eomCount}</span
+													>Qty: {getCurrentCount(item.quantity, item.donations ?? 0)} · EOM: {item.eomCount}</span
 												>
 											</div>
 										</div>
@@ -4620,6 +4741,10 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										>
 										<th
 											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Tools / Equipment</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
 											>Current Count</th
 										>
 										<th
@@ -4631,30 +4756,37 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											>Status</th
 										>
 										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
 											>Actions</th
 										>
 									</tr>
 								</thead>
 								<tbody class="divide-y divide-gray-200 bg-white">
 									{#each displayRequiredItems as item, i}
-										<tr class="transition-colors hover:bg-gray-50">
+										<tr
+											class="cursor-pointer transition-colors hover:bg-gray-50"
+											onclick={() => openModal(item)}
+										>
 											<td class="px-6 py-4 whitespace-nowrap">
 												<div class="flex items-center gap-3">
-													{#if item.picture}
-														<img
-															src={item.picture}
-															alt={item.name}
-															class="h-9 w-9 shrink-0 rounded object-cover"
-															loading="lazy"
-														/>
-													{:else}
-														<div
-															class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded bg-gray-100"
-														>
+													<span
+														class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700"
+														>{(currentPage - 1) * PAGE_SIZE + i + 1}</span
+													>
+													<div
+														class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
+													>
+														{#if item.picture}
+															<img
+																src={item.picture}
+																alt={item.name}
+																class="h-full w-full object-cover"
+																loading="lazy"
+															/>
+														{:else}
 															<ItemImagePlaceholder size="sm" />
-														</div>
-													{/if}
+														{/if}
+													</div>
 													<div class="flex flex-col gap-0.5">
 														<span
 															class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-purple-800 uppercase ring-1 ring-purple-200"
@@ -4677,8 +4809,9 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												>
 											</td>
 											<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
+											<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment || '—'}</td>
 											<td class="px-6 py-4 text-sm font-medium whitespace-nowrap text-gray-900"
-												>{item.quantity}</td
+												>{getCurrentCount(item.quantity, item.donations ?? 0)}</td
 											>
 											<td class="px-6 py-4 whitespace-nowrap">
 												{#if item.maxQuantityPerRequest}
@@ -4733,54 +4866,63 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													</span>
 												{/if}
 											</td>
-											<td class="px-6 py-4 text-sm whitespace-nowrap">
-												<div class="flex items-center gap-2">
-													<button
-														onclick={() => editItem(item)}
-														class="rounded p-1 text-pink-600 transition-colors hover:bg-pink-50 hover:text-pink-800"
-														title="Edit item"
-													>
-														<svg
-															class="h-4 w-4"
-															fill="none"
-															stroke="currentColor"
-															viewBox="0 0 24 24"
-														>
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-															/>
-														</svg>
-													</button>
-													<button
-														onclick={() => togglerequiredStatus(item)}
-														class="rounded p-1 text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-800"
-														title="Remove from required items"
-													>
-														<svg
-															class="h-4 w-4"
-															fill="none"
-															stroke="currentColor"
-															viewBox="0 0 24 24"
-														>
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M6 18L18 6M6 6l12 12"
-															/>
-														</svg>
-													</button>
-												</div>
+											<td
+												class="px-4 py-4 text-right whitespace-nowrap"
+												onclick={(e) => e.stopPropagation()}
+											>
+												<ActionMenu
+													align="right"
+													triggerLabel="Item actions"
+													items={[
+														{
+															label: item.isrequired ? 'Remove Required' : 'Mark Required',
+															icon: Star,
+															variant: 'purple',
+															action: () => togglerequiredStatus(item)
+														},
+														{
+															label: 'Adjust Stock',
+															icon: Sliders,
+															variant: 'default',
+															action: () => openAdjustStock(item)
+														},
+														{
+															label: 'Edit Item',
+															icon: Edit,
+															variant: 'default',
+															action: () => editItem(item)
+														},
+														{
+															label: 'Archive',
+															icon: Archive,
+															variant: 'warning',
+															action: () => archiveItem(item)
+														},
+														{
+															label: 'Remove',
+															icon: Trash2,
+															variant: 'danger',
+															action: () => deleteItem(item)
+														}
+													]}
+												/>
 											</td>
 										</tr>
 									{/each}
 								</tbody>
 							</table>
 						</div>
-					{/if}
+
+						<!-- Pagination -->
+						{#if requiredTotalPages > 1}
+							<Pagination
+								currentPage={currentPage}
+								totalPages={requiredTotalPages}
+								totalItems={sortedRequiredItems.length}
+								itemsPerPage={PAGE_SIZE}
+								onPageChange={(p) => (currentPage = p)}
+							/>
+						{/if}					{/if}
 				</div>
 				{/if}
 			{:else if activeTab === 'low-stock'}
@@ -4867,45 +5009,236 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							</div>
 						</div>
 					{:else}
-						<div class="space-y-3">
-							{#each displayLowStockItems as item}
-								<div class="rounded-xl border border-red-200 bg-red-50 p-4">
-									<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-										<div class="flex items-center gap-3">
-											<div
-												class="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
-											>
-												{#if item.picture}
-													<img
-														src={item.picture}
-														alt={item.name}
-														class="h-full w-full object-cover"
-														loading="lazy"
-													/>
-												{:else}
-													<ItemImagePlaceholder size="sm" />
+						<!-- Mobile card list -->
+						<div class="divide-y divide-gray-100 sm:hidden">
+							{#each displayLowStockItems as item, i}
+								<button
+									class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
+									onclick={() => openModal(item)}
+								>
+									<div class="flex items-center gap-3">
+										<span
+											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600"
+										>
+											{(currentPage - 1) * PAGE_SIZE + i + 1}
+										</span>
+										<div
+											class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
+										>
+											{#if item.picture}
+												<img
+													src={item.picture}
+													alt={item.name}
+													class="h-full w-full object-cover"
+													loading="lazy"
+												/>
+											{:else}
+												<ItemImagePlaceholder size="sm" />
+											{/if}
+										</div>
+										<div class="min-w-0 flex-1">
+											<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
+											<p class="truncate text-xs text-gray-500">
+												{item.specification || item.category}
+											</p>
+											<div class="mt-1 flex flex-wrap items-center gap-1">
+												{#if item.isrequired}
+													<span
+														class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800"
+														>Required</span
+													>
 												{/if}
-											</div>
-											<div>
-												<h4 class="text-sm font-semibold text-gray-900">{item.name}</h4>
-												<p class="text-xs text-gray-500">{item.category}</p>
+												<span
+													class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800"
+													>{item.category}</span
+												>
+												<span
+													class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700"
+													>{item.status}</span
+												>
+												<span class="text-[10px] text-gray-400"
+													>Qty: {getCurrentCount(item.quantity, item.donations ?? 0)} · EOM: {item.eomCount}</span
+												>
 											</div>
 										</div>
-										<div class="flex items-center justify-between gap-3 sm:justify-end">
-											<span class="text-sm text-gray-600"
-												>Qty: <span class="font-semibold text-red-600">{item.quantity}</span></span
-											>
-											<button
-												onclick={() => editItem(item)}
-												class="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 sm:px-4 sm:py-2 sm:text-sm"
-											>
-												Update Stock
-											</button>
-										</div>
+										<svg
+											class="h-4 w-4 shrink-0 text-gray-300"
+											fill="none"
+											stroke="currentColor"
+											viewBox="0 0 24 24"
+										>
+											<path
+												stroke-linecap="round"
+												stroke-linejoin="round"
+												stroke-width="2"
+												d="M9 5l7 7-7 7"
+											/>
+										</svg>
 									</div>
-								</div>
+								</button>
 							{/each}
 						</div>
+
+						<!-- Desktop table -->
+						<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
+							<table class="min-w-full divide-y divide-gray-200">
+								<thead class="bg-gray-50">
+									<tr>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Item Name</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Category</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Specification</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Tools / Equipment</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Current Count</th
+										>
+										<th
+											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Status</th
+										>
+										<th
+											class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
+											>Actions</th
+										>
+									</tr>
+								</thead>
+								<tbody class="divide-y divide-gray-200 bg-white">
+									{#each displayLowStockItems as item, i}
+										<tr
+											class="cursor-pointer transition-colors hover:bg-gray-50"
+											onclick={() => openModal(item)}
+										>
+											<td class="px-6 py-4 whitespace-nowrap">
+												<div class="flex items-center gap-3">
+													<span
+														class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700"
+														>{(currentPage - 1) * PAGE_SIZE + i + 1}</span
+													>
+													<div
+														class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
+													>
+														{#if item.picture}
+															<img
+																src={item.picture}
+																alt={item.name}
+																class="h-full w-full object-cover"
+																loading="lazy"
+															/>
+														{:else}
+															<ItemImagePlaceholder size="sm" />
+														{/if}
+													</div>
+													<div class="flex flex-col gap-0.5">
+														{#if item.isrequired}
+															<span
+																class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-purple-800 uppercase ring-1 ring-purple-200"
+															>
+																<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"
+																	><path
+																		d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
+																	/></svg
+																>
+																required
+															</span>
+														{/if}
+														<div class="text-sm font-medium text-gray-900">{item.name}</div>
+													</div>
+												</div>
+											</td>
+											<td class="px-6 py-4 whitespace-nowrap">
+												<span
+													class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800"
+													>{item.category}</span
+												>
+											</td>
+											<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
+											<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment || '—'}</td>
+											<td class="px-6 py-4 text-sm font-medium whitespace-nowrap text-gray-900"
+												>{getCurrentCount(item.quantity, item.donations ?? 0)}</td
+											>
+											<td class="px-6 py-4 whitespace-nowrap">
+												<span
+													class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800"
+												>
+													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
+														><path
+															fill-rule="evenodd"
+															d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
+															clip-rule="evenodd"
+														/></svg
+													>
+													{item.status}
+												</span>
+											</td>
+											<td
+												class="px-4 py-4 text-right whitespace-nowrap"
+												onclick={(e) => e.stopPropagation()}
+											>
+												<ActionMenu
+													align="right"
+													triggerLabel="Item actions"
+													items={[
+														{
+															label: item.isrequired ? 'Remove Required' : 'Mark Required',
+															icon: Star,
+															variant: 'purple',
+															action: () => togglerequiredStatus(item)
+														},
+														{
+															label: 'Adjust Stock',
+															icon: Sliders,
+															variant: 'default',
+															action: () => openAdjustStock(item)
+														},
+														{
+															label: 'Edit Item',
+															icon: Edit,
+															variant: 'default',
+															action: () => editItem(item)
+														},
+														{
+															label: 'Archive',
+															icon: Archive,
+															variant: 'warning',
+															action: () => archiveItem(item)
+														},
+														{
+															label: 'Remove',
+															icon: Trash2,
+															variant: 'danger',
+															action: () => deleteItem(item)
+														}
+													]}
+												/>
+											</td>
+										</tr>
+									{/each}
+								</tbody>
+							</table>
+						</div>
+
+						<!-- Pagination -->
+						{#if lowStockTotalPages > 1}
+							<Pagination
+								currentPage={currentPage}
+								totalPages={lowStockTotalPages}
+								totalItems={sortedLowStockItems.length}
+								itemsPerPage={PAGE_SIZE}
+								onPageChange={(p) => (currentPage = p)}
+							/>
+						{/if}
 					{/if}
 				</div>
 				{/if}
@@ -5802,13 +6135,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											class="hidden"
 										/>
 									</label>
-								{:else}
-									<!-- File Preview Card -->
-									<div class="rounded-lg border-2 border-emerald-500 bg-white p-4 transition-all">
-										<div class="flex items-start gap-4">
-											<!-- File Icon -->
-											<div class="shrink-0">
-												{#if getFileIcon(importFile.name) === 'csv'}
+									{:else if importFile}
+										<!-- File Preview Card -->
+										<div class="rounded-lg border-2 border-emerald-500 bg-white p-4 transition-all">
+											<div class="flex items-start gap-4">
+												<!-- File Icon -->
+												<div class="shrink-0">
+													{#if importFile && getFileIcon(importFile.name) === 'csv'}
 													<div
 														class="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100"
 													>
@@ -5824,7 +6157,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 															/>
 														</svg>
 													</div>
-												{:else if getFileIcon(importFile.name) === 'excel'}
+												{:else if importFile && getFileIcon(importFile.name) === 'excel'}
 													<div
 														class="flex h-12 w-12 items-center justify-center rounded-lg bg-emerald-100"
 													>
@@ -5840,7 +6173,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 															/>
 														</svg>
 													</div>
-												{:else if getFileIcon(importFile.name) === 'zip'}
+												{:else if importFile && getFileIcon(importFile.name) === 'zip'}
 													<div
 														class="flex h-12 w-12 items-center justify-center rounded-lg bg-purple-100"
 													>
@@ -5863,12 +6196,12 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													<div class="min-w-0 flex-1">
 														<p
 															class="truncate text-sm font-medium text-gray-900"
-															title={importFile.name}
+															title={importFile?.name}
 														>
-															{importFile.name}
+															{importFile?.name}
 														</p>
 														<p class="mt-1 text-xs text-gray-500">
-															{formatFileSize(importFile.size)}
+															{formatFileSize(importFile?.size || 0)}
 														</p>
 													</div>
 													<button
@@ -5885,61 +6218,14 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 														</svg>
 													</button>
 												</div>
-
-												<!-- Success Indicator -->
-												<div class="mt-3 flex items-center gap-2">
-													<div class="h-1.5 flex-1 rounded-full bg-emerald-100">
-														<div
-															class="h-1.5 rounded-full bg-emerald-600"
-															style="width: 100%"
-														></div>
-													</div>
-													<svg
-														class="h-5 w-5 shrink-0 text-emerald-600"
-														fill="currentColor"
-														viewBox="0 0 20 20"
-													>
-														<path
-															fill-rule="evenodd"
-															d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-															clip-rule="evenodd"
-														/>
-													</svg>
-												</div>
-
-												{#if importImageFiles.size > 0}
-													<div class="mt-2 flex items-center gap-2 text-xs text-emerald-600">
-														<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-															<path
-																fill-rule="evenodd"
-																d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"
-																clip-rule="evenodd"
-															/>
-														</svg>
-														<span>{importImageFiles.size} image(s) found in ZIP</span>
-													</div>
-												{/if}
-
-												{#if importPreviewData.length > 0}
-													<div class="mt-2 flex items-center gap-2 text-xs text-blue-600">
-														<svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-															<path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-															<path
-																fill-rule="evenodd"
-																d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z"
-																clip-rule="evenodd"
-															/>
-														</svg>
-														<span>{importPreviewData.length} item(s) ready to import</span>
-													</div>
-												{/if}
 											</div>
 										</div>
 									</div>
 								{/if}
 							</div>
 
-							{#if importing}
+
+{#if importing}
 								<div class="flex items-center justify-center gap-3 py-8">
 									<div
 										class="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent"
@@ -6333,6 +6619,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 		</div>
 	</div>
 {/if}
+
+<ExportModal
+	bind:show={showExportModal}
+	items={items}
+	isExporting={isExporting}
+	onExport={handleExportConfirm}
+/>
 
 <!-- Image preview lightbox for import review -->
 {#if importPreviewImageUrl}
