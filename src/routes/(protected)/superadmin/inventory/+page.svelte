@@ -206,6 +206,124 @@
 	let importAmbiguousImageNames = $state<Set<string>>(new Set());
 	let importProgress = $state({ current: 0, total: 0, message: '' });
 	let isDraggingOver = $state(false);
+
+	let selectedImportFields = $state({
+		name: true,
+		category: true,
+		specification: true,
+		toolsOrEquipment: true,
+		quantity: true,     // Current Count
+		eomCount: true,
+		variance: true,     // Variance
+		donations: true,
+		picture: true       // Image
+	});
+
+	function toggleAllImportFields(val: boolean) {
+		selectedImportFields.name = val;
+		selectedImportFields.category = val;
+		selectedImportFields.specification = val;
+		selectedImportFields.toolsOrEquipment = val;
+		selectedImportFields.quantity = val;
+		selectedImportFields.eomCount = val;
+		selectedImportFields.variance = val;
+		selectedImportFields.donations = val;
+		selectedImportFields.picture = val;
+	}
+
+	let processedImportPreviewData = $derived.by(() => {
+		return importPreviewData.map((item) => {
+			const isSelected = item._selected !== false;
+			if (!item._valid) return { ...item, _selected: isSelected };
+
+			if (!isSelected) {
+				return {
+					...item,
+					_selected: false,
+					_importAction: 'skip',
+					_changedFields: []
+				};
+			}
+
+			if (item._importAction === 'create') return { ...item, _selected: true };
+
+			// Recalculate action and changed fields based on user toggles
+			const newChangedFields: string[] = [];
+			
+			if (selectedImportFields.category && item._provided.category) {
+				const existing = items.find(existingItem => existingItem.id === item._existingItemId);
+				if (existing && normalizeKeyPart(existing.category) !== normalizeKeyPart(item.category)) {
+					newChangedFields.push('category');
+				}
+			}
+			if (selectedImportFields.toolsOrEquipment && item._provided.toolsOrEquipment) {
+				const existing = items.find(existingItem => existingItem.id === item._existingItemId);
+				if (existing && normalizeKeyPart(existing.toolsOrEquipment || '') !== normalizeKeyPart(item.toolsOrEquipment || '')) {
+					newChangedFields.push('tools/equipment');
+				}
+			}
+			if (selectedImportFields.quantity && item._provided.quantity) {
+				const existing = items.find(existingItem => existingItem.id === item._existingItemId);
+				if (existing && (existing.quantity ?? 0) !== item.quantity) {
+					newChangedFields.push('quantity');
+				}
+			}
+			if (selectedImportFields.eomCount && item._provided.eomCount) {
+				const existing = items.find(existingItem => existingItem.id === item._existingItemId);
+				if (existing && (existing.eomCount ?? 0) !== item.eomCount) {
+					newChangedFields.push('eomCount');
+				}
+			}
+			if (selectedImportFields.donations && item._provided.donations) {
+				const existing = items.find(existingItem => existingItem.id === item._existingItemId);
+				if (existing && (existing.donations ?? 0) !== item.donations) {
+					newChangedFields.push('donations');
+				}
+			}
+			if (selectedImportFields.picture && item._hasImage) {
+				const existing = items.find(existingItem => existingItem.id === item._existingItemId);
+				if (existing) {
+					if (item._imageSource === 'url') {
+						if ((existing.picture || '') !== item._pictureRef) {
+							newChangedFields.push('picture');
+						}
+					} else {
+						newChangedFields.push('picture');
+					}
+				}
+			}
+
+			const existing = items.find(existingItem => existingItem.id === item._existingItemId);
+			if (existing && existing.archived) {
+				newChangedFields.push('archived->active');
+			}
+
+			const action = newChangedFields.length > 0 ? 'update' : 'no-change';
+			return {
+				...item,
+				_selected: true,
+				_importAction: action,
+				_changedFields: newChangedFields
+			};
+		});
+	});
+
+	let allRowsSelected = $derived(
+		importPreviewData.length > 0 && importPreviewData.every((i) => i._selected !== false)
+	);
+
+	function toggleAllRows(e: Event) {
+		const checked = (e.target as HTMLInputElement).checked;
+		for (const item of importPreviewData) {
+			item._selected = checked;
+		}
+	}
+
+	$effect(() => {
+		if (showImportModal) {
+			toggleAllImportFields(true);
+		}
+	});
 	let importPreviewImageUrl = $state<string | null>(null); // lightbox for import preview
 	let importPreviewImageName = $state<string>('');
 	let showFormatGuide = $state(false); // collapsible format guide
@@ -2584,11 +2702,11 @@
 	}
 
 	async function handleImportConfirm() {
-		const validItems = importPreviewData.filter((item) => item._valid);
-		const actionableItems = importPreviewData.filter(
+		const validItems = processedImportPreviewData.filter((item) => item._valid && item._selected !== false);
+		const actionableItems = processedImportPreviewData.filter(
 			(item) => item._importAction === 'create' || item._importAction === 'update'
 		);
-		const noChangeCount = importPreviewData.filter(
+		const noChangeCount = processedImportPreviewData.filter(
 			(item) => item._importAction === 'no-change'
 		).length;
 
@@ -2658,9 +2776,49 @@
 				);
 			}
 
+			// Pre-upload unique local images concurrently to optimize performance (only if selectedImportFields.picture is true)
+			const localImageRefsToUpload = new Set<string>();
+			if (selectedImportFields.picture) {
+				for (const item of validItems) {
+					if (item._hasImage && (item._imageSource === 'zip' || item._imageSource === 'excel')) {
+						const ref = item._pictureRef.toLowerCase();
+						if (importImageFiles.has(ref)) {
+							localImageRefsToUpload.add(ref);
+						}
+					}
+				}
+			}
+
+			const uploadedImagesMap = new Map<string, string>();
+			const localImageRefsArray = [...localImageRefsToUpload];
+			let imagesUploadedCount = 0;
+
+			if (localImageRefsArray.length > 0) {
+				await runWithConcurrency(
+					localImageRefsArray,
+					6, // Safe, industry-standard concurrency factor
+					async (ref) => {
+						const imageFile = importImageFiles.get(ref);
+						if (imageFile) {
+							try {
+								imagesUploadedCount++;
+								importProgress.message = `Uploading image ${imagesUploadedCount}/${localImageRefsArray.length}: ${imageFile.name}...`;
+								const uploadResult = await uploadInventoryImage(imageFile);
+								uploadedImagesMap.set(ref, uploadResult.url);
+							} catch (err: any) {
+								console.error(`Failed to upload image for ${ref}:`, err);
+							}
+						}
+					}
+				);
+			}
+
 			const preparedCreateItems: Array<{ rowNumber: number; name: string; data: any }> = [];
 			const preparedUpdateItems: Array<{ rowNumber: number; name: string; id: string; data: any }> =
 				[];
+
+			// Reset progress count for database operations
+			importProgress.current = 0;
 
 			for (const item of validItems) {
 				try {
@@ -2670,7 +2828,7 @@
 					// Get category from map (already exists or just created)
 					const category = categoryMap.get(item.category.toLowerCase());
 
-					// Handle image upload
+					// Handle image url resolution
 					let pictureUrl = '';
 
 					if (item._hasImage) {
@@ -2683,17 +2841,9 @@
 								console.warn(`Invalid image URL for ${item.name}: ${item._pictureRef}`);
 							}
 						} else if (item._imageSource === 'zip' || item._imageSource === 'excel') {
-							// Upload image from local file (ZIP or embedded Excel image)
-							const imageFile = importImageFiles.get(item._pictureRef.toLowerCase());
-							if (imageFile) {
-								try {
-									importProgress.message = `Uploading image for ${item.name}...`;
-									const uploadResult = await uploadInventoryImage(imageFile);
-									pictureUrl = uploadResult.url;
-								} catch (err: any) {
-									console.error(`Failed to upload image for ${item.name}:`, err);
-								}
-							}
+							// Resolve to pre-uploaded image URL
+							const ref = item._pictureRef.toLowerCase();
+							pictureUrl = uploadedImagesMap.get(ref) || '';
 						}
 					}
 
@@ -2717,31 +2867,59 @@
 						const updateData: any = {};
 						const provided = item._provided || {};
 
-						if (provided.category && (existingItem.category || '') !== (itemData.category || ''))
-							updateData.category = itemData.category;
 						if (
+							selectedImportFields.category &&
+							provided.category &&
+							(existingItem.category || '') !== (itemData.category || '')
+						) {
+							updateData.category = itemData.category;
+						}
+						if (
+							selectedImportFields.category &&
 							provided.category &&
 							(existingItem.categoryId || '') !== (itemData.categoryId || '')
-						)
+						) {
 							updateData.categoryId = itemData.categoryId;
+						}
 						if (
+							selectedImportFields.toolsOrEquipment &&
 							provided.toolsOrEquipment &&
 							(existingItem.toolsOrEquipment || '') !== (itemData.toolsOrEquipment || '')
-						)
+						) {
 							updateData.toolsOrEquipment = itemData.toolsOrEquipment;
-						if (provided.quantity && (existingItem.quantity ?? 0) !== (itemData.quantity ?? 0))
+						}
+						if (
+							selectedImportFields.quantity &&
+							provided.quantity &&
+							(existingItem.quantity ?? 0) !== (itemData.quantity ?? 0)
+						) {
 							updateData.quantity = itemData.quantity;
-						if (provided.eomCount && (existingItem.eomCount ?? 0) !== (itemData.eomCount ?? 0))
+						}
+						if (
+							selectedImportFields.eomCount &&
+							provided.eomCount &&
+							(existingItem.eomCount ?? 0) !== (itemData.eomCount ?? 0)
+						) {
 							updateData.eomCount = itemData.eomCount;
-						if (provided.donations && (existingItem.donations ?? 0) !== (itemData.donations ?? 0))
+						}
+						if (
+							selectedImportFields.donations &&
+							provided.donations &&
+							(existingItem.donations ?? 0) !== (itemData.donations ?? 0)
+						) {
 							updateData.donations = itemData.donations;
+						}
 
 						if (existingItem.archived) {
 							updateData.archived = false;
 						}
 
-						// Replace image only when a new image is provided and is different.
-						if (pictureUrl && pictureUrl !== existingItem.picture) {
+						// Replace image only when a new image is provided, is different, and picture is selected.
+						if (
+							selectedImportFields.picture &&
+							pictureUrl &&
+							pictureUrl !== existingItem.picture
+						) {
 							updateData.picture = pictureUrl;
 							updateData.replacePicture = true;
 						}
@@ -5850,14 +6028,14 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									class="rounded-2xl border border-pink-100 bg-linear-to-br from-pink-50 to-pink-100/50 p-5 shadow-sm"
 								>
 									<p class="text-xs font-bold tracking-wide text-pink-600 uppercase">Total Rows</p>
-									<p class="mt-1.5 text-3xl font-black text-pink-900">{importPreviewData.length}</p>
+									<p class="mt-1.5 text-3xl font-black text-pink-900">{processedImportPreviewData.length}</p>
 								</div>
 								<div
 									class="rounded-2xl border border-green-100 bg-linear-to-br from-green-50 to-green-100/50 p-5 shadow-sm"
 								>
 									<p class="text-xs font-bold tracking-wide text-green-600 uppercase">Create</p>
 									<p class="mt-1.5 text-3xl font-black text-green-900">
-										{importPreviewData.filter((i) => i._importAction === 'create').length}
+										{processedImportPreviewData.filter((i) => i._importAction === 'create').length}
 									</p>
 								</div>
 								<div
@@ -5865,7 +6043,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 								>
 									<p class="text-xs font-bold tracking-wide text-emerald-600 uppercase">Update</p>
 									<p class="mt-1.5 text-3xl font-black text-emerald-900">
-										{importPreviewData.filter((i) => i._importAction === 'update').length}
+										{processedImportPreviewData.filter((i) => i._importAction === 'update').length}
 									</p>
 								</div>
 								<div
@@ -5873,17 +6051,139 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 								>
 									<p class="text-xs font-bold tracking-wide text-amber-600 uppercase">No Change</p>
 									<p class="mt-1.5 text-3xl font-black text-amber-900">
-										{importPreviewData.filter((i) => i._importAction === 'no-change').length}
+										{processedImportPreviewData.filter((i) => i._importAction === 'no-change').length}
 									</p>
 								</div>
 							</div>
-							{#if importPreviewData.filter((i) => i._importAction === 'error').length > 0}
+
+							<!-- Selective Update Configuration Panel -->
+							<div class="rounded-2xl border border-pink-100 bg-pink-50/10 p-5 shadow-xs space-y-4">
+								<div class="flex items-center justify-between border-b border-pink-100/50 pb-2">
+									<div class="flex items-center gap-2">
+										<Sliders class="h-4.5 w-4.5 text-pink-600" />
+										<h3 class="text-xs font-bold text-pink-900 tracking-wide uppercase">
+											Fields to Update / Import
+										</h3>
+									</div>
+									<div class="flex gap-2.5">
+										<button
+											type="button"
+											onclick={() => toggleAllImportFields(true)}
+											class="text-[11px] font-bold text-pink-600 hover:text-pink-700 transition-colors"
+										>
+											Select All
+										</button>
+										<span class="text-pink-200 text-[11px]">|</span>
+										<button
+											type="button"
+											onclick={() => toggleAllImportFields(false)}
+											class="text-[11px] font-bold text-gray-500 hover:text-gray-700 transition-colors"
+										>
+											Clear All
+										</button>
+									</div>
+								</div>
+
+								<div class="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-5">
+									<!-- Name -->
+									<label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5 hover:bg-pink-50/20 hover:border-pink-200 transition-all select-none shadow-xs">
+										<input
+											type="checkbox"
+											bind:checked={selectedImportFields.name}
+											class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+										/>
+										<span class="text-xs font-semibold text-gray-800 leading-none">Name</span>
+									</label>
+
+									<!-- Category -->
+									<label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5 hover:bg-pink-50/20 hover:border-pink-200 transition-all select-none shadow-xs">
+										<input
+											type="checkbox"
+											bind:checked={selectedImportFields.category}
+											class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+										/>
+										<span class="text-xs font-semibold text-gray-800 leading-none">Category</span>
+									</label>
+
+									<!-- Specification -->
+									<label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5 hover:bg-pink-50/20 hover:border-pink-200 transition-all select-none shadow-xs">
+										<input
+											type="checkbox"
+											bind:checked={selectedImportFields.specification}
+											class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+										/>
+										<span class="text-xs font-semibold text-gray-800 leading-none">Specification</span>
+									</label>
+
+									<!-- Tools or Equipment -->
+									<label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5 hover:bg-pink-50/20 hover:border-pink-200 transition-all select-none shadow-xs">
+										<input
+											type="checkbox"
+											bind:checked={selectedImportFields.toolsOrEquipment}
+											class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+										/>
+										<span class="text-xs font-semibold text-gray-800 leading-none">Tools/Equipment</span>
+									</label>
+
+									<!-- Current Count -->
+									<label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5 hover:bg-pink-50/20 hover:border-pink-200 transition-all select-none shadow-xs">
+										<input
+											type="checkbox"
+											bind:checked={selectedImportFields.quantity}
+											class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+										/>
+										<span class="text-xs font-semibold text-gray-800 leading-none">Current Count</span>
+									</label>
+
+									<!-- EOM Count -->
+									<label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5 hover:bg-pink-50/20 hover:border-pink-200 transition-all select-none shadow-xs">
+										<input
+											type="checkbox"
+											bind:checked={selectedImportFields.eomCount}
+											class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+										/>
+										<span class="text-xs font-semibold text-gray-800 leading-none">EOM Count</span>
+									</label>
+
+									<!-- Donations -->
+									<label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5 hover:bg-pink-50/20 hover:border-pink-200 transition-all select-none shadow-xs">
+										<input
+											type="checkbox"
+											bind:checked={selectedImportFields.donations}
+											class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+										/>
+										<span class="text-xs font-semibold text-gray-800 leading-none">Donations</span>
+									</label>
+
+									<!-- Variance -->
+									<label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5 hover:bg-pink-50/20 hover:border-pink-200 transition-all select-none shadow-xs">
+										<input
+											type="checkbox"
+											bind:checked={selectedImportFields.variance}
+											class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+										/>
+										<span class="text-xs font-semibold text-gray-800 leading-none">Variance</span>
+									</label>
+
+									<!-- Image -->
+									<label class="flex items-center gap-2.5 cursor-pointer rounded-xl border border-gray-100 bg-white/60 px-3 py-2.5 hover:bg-pink-50/20 hover:border-pink-200 transition-all select-none shadow-xs">
+										<input
+											type="checkbox"
+											bind:checked={selectedImportFields.picture}
+											class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+										/>
+										<span class="text-xs font-semibold text-gray-800 leading-none">Image</span>
+									</label>
+								</div>
+							</div>
+
+							{#if processedImportPreviewData.filter((i) => i._importAction === 'error').length > 0}
 								<div
 									class="mt-4 rounded-2xl border border-red-100 bg-linear-to-br from-red-50 to-red-100/50 p-5 shadow-sm"
 								>
 									<p class="text-xs font-bold tracking-wide text-red-600 uppercase">Errors</p>
 									<p class="mt-1.5 text-3xl font-black text-red-900">
-										{importPreviewData.filter((i) => i._importAction === 'error').length}
+										{processedImportPreviewData.filter((i) => i._importAction === 'error').length}
 									</p>
 								</div>
 							{/if}
@@ -5935,6 +6235,14 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									<table class="min-w-full divide-y divide-gray-200">
 										<thead class="sticky top-0 z-10 bg-gray-50/95 backdrop-blur-sm">
 											<tr>
+												<th class="w-12 px-4 py-4 text-center">
+													<input
+														type="checkbox"
+														checked={allRowsSelected}
+														onchange={toggleAllRows}
+														class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+													/>
+												</th>
 												<th
 													class="px-5 py-4 text-left text-xs font-bold tracking-wider text-gray-500 uppercase"
 													>Status</th
@@ -5962,7 +6270,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											</tr>
 										</thead>
 										<tbody class="divide-y divide-gray-100 bg-white">
-											{#each importPreviewData as item}
+											{#each processedImportPreviewData as item}
 												<tr
 													class={item._importAction === 'create'
 														? 'bg-green-50/40 hover:bg-green-50'
@@ -5970,8 +6278,23 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 															? 'bg-emerald-50/40 hover:bg-emerald-50'
 															: item._importAction === 'no-change'
 																? 'bg-amber-50/40 hover:bg-amber-50'
-																: 'bg-red-50'}
+																: item._importAction === 'skip'
+																	? 'opacity-40 bg-gray-50'
+																	: 'bg-red-50'}
 												>
+													<td class="w-12 px-4 py-3 text-center">
+														<input
+															type="checkbox"
+															checked={item._selected !== false}
+															onchange={(e) => {
+																const originalItem = importPreviewData.find((i) => i._rowNumber === item._rowNumber);
+																if (originalItem) {
+																	originalItem._selected = e.currentTarget.checked;
+																}
+															}}
+															class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
+														/>
+													</td>
 													<td class="px-4 py-3 whitespace-nowrap">
 														{#if item._importAction === 'create'}
 															<span class="inline-flex items-center gap-1 text-xs text-green-600">
@@ -6011,6 +6334,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 																	/>
 																</svg>
 																No Change
+															</span>
+														{:else if item._importAction === 'skip'}
+															<span class="inline-flex items-center gap-1 text-xs text-gray-400 select-none">
+																<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+																	<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+																</svg>
+																Skipped
 															</span>
 														{:else}
 															<span
@@ -6173,7 +6503,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 								onclick={handleImportConfirm}
 								class="inline-flex items-center gap-2 rounded-xl bg-linear-to-r from-emerald-600 to-emerald-700 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/30 transition-all hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-500/40 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none active:scale-95 disabled:pointer-events-none disabled:opacity-50"
 								disabled={importing ||
-									importPreviewData.filter(
+									processedImportPreviewData.filter(
 										(i) => i._importAction === 'create' || i._importAction === 'update'
 									).length === 0}
 							>
@@ -6191,7 +6521,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											d="M5 13l4 4L19 7"
 										/>
 									</svg>
-									Apply {importPreviewData.filter(
+									Apply {processedImportPreviewData.filter(
 										(i) => i._importAction === 'create' || i._importAction === 'update'
 									).length} Changes
 								{/if}
