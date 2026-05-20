@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
+	import { goto, afterNavigate } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { browser } from '$app/environment';
@@ -313,6 +313,12 @@
 
 	// Load data on component mount
 	onMount(() => {
+		// Parse search parameters
+		const statusParam = $page.url.searchParams.get('status');
+		if (statusParam === 'low-stock') {
+			statusFilter = 'low-stock';
+		}
+
 		console.log('[INVENTORY-SSE]  Component mounted, loading data...');
 		console.log('[INVENTORY-SSE]  Has cached data:', hasCachedData);
 
@@ -358,6 +364,15 @@
 			window.removeEventListener('keydown', handleKeydown);
 			document.removeEventListener('click', handleClickOutside);
 		};
+	});
+
+	afterNavigate(({ to }) => {
+		if (to) {
+			const statusParam = to.url.searchParams.get('status');
+			if (statusParam === 'low-stock') {
+				statusFilter = 'low-stock';
+			}
+		}
 	});
 
 	/**

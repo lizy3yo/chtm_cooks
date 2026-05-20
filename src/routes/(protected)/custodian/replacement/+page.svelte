@@ -2,6 +2,8 @@
 	import { onMount } from 'svelte';
 	import { get } from 'svelte/store';
 	import { browser } from '$app/environment';
+	import { afterNavigate } from '$app/navigation';
+	import { page } from '$app/stores';
 	import {
 		replacementObligationsAPI,
 		type ReplacementObligation
@@ -419,6 +421,11 @@
 	onMount(() => {
 		isMounted = true;
 
+		const tabParam = get(page).url.searchParams.get('tab');
+		if (tabParam === 'replacements') {
+			activeTab = 'replacements';
+		}
+
 		// Initialize from cache if available, otherwise show loading
 		const cachedObligations = replacementObligationsAPI.peekCachedObligations({ limit: 500 });
 		const cachedDonations = donationsAPI.peekCachedDonations({ limit: 200 });
@@ -575,6 +582,15 @@
 				unsubscribeInventory = null;
 			}
 		};
+	});
+
+	afterNavigate(({ to }) => {
+		if (to) {
+			const tabParam = to.url.searchParams.get('tab');
+			if (tabParam === 'replacements') {
+				activeTab = 'replacements';
+			}
+		}
 	});
 
 	async function backfillItemPictures(): Promise<void> {
@@ -1165,7 +1181,11 @@
 				</div>
 			{/each}
 		{:else}
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<button
+				type="button"
+				onclick={() => { activeTab = 'donations'; }}
+				class="rounded-lg border border-pink-200 bg-pink-50 p-3 shadow-sm hover:shadow-md hover:border-pink-300/60 hover:bg-pink-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-pink-500/20 sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Donated Items</p>
@@ -1183,9 +1203,13 @@
 						<Package size={24} class="hidden text-pink-600 sm:block" />
 					</div>
 				</div>
-			</div>
+			</button>
 
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<button
+				type="button"
+				onclick={() => { activeTab = 'replacements'; replacementsFilter = 'pending'; }}
+				class="rounded-lg border border-orange-200 bg-orange-50 p-3 shadow-sm hover:shadow-md hover:border-orange-300/60 hover:bg-orange-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-orange-500/20 sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
@@ -1201,9 +1225,13 @@
 						<AlertCircle size={24} class="hidden text-orange-600 sm:block" />
 					</div>
 				</div>
-			</div>
+			</button>
 
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<button
+				type="button"
+				onclick={() => { activeTab = 'replacements'; replacementsFilter = 'replaced'; }}
+				class="rounded-lg border border-green-200 bg-green-50 p-3 shadow-sm hover:shadow-md hover:border-green-300/60 hover:bg-green-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-green-500/20 sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Resolved</p>
@@ -1219,9 +1247,13 @@
 						<CheckCircle2 size={24} class="hidden text-green-600 sm:block" />
 					</div>
 				</div>
-			</div>
+			</button>
 
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<button
+				type="button"
+				onclick={() => { activeTab = 'replacements'; replacementsFilter = 'all'; }}
+				class="rounded-lg border border-blue-200 bg-blue-50 p-3 shadow-sm hover:shadow-md hover:border-blue-300/60 hover:bg-blue-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Recent Activity</p>
@@ -1237,7 +1269,7 @@
 						<TrendingUp size={24} class="hidden text-blue-600 sm:block" />
 					</div>
 				</div>
-			</div>
+			</button>
 		{/if}
 	</div>
 
