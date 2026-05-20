@@ -36,7 +36,7 @@
 
 	let activeTab = $state<Tab>('all-items');
 	let requiredFilter = $state<'all' | 'required' | 'regular'>('all');
-	let statusFilter = $state<'all' | 'in-stock' | 'low-stock' | 'out-of-stock'>('all');
+	let statusFilter = $state<'all' | 'in-stock' | 'low-stock' | 'out-of-stock' | 'low-or-out'>('all');
 	let showAddItemModal = $state(false);
 
 	// Stock adjustment modal states
@@ -317,6 +317,8 @@
 		const statusParam = $page.url.searchParams.get('status');
 		if (statusParam === 'low-stock') {
 			statusFilter = 'low-stock';
+		} else if (statusParam === 'low-or-out') {
+			statusFilter = 'low-or-out';
 		}
 
 		console.log('[INVENTORY-SSE]  Component mounted, loading data...');
@@ -371,6 +373,8 @@
 			const statusParam = to.url.searchParams.get('status');
 			if (statusParam === 'low-stock') {
 				statusFilter = 'low-stock';
+			} else if (statusParam === 'low-or-out') {
+				statusFilter = 'low-or-out';
 			}
 		}
 	});
@@ -928,7 +932,7 @@
 	const lowStockItems = $derived(
 		activeItems.filter((item) => {
 			const status = getItemStatus(item);
-			return status === 'Low Stock' || status === 'Out of Stock';
+			return status === 'Low Stock';
 		})
 	);
 	const requiredItems = $derived(activeItems.filter((item) => item.isrequired === true));
@@ -1001,6 +1005,8 @@
 				matchesStatus = itemStatus === 'Low Stock';
 			} else if (statusFilter === 'out-of-stock') {
 				matchesStatus = itemStatus === 'Out of Stock';
+			} else if (statusFilter === 'low-or-out') {
+				matchesStatus = itemStatus === 'Low Stock' || itemStatus === 'Out of Stock';
 			}
 
 			return isActive && matchesCategory && matchesQuery && matchesRequired && matchesStatus;
@@ -3880,6 +3886,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										<option value="in-stock">In Stock</option>
 										<option value="low-stock">Low Stock</option>
 										<option value="out-of-stock">Out of Stock</option>
+										<option value="low-or-out">Low / Out of Stock</option>
 									</select>
 									<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
 										<svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -3935,7 +3942,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 								{#if statusFilter !== 'all'}
 									<span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-600/10">
-										Status: {statusFilter === 'in-stock' ? 'In Stock' : statusFilter === 'low-stock' ? 'Low Stock' : 'Out of Stock'}
+										Status: {statusFilter === 'in-stock' ? 'In Stock' : statusFilter === 'low-stock' ? 'Low Stock' : statusFilter === 'out-of-stock' ? 'Out of Stock' : 'Low / Out of Stock'}
 										<button onclick={() => statusFilter = 'all'} class="group rounded-full p-0.5 hover:bg-amber-100" aria-label="Clear status filter">
 											<svg class="h-3 w-3 text-amber-600 group-hover:text-amber-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />

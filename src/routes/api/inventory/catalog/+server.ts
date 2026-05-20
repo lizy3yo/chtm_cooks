@@ -146,11 +146,7 @@ function hasTextSearch(filter: Record<string, any>): boolean {
 export const GET: RequestHandler = async (event) => {
 	const { request, getClientAddress } = event;
 
-	// Apply rate limiting
-	const rateLimitResult = await rateLimit(event, RateLimitPresets.API);
-	if (rateLimitResult instanceof Response) {
-		return rateLimitResult;
-	}
+	// Apply rate limiting (Disabled to prevent "Rate limit exceeded" errors during catalog load)
 
 	try {
 		// Verify authentication via cookie

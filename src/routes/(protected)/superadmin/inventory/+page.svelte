@@ -948,7 +948,7 @@
 	const lowStockItems = $derived(
 		activeItems.filter((item) => {
 			const status = getItemStatus(item);
-			return status === 'Low Stock' || status === 'Out of Stock';
+			return status === 'Low Stock';
 		})
 	);
 	const requiredItems = $derived(activeItems.filter((item) => item.isrequired === true));

@@ -850,7 +850,18 @@ export const GET: RequestHandler = async (event) => {
 					donations: { $sum: { $ifNull: ['$donations', 0] } },
 					requiredCount: { $sum: { $cond: [{ $eq: ['$isrequired', true] }, 1, 0] } },
 					lowStockCount: {
-						$sum: { $cond: [{ $in: ['$status', ['Low Stock', 'Out of Stock']] }, 1, 0] }
+						$sum: {
+							$cond: [
+								{
+									$lte: [
+										{ $add: [{ $ifNull: ['$quantity', 0] }, { $ifNull: ['$donations', 0] }] },
+										5
+									]
+								},
+								1,
+								0
+							]
+						}
 					},
 					touchedItems: { $sum: 1 }
 				}
@@ -1021,19 +1032,51 @@ export const GET: RequestHandler = async (event) => {
 
 		// Low stock / out of stock alerts
 		const stockAlerts = await inventory.aggregate([
-			{ $match: { archived: false, status: { $in: ['Low Stock', 'Out of Stock'] } } },
+			{
+				$match: {
+					archived: false,
+					$expr: {
+						$lte: [
+							{ $add: [{ $ifNull: ['$quantity', 0] }, { $ifNull: ['$donations', 0] }] },
+							5
+						]
+					}
+				}
+			},
 			{
 				$project: {
 					_id: { $toString: '$_id' },
 					name: 1,
 					category: 1,
 					quantity: 1,
-					status: 1
+					status: {
+						$cond: [
+							{
+								$eq: [
+									{ $add: [{ $ifNull: ['$quantity', 0] }, { $ifNull: ['$donations', 0] }] },
+									0
+								]
+							},
+							'Out of Stock',
+							'Low Stock'
+						]
+					}
 				}
 			},
 			{ $sort: { quantity: 1 } },
 			{ $limit: 20 }
 		]).toArray();
+
+		// Real total of low stock / out of stock items in the entire database (non-archived)
+		const realLowStockCount = await inventory.countDocuments({
+			archived: false,
+			$expr: {
+				$lte: [
+					{ $add: [{ $ifNull: ['$quantity', 0] }, { $ifNull: ['$donations', 0] }] },
+					5
+				]
+			}
+		});
 
 		logger.info('reports-analytics', 'Inventory queries completed', { duration: Date.now() - inventoryStart });
 
@@ -1548,7 +1591,7 @@ export const GET: RequestHandler = async (event) => {
 					variance: inventorySummary[0]?.variance ?? 0,
 					donations: inventorySummary[0]?.donations ?? 0,
 					requiredCount: inventorySummary[0]?.requiredCount ?? 0,
-					lowStockCount: inventorySummary[0]?.lowStockCount ?? 0,
+					lowStockCount: realLowStockCount,
 					stockAdjustmentsAdded: stockAdjustmentsSummary[0]?.totalAdded ?? 0,
 					stockAdjustmentsDeducted: stockAdjustmentsSummary[0]?.totalDeducted ?? 0,
 					stockAdjustmentsCount: stockAdjustmentsSummary[0]?.count ?? 0

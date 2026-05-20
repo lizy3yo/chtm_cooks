@@ -47,7 +47,7 @@
 	const pendingCount  = $derived(
 		report?.borrowRequests.statusBreakdown.find(s => s.status === 'approved_instructor')?.count ?? 0
 	);
-	const stockAlertCount   = $derived(report?.inventory.stockAlerts.length ?? 0);
+	const stockAlertCount   = $derived(report?.inventory.summary.lowStockCount ?? 0);
 	const pendingObligations = $derived(report?.replacement.summary.pendingCount ?? 0);
 	const totalItemsOut     = $derived(report?.inventory.itemsCurrentlyOut.reduce((s, i) => s + i.quantityOut, 0) ?? 0);
 
@@ -325,7 +325,7 @@
 
 			<button
 				type="button"
-				onclick={() => goto('/custodian/inventory?status=low-stock')}
+				onclick={() => goto('/custodian/inventory?status=low-or-out')}
 				class="rounded-xl border {stockAlertCount > 0 ? 'border-orange-200 bg-orange-50 hover:border-orange-300/60 hover:bg-orange-100/30 focus:ring-orange-500/20' : 'border-gray-200 bg-gray-50 hover:border-gray-300/60 hover:bg-gray-100/30 focus:ring-gray-500/20'} p-4 shadow-sm transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2"
 			>
 				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {stockAlertCount > 0 ? 'text-orange-700' : 'text-gray-600'}">
