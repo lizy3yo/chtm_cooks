@@ -121,41 +121,58 @@
 	async function handleBackup() {
 		backingUp = true;
 		toastStore.info('Preparing database snapshot...', 'Backup');
-		
-		// Simulate backup generation process
-		setTimeout(() => {
-			const blob = new Blob([JSON.stringify(stats, null, 2)], { type: 'application/json' });
+		try {
+			const res = await fetch('/api/db-backup');
+			if (!res.ok) throw new Error('Failed to generate backup');
+			const blob = await res.blob();
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
 			a.download = `chtm_cooks_db_backup_${new Date().toISOString().split('T')[0]}.json`;
 			a.click();
 			URL.revokeObjectURL(url);
-			
-			backingUp = false;
 			toastStore.success('Database backup has been successfully downloaded.', 'Backup Complete');
-		}, 1500);
+		} catch (error: any) {
+			toastStore.error(error.message || 'Failed to download database backup');
+		} finally {
+			backingUp = false;
+		}
 	}
 
 	function handleRestoreClick() {
 		fileInput.click();
 	}
 
-	function onFileSelected(event: Event) {
+	async function onFileSelected(event: Event) {
 		const target = event.target as HTMLInputElement;
 		if (!target.files || target.files.length === 0) return;
 		
 		const file = target.files[0];
 		restoring = true;
-		toastStore.info(`Validating ${file.name}...`, 'Restore Process');
+		toastStore.info(`Restoring database from ${file.name}...`, 'Restore Process');
 		
-		// Simulate restore process
-		setTimeout(() => {
-			restoring = false;
+		try {
+			const formData = new FormData();
+			formData.append('backup', file);
+			
+			const res = await fetch('/api/db-backup/restore', {
+				method: 'POST',
+				body: formData
+			});
+			
+			if (!res.ok) {
+				const errData = await res.json().catch(() => ({}));
+				throw new Error(errData.message || 'Failed to restore database');
+			}
+			
 			toastStore.success(`Database successfully restored from ${file.name}.`, 'Restore Complete');
-			loadStats();
+			await loadStats();
+		} catch (error: any) {
+			toastStore.error(error.message || 'Failed to restore database');
+		} finally {
+			restoring = false;
 			target.value = ''; // Reset
-		}, 2000);
+		}
 	}
 
 	let filteredCollections = $derived(
