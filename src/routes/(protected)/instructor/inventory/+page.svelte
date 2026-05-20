@@ -27,21 +27,12 @@
 		Trash2,
 		Edit,
 		Sliders,
-		Download,
-		Activity,
-		TrendingUp,
-		Clock
+		Download
 	} from 'lucide-svelte';
 	import ActionMenu from '$lib/components/ui/ActionMenu.svelte';
 	import ExportModal from '$lib/components/custodian/ExportModal.svelte';
-	import {
-		fetchAnalytics,
-		peekCachedAnalytics,
-		subscribeToAnalyticsChanges,
-		type AnalyticsReport
-	} from '$lib/api/analyticsReports';
 
-	type Tab = 'all-items' | 'categories' | 'usage';
+	type Tab = 'all-items' | 'categories';
 
 	let activeTab = $state<Tab>('all-items');
 	let requiredFilter = $state<'all' | 'required' | 'regular'>('all');
@@ -68,9 +59,6 @@
 	// Data from store with client-side caching
 	let items = $state<InventoryItem[]>(hasCachedData ? cachedStore!.items : []);
 	let categories = $state<InventoryCategory[]>(hasCachedData ? cachedStore!.categories : []);
-	let analytics = $state<AnalyticsReport | null>(
-		browser ? peekCachedAnalytics({ period: 'month' }) : null
-	);
 	let loading = $state(false); // Only show skeleton if no cached data
 	let uploadingImage = $state(false);
 	let initialLoadComplete = $state(true); // Mark as complete if we have cached data
@@ -78,7 +66,6 @@
 	let cardsLoading = $state(!hasCachedData);
 	let itemsTabLoading = $state(!hasCachedData);
 	let categoriesTabLoading = $state(!hasCachedData);
-	let usageStatsLoading = $state(!hasCachedData);
 	let inFlightLoadId = 0;
 	let firstPageResponse: any = null;
 
@@ -135,18 +122,6 @@
 			// Step 3: Load/display the categories tab
 			categoriesTabLoading = false;
 
-			// Step 4: Load usage statistics (analytics)
-			try {
-				const analyticsRes = await fetchAnalytics({ period: 'month', forceRefresh: shouldForceRefresh });
-				if (loadId === inFlightLoadId) {
-					analytics = analyticsRes;
-				}
-			} catch (err) {
-				console.error('[SUPERADMIN-INVENTORY] Failed to fetch analytics:', err);
-			}
-			if (loadId !== inFlightLoadId) return;
-			usageStatsLoading = false;
-
 			// Load the remaining pages of items sequentially in the background
 			const totalPagesCount = firstPageResponse?.pages ?? 1;
 			const cacheValid = inventoryStore.isItemsCacheValid();
@@ -165,7 +140,6 @@
 				cardsLoading = false;
 				itemsTabLoading = false;
 				categoriesTabLoading = false;
-				usageStatsLoading = false;
 			}
 		}
 	}
@@ -294,14 +268,8 @@
 			console.log('[INVENTORY-SSE] 📥 Fetching fresh data from API (bypassing all caches)...');
 
 			// Fetch fresh data directly without using cache
-			const [freshItems, categoriesResponse, analyticsRes] = await Promise.all([
-				fetchAllInventoryItems(true, true),
-				inventoryCategoriesAPI.getAll({ includeArchived: true }),
-				fetchAnalytics({ period: 'month', forceRefresh: true }).catch((err) => {
-					console.error('[SUPERADMIN-INVENTORY] Failed to refresh analytics:', err);
-					return null;
-				})
-			]);
+			const freshItems = await fetchAllInventoryItems(true, true);
+			const categoriesResponse = await inventoryCategoriesAPI.getAll({ includeArchived: true });
 
 			console.log('[INVENTORY-SSE] ✅ Fresh data received from API');
 			console.log('[INVENTORY-SSE] 📦 Fresh items count:', freshItems.length);
@@ -311,9 +279,6 @@
 			// This triggers Svelte's reactivity system
 			items = freshItems;
 			categories = categoriesResponse.categories;
-			if (analyticsRes) {
-				analytics = analyticsRes;
-			}
 
 			console.log('[INVENTORY-SSE] 📦 Current items count AFTER assignment:', items.length);
 
@@ -3525,7 +3490,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
-							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Items</p>
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Items</p>
 							<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
 								{activeItems.length}
 							</p>
@@ -3650,16 +3615,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					>
 						{categories.length}
 					</span>
-				</button>
-
-				<button
-					onclick={() => switchTab('usage')}
-					class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap transition-colors sm:text-sm
-					{activeTab === 'usage'
-						? 'border-pink-500 text-pink-600'
-						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-				>
-					Usage Statistics
 				</button>
 			</nav>
 		</div>
@@ -4696,134 +4651,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						</div>
 					</div>
 				{/if}
-				{/if}
-
-			{:else if activeTab === 'usage'}
-				{#if usageStatsLoading}
-					<div class="p-6">
-						<div class="py-16 text-center animate-pulse">
-							<Activity size={40} class="mx-auto mb-3 text-gray-300" />
-							<p class="text-sm text-gray-500">Usage statistics are loading...</p>
-						</div>
-					</div>
-				{:else}
-					<div class="p-6">
-					{#if analytics}
-						<div class="mb-6 flex items-center justify-between">
-							<h3 class="text-lg font-bold text-gray-900">Most Borrowed Items</h3>
-							<span class="text-sm text-gray-500">Past 30 Days</span>
-						</div>
-						<div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-							{#each analytics.inventory.mostBorrowedItems.slice(0, 6) as item, i}
-								<div
-									class="relative flex items-center gap-4 rounded-xl border border-gray-100 bg-gray-50 p-4 transition hover:bg-gray-100 hover:shadow-sm"
-								>
-									<div
-										class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-pink-100 text-lg font-bold text-pink-700"
-									>
-										#{i + 1}
-									</div>
-									<div>
-										<h4 class="font-bold text-gray-900">{item.name}</h4>
-										<p class="mb-1 text-xs text-gray-500">{item.category}</p>
-										<span
-											class="inline-flex items-center gap-1 rounded border border-gray-200 bg-white px-2 py-0.5 text-xs font-semibold text-gray-700 shadow-sm"
-										>
-											<TrendingUp size={12} class="text-emerald-500" />
-											{item.totalBorrows} borrows
-										</span>
-									</div>
-								</div>
-							{:else}
-								<p
-									class="text-sm text-gray-500 col-span-full py-8 text-center border-2 border-dashed border-gray-200 rounded-xl"
-								>
-									No usage statistics available for this period.
-								</p>
-							{/each}
-						</div>
-
-						<div class="mt-8 grid gap-6 lg:grid-cols-2">
-							<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-								<h3 class="mb-4 font-bold text-gray-900">Request Turnaround Averages</h3>
-								<div class="space-y-4">
-									<div class="flex items-center justify-between">
-										<span class="text-sm text-gray-600">Approval Time</span>
-										<span class="font-bold text-gray-900"
-											>{analytics.borrowRequests.turnaround.avgApprovalHours.toFixed(1)} hrs</span
-										>
-									</div>
-									<div class="h-2 w-full rounded-full bg-gray-200">
-										<div
-											class="h-2 rounded-full bg-blue-500"
-											style="width: {Math.min(
-												100,
-												(analytics.borrowRequests.turnaround.avgApprovalHours / 24) * 100
-											)}%"
-										></div>
-									</div>
-									<div class="mt-4 flex items-center justify-between">
-										<span class="text-sm text-gray-600">Release Time</span>
-										<span class="font-bold text-gray-900"
-											>{analytics.borrowRequests.turnaround.avgReleaseHours.toFixed(1)} hrs</span
-										>
-									</div>
-									<div class="h-2 w-full rounded-full bg-gray-200">
-										<div
-											class="h-2 rounded-full bg-emerald-500"
-											style="width: {Math.min(
-												100,
-												(analytics.borrowRequests.turnaround.avgReleaseHours / 24) * 100
-											)}%"
-										></div>
-									</div>
-								</div>
-							</div>
-							<div
-								class="flex flex-col justify-center rounded-xl border border-gray-200 bg-white p-5 shadow-sm"
-							>
-								<div class="text-center">
-									<h3 class="mb-2 font-bold text-gray-900">Overall Inventory Status</h3>
-									<div
-										class="mb-4 inline-flex h-32 w-32 items-center justify-center rounded-full border-8 border-pink-100"
-									>
-										<div class="text-center">
-											<p class="text-2xl font-bold text-pink-600">
-												{analytics.borrowRequests.statusBreakdown.find(
-													(s) => s.status === 'borrowed'
-												)?.count || 0}
-											</p>
-											<p class="text-[10px] font-bold tracking-wider text-gray-500 uppercase">
-												Active<br />Loans
-											</p>
-										</div>
-									</div>
-									<div class="mt-2 grid grid-cols-2 gap-4">
-										<div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
-											<p class="text-xl font-bold text-gray-900">
-												{analytics.borrowRequests.statusBreakdown.find(
-													(s) => s.status === 'pending_instructor'
-												)?.count || 0}
-											</p>
-											<p class="text-xs text-gray-500">Pending</p>
-										</div>
-										<div class="rounded-lg border border-gray-100 bg-gray-50 p-3">
-											<p class="text-xl font-bold text-gray-900">
-												{analytics.borrowRequests.overdueCount || 0}
-											</p>
-											<p class="text-xs text-red-500">Overdue</p>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-					{:else}
-						<div class="py-16 text-center">
-							<Activity size={40} class="mx-auto mb-3 text-gray-300" />
-							<p class="text-sm text-gray-500">Usage statistics are loading...</p>
-						</div>
-					{/if}
-				</div>
 				{/if}
 
 			{/if}
