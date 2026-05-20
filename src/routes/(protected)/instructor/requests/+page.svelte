@@ -36,6 +36,14 @@
 	let activeTab = $state<'pending' | 'fulfillment' | 'borrowed' | 'unresolved' | 'history'>(
 		'pending'
 	);
+	let overdueOnly = $state(false);
+
+	$effect(() => {
+		if (activeTab !== 'borrowed') {
+			overdueOnly = false;
+		}
+	});
+
 	let highlightedRequestId = $state<string | null>(null);
 	let historySubTab = $state<'all' | 'completed' | 'resolved' | 'cancelled'>('all');
 	let showDetailModal = $state(false);
@@ -51,13 +59,13 @@
 	const hasCachedData = cachedRequests && cachedRequests.requests.length > 0;
 
 	let requests = $state<any[]>([]);
-	let loading = $state(!hasCachedData);
-	let cardsLoading = $state(!hasCachedData);
-	let pendingLoading = $state(!hasCachedData);
-	let fulfillmentLoading = $state(!hasCachedData);
-	let borrowedLoading = $state(!hasCachedData);
-	let unresolvedLoading = $state(!hasCachedData);
-	let historyLoading = $state(!hasCachedData);
+	let loading = $state(true);
+	let cardsLoading = $state(true);
+	let pendingLoading = $state(true);
+	let fulfillmentLoading = $state(true);
+	let borrowedLoading = $state(true);
+	let unresolvedLoading = $state(true);
+	let historyLoading = $state(true);
 	let inFlightLoadId = 0;
 
 	async function loadRequestsProgressive(forceRefresh = false) {
@@ -391,6 +399,21 @@
 	let _pendingDeepLinkId = $state<string | null>(null);
 
 	afterNavigate(({ to }) => {
+		if (to) {
+			const tabParam = to.url.searchParams.get('tab');
+			if (tabParam) {
+				if (['pending', 'fulfillment', 'borrowed', 'unresolved', 'history'].includes(tabParam)) {
+					activeTab = tabParam as any;
+				}
+			}
+			const filterParam = to.url.searchParams.get('filter');
+			if (filterParam === 'overdue' && activeTab === 'borrowed') {
+				overdueOnly = true;
+			} else if (activeTab === 'borrowed') {
+				overdueOnly = false;
+			}
+		}
+
 		const rawId = to?.url.searchParams.get('requestId') ?? null;
 		if (!rawId) return;
 		// Strip the param from the URL immediately
@@ -413,6 +436,19 @@
 
 	onMount(() => {
 		let mounted = true;
+
+		// Parse search parameters
+		const url = new URL(window.location.href);
+		const tabParam = url.searchParams.get('tab');
+		if (tabParam) {
+			if (['pending', 'fulfillment', 'borrowed', 'unresolved', 'history'].includes(tabParam)) {
+				activeTab = tabParam as any;
+			}
+		}
+		const filterParam = url.searchParams.get('filter');
+		if (filterParam === 'overdue' && activeTab === 'borrowed') {
+			overdueOnly = true;
+		}
 
 		// Cache-first: render instantly from cache if available, then revalidate in background.
 		const cached = borrowRequestsAPI.peekCachedList({});
@@ -462,6 +498,15 @@
 				if (historySubTab === 'completed') return req.rawStatus === 'returned';
 				if (historySubTab === 'cancelled')
 					return req.rawStatus === 'cancelled' || req.rawStatus === 'rejected';
+				return true;
+			})
+			.filter((req) => {
+				if (activeTab === 'borrowed' && overdueOnly) {
+					return (
+						(req.rawStatus === 'borrowed' || req.rawStatus === 'pending_return') &&
+						new Date(req.returnDate) < new Date()
+					);
+				}
 				return true;
 			})
 			.filter((req) => {
@@ -1085,7 +1130,15 @@
 		</div>
 	{:else}
 		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<button
+				type="button"
+				onclick={() => {
+					activeTab = 'pending';
+					searchQuery = '';
+					overdueOnly = false;
+				}}
+				class="w-full text-left rounded-lg bg-white p-3 shadow sm:p-5 hover:shadow-md hover:border-blue-200/50 hover:bg-gray-50/50 border border-transparent transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
@@ -1099,8 +1152,19 @@
 						<ClipboardList class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6" />
 					</div>
 				</div>
-			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			</button>
+
+			<button
+				type="button"
+				onclick={() => {
+					activeTab = 'pending';
+					overdueOnly = false;
+				}}
+				class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-amber-500/20 cursor-pointer
+					{activeTab === 'pending' && !overdueOnly
+						? 'border-amber-200 bg-amber-50/30 ring-1 ring-amber-200/50 shadow-md'
+						: 'bg-white border-transparent hover:shadow-md hover:border-amber-200/50 hover:bg-gray-50/50'}"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
@@ -1114,8 +1178,18 @@
 						<Clock3 class="h-5 w-5 text-amber-600 sm:h-6 sm:w-6" />
 					</div>
 				</div>
-			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			</button>
+
+			<button
+				type="button"
+				onclick={() => {
+					activeTab = 'fulfillment';
+				}}
+				class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer
+					{activeTab === 'fulfillment'
+						? 'border-blue-200 bg-blue-50/30 ring-1 ring-blue-200/50 shadow-md'
+						: 'bg-white border-transparent hover:shadow-md hover:border-blue-200/50 hover:bg-gray-50/50'}"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">With Custodian</p>
@@ -1129,8 +1203,18 @@
 						<PackageCheck class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6" />
 					</div>
 				</div>
-			</div>
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			</button>
+
+			<button
+				type="button"
+				onclick={() => {
+					activeTab = 'history';
+				}}
+				class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-teal-500/20 cursor-pointer
+					{activeTab === 'history'
+						? 'border-teal-200 bg-teal-50/30 ring-1 ring-teal-200/50 shadow-md'
+						: 'bg-white border-transparent hover:shadow-md hover:border-teal-200/50 hover:bg-gray-50/50'}"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Completed</p>
@@ -1144,7 +1228,7 @@
 						<CheckCircle2 class="h-5 w-5 text-teal-600 sm:h-6 sm:w-6" />
 					</div>
 				</div>
-			</div>
+			</button>
 		</div>
 	{/if}
 
@@ -1283,6 +1367,22 @@
 					{/if}
 				</div>
 			</div>
+
+			{#if activeTab === 'borrowed' && overdueOnly}
+				<div class="mb-4 flex flex-wrap gap-2">
+					<span class="inline-flex items-center gap-1.5 rounded-full bg-red-50 border border-red-200 px-3 py-1.5 text-xs font-medium text-red-700 shadow-sm">
+						Overdue Only
+						<button
+							type="button"
+							onclick={() => { overdueOnly = false; }}
+							class="text-red-500 hover:text-red-700 focus:outline-none focus:ring-1 focus:ring-red-500/50 rounded-full cursor-pointer"
+							aria-label="Remove overdue filter"
+						>
+							<CircleX size={14} />
+						</button>
+					</span>
+				</div>
+			{/if}
 
 			<!-- Toggle Bar -->
 			<div

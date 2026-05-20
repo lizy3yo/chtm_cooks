@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import { user, authStore, justLoggedIn } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
@@ -286,45 +287,65 @@
 		<!-- ── KPI strip ───────────────────────────────────────────────────── -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
 
-			<div class="rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+			<button
+				type="button"
+				onclick={() => goto('/custodian/requests?tab=active')}
+				class="rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm hover:shadow-md hover:border-violet-300/60 hover:bg-violet-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-violet-500/20"
+			>
 				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-700">
 					<PackageOpen size={12} /> Active Loans
 				</div>
 				<p class="mt-2 text-3xl font-bold text-violet-700">{activeLoans}</p>
 				<p class="mt-0.5 text-xs text-violet-500">{totalItemsOut} items currently out</p>
-			</div>
+			</button>
 
-			<div class="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm">
+			<button
+				type="button"
+				onclick={() => goto('/custodian/requests?tab=pending')}
+				class="rounded-xl border border-amber-200 bg-amber-50 p-4 shadow-sm hover:shadow-md hover:border-amber-300/60 hover:bg-amber-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+			>
 				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-amber-700">
 					<Clock size={12} /> Pending
 				</div>
 				<p class="mt-2 text-3xl font-bold text-amber-700">{pendingCount}</p>
 				<p class="mt-0.5 text-xs text-amber-500">Awaiting action</p>
-			</div>
+			</button>
 
-			<div class="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
+			<button
+				type="button"
+				onclick={() => goto('/custodian/requests?tab=active&filter=overdue')}
+				class="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm hover:shadow-md hover:border-red-300/60 hover:bg-red-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-red-500/20"
+			>
 				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-800">
 					<TriangleAlert size={12} /> Overdue
 				</div>
 				<p class="mt-2 text-3xl font-bold text-red-700">{overdueCount}</p>
 				<p class="mt-0.5 text-xs text-red-600">Past return date</p>
-			</div>
+			</button>
 
-			<div class="rounded-xl border {stockAlertCount > 0 ? 'border-orange-200 bg-orange-50' : 'border-gray-200 bg-gray-50'} p-4 shadow-sm">
+			<button
+				type="button"
+				onclick={() => goto('/custodian/inventory?status=low-stock')}
+				class="rounded-xl border {stockAlertCount > 0 ? 'border-orange-200 bg-orange-50 hover:border-orange-300/60 hover:bg-orange-100/30 focus:ring-orange-500/20' : 'border-gray-200 bg-gray-50 hover:border-gray-300/60 hover:bg-gray-100/30 focus:ring-gray-500/20'} p-4 shadow-sm transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2"
+			>
 				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {stockAlertCount > 0 ? 'text-orange-700' : 'text-gray-600'}">
 					<ShieldAlert size={12} /> Stock Alerts
 				</div>
 				<p class="mt-2 text-3xl font-bold {stockAlertCount > 0 ? 'text-orange-700' : 'text-gray-700'}">{stockAlertCount}</p>
 				<p class="mt-0.5 text-xs {stockAlertCount > 0 ? 'text-orange-500' : 'text-gray-500'}">Low / out of stock</p>
-			</div>
+			</button>
 
-			<div class="col-span-2 rounded-xl border sm:col-span-1 {pendingObligations > 0 ? 'border-rose-200 bg-rose-50' : 'border-gray-200 bg-gray-50'} p-4 shadow-sm">
+			<button
+				type="button"
+				onclick={() => goto('/custodian/replacement?tab=replacements')}
+				class="col-span-2 rounded-xl border sm:col-span-1 {pendingObligations > 0 ? 'border-rose-200 bg-rose-50 hover:border-rose-300/60 hover:bg-rose-100/30 focus:ring-rose-500/20' : 'border-gray-200 bg-gray-50 hover:border-gray-300/60 hover:bg-gray-100/30 focus:ring-gray-500/20'} p-4 shadow-sm transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2"
+			>
 				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide {pendingObligations > 0 ? 'text-rose-700' : 'text-gray-600'}">
 					<AlertCircle size={12} /> Replacements
 				</div>
 				<p class="mt-2 text-3xl font-bold {pendingObligations > 0 ? 'text-rose-700' : 'text-gray-700'}">{pendingObligations}</p>
 				<p class="mt-0.5 text-xs {pendingObligations > 0 ? 'text-rose-500' : 'text-gray-500'}">Pending cases</p>
-			</div>
+			</button>
 		</div>
 	{/if}
 

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { afterNavigate } from '$app/navigation';
 	import {
 		borrowRequestsAPI,
 		type BorrowRequestRealtimeEvent,
@@ -579,7 +580,20 @@
 		unresolved: loans.filter((loan) => loan.hasUnresolvedIssue).length
 	});
 
+	afterNavigate(({ to }) => {
+		const filter = to?.url.searchParams.get('filter') ?? null;
+		if (filter && ['all', 'overdue', 'due-soon', 'on-track', 'return-initiated', 'unresolved'].includes(filter)) {
+			selectedFilter = filter as LoanFilter;
+		}
+	});
+
 	onMount(() => {
+		const params = new URLSearchParams(window.location.search);
+		const filter = params.get('filter');
+		if (filter && ['all', 'overdue', 'due-soon', 'on-track', 'return-initiated', 'unresolved'].includes(filter)) {
+			selectedFilter = filter as LoanFilter;
+		}
+
 		void loadBorrowedItems();
 
 		const unsubscribeSSE = borrowRequestsAPI.subscribeToChanges((_event: BorrowRequestRealtimeEvent) => {
@@ -671,7 +685,10 @@
 
 	<!-- Statistics Cards -->
 	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+		<button
+			onclick={() => (selectedFilter = 'all')}
+			class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer {selectedFilter === 'all' ? 'border-blue-200 bg-blue-50/50 shadow-sm' : 'bg-white border-transparent hover:shadow-md hover:border-blue-200/50 hover:bg-blue-50/10'}"
+		>
 			<div class="flex items-center justify-between gap-2">
 				<div class="min-w-0">
 					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Loans</p>
@@ -682,9 +699,12 @@
 					<Package size={24} class="hidden text-blue-600 sm:block" />
 				</div>
 			</div>
-		</div>
+		</button>
 
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+		<button
+			onclick={() => (selectedFilter = 'overdue')}
+			class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-red-500/20 cursor-pointer {selectedFilter === 'overdue' ? 'border-red-200 bg-red-50/50 shadow-sm' : 'bg-white border-transparent hover:shadow-md hover:border-red-200/50 hover:bg-red-50/10'}"
+		>
 			<div class="flex items-center justify-between gap-2">
 				<div class="min-w-0">
 					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue</p>
@@ -695,9 +715,12 @@
 					<AlertCircle size={24} class="hidden text-red-600 sm:block" />
 				</div>
 			</div>
-		</div>
+		</button>
 
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+		<button
+			onclick={() => (selectedFilter = 'due-soon')}
+			class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-amber-500/20 cursor-pointer {selectedFilter === 'due-soon' ? 'border-amber-200 bg-amber-50/50 shadow-sm' : 'bg-white border-transparent hover:shadow-md hover:border-amber-200/50 hover:bg-amber-50/10'}"
+		>
 			<div class="flex items-center justify-between gap-2">
 				<div class="min-w-0">
 					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Due Soon (48h)</p>
@@ -708,9 +731,12 @@
 					<Clock size={24} class="hidden text-amber-600 sm:block" />
 				</div>
 			</div>
-		</div>
+		</button>
 
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+		<button
+			onclick={() => (selectedFilter = 'unresolved')}
+			class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-rose-500/20 cursor-pointer {selectedFilter === 'unresolved' ? 'border-rose-200 bg-rose-50/50 shadow-sm' : 'bg-white border-transparent hover:shadow-md hover:border-rose-200/50 hover:bg-rose-50/10'}"
+		>
 			<div class="flex items-center justify-between gap-2">
 				<div class="min-w-0">
 					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Unresolved Cases</p>
@@ -721,7 +747,7 @@
 					<AlertTriangle size={24} class="hidden text-rose-600 sm:block" />
 				</div>
 			</div>
-		</div>
+		</button>
 	</div>
 
 	<div class="rounded-xl bg-white shadow-sm">

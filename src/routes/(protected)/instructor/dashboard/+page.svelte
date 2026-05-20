@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { goto } from '$app/navigation';
 	import { user, authStore, justLoggedIn } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
 	import { fetchAnalytics, peekCachedAnalytics, type AnalyticsReport } from '$lib/api/analyticsReports';
@@ -14,16 +15,14 @@
 	} from 'lucide-svelte';
 
 	// ── state ─────────────────────────────────────────────────────────────────
-	const initialReport = browser ? peekCachedAnalytics({ period: 'semester' }) : null;
-	const initialRequests = browser ? borrowRequestsAPI.peekCachedList({ statuses: ['pending_instructor', 'approved_instructor', 'ready_for_pickup', 'borrowed', 'pending_return'], limit: 50 }) : null;
-	let loading = $state(!initialReport);
-	let cardsLoading = $state(!initialReport);
-	let requestsNeedingActionLoading = $state(!initialRequests);
-	let turnaroundTimesLoading = $state(!initialReport);
-	let mostBorrowedAlertsLoading = $state(!initialReport);
-	let report = $state<AnalyticsReport | null>(initialReport);
-	let liveRequests = $state<BorrowRequestRecord[]>(initialRequests ? initialRequests.requests : []);
-	let requestsLoading = $state(!initialRequests);
+	let loading = $state(true);
+	let cardsLoading = $state(true);
+	let requestsNeedingActionLoading = $state(true);
+	let turnaroundTimesLoading = $state(true);
+	let mostBorrowedAlertsLoading = $state(true);
+	let report = $state<AnalyticsReport | null>(null);
+	let liveRequests = $state<BorrowRequestRecord[]>([]);
+	let requestsLoading = $state(true);
 	let currentTime = $state(new Date());
 
 	// ── greeting ──────────────────────────────────────────────────────────────
@@ -176,6 +175,26 @@
 			authStore.clearJustLoggedIn();
 		}
 
+		// Cache-first: render instantly from cache if available, then revalidate in background.
+		const cachedAnalytics = peekCachedAnalytics({ period: 'semester' });
+		if (cachedAnalytics) {
+			report = cachedAnalytics;
+			cardsLoading = false;
+			turnaroundTimesLoading = false;
+			mostBorrowedAlertsLoading = false;
+		}
+
+		const cachedRequests = borrowRequestsAPI.peekCachedList({
+			statuses: ['pending_instructor', 'approved_instructor', 'ready_for_pickup', 'borrowed', 'pending_return'],
+			limit: 50
+		});
+		if (cachedRequests) {
+			liveRequests = cachedRequests.requests;
+			requestsNeedingActionLoading = false;
+			requestsLoading = false;
+			loading = false;
+		}
+
 		void loadDashboard();
 
 		const id = setInterval(() => {
@@ -216,37 +235,53 @@
 		<!-- ── KPI Strip ───────────────────────────────────────────────────── -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 
-			<div class="rounded-xl border border-yellow-200 bg-yellow-50 p-4 shadow-sm">
+			<button
+				type="button"
+				onclick={() => goto('/instructor/requests?tab=pending')}
+				class="w-full text-left rounded-xl border border-yellow-200 bg-yellow-50 p-4 shadow-sm hover:shadow-md hover:bg-yellow-100/50 hover:border-yellow-300 transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 cursor-pointer"
+			>
 				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-yellow-800">
 					<Clock size={12} /> Pending Approval
 				</div>
 				<p class="mt-2 text-3xl font-bold text-yellow-700">{pendingApprovalCount}</p>
 				<p class="mt-0.5 text-xs text-yellow-600">Awaiting your review</p>
-			</div>
+			</button>
 
-			<div class="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm">
+			<button
+				type="button"
+				onclick={() => goto('/instructor/requests?tab=fulfillment')}
+				class="w-full text-left rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm hover:shadow-md hover:bg-blue-100/50 hover:border-blue-300 transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+			>
 				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-blue-800">
 					<PackageOpen size={12} /> In Fulfillment
 				</div>
 				<p class="mt-2 text-3xl font-bold text-blue-700">{fulfillmentCount}</p>
 				<p class="mt-0.5 text-xs text-blue-600">Approved / ready for pickup</p>
-			</div>
+			</button>
 
-			<div class="rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm">
+			<button
+				type="button"
+				onclick={() => goto('/instructor/requests?tab=borrowed')}
+				class="w-full text-left rounded-xl border border-violet-200 bg-violet-50 p-4 shadow-sm hover:shadow-md hover:bg-violet-100/50 hover:border-violet-300 transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-violet-500/20 cursor-pointer"
+			>
 				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-violet-700">
 					<Package size={12} /> Active Loans
 				</div>
 				<p class="mt-2 text-3xl font-bold text-violet-700">{activeLoans}</p>
 				<p class="mt-0.5 text-xs text-violet-500">Currently borrowed</p>
-			</div>
+			</button>
 
-			<div class="rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm">
+			<button
+				type="button"
+				onclick={() => goto('/instructor/requests?tab=borrowed&filter=overdue')}
+				class="w-full text-left rounded-xl border border-red-200 bg-red-50 p-4 shadow-sm hover:shadow-md hover:bg-red-100/50 hover:border-red-300 transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-red-500/20 cursor-pointer"
+			>
 				<div class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-red-800">
 					<TriangleAlert size={12} /> Overdue
 				</div>
 				<p class="mt-2 text-3xl font-bold text-red-700">{overdueCount}</p>
 				<p class="mt-0.5 text-xs text-red-600">Past return date</p>
-			</div>
+			</button>
 		</div>
 	{/if}
 

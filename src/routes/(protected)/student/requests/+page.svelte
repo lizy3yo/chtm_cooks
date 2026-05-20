@@ -351,6 +351,11 @@
 	let _pendingDeepLinkId = $state<string | null>(null);
 
 	afterNavigate(({ to }) => {
+		const tab = to?.url.searchParams.get('tab') ?? null;
+		if (tab && ['pending', 'approved', 'ready', 'active', 'unresolved', 'history', 'all'].includes(tab)) {
+			statusFilter = tab as StatusFilterType;
+		}
+
 		const rawId = to?.url.searchParams.get('requestId') ?? null;
 		if (!rawId) return;
 		// Strip the param from the URL immediately
@@ -407,8 +412,14 @@
 	}
 
 	onMount(() => {
+		const params = new URLSearchParams(window.location.search);
+		const tab = params.get('tab');
+		if (tab && ['pending', 'approved', 'ready', 'active', 'unresolved', 'history', 'all'].includes(tab)) {
+			statusFilter = tab as StatusFilterType;
+		}
+
 		// If navigated here after a new submission, bypass all caches immediately.
-		const isPostSubmit = new URLSearchParams(window.location.search).get('new') === '1';
+		const isPostSubmit = params.get('new') === '1';
 
 		if (isPostSubmit) {
 			borrowRequestsAPI.invalidateCache();
@@ -1061,7 +1072,10 @@
 		</div>
 	{:else}
 		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<button
+				onclick={() => (statusFilter = 'all')}
+				class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer {statusFilter === 'all' ? 'border-blue-200 bg-blue-50/50 shadow-sm' : 'bg-white border-transparent hover:shadow-md hover:border-blue-200/50 hover:bg-blue-50/10'}"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
@@ -1076,9 +1090,12 @@
 						<ClipboardList size={24} class="hidden text-blue-600 sm:block" />
 					</div>
 				</div>
-			</div>
+			</button>
 
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<button
+				onclick={() => (statusFilter = 'pending')}
+				class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-yellow-500/20 cursor-pointer {statusFilter === 'pending' ? 'border-yellow-200 bg-yellow-50/50 shadow-sm' : 'bg-white border-transparent hover:shadow-md hover:border-yellow-200/50 hover:bg-yellow-50/10'}"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
@@ -1093,9 +1110,12 @@
 						<Clock size={24} class="hidden text-yellow-600 sm:block" />
 					</div>
 				</div>
-			</div>
+			</button>
 
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<button
+				onclick={() => (statusFilter = 'active')}
+				class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-green-500/20 cursor-pointer {statusFilter === 'active' ? 'border-green-200 bg-green-50/50 shadow-sm' : 'bg-white border-transparent hover:shadow-md hover:border-green-200/50 hover:bg-green-50/10'}"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active</p>
@@ -1110,9 +1130,12 @@
 						<Activity size={24} class="hidden text-green-600 sm:block" />
 					</div>
 				</div>
-			</div>
+			</button>
 
-			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+			<button
+				onclick={() => (statusFilter = 'ready')}
+				class="w-full text-left rounded-lg p-3 shadow sm:p-5 border transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-pink-500/20 cursor-pointer {statusFilter === 'ready' ? 'border-pink-200 bg-pink-50/50 shadow-sm' : 'bg-white border-transparent hover:shadow-md hover:border-pink-200/50 hover:bg-pink-50/10'}"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
 						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Ready for Pickup</p>
@@ -1127,7 +1150,7 @@
 						<PackageOpen size={24} class="hidden text-pink-600 sm:block" />
 					</div>
 				</div>
-			</div>
+			</button>
 		</div>
 	{/if}
 

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
+	import { goto } from '$app/navigation';
 	import { user, authStore, justLoggedIn } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
 	import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
@@ -678,7 +679,10 @@
 		{:else}
 			<!-- ── KPI cards ───────────────────────────────────────────────────── -->
 			<div class="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
-				<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 shadow-sm sm:p-4">
+				<button
+					onclick={() => goto('/student/borrowed')}
+					class="rounded-xl border border-violet-200 bg-violet-50 p-3 shadow-sm hover:shadow-md hover:border-violet-300/60 hover:bg-violet-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-violet-500/20 sm:p-4"
+				>
 					<div
 						class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-violet-700 uppercase"
 					>
@@ -687,9 +691,12 @@
 					</div>
 					<p class="mt-2 text-3xl font-bold text-violet-700 sm:text-4xl">{metrics.activeLoans}</p>
 					<p class="mt-0.5 text-xs text-violet-500">Borrowed or returning</p>
-				</div>
+				</button>
 
-				<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 shadow-sm sm:p-4">
+				<button
+					onclick={() => goto('/student/requests?tab=history')}
+					class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 shadow-sm hover:shadow-md hover:border-emerald-300/60 hover:bg-emerald-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-emerald-500/20 sm:p-4"
+				>
 					<div
 						class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-emerald-700 uppercase"
 					>
@@ -698,9 +705,12 @@
 					</div>
 					<p class="mt-2 text-3xl font-bold text-emerald-700 sm:text-4xl">{metrics.returnedCount}</p>
 					<p class="mt-0.5 text-xs text-emerald-500">Successfully returned</p>
-				</div>
+				</button>
 
-				<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 shadow-sm sm:p-4">
+				<button
+					onclick={() => goto('/student/requests?tab=pending')}
+					class="rounded-xl border border-amber-200 bg-amber-50 p-3 shadow-sm hover:shadow-md hover:border-amber-300/60 hover:bg-amber-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-amber-500/20 sm:p-4"
+				>
 					<div
 						class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-amber-700 uppercase"
 					>
@@ -709,12 +719,13 @@
 					</div>
 					<p class="mt-2 text-3xl font-bold text-amber-700 sm:text-4xl">{metrics.pendingCount}</p>
 					<p class="mt-0.5 text-xs text-amber-500">Awaiting action</p>
-				</div>
+				</button>
 
-				<div
+				<button
+					onclick={() => goto('/student/borrowed?filter=overdue')}
 					class="rounded-xl border {metrics.overdueCount > 0
-						? 'border-red-200 bg-red-50'
-						: 'border-gray-200 bg-gray-50'} p-3 shadow-sm sm:p-4"
+						? 'border-red-200 bg-red-50 hover:border-red-300/60 hover:bg-red-100/30 focus:ring-red-500/20'
+						: 'border-gray-200 bg-gray-50 hover:border-gray-300/60 hover:bg-gray-100/30 focus:ring-gray-500/20'} p-3 shadow-sm transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 sm:p-4"
 				>
 					<div
 						class="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase {metrics.overdueCount >
@@ -735,7 +746,7 @@
 					<p class="mt-0.5 text-xs {metrics.overdueCount > 0 ? 'text-red-500' : 'text-gray-500'}">
 						Past return date
 					</p>
-				</div>
+				</button>
 			</div>
 		{/if}
 

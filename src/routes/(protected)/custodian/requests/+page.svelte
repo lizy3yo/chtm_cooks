@@ -27,6 +27,7 @@
 	type ViewMode = 'card' | 'list';
 
 	let activeTab = $state<Tab>('pending');
+	let overdueOnly = $state(false);
 	let historySubTab = $state<HistorySubTab>('all');
 	let showDetailModal = $state(false);
 	let highlightedRequestId = $state<string | null>(null);
@@ -586,6 +587,19 @@
 	}
 
 	afterNavigate(({ to }) => {
+		if (to) {
+			const tabParam = to.url.searchParams.get('tab');
+			if (tabParam && ['pending', 'ready', 'active', 'unresolved', 'history'].includes(tabParam)) {
+				activeTab = tabParam as Tab;
+			}
+			const filterParam = to.url.searchParams.get('filter');
+			if (filterParam === 'overdue') {
+				overdueOnly = true;
+			} else {
+				overdueOnly = false;
+			}
+		}
+
 		const scanId =
 			to?.url.searchParams.get('requestId')?.trim() ??
 			to?.url.searchParams.get('scan')?.trim() ??
@@ -732,6 +746,16 @@
 	}
 
 	onMount(() => {
+		// Parse search parameters
+		const tabParam = $page.url.searchParams.get('tab');
+		if (tabParam && ['pending', 'ready', 'active', 'unresolved', 'history'].includes(tabParam)) {
+			activeTab = tabParam as Tab;
+		}
+		const filterParam = $page.url.searchParams.get('filter');
+		if (filterParam === 'overdue') {
+			overdueOnly = true;
+		}
+
 		// Populate cached data if available
 		if (hasCachedData && cachedRequests) {
 			requests = cachedRequests.requests
@@ -794,6 +818,12 @@
 				return true;
 			})
 			.filter((req) => {
+				if (activeTab === 'active' && overdueOnly) {
+					return req.isOverdue;
+				}
+				return true;
+			})
+			.filter((req) => {
 				if (!searchQuery) return true;
 				const query = searchQuery.toLowerCase();
 				return (
@@ -824,6 +854,12 @@
 		searchQuery;
 		sortBy;
 		currentPage = 1;
+	});
+
+	$effect(() => {
+		if (activeTab !== 'active') {
+			overdueOnly = false;
+		}
 	});
 
 	$effect(() => {
@@ -1022,7 +1058,11 @@
 			</div>
 		{:else}
 			<div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
-				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<button
+					type="button"
+					onclick={() => { activeTab = 'pending'; overdueOnly = false; searchQuery = ''; }}
+					class="rounded-lg border border-blue-200 bg-blue-50 p-3 shadow-sm hover:shadow-md hover:border-blue-300/60 hover:bg-blue-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:p-5"
+				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
 							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
@@ -1048,9 +1088,13 @@
 							</svg>
 						</div>
 					</div>
-				</div>
+				</button>
 
-				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<button
+					type="button"
+					onclick={() => { activeTab = 'pending'; overdueOnly = false; }}
+					class="rounded-lg border border-blue-200 bg-blue-50 p-3 shadow-sm hover:shadow-md hover:border-blue-300/60 hover:bg-blue-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-blue-500/20 sm:p-5"
+				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
 							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
@@ -1076,9 +1120,13 @@
 							</svg>
 						</div>
 					</div>
-				</div>
+				</button>
 
-				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<button
+					type="button"
+					onclick={() => { activeTab = 'ready'; overdueOnly = false; }}
+					class="rounded-lg border border-green-200 bg-green-50 p-3 shadow-sm hover:shadow-md hover:border-green-300/60 hover:bg-green-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-green-500/20 sm:p-5"
+				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
 							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Ready</p>
@@ -1104,9 +1152,13 @@
 							</svg>
 						</div>
 					</div>
-				</div>
+				</button>
 
-				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<button
+					type="button"
+					onclick={() => { activeTab = 'active'; overdueOnly = false; }}
+					class="rounded-lg border border-purple-200 bg-purple-50 p-3 shadow-sm hover:shadow-md hover:border-purple-300/60 hover:bg-purple-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-purple-500/20 sm:p-5"
+				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
 							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active</p>
@@ -1132,9 +1184,13 @@
 							</svg>
 						</div>
 					</div>
-				</div>
+				</button>
 
-				<div class="col-span-2 rounded-lg bg-white p-3 shadow sm:p-5 lg:col-span-1">
+				<button
+					type="button"
+					onclick={() => { activeTab = 'active'; overdueOnly = true; }}
+					class="col-span-2 rounded-lg border border-red-200 bg-red-50 p-3 shadow-sm hover:shadow-md hover:border-red-300/60 hover:bg-red-100/30 transition-all duration-200 active:scale-98 cursor-pointer text-left focus:outline-none focus:ring-2 focus:ring-red-500/20 lg:col-span-1 sm:p-5"
+				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
 							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue</p>
@@ -1160,7 +1216,7 @@
 							</svg>
 						</div>
 					</div>
-				</div>
+				</button>
 			</div>
 		{/if}
 
@@ -1330,6 +1386,7 @@
 								searchQuery = '';
 								sortBy = 'date';
 								activeTab = 'pending';
+								overdueOnly = false;
 							}}
 							class="h-10 rounded-xl px-2 text-sm font-semibold text-pink-600 transition-colors hover:bg-pink-50 hover:text-pink-700"
 						>
@@ -1344,11 +1401,25 @@
 					<div
 						class="mb-4 flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between sm:p-4"
 					>
-						<div class="flex min-w-0 items-center gap-2">
+						<div class="flex min-w-0 flex-wrap items-center gap-2">
 							<span class="text-sm font-semibold text-gray-700">
 								{filteredRequests.length}
 								{filteredRequests.length === 1 ? 'request' : 'requests'} found
 							</span>
+							{#if overdueOnly && activeTab === 'active'}
+								<span class="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 ring-1 ring-red-600/10">
+									Overdue Only
+									<button 
+										onclick={() => overdueOnly = false}
+										class="ml-0.5 rounded-full p-0.5 text-red-500 hover:bg-red-100 hover:text-red-700 focus:outline-none"
+										aria-label="Clear overdue filter"
+									>
+										<svg class="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								</span>
+							{/if}
 							<span
 								class="hidden rounded-full bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-200 sm:inline-flex"
 							>
