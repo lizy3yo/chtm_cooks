@@ -3,6 +3,7 @@
 	import { browser } from '$app/environment';
 	import {
 		fetchAnalytics,
+		fetchAnalyticsSummary,
 		peekCachedAnalytics,
 		subscribeToAnalyticsChanges,
 		type AnalyticsReport,
@@ -17,7 +18,8 @@
 		Package,
 		BarChart3,
 		Download,
-		FileText
+		FileText,
+		X
 	} from 'lucide-svelte';
 
 	type Tab = 'overview' | 'borrowing' | 'loss-damage' | 'inventory' | 'students';
@@ -30,7 +32,13 @@
 		: null;
 
 	let report = $state<AnalyticsReport | null>(initialReport);
+	let summaryReport = $state<Partial<AnalyticsReport> | null>(null);
 	let loading = $state(!initialReport);
+	let overviewLoading = $state(!initialReport);
+	let borrowingLoading = $state(!initialReport);
+	let lossDamageLoading = $state(!initialReport);
+	let inventoryLoading = $state(!initialReport);
+	let studentRiskLoading = $state(!initialReport);
 	let error = $state<string | null>(null);
 	let unsubscribeSSE: (() => void) | null = null;
 	let hasMounted = false;
@@ -89,6 +97,22 @@
 	function scheduleLoad(forceRefresh = false): void {
 		if (!hasMounted) return;
 		if (pendingLoadTimer) clearTimeout(pendingLoadTimer);
+
+		// fetch a lightweight summary immediately for faster UI feedback
+		void (async () => {
+			try {
+				const s = await fetchAnalyticsSummary({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined,
+					forceRefresh
+				});
+				summaryReport = s as Partial<AnalyticsReport>;
+			} catch (err) {
+				console.error('[Reports] Failed to load summary', err);
+			}
+		})();
+
 		pendingLoadTimer = setTimeout(() => {
 			pendingLoadTimer = null;
 			void loadReport(forceRefresh);
@@ -97,45 +121,128 @@
 
 	async function loadReport(forceRefresh = false): Promise<void> {
 		if (!browser) return;
-		if (forceRefresh || !report) loading = true;
 		error = null;
+
+		const hasCache = !!report;
+
 		try {
-			const startTime = Date.now();
-			report = await fetchAnalytics({
-				period,
-				from: customFrom || undefined,
-				to: customTo || undefined,
-				forceRefresh
-			});
-			console.log('[Reports] Report loaded successfully in', Date.now() - startTime, 'ms');
+			// 1. Overview
+			if (forceRefresh || !summaryReport) {
+				overviewLoading = true;
+			}
+			const overviewResult = await Promise.allSettled([
+				fetchAnalyticsSummary({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined,
+					forceRefresh
+				})
+			]);
+			if (overviewResult[0].status === 'fulfilled') {
+				summaryReport = overviewResult[0].value as Partial<AnalyticsReport>;
+			}
+			overviewLoading = false;
+
+			// 2. Borrowing Analytics
+			if (forceRefresh || !hasCache) {
+				borrowingLoading = true;
+			}
+			const borrowingResult = await Promise.allSettled([
+				fetchAnalytics({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined,
+					forceRefresh
+				})
+			]);
+			if (borrowingResult[0].status === 'fulfilled') {
+				report = borrowingResult[0].value;
+			}
+			borrowingLoading = false;
+
+			// 3. Loss & Damage
+			if (forceRefresh || !hasCache) {
+				lossDamageLoading = true;
+			}
+			const lossDamageResult = await Promise.allSettled([
+				fetchAnalytics({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined
+				})
+			]);
+			if (lossDamageResult[0].status === 'fulfilled') {
+				report = lossDamageResult[0].value;
+			}
+			lossDamageLoading = false;
+
+			// 4. Inventory
+			if (forceRefresh || !hasCache) {
+				inventoryLoading = true;
+			}
+			const inventoryResult = await Promise.allSettled([
+				fetchAnalytics({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined
+				})
+			]);
+			if (inventoryResult[0].status === 'fulfilled') {
+				report = inventoryResult[0].value;
+			}
+			inventoryLoading = false;
+
+			// 5. Student Risk
+			if (forceRefresh || !hasCache) {
+				studentRiskLoading = true;
+			}
+			const studentRiskResult = await Promise.allSettled([
+				fetchAnalytics({
+					period,
+					from: customFrom || undefined,
+					to: customTo || undefined
+				})
+			]);
+			if (studentRiskResult[0].status === 'fulfilled') {
+				report = studentRiskResult[0].value;
+			}
+			studentRiskLoading = false;
+
 		} catch (err) {
-			console.error('[Reports] Failed to load report:', err);
+			console.error('[Reports] Sequential load failed:', err);
 			error = err instanceof Error ? err.message : 'Failed to load analytics';
 			toastStore.error(error, 'Analytics');
 		} finally {
+			overviewLoading = false;
+			borrowingLoading = false;
+			lossDamageLoading = false;
+			inventoryLoading = false;
+			studentRiskLoading = false;
 			loading = false;
 		}
 	}
 
 	const totalRequests = $derived(
-		report?.borrowRequests.statusBreakdown.reduce((s, i) => s + i.count, 0) ?? 0
+		(report?.borrowRequests ?? summaryReport?.borrowRequests)?.statusBreakdown?.reduce((s, i) => s + i.count, 0) ?? 0
 	);
 	const returnedCount = $derived(
-		report?.borrowRequests.statusBreakdown.find((s) => s.status === 'returned')?.count ?? 0
+		(report?.borrowRequests ?? summaryReport?.borrowRequests)?.statusBreakdown?.find((s) => s.status === 'returned')?.count ?? 0
 	);
-	const overdueCount = $derived(report?.borrowRequests.overdueCount ?? 0);
+	const overdueCount = $derived(
+		report?.borrowRequests?.overdueCount ?? summaryReport?.borrowRequests?.overdueCount ?? 0
+	);
 	const returnRate = $derived(
 		totalRequests > 0 ? Math.round((returnedCount / totalRequests) * 100) : 0
 	);
 	const borrowingAvg = $derived(
-		report?.borrowRequests.borrowingAverages ?? {
+		(report?.borrowRequests ?? summaryReport?.borrowRequests)?.borrowingAverages ?? {
 			avgItemsPerRequest: 0,
 			avgQuantityPerRequest: 0,
 			totalRequests: 0
 		}
 	);
 	const inventorySummary = $derived(
-		report?.inventory.summary ?? {
+		(report?.inventory ?? summaryReport?.inventory)?.summary ?? {
 			currentCount: 0,
 			eomCount: 0,
 			variance: 0,
@@ -157,7 +264,7 @@
 		inventoryVarianceRows.reduce((sum, item) => (item.variance < 0 ? sum + item.variance : sum), 0)
 	);
 	const lossAndDamageSummary = $derived(
-		report?.lossAndDamage.summary ?? {
+		(report?.lossAndDamage ?? summaryReport?.lossAndDamage)?.summary ?? {
 			todayTotal: 0,
 			todayMissing: 0,
 			todayDamaged: 0,
@@ -186,7 +293,9 @@
 				)
 			: 0
 	);
-	const topBorrowedOverview = $derived((report?.borrowRequests.itemsBorrowed ?? []).slice(0, 6));
+	const topBorrowedOverview = $derived(
+		((report?.borrowRequests ?? summaryReport?.borrowRequests)?.itemsBorrowed ?? []).slice(0, 6)
+	);
 	const topBorrowedMax = $derived(
 		topBorrowedOverview.length > 0
 			? Math.max(...topBorrowedOverview.map((item) => item.totalQuantity), 1)
@@ -233,7 +342,7 @@
 	}
 
 	const statusChartSeries = $derived.by(() => {
-		const rows = report?.borrowRequests.statusBreakdown ?? [];
+		const rows = (report?.borrowRequests ?? summaryReport?.borrowRequests)?.statusBreakdown ?? [];
 		const total = rows.reduce((sum, row) => sum + row.count, 0);
 		if (total === 0)
 			return [] as Array<{ status: string; count: number; pct: number; color: string }>;
@@ -305,15 +414,60 @@
 
 	// ─── Export ───────────────────────────────────────────────────────────
 
+	let showExportModal = $state(false);
+	let exportTimeframeMode = $state<'current' | 'custom'>('current');
+	let exportCustomFrom = $state(initialFrom);
+	let exportCustomTo = $state(initialTo);
+
+	let exportSections = $state({
+		overview: true,
+		borrowing: true,
+		'loss-damage': true,
+		inventory: true,
+		students: true
+	});
+
+	function toggleAllSections(val: boolean) {
+		exportSections = {
+			overview: val,
+			borrowing: val,
+			'loss-damage': val,
+			inventory: val,
+			students: val
+		};
+	}
+
 	let exporting = $state(false);
 
 	async function exportXLSX() {
 		if (!report || exporting) return;
 		exporting = true;
 		try {
-			const params = new URLSearchParams({ period });
-			if (customFrom) params.set('from', customFrom);
-			if (customTo) params.set('to', customTo);
+			const params = new URLSearchParams();
+
+			if (exportTimeframeMode === 'current') {
+				params.set('period', period);
+				if (customFrom) params.set('from', customFrom);
+				if (customTo) params.set('to', customTo);
+			} else {
+				params.set('period', 'month');
+				if (exportCustomFrom) params.set('from', exportCustomFrom);
+				if (exportCustomTo) params.set('to', exportCustomTo);
+			}
+
+			const selectedKeys = Object.entries(exportSections)
+				.filter(([_, enabled]) => enabled)
+				.map(([key]) => key);
+
+			if (selectedKeys.length > 0) {
+				for (const key of selectedKeys) {
+					params.append('sections', key);
+				}
+			} else {
+				toastStore.error('Please select at least one data section to export.');
+				exporting = false;
+				return;
+			}
 
 			const res = await fetch(`/api/reports/analytics/export?${params.toString()}`);
 			if (!res.ok) throw new Error('Export failed');
@@ -330,6 +484,7 @@
 			document.body.removeChild(link);
 			URL.revokeObjectURL(url);
 			toastStore.success('Report exported as Excel file');
+			showExportModal = false;
 		} catch {
 			toastStore.error('Failed to export report. Please try again.');
 		} finally {
@@ -353,13 +508,13 @@
 		</div>
 		<button
 			onclick={() => {
-				if (report) exportXLSX();
+				if (report) showExportModal = true;
 			}}
 			disabled={!report || exporting}
 			class="flex shrink-0 items-center gap-2 rounded-lg bg-pink-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50"
 		>
 			<Download size={15} />
-			{exporting ? 'Exporting…' : 'Export Excel'}
+			Export Excel
 		</button>
 	</div>
 
@@ -421,7 +576,7 @@
 			</nav>
 		</div>
 
-		{#if loading}
+		{#if (activeTab === 'overview' && overviewLoading) || (activeTab === 'borrowing' && borrowingLoading) || (activeTab === 'loss-damage' && lossDamageLoading) || (activeTab === 'inventory' && inventoryLoading) || (activeTab === 'students' && studentRiskLoading)}
 			<div class="p-6">
 				<ReportsSkeletonLoader view={activeTab} />
 			</div>
@@ -431,7 +586,7 @@
 					{error}
 				</div>
 			</div>
-		{:else if report}
+		{:else if (activeTab === 'overview' && summaryReport) || report}
 			<div class="space-y-6 p-6">
 				{#if activeTab === 'overview'}
 					<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -711,7 +866,8 @@
 					</div>
 				{/if}
 
-				{#if activeTab === 'borrowing'}
+				{#if report}
+					{#if activeTab === 'borrowing'}
 					<div class="space-y-6">
 						<div class="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
 							<div class="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -1459,7 +1615,234 @@
 						</div>
 					</div>
 				{/if}
+				{/if}
 			</div>
 		{/if}
 	</div>
+
+	{#if showExportModal}
+		<div
+			class="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 p-4 backdrop-blur-sm"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="export-modal-title"
+		>
+			<div
+				class="w-full max-w-lg rounded-2xl border border-gray-100 bg-white p-6 shadow-xl transition-all"
+			>
+				<!-- Modal Header -->
+				<div class="flex items-center justify-between border-b border-gray-100 pb-4">
+					<div>
+						<h3 id="export-modal-title" class="text-lg font-bold text-gray-900">
+							Export Analytics Report
+						</h3>
+						<p class="text-xs text-gray-500">
+							Configure range and sections for your spreadsheet export
+						</p>
+					</div>
+					<button
+						type="button"
+						onclick={() => (showExportModal = false)}
+						class="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600"
+						aria-label="Close export settings modal"
+					>
+						<X size={18} />
+					</button>
+				</div>
+
+				<!-- Modal Content -->
+				<div class="mt-4 space-y-5">
+					<!-- Timeframe Picker Section -->
+					<div class="space-y-2">
+						<span class="block text-sm font-semibold text-gray-700">Export Timeframe</span>
+						<div class="grid grid-cols-2 gap-3">
+							<button
+								type="button"
+								onclick={() => (exportTimeframeMode = 'current')}
+								class="flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition {exportTimeframeMode ===
+								'current'
+									? 'border-pink-600 bg-pink-50/40 text-pink-700 ring-1 ring-pink-600'
+									: 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}"
+							>
+								<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
+									>Current View</span
+								>
+								<span class="text-sm font-medium text-gray-800">{formatRangeLabel()}</span>
+							</button>
+							<button
+								type="button"
+								onclick={() => (exportTimeframeMode = 'custom')}
+								class="flex flex-col items-start gap-1 rounded-xl border p-3 text-left transition {exportTimeframeMode ===
+								'custom'
+									? 'border-pink-600 bg-pink-50/40 text-pink-700 ring-1 ring-pink-600'
+									: 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'}"
+							>
+								<span class="text-xs font-semibold tracking-wider text-gray-500 uppercase"
+									>Custom Range</span
+								>
+								<span class="text-sm font-medium text-gray-800">Select specific dates</span>
+							</button>
+						</div>
+
+						{#if exportTimeframeMode === 'custom'}
+							<div
+								class="mt-3 grid grid-cols-2 gap-3 rounded-xl border border-gray-100 bg-gray-50 p-3"
+							>
+								<div>
+									<label for="export-from" class="text-gray-650 block text-xs font-medium"
+										>Start Date</label
+									>
+									<input
+										id="export-from"
+										type="date"
+										bind:value={exportCustomFrom}
+										class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-pink-500 focus:outline-none"
+									/>
+								</div>
+								<div>
+									<label for="export-to" class="text-gray-650 block text-xs font-medium"
+										>End Date</label
+									>
+									<input
+										id="export-to"
+										type="date"
+										bind:value={exportCustomTo}
+										class="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm focus:border-pink-500 focus:outline-none"
+									/>
+								</div>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Section Selector -->
+					<div class="space-y-2">
+						<div class="flex items-center justify-between">
+							<span class="text-sm font-semibold text-gray-700">Include Data Sections</span>
+							<div class="flex gap-2">
+								<button
+									type="button"
+									onclick={() => toggleAllSections(true)}
+									class="text-xs font-semibold text-pink-600 transition hover:text-pink-700"
+								>
+									Select All
+								</button>
+								<span class="text-xs text-gray-300">|</span>
+								<button
+									type="button"
+									onclick={() => toggleAllSections(false)}
+									class="text-xs font-semibold text-pink-600 transition hover:text-pink-700"
+								>
+									Clear All
+								</button>
+							</div>
+						</div>
+
+						<div
+							class="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-gray-200 bg-white p-3.5"
+						>
+							<label
+								class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition hover:bg-gray-50"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportSections.overview}
+									class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+								/>
+								<div class="flex flex-col">
+									<span class="text-sm font-semibold text-gray-800">Overview</span>
+									<span class="text-xs text-gray-500"
+										>Totals, top items, status count, overdue list</span
+									>
+								</div>
+							</label>
+
+							<label
+								class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition hover:bg-gray-50"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportSections.borrowing}
+									class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+								/>
+								<div class="flex flex-col">
+									<span class="text-sm font-semibold text-gray-800">Borrowing Analytics</span>
+									<span class="text-xs text-gray-500"
+										>Time charts, borrower metrics, individual transactions</span
+									>
+								</div>
+							</label>
+
+							<label
+								class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition hover:bg-gray-50"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportSections['loss-damage']}
+									class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+								/>
+								<div class="flex flex-col">
+									<span class="text-sm font-semibold text-gray-800">Loss & Damage</span>
+									<span class="text-xs text-gray-500"
+										>Missing/damaged logs, replacements, cost breakdown</span
+									>
+								</div>
+							</label>
+
+							<label
+								class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition hover:bg-gray-50"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportSections.inventory}
+									class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+								/>
+								<div class="flex flex-col">
+									<span class="text-sm font-semibold text-gray-800">Inventory</span>
+									<span class="text-xs text-gray-500"
+										>EOM Variance, damage rates, alert logs, required counts</span
+									>
+								</div>
+							</label>
+
+							<label
+								class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 transition hover:bg-gray-50"
+							>
+								<input
+									type="checkbox"
+									bind:checked={exportSections.students}
+									class="h-4.5 w-4.5 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+								/>
+								<div class="flex flex-col">
+									<span class="text-sm font-semibold text-gray-800">Student Risk</span>
+									<span class="text-xs text-gray-500"
+										>Trust scores, risk tiers, repeat offender profiles</span
+									>
+								</div>
+							</label>
+						</div>
+					</div>
+				</div>
+
+				<!-- Footer Buttons -->
+				<div class="mt-6 flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
+					<button
+						type="button"
+						onclick={() => (showExportModal = false)}
+						class="rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+					>
+						Cancel
+					</button>
+					<button
+						type="button"
+						onclick={exportXLSX}
+						disabled={exporting || !Object.values(exportSections).some(Boolean)}
+						class="flex items-center gap-2 rounded-xl bg-pink-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-pink-700 disabled:cursor-not-allowed disabled:opacity-50"
+					>
+						<Download size={15} />
+						{exporting ? 'Generating Report…' : 'Generate Excel'}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>

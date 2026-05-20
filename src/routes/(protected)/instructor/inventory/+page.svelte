@@ -178,8 +178,6 @@
 	let importStep = $state<'upload' | 'preview' | 'complete'>('upload');
 	let importImageFiles = $state<Map<string, File>>(new Map());
 	let importAmbiguousImageNames = $state<Set<string>>(new Set());
-	let importProgress = $state({ current: 0, total: 0, message: '' });
-	let isDraggingOver = $state(false);
 
 	let selectedImportFields = $state({
 		name: true,
@@ -292,12 +290,8 @@
 			item._selected = checked;
 		}
 	}
-
-	$effect(() => {
-		if (showImportModal) {
-			toggleAllImportFields(true);
-		}
-	});
+	let importProgress = $state({ current: 0, total: 0, message: '' });
+	let isDraggingOver = $state(false);
 	let importPreviewImageUrl = $state<string | null>(null); // lightbox for import preview
 	let importPreviewImageName = $state<string>('');
 	let showFormatGuide = $state(false); // collapsible format guide
@@ -2838,6 +2832,12 @@
 							(existingItem.category || '') !== (itemData.category || '')
 						) {
 							updateData.category = itemData.category;
+						}
+						if (
+							selectedImportFields.category &&
+							provided.category &&
+							(existingItem.categoryId || '') !== (itemData.categoryId || '')
+						) {
 							updateData.categoryId = itemData.categoryId;
 						}
 						if (
@@ -2873,7 +2873,7 @@
 							updateData.archived = false;
 						}
 
-						// Replace image only when a new image is provided, is different and Image update is checked.
+						// Replace image only when a new image is provided, is different, and picture is selected.
 						if (
 							selectedImportFields.picture &&
 							pictureUrl &&
@@ -3662,7 +3662,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
-							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Items</p>
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">To Items</p>
 							<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
 								{activeItems.length}
 							</p>
@@ -6290,7 +6290,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						{importing ? 'Hide' : importStep === 'complete' ? 'Close' : 'Cancel'}
 					</button>
 
-					{#if importStep === 'upload' && processedImportPreviewData.length > 0}
+					{#if importStep === 'upload' && importPreviewData.length > 0}
 						<!-- Next button for upload step -->
 						<button
 							onclick={() => {

@@ -749,7 +749,7 @@
 					availability: 'all',
 					sortBy: 'name',
 					page: 1,
-					limit: 300
+					limit: 1000
 				},
 				{
 					forceRefresh: options?.forceRefresh ?? false
@@ -1358,7 +1358,7 @@
 			availability: 'all' as const,
 			sortBy: 'name' as const,
 			page: 1,
-			limit: 300
+			limit: 1000
 		};
 
 		const cached = catalogAPI.peekCachedCatalog(currentFilters);

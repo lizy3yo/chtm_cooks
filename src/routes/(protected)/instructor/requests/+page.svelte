@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { replaceState, afterNavigate } from '$app/navigation';
 	import { authStore } from '$lib/stores/auth';
@@ -46,8 +47,102 @@
 	let searchQuery = $state('');
 	let sortBy = $state<'date' | 'student' | 'status'>('date');
 	let viewMode = $state<'list' | 'card'>('list');
+	const cachedRequests = browser ? borrowRequestsAPI.peekCachedList({}) : null;
+	const hasCachedData = cachedRequests && cachedRequests.requests.length > 0;
+
 	let requests = $state<any[]>([]);
-	let loading = $state(true);
+	let loading = $state(!hasCachedData);
+	let cardsLoading = $state(!hasCachedData);
+	let pendingLoading = $state(!hasCachedData);
+	let fulfillmentLoading = $state(!hasCachedData);
+	let borrowedLoading = $state(!hasCachedData);
+	let unresolvedLoading = $state(!hasCachedData);
+	let historyLoading = $state(!hasCachedData);
+	let inFlightLoadId = 0;
+
+	async function loadRequestsProgressive(forceRefresh = false) {
+		const loadId = ++inFlightLoadId;
+		try {
+			// Step 1: Load cards (and parallel fetch classCodes, catalog items)
+			const listPromise = borrowRequestsAPI.list({}, { forceRefresh });
+			const catalogPromise = catalogAPI.getCatalog({ availability: 'all', limit: 300 });
+
+			const results = await Promise.allSettled([listPromise, catalogPromise]);
+
+			if (loadId !== inFlightLoadId) return;
+
+			// Handle list
+			const listResult = results[0];
+			if (listResult.status === 'fulfilled') {
+				requests = listResult.value.requests.map(mapRequest);
+			} else {
+				throw listResult.reason;
+			}
+
+			// Cards are ready!
+			cardsLoading = false;
+
+			// Step 2: Sequentially settle each tab loader
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			if (loadId !== inFlightLoadId) return;
+			pendingLoading = false;
+
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			if (loadId !== inFlightLoadId) return;
+			fulfillmentLoading = false;
+
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			if (loadId !== inFlightLoadId) return;
+			borrowedLoading = false;
+
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			if (loadId !== inFlightLoadId) return;
+			unresolvedLoading = false;
+
+			await new Promise((resolve) => setTimeout(resolve, 80));
+			if (loadId !== inFlightLoadId) return;
+			historyLoading = false;
+
+			// Backfill pictures in background
+			const catalogResult = results[1];
+			if (catalogResult.status === 'fulfilled') {
+				const next = new Map(itemPictureCache);
+				const missingIds = new Set<string>();
+				for (const req of requests) {
+					for (const item of req.items) {
+						if (item.itemId && !item.picture && !itemPictureCache.has(item.itemId)) {
+							missingIds.add(item.itemId);
+						}
+					}
+				}
+				for (const catalogItem of catalogResult.value.items) {
+					if (missingIds.has(catalogItem.id) && catalogItem.picture) {
+						next.set(catalogItem.id, catalogItem.picture);
+					}
+				}
+				itemPictureCache = next;
+			}
+
+			await backfillClassCodes();
+
+		} catch (error) {
+			console.error('Failed to load instructor requests', error);
+			if (loadId === inFlightLoadId) {
+				requests = [];
+			}
+		} finally {
+			if (loadId === inFlightLoadId) {
+				loading = false;
+				cardsLoading = false;
+				pendingLoading = false;
+				fulfillmentLoading = false;
+				borrowedLoading = false;
+				unresolvedLoading = false;
+				historyLoading = false;
+			}
+		}
+	}
+
 	let itemPictureCache = $state<Map<string, string>>(new Map());
 	let classCodeCache = $state<Map<string, ClassCodeResponse>>(new Map());
 	let actionInFlightById = $state<Record<string, boolean>>({});
@@ -201,17 +296,17 @@
 	}
 
 	async function loadRequests(forceRefresh = false, background = false): Promise<void> {
-		try {
-			if (!background) loading = true;
-			const response = await borrowRequestsAPI.list({}, { forceRefresh });
-			requests = response.requests.map(mapRequest);
-			await backfillItemPictures();
-			await backfillClassCodes();
-		} catch (error) {
-			console.error('Failed to load instructor requests', error);
-			if (!background) requests = [];
-		} finally {
-			if (!background) loading = false;
+		if (background) {
+			try {
+				const response = await borrowRequestsAPI.list({}, { forceRefresh });
+				requests = response.requests.map(mapRequest);
+				await backfillItemPictures();
+				await backfillClassCodes();
+			} catch (error) {
+				console.error('Failed to load instructor requests', error);
+			}
+		} else {
+			await loadRequestsProgressive(forceRefresh);
 		}
 	}
 
@@ -324,6 +419,12 @@
 		if (cached) {
 			requests = cached.requests.map(mapRequest);
 			loading = false;
+			cardsLoading = false;
+			pendingLoading = false;
+			fulfillmentLoading = false;
+			borrowedLoading = false;
+			unresolvedLoading = false;
+			historyLoading = false;
 			void loadRequests(true, true); // background revalidation
 		} else {
 			void loadRequests(true);
@@ -401,6 +502,17 @@
 		historyCancelled: requests.filter(
 			(r) => r.rawStatus === 'cancelled' || r.rawStatus === 'rejected'
 		).length
+	});
+
+	const activeTabLoading = $derived.by(() => {
+		switch (activeTab) {
+			case 'pending': return pendingLoading;
+			case 'fulfillment': return fulfillmentLoading;
+			case 'borrowed': return borrowedLoading;
+			case 'unresolved': return unresolvedLoading;
+			case 'history': return historyLoading;
+			default: return false;
+		}
 	});
 
 	function openDetailModal(request: any) {
@@ -957,68 +1069,84 @@
 	</div>
 
 	<!-- Stats Cards -->
-	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
-					<p class="mt-1 text-xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
-						{stats.totalRequests}
-					</p>
+	{#if cardsLoading}
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4 animate-pulse">
+			{#each Array(4) as _}
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5 h-[80px] sm:h-[116px]">
+					<div class="flex items-center justify-between gap-2 h-full">
+						<div class="space-y-2 flex-1">
+							<div class="h-4 bg-gray-200 rounded w-2/3"></div>
+							<div class="h-6 bg-gray-200 rounded w-1/3"></div>
+						</div>
+						<div class="h-9 w-9 sm:h-12 sm:w-12 bg-gray-200 rounded-full"></div>
+					</div>
 				</div>
-				<div
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
-				>
-					<ClipboardList class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6" />
+			{/each}
+		</div>
+	{:else}
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
+						<p class="mt-1 text-xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
+							{stats.totalRequests}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
+					>
+						<ClipboardList class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6" />
+					</div>
+				</div>
+			</div>
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
+						<p class="mt-1 text-xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
+							{stats.pendingCount}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12"
+					>
+						<Clock3 class="h-5 w-5 text-amber-600 sm:h-6 sm:w-6" />
+					</div>
+				</div>
+			</div>
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">With Custodian</p>
+						<p class="mt-1 text-xl font-semibold text-blue-600 sm:mt-2 sm:text-3xl">
+							{stats.fulfillmentCount}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
+					>
+						<PackageCheck class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6" />
+					</div>
+				</div>
+			</div>
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Completed</p>
+						<p class="mt-1 text-xl font-semibold text-teal-600 sm:mt-2 sm:text-3xl">
+							{stats.completedCount}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 sm:h-12 sm:w-12"
+					>
+						<CheckCircle2 class="h-5 w-5 text-teal-600 sm:h-6 sm:w-6" />
+					</div>
 				</div>
 			</div>
 		</div>
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
-					<p class="mt-1 text-xl font-semibold text-amber-600 sm:mt-2 sm:text-3xl">
-						{stats.pendingCount}
-					</p>
-				</div>
-				<div
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 sm:h-12 sm:w-12"
-				>
-					<Clock3 class="h-5 w-5 text-amber-600 sm:h-6 sm:w-6" />
-				</div>
-			</div>
-		</div>
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">With Custodian</p>
-					<p class="mt-1 text-xl font-semibold text-blue-600 sm:mt-2 sm:text-3xl">
-						{stats.fulfillmentCount}
-					</p>
-				</div>
-				<div
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
-				>
-					<PackageCheck class="h-5 w-5 text-blue-600 sm:h-6 sm:w-6" />
-				</div>
-			</div>
-		</div>
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Completed</p>
-					<p class="mt-1 text-xl font-semibold text-teal-600 sm:mt-2 sm:text-3xl">
-						{stats.completedCount}
-					</p>
-				</div>
-				<div
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 sm:h-12 sm:w-12"
-				>
-					<CheckCircle2 class="h-5 w-5 text-teal-600 sm:h-6 sm:w-6" />
-				</div>
-			</div>
-		</div>
-	</div>
+	{/if}
 
 	<!-- Tab Bar -->
 	<div class="border-b border-gray-200">
@@ -1212,7 +1340,7 @@
 			</div>
 
 			<!-- Request Views -->
-			{#if loading}
+			{#if activeTabLoading}
 				{#if viewMode === 'card'}
 					<div style="min-height: 600px;">
 						<div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" style="align-content: start;">

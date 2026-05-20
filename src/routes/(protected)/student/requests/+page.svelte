@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/stores';
 	import { replaceState, afterNavigate } from '$app/navigation';
+	import { browser } from '$app/environment';
 	import {
 		borrowRequestsAPI,
 		type BorrowRequestRecord,
@@ -62,6 +63,70 @@
 	let dateFilter = $state({ from: '', to: '' });
 	let requests = $state<any[]>([]);
 	let loading = $state(true);
+	const hasCachedData = browser && !!borrowRequestsAPI.peekCachedList({});
+	let cardsLoading = $state(!hasCachedData);
+	let tableLoading = $state(!hasCachedData);
+	let inFlightLoadId = 0;
+
+	async function loadRequestsProgressive(shouldForceRefresh: boolean) {
+		const loadId = ++inFlightLoadId;
+		try {
+			// Step 1: Load cards (borrowRequestsAPI.list + catalogAPI.getCatalog in parallel)
+			const listPromise = borrowRequestsAPI.list({}, { forceRefresh: shouldForceRefresh });
+			const catalogPromise = catalogAPI.getCatalog({ availability: 'all', limit: 300 });
+
+			const results = await Promise.allSettled([listPromise, catalogPromise]);
+
+			if (loadId !== inFlightLoadId) return;
+
+			// Handle list response
+			const listResult = results[0];
+			if (listResult.status === 'fulfilled') {
+				requests = listResult.value.requests.map(mapRequest);
+			} else {
+				throw listResult.reason;
+			}
+
+			cardsLoading = false;
+
+			// Step 2: Load tables (tiny premium microtask delay)
+			await new Promise((resolve) => setTimeout(resolve, 100));
+			if (loadId !== inFlightLoadId) return;
+
+			// Backfill pictures from the catalog response
+			const catalogResult = results[1];
+			if (catalogResult.status === 'fulfilled') {
+				const next = new Map(itemPictureCache);
+				const missingIds = new Set<string>();
+				for (const req of requests) {
+					for (const item of req.items) {
+						if (item.itemId && !item.picture && !itemPictureCache.has(item.itemId)) {
+							missingIds.add(item.itemId);
+						}
+					}
+				}
+				for (const catalogItem of catalogResult.value.items) {
+					if (missingIds.has(catalogItem.id) && catalogItem.picture) {
+						next.set(catalogItem.id, catalogItem.picture);
+					}
+				}
+				itemPictureCache = next;
+			}
+
+			tableLoading = false;
+		} catch (error: any) {
+			console.error('Failed to load student requests', error);
+			if (loadId === inFlightLoadId) {
+				requests = [];
+			}
+		} finally {
+			if (loadId === inFlightLoadId) {
+				loading = false;
+				cardsLoading = false;
+				tableLoading = false;
+			}
+		}
+	}
 	let loadingCancel = $state<string | null>(null);
 	let showAppealModal = $state(false);
 	let appealRequestTarget = $state<any>(null);
@@ -188,19 +253,7 @@
 	}
 
 	async function loadRequests(forceRefresh = false): Promise<void> {
-		try {
-			// Force refresh to get the latest data with classCode populated
-			const response = await borrowRequestsAPI.list({}, { forceRefresh: true });
-			requests = response.requests.map(mapRequest);
-		} catch (error) {
-			console.error('Failed to load student requests', error);
-			requests = [];
-		} finally {
-			loading = false;
-		}
-
-		// Backfill pictures in background after loading state is cleared (non-blocking)
-		await backfillItemPictures();
+		await loadRequestsProgressive(forceRefresh);
 	}
 
 	function hydrateRequestsFromClientCache(): boolean {
@@ -209,6 +262,8 @@
 
 		requests = cached.requests.map(mapRequest);
 		loading = false;
+		cardsLoading = false;
+		tableLoading = false;
 		void backfillItemPictures();
 		return true;
 	}
@@ -990,78 +1045,113 @@
 	</div>
 
 	<!-- Statistics Cards -->
-	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
-					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
-						{stats.totalRequests}
-					</p>
+	{#if cardsLoading}
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4 animate-pulse">
+			{#each Array(4) as _}
+				<div class="rounded-lg bg-white p-3 shadow sm:p-5 h-[80px] sm:h-[116px]">
+					<div class="flex items-center justify-between gap-2 h-full">
+						<div class="space-y-2 flex-1">
+							<div class="h-4 bg-gray-200 rounded w-2/3"></div>
+							<div class="h-6 bg-gray-200 rounded w-1/3"></div>
+						</div>
+						<div class="h-9 w-9 sm:h-12 sm:w-12 bg-gray-200 rounded-full"></div>
+					</div>
 				</div>
-				<div
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
-				>
-					<ClipboardList size={18} class="text-blue-600 sm:hidden" />
-					<ClipboardList size={24} class="hidden text-blue-600 sm:block" />
+			{/each}
+		</div>
+	{:else}
+		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total</p>
+						<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">
+							{stats.totalRequests}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
+					>
+						<ClipboardList size={18} class="text-blue-600 sm:hidden" />
+						<ClipboardList size={24} class="hidden text-blue-600 sm:block" />
+					</div>
 				</div>
 			</div>
-		</div>
 
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
-					<p class="mt-1 text-2xl font-semibold text-yellow-600 sm:mt-2 sm:text-3xl">
-						{stats.pendingCount}
-					</p>
-				</div>
-				<div
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:h-12 sm:w-12"
-				>
-					<Clock size={18} class="text-yellow-600 sm:hidden" />
-					<Clock size={24} class="hidden text-yellow-600 sm:block" />
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
+						<p class="mt-1 text-2xl font-semibold text-yellow-600 sm:mt-2 sm:text-3xl">
+							{stats.pendingCount}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:h-12 sm:w-12"
+					>
+						<Clock size={18} class="text-yellow-600 sm:hidden" />
+						<Clock size={24} class="hidden text-yellow-600 sm:block" />
+					</div>
 				</div>
 			</div>
-		</div>
 
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active</p>
-					<p class="mt-1 text-2xl font-semibold text-green-600 sm:mt-2 sm:text-3xl">
-						{stats.activeCount}
-					</p>
-				</div>
-				<div
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 sm:h-12 sm:w-12"
-				>
-					<Activity size={18} class="text-green-600 sm:hidden" />
-					<Activity size={24} class="hidden text-green-600 sm:block" />
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active</p>
+						<p class="mt-1 text-2xl font-semibold text-green-600 sm:mt-2 sm:text-3xl">
+							{stats.activeCount}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100 sm:h-12 sm:w-12"
+					>
+						<Activity size={18} class="text-green-600 sm:hidden" />
+						<Activity size={24} class="hidden text-green-600 sm:block" />
+					</div>
 				</div>
 			</div>
-		</div>
 
-		<div class="rounded-lg bg-white p-3 shadow sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Ready for Pickup</p>
-					<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">
-						{stats.readyForPickup}
-					</p>
-				</div>
-				<div
-					class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12"
-				>
-					<PackageOpen size={18} class="text-pink-600 sm:hidden" />
-					<PackageOpen size={24} class="hidden text-pink-600 sm:block" />
+			<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<div class="flex items-center justify-between gap-2">
+					<div class="min-w-0">
+						<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Ready for Pickup</p>
+						<p class="mt-1 text-2xl font-semibold text-pink-600 sm:mt-2 sm:text-3xl">
+							{stats.readyForPickup}
+						</p>
+					</div>
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12"
+					>
+						<PackageOpen size={18} class="text-pink-600 sm:hidden" />
+						<PackageOpen size={24} class="hidden text-pink-600 sm:block" />
+					</div>
 				</div>
 			</div>
 		</div>
-	</div>
+	{/if}
 
 	<div class="rounded-lg bg-white shadow">
-		<div class="p-6">
+		{#if tableLoading}
+			<div class="p-6 space-y-6">
+				<!-- Search and Filter Bar Skeleton -->
+				<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between animate-pulse">
+					<div class="h-10 bg-gray-200 rounded-xl flex-1"></div>
+					<div class="flex gap-2">
+						<div class="h-10 bg-gray-200 rounded-xl w-40"></div>
+						<div class="h-10 bg-gray-200 rounded-xl w-30"></div>
+						<div class="h-10 bg-gray-200 rounded-xl w-16"></div>
+					</div>
+				</div>
+				<!-- Requests List Skeleton -->
+				<div class="space-y-4 animate-pulse">
+					{#each Array(3) as _}
+						<div class="h-28 bg-gray-200 rounded-xl w-full"></div>
+					{/each}
+				</div>
+			</div>
+		{:else}
+			<div class="p-6">
 			<!-- Search and Filter Bar -->
 			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 				<div class="relative flex-1">
@@ -1679,6 +1769,7 @@
 				{/if}
 			</div>
 		</div>
+		{/if}
 	</div>
 </div>
 

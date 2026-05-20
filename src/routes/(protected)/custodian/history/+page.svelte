@@ -26,6 +26,18 @@
 		historyStore.isActivityLogsCacheValid();
 	
 	let initialLoadComplete = $state(hasCachedData);
+	let activityLogsLoading = $state(!hasCachedData);
+	let requestHistoryLoading = $state(true);
+	let archivedLoading = $state(true);
+	let deletedLoading = $state(true);
+	let inFlightLoadId = 0;
+
+	const activeTabLoading = $derived(
+		activeTab === 'activity-logs' ? activityLogsLoading :
+		activeTab === 'request-history' ? requestHistoryLoading :
+		activeTab === 'archived' ? archivedLoading :
+		deletedLoading
+	);
 	
 	// Activity Logs state - from store
 	let activityLogs = $state<InventoryHistoryEntry[]>(hasCachedData ? cachedStore!.activityLogs : []);
@@ -95,24 +107,19 @@
 		console.log('[HISTORY] Has cached data:', hasCachedData);
 		console.log('[HISTORY] Cache valid:', historyStore.isActivityLogsCacheValid());
 
-		// Only load if we don't have valid cached data
-		if (!hasCachedData) {
-			console.log('[HISTORY] No valid cache, loading from API...');
-			Promise.all([
-				loadActivityLogs(true) // Force refresh since no cache
-			])
-				.then(() => {
-					console.log('[HISTORY] Data loaded successfully');
-					setTimeout(() => {
-						initialLoadComplete = true;
-					}, 150);
-				})
-				.catch((err) => {
-					console.error('[HISTORY] Failed to load data:', err);
-					initialLoadComplete = true;
-				});
-		} else {
+		if (hasCachedData) {
 			console.log('[HISTORY] Using cached data from store');
+			loadAllHistoryProgressive(true).catch((err) => {
+				console.error('[HISTORY] Background progressive refresh failed:', err);
+			});
+		} else {
+			console.log('[HISTORY] No valid cache, loading from API...');
+			loadAllHistoryProgressive(true).then(() => {
+				initialLoadComplete = true;
+			}).catch((err) => {
+				console.error('[HISTORY] Failed progressive load:', err);
+				initialLoadComplete = true;
+			});
 		}
 
 		// Subscribe to real-time inventory changes via SSE
@@ -167,26 +174,119 @@
 		}
 	}
 
-	// Load Activity Logs
-	async function loadActivityLogs(forceRefresh = false) {
-		try {
-			const response = await inventoryHistoryAPI.getHistory({
-				action: filterAction || undefined,
-				entityType: filterEntityType as any || undefined,
-				startDate: filterStartDate || undefined,
-				endDate: filterEndDate || undefined,
-				page: activityPage,
-				limit: activityLimit,
-				forceRefresh
-			});
-			activityLogs = response.history;
-			activityTotal = response.total;
+	async function loadAllHistoryProgressive(forceRefresh = true) {
+		const loadId = ++inFlightLoadId;
+
+		const activityPromise = inventoryHistoryAPI.getHistory({
+			action: filterAction || undefined,
+			entityType: filterEntityType as any || undefined,
+			startDate: filterStartDate || undefined,
+			endDate: filterEndDate || undefined,
+			page: activityPage,
+			limit: activityLimit,
+			forceRefresh
+		});
+
+		const requestsPromise = borrowRequestsAPI.list({
+			statuses: ['returned', 'resolved', 'cancelled', 'rejected'],
+			page: requestHistoryPage,
+			limit: requestHistoryLimit
+		});
+
+		const archivedPromise = archivedItemsAPI.getArchived({
+			search: archivedSearch || undefined,
+			page: archivedPage,
+			limit: archivedLimit,
+			forceRefresh
+		});
+
+		const deletedPromise = deletedItemsAPI.getDeleted({
+			search: deletedSearch || undefined,
+			page: deletedPage,
+			limit: deletedLimit,
+			forceRefresh
+		});
+
+		const results = await Promise.allSettled([
+			activityPromise,
+			requestsPromise,
+			archivedPromise,
+			deletedPromise
+		]);
+
+		if (loadId !== inFlightLoadId) return;
+
+		// 1. Settle Activity Logs (first)
+		const actRes = results[0];
+		if (actRes.status === 'fulfilled') {
+			activityLogs = actRes.value.history;
+			activityTotal = actRes.value.total;
 			activityLogsLoaded = true;
-			
-			// Save to store for persistence across navigation
-			historyStore.setActivityLogs(response.history, response.total);
-		} catch (err: any) {
-			toastStore.error(err.message || 'Failed to load activity logs');
+			historyStore.setActivityLogs(actRes.value.history, actRes.value.total);
+		}
+		activityLogsLoading = false;
+
+		// 2. Settle Request History (second)
+		await new Promise(r => setTimeout(r, 120));
+		if (loadId !== inFlightLoadId) return;
+
+		const reqRes = results[1];
+		if (reqRes.status === 'fulfilled') {
+			requestHistory = reqRes.value.requests;
+			requestHistoryTotal = reqRes.value.total;
+			requestHistoryLoaded = true;
+			await backfillItemPictures();
+		}
+		requestHistoryLoading = false;
+
+		// 3. Settle Archived Items (third)
+		await new Promise(r => setTimeout(r, 120));
+		if (loadId !== inFlightLoadId) return;
+
+		const archRes = results[2];
+		if (archRes.status === 'fulfilled') {
+			archivedItems = archRes.value.items;
+			archivedTotal = archRes.value.total;
+			archivedLoaded = true;
+		}
+		archivedLoading = false;
+
+		// 4. Settle Deleted Items (fourth)
+		await new Promise(r => setTimeout(r, 120));
+		if (loadId !== inFlightLoadId) return;
+
+		const delRes = results[3];
+		if (delRes.status === 'fulfilled') {
+			deletedItems = delRes.value.items;
+			deletedTotal = delRes.value.total;
+			deletedLoaded = true;
+		}
+		deletedLoading = false;
+	}
+
+	// Load Activity Logs
+	async function loadActivityLogs(showLoader = true, forceRefresh = false) {
+		if (showLoader) {
+			if (activityLogs.length === 0) activityLogsLoading = true;
+			await loadAllHistoryProgressive(forceRefresh);
+		} else {
+			try {
+				const response = await inventoryHistoryAPI.getHistory({
+					action: filterAction || undefined,
+					entityType: filterEntityType as any || undefined,
+					startDate: filterStartDate || undefined,
+					endDate: filterEndDate || undefined,
+					page: activityPage,
+					limit: activityLimit,
+					forceRefresh
+				});
+				activityLogs = response.history;
+				activityTotal = response.total;
+				activityLogsLoaded = true;
+				historyStore.setActivityLogs(response.history, response.total);
+			} catch (err: any) {
+				toastStore.error(err.message || 'Failed to load activity logs');
+			}
 		}
 	}
 
@@ -210,16 +310,15 @@
 		try {
 			inventoryHistoryAPI.invalidateCache();
 			
-			// Refresh the current tab's data without showing loading spinner
 			if (activeTab === 'activity-logs') {
-				await loadActivityLogs(true);
+				await loadActivityLogs(false, true);
 			} else if (activeTab === 'request-history') {
 				borrowRequestsAPI.invalidateCache();
-				await loadRequestHistory();
+				await loadRequestHistory(false);
 			} else if (activeTab === 'archived') {
-				await loadArchivedItems(true);
+				await loadArchivedItems(false, true);
 			} else if (activeTab === 'deleted') {
-				await loadDeletedItems(true);
+				await loadDeletedItems(false, true);
 			}
 		} finally {
 			refreshInFlight = false;
@@ -231,19 +330,24 @@
 	}
 
 	// Load Request History
-	async function loadRequestHistory() {
-		try {
-			const response = await borrowRequestsAPI.list({
-				statuses: ['returned', 'resolved', 'cancelled', 'rejected'],
-				page: requestHistoryPage,
-				limit: requestHistoryLimit
-			});
-			requestHistory = response.requests;
-			requestHistoryTotal = response.total;
-			requestHistoryLoaded = true;
-			await backfillItemPictures();
-		} catch (err: any) {
-			toastStore.error(err.message || 'Failed to load request history');
+	async function loadRequestHistory(showLoader = true) {
+		if (showLoader) {
+			if (requestHistory.length === 0) requestHistoryLoading = true;
+			await loadAllHistoryProgressive(true);
+		} else {
+			try {
+				const response = await borrowRequestsAPI.list({
+					statuses: ['returned', 'resolved', 'cancelled', 'rejected'],
+					page: requestHistoryPage,
+					limit: requestHistoryLimit
+				});
+				requestHistory = response.requests;
+				requestHistoryTotal = response.total;
+				requestHistoryLoaded = true;
+				await backfillItemPictures();
+			} catch (err: any) {
+				toastStore.error(err.message || 'Failed to load request history');
+			}
 		}
 	}
 
@@ -275,36 +379,46 @@
 	}
 
 	// Load Archived Items
-	async function loadArchivedItems(forceRefresh = false) {
-		try {
-			const response = await archivedItemsAPI.getArchived({
-				search: archivedSearch || undefined,
-				page: archivedPage,
-				limit: archivedLimit,
-				forceRefresh
-			});
-			archivedItems = response.items;
-			archivedTotal = response.total;
-			archivedLoaded = true;
-		} catch (err: any) {
-			toastStore.error(err.message || 'Failed to load archived items');
+	async function loadArchivedItems(showLoader = true, forceRefresh = false) {
+		if (showLoader) {
+			if (archivedItems.length === 0) archivedLoading = true;
+			await loadAllHistoryProgressive(forceRefresh);
+		} else {
+			try {
+				const response = await archivedItemsAPI.getArchived({
+					search: archivedSearch || undefined,
+					page: archivedPage,
+					limit: archivedLimit,
+					forceRefresh
+				});
+				archivedItems = response.items;
+				archivedTotal = response.total;
+				archivedLoaded = true;
+			} catch (err: any) {
+				toastStore.error(err.message || 'Failed to load archived items');
+			}
 		}
 	}
 
 	// Load Recently Deleted Items
-	async function loadDeletedItems(forceRefresh = false) {
-		try {
-			const response = await deletedItemsAPI.getDeleted({
-				search: deletedSearch || undefined,
-				page: deletedPage,
-				limit: deletedLimit,
-				forceRefresh
-			});
-			deletedItems = response.items;
-			deletedTotal = response.total;
-			deletedLoaded = true;
-		} catch (err: any) {
-			toastStore.error(err.message || 'Failed to load deleted items');
+	async function loadDeletedItems(showLoader = true, forceRefresh = false) {
+		if (showLoader) {
+			if (deletedItems.length === 0) deletedLoading = true;
+			await loadAllHistoryProgressive(forceRefresh);
+		} else {
+			try {
+				const response = await deletedItemsAPI.getDeleted({
+					search: deletedSearch || undefined,
+					page: deletedPage,
+					limit: deletedLimit,
+					forceRefresh
+				});
+				deletedItems = response.items;
+				deletedTotal = response.total;
+				deletedLoaded = true;
+			} catch (err: any) {
+				toastStore.error(err.message || 'Failed to load deleted items');
+			}
 		}
 	}
 
@@ -606,7 +720,12 @@
 	}
 </style>
 
-{#if !initialLoadComplete}
+{#if activeTabLoading && (
+	activeTab === 'activity-logs' ? activityLogs.length === 0 :
+	activeTab === 'request-history' ? requestHistory.length === 0 :
+	activeTab === 'archived' ? archivedItems.length === 0 :
+	deletedItems.length === 0
+)}
 	<HistorySkeletonLoader {activeTab} />
 {:else}
 <div class="space-y-6">

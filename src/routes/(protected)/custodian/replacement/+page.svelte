@@ -32,17 +32,19 @@
 
 	let activeTab = $state<'donations' | 'replacements' | 'adjustments'>('donations');
 	let replacementsFilter = $state<'pending' | 'replaced' | 'all'>('pending');
-	let historyFilter = $state<'all' | 'resolved'>('all');
 	let viewMode = $state<'card' | 'list'>('list');
 	let obligations = $state<ReplacementObligation[]>([]);
 	let itemPictureCache = $state<Map<string, string>>(new Map());
 	let isLoading = $state(false);
+	let cardsLoading = $state(true);
+	let donationsTabLoading = $state(true);
+	let accountabilityLoading = $state(true);
+	let adjustmentsLoading = $state(true);
 	let error = $state<string | null>(null);
 	let currentPage = $state(1);
 	const itemsPerPageByRequest = 5; // Cards view - max 5 cards
 	const itemsPerPageByItem = 10; // Table/List view
 	const itemsPerPageDonations = 10; // Donations table
-	const itemsPerPageHistory = 10; // Resolution log table
 	let selectedObligation = $state<ReplacementObligation | null>(null);
 	let editingAmountReplacedId = $state<string | null>(null);
 	let editedAmountReplaced = $state(0);
@@ -75,7 +77,6 @@
 		notes: ''
 	});
 	let isUpdatingDonation = $state(false);
-	let selectedTransaction = $state<any>(null);
 
 	const selectedSummaryItems = $derived(
 		selectedSummary
@@ -157,32 +158,7 @@
 	let addQtyNotes = $state('');
 	let addQtySubmitting = $state(false);
 
-	// Payment history (derived from resolved obligations)
-	const paymentHistory = $derived(
-		obligations
-			.filter((o) => o.status !== 'pending')
-			.map((o) => ({
-				id: o.id,
-				name: o.studentName || 'Unknown Student',
-				type: 'replacement' as const,
-				amount: o.amountPaid,
-				originalAmount: o.amount,
-				itemName: o.itemName,
-				date: o.resolutionDate || o.updatedAt,
-				status: 'resolved',
-				obligationStatus: o.status,
-				resolutionType: o.resolutionType,
-				paymentMethod: 'Item Replaced',
-				receiptNumber: o.paymentReference || `REP-${o.id.slice(-6).toUpperCase()}`
-			}))
-			.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-	);
 
-	const filteredPaymentHistory = $derived(
-		historyFilter === 'all'
-			? paymentHistory
-			: paymentHistory.filter((p) => p.status === historyFilter)
-	);
 
 	const realDonations = $derived(donations.filter(d => d.donorName !== 'Custodian Stock Adjustment'));
 	const stockAdjustments = $derived(donations.filter(d => d.donorName === 'Custodian Stock Adjustment'));
@@ -195,21 +171,6 @@
 	const paginatedDonations = $derived(
 		displayedDonations.slice((currentPage - 1) * itemsPerPageDonations, currentPage * itemsPerPageDonations)
 	);
-
-	const totalHistoryPages = $derived(
-		Math.ceil(filteredPaymentHistory.length / itemsPerPageHistory)
-	);
-	const paginatedHistory = $derived(
-		filteredPaymentHistory.slice(
-			(currentPage - 1) * itemsPerPageHistory,
-			currentPage * itemsPerPageHistory
-		)
-	);
-
-	const historyCounts = $derived({
-		all: paymentHistory.length,
-		resolved: paymentHistory.filter((p) => p.status === 'resolved').length
-	});
 
 	let donationSubmitting = $state(false);
 
@@ -318,8 +279,9 @@
 	);
 	const resolvedCount = $derived(obligations.filter((o) => o.status !== 'pending').length);
 	const recentActivityCount = $derived(
-		paymentHistory.filter((p) => {
-			const paymentDate = new Date(p.date);
+		obligations.filter((o) => {
+			if (o.status === 'pending') return false;
+			const paymentDate = new Date(o.resolutionDate || o.updatedAt);
 			const sevenDaysAgo = new Date();
 			sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 			return paymentDate >= sevenDaysAgo;
@@ -469,27 +431,87 @@
 			donations = cachedDonations.donations;
 		}
 
-		// Only show loading indicator if we don't have any cached data
-		const shouldShowLoading = !cachedObligations || !cachedDonations;
-		if (shouldShowLoading) {
-			isLoading = true;
-		}
+		// Initialize loading states based on cache presence
+		const hasObligationsCache = !!cachedObligations;
+		const hasDonationsCache = !!cachedDonations;
 
-		// Parallel reconciliation and data load
+		cardsLoading = !hasObligationsCache || !hasDonationsCache;
+		donationsTabLoading = !hasDonationsCache;
+		accountabilityLoading = !hasObligationsCache;
+		adjustmentsLoading = !hasDonationsCache;
+		isLoading = cardsLoading || donationsTabLoading || accountabilityLoading || adjustmentsLoading;
+
+		// Sequential data offload loading using Promise.allSettled
 		(async () => {
 			try {
 				await replacementObligationsAPI.reconcile();
-				await Promise.all([
-					// Revalidate against source-of-truth to correct any out-of-band DB changes.
-					loadObligations(shouldShowLoading, true),
-					// Revalidate against source-of-truth to correct any out-of-band DB changes.
-					loadDonations(shouldShowLoading, true)
+
+				// 1. Load Cards
+				if (!hasObligationsCache || !hasDonationsCache) {
+					cardsLoading = true;
+				}
+				const cardsResult = await Promise.allSettled([
+					replacementObligationsAPI.getObligations({ limit: 500 }, { forceRefresh: true }),
+					donationsAPI.getAll({ limit: 200, forceRefresh: true })
 				]);
+				if (cardsResult[0].status === 'fulfilled') {
+					obligations = cardsResult[0].value.obligations;
+					void backfillItemPictures();
+				}
+				if (cardsResult[1].status === 'fulfilled') {
+					donations = cardsResult[1].value.donations;
+				}
+				cardsLoading = false;
+
+				// 2. Load Donations Tab
+				if (!hasDonationsCache) {
+					donationsTabLoading = true;
+				}
+				const donationsResult = await Promise.allSettled([
+					donationsAPI.getAll({ limit: 200 })
+				]);
+				if (donationsResult[0].status === 'fulfilled') {
+					donations = donationsResult[0].value.donations;
+				}
+				donationsTabLoading = false;
+
+				// 3. Load Item Accountability
+				if (!hasObligationsCache) {
+					accountabilityLoading = true;
+				}
+				const accountabilityResult = await Promise.allSettled([
+					replacementObligationsAPI.getObligations({ limit: 500 })
+				]);
+				if (accountabilityResult[0].status === 'fulfilled') {
+					obligations = accountabilityResult[0].value.obligations;
+					void backfillItemPictures();
+				}
+				accountabilityLoading = false;
+
+				// 4. Load Stock Adjustment
+				if (!hasDonationsCache) {
+					adjustmentsLoading = true;
+				}
+				const adjustmentsResult = await Promise.allSettled([
+					donationsAPI.getAll({ limit: 200 })
+				]);
+				if (adjustmentsResult[0].status === 'fulfilled') {
+					donations = adjustmentsResult[0].value.donations;
+				}
+				adjustmentsLoading = false;
+
 			} catch (err) {
 				console.error('Initial load failed', err);
 				if (isMounted && !error) {
 					error = 'Failed to load resource management data';
 				}
+			} finally {
+				// Safety check: clear all loading states
+				cardsLoading = false;
+				donationsTabLoading = false;
+				accountabilityLoading = false;
+				adjustmentsLoading = false;
+				isLoading = false;
 			}
 
 			hasInitialized = true;
@@ -587,6 +609,7 @@
 	async function loadObligations(showLoading = true, forceRefresh = false): Promise<void> {
 		if (showLoading) {
 			isLoading = true;
+			accountabilityLoading = true;
 		}
 		error = null;
 
@@ -607,6 +630,7 @@
 		} finally {
 			if (showLoading && isMounted) {
 				isLoading = false;
+				accountabilityLoading = false;
 			}
 		}
 	}
@@ -621,6 +645,8 @@
 
 		if (showLoading && isMounted) {
 			donationsLoading = true;
+			donationsTabLoading = true;
+			adjustmentsLoading = true;
 		}
 
 		try {
@@ -656,6 +682,8 @@
 		} finally {
 			if (showLoading && isMounted) {
 				donationsLoading = false;
+				donationsTabLoading = false;
+				adjustmentsLoading = false;
 			}
 			console.log('[LOAD-DONATIONS] Completed');
 		}
@@ -1031,13 +1059,6 @@
 		showAddQuantityModal = true;
 	}
 
-	function printReceipt(receiptNumber: string) {
-		toastStore.info(`Printing record ${receiptNumber}â€¦`, 'Print');
-	}
-
-	function exportHistory() {
-		toastStore.info('Exporting resolution log to CSVâ€¦', 'Export');
-	}
 
 	function getStatusColor(status: string) {
 		switch (status) {
@@ -1114,7 +1135,7 @@
 
 	// Reset to page 1 when filters or view changes
 	$effect(() => {
-		if (replacementsFilter || viewMode || activeTab || historyFilter) {
+		if (replacementsFilter || viewMode || activeTab) {
 			currentPage = 1;
 		}
 	});
@@ -1131,7 +1152,7 @@
 
 	<!-- Stats Overview -->
 	<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-		{#if isLoading}
+		{#if cardsLoading}
 			{#each Array(4) as _}
 				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
 					<div class="flex items-center justify-between gap-2">
@@ -1264,7 +1285,7 @@
 
 	<div class="rounded-lg bg-white shadow">
 		<div class="p-6">
-			{#if isLoading}
+			{#if (activeTab === 'donations' && donationsTabLoading) || (activeTab === 'replacements' && accountabilityLoading) || (activeTab === 'adjustments' && adjustmentsLoading)}
 				<!-- Skeleton: tab content placeholder -->
 				<div class="space-y-4" role="status" aria-label="Loading resource management data">
 					<div class="flex items-center justify-between">
@@ -4022,129 +4043,6 @@
 	</div>
 {/if}
 
-<!-- Resolution Log Transaction Modal -->
-{#if selectedTransaction}
-	<div class="fixed inset-0 z-50 overflow-y-auto">
-		<!-- Backdrop -->
-		<button
-			type="button"
-			class="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity cursor-default"
-			onclick={() => (selectedTransaction = null)}
-			aria-label="Close modal"
-		></button>
-
-		<div class="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-			<div
-				class="relative w-full overflow-hidden rounded-2xl bg-white text-left shadow-2xl transition-all sm:my-8 sm:max-w-2xl"
-				role="dialog"
-				aria-modal="true"
-				aria-labelledby="modal-title"
-			>
-				<!-- Header -->
-				<div class="border-b border-gray-200 bg-gray-50/80 px-4 py-5 sm:px-8">
-					<div class="flex items-center justify-between">
-						<div>
-							<h2 class="text-xl font-bold text-gray-900" id="modal-title">Resolution Details</h2>
-							<p class="mt-1 text-sm text-gray-500">Record of replaced item</p>
-						</div>
-						<button
-							type="button"
-							class="rounded-xl p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-500 focus:ring-2 focus:ring-pink-500 focus:outline-none"
-							onclick={() => (selectedTransaction = null)}
-						>
-							<span class="sr-only">Close</span>
-							<svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-							</svg>
-						</button>
-					</div>
-				</div>
-
-				<!-- Content -->
-				<div class="max-h-[70vh] overflow-y-auto px-4 py-5 sm:px-8 sm:py-8">
-					<div class="space-y-6 sm:space-y-8">
-						<!-- Item Info Card -->
-						<div
-							class="rounded-2xl border border-gray-200 bg-linear-to-br from-white to-gray-50 p-5 sm:p-6"
-						>
-							<div class="flex items-start gap-4">
-								<div
-									class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-cyan-100 to-cyan-200 text-cyan-700 ring-2 ring-cyan-200"
-								>
-									<svg class="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-									</svg>
-								</div>
-								<div class="min-w-0 flex-1">
-									<p class="text-lg font-bold text-gray-900">{selectedTransaction.itemName}</p>
-									<p class="mt-1 text-sm text-gray-600">
-										Resolved by <span class="font-semibold text-gray-900"
-											>{selectedTransaction.name}</span
-										>
-									</p>
-									<div class="mt-3 flex flex-wrap items-center gap-2">
-										<span
-											class="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold shadow-sm ring-1 ring-inset bg-cyan-50 text-cyan-700 ring-cyan-200"
-										>
-											<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-											Replaced
-										</span>
-									</div>
-								</div>
-							</div>
-						</div>
-
-						<!-- Details Card -->
-						<div class="overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
-							<div class="border-b border-gray-200 bg-linear-to-r from-gray-50 to-white px-5 py-3">
-								<h3 class="text-sm font-semibold text-gray-900">Resolution Information</h3>
-							</div>
-							<div class="divide-y divide-gray-100">
-								<div
-									class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-								>
-									<span class="text-sm font-medium text-gray-600">Quantity Replaced</span>
-									<span class="text-base font-bold text-gray-900"
-										>{selectedTransaction.amount} of {selectedTransaction.originalAmount}</span
-									>
-								</div>
-								<div
-									class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-								>
-									<span class="text-sm font-medium text-gray-600">Date Resolved</span>
-									<span class="text-base font-semibold text-gray-900">{new Date(selectedTransaction.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
-								</div>
-								<div
-									class="flex flex-col gap-1.5 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
-								>
-									<span class="text-sm font-medium text-gray-600">Receipt Number</span>
-									<span class="font-mono text-sm font-bold text-gray-900"
-										>{selectedTransaction.receiptNumber}</span
-									>
-								</div>
-							</div>
-						</div>
-
-					</div>
-				</div>
-
-				<!-- Footer -->
-				<div
-					class="sticky bottom-0 border-t border-gray-200 bg-white/95 px-4 py-4 backdrop-blur-sm sm:px-8"
-				>
-					<div class="flex justify-end">
-						<button
-							onclick={() => (selectedTransaction = null)}
-							class="rounded-xl border-2 border-gray-300 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 shadow-sm transition-all hover:border-gray-400 hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none active:scale-95"
-						>
-							Close
-						</button>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-{/if}
 <!-- Replacement Obligation Modal -->
 {#if selectedObligation}
 	<ReplacementObligationModal

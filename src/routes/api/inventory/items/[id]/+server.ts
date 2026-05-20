@@ -28,6 +28,7 @@ import path from 'path';
 function determineStatus(quantity: number, archived: boolean): ItemStatus {
 	if (archived) return 'Archived' as ItemStatus;
 	if (quantity === 0) return 'Out of Stock' as ItemStatus;
+	if (quantity <= 5) return 'Low Stock' as ItemStatus;
 	return 'In Stock' as ItemStatus;
 }
 

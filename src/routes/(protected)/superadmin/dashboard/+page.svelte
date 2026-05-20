@@ -3,7 +3,11 @@
 	import { browser } from '$app/environment';
 	import { user, authStore, justLoggedIn } from '$lib/stores/auth';
 	import { toastStore } from '$lib/stores/toast';
-	import { fetchAnalytics, peekCachedAnalytics, type AnalyticsReport } from '$lib/api/analyticsReports';
+	import {
+		fetchAnalytics,
+		peekCachedAnalytics,
+		type AnalyticsReport
+	} from '$lib/api/analyticsReports';
 	import { usersAPI, type UserResponse } from '$lib/api/users';
 	import { classCodesAPI, type ClassCodeStats } from '$lib/api/classCodes';
 	import { borrowRequestsAPI, type BorrowRequestRecord } from '$lib/api/borrowRequests';
@@ -11,20 +15,44 @@
 	import Skeleton from '$lib/components/ui/Skeleton.svelte';
 	import DashboardSkeletonLoader from '$lib/components/ui/DashboardSkeletonLoader.svelte';
 	import {
-		Users, GraduationCap, ClipboardList, Package,
-		TrendingUp, TrendingDown, Activity, AlertTriangle,
-		CheckCircle2, Clock, ArrowRight, BarChart3,
-		ShieldAlert, PackageOpen, Database, Eye, Wifi, WifiOff
+		Users,
+		GraduationCap,
+		ClipboardList,
+		Package,
+		TrendingUp,
+		TrendingDown,
+		Activity,
+		AlertTriangle,
+		CheckCircle2,
+		Clock,
+		ArrowRight,
+		BarChart3,
+		ShieldAlert,
+		PackageOpen,
+		Database,
+		Eye,
+		Wifi,
+		WifiOff
 	} from 'lucide-svelte';
 
 	// ── State ─────────────────────────────────────────────────────────────────
 	const initialReport = browser ? peekCachedAnalytics({ period: 'month' }) : null;
 	const cachedUsers = browser ? usersAPI.peekCachedUsers({ limit: 5 }) : null;
 	const cachedClassStats = browser ? classCodesAPI.peekCachedStats() : null;
-	const cachedRequests = browser ? borrowRequestsAPI.peekCachedList({ limit: 10, sortBy: 'createdAt' }) : null;
+	const cachedRequests = browser
+		? borrowRequestsAPI.peekCachedList({ limit: 10, sortBy: 'createdAt' })
+		: null;
 	const cachedInventory = browser ? inventoryItemsAPI.peekCachedList() : null;
 
-	let loading = $state(!initialReport || !cachedUsers || !cachedClassStats || !cachedRequests || !cachedInventory);
+	let loading = $state(
+		!initialReport || !cachedUsers || !cachedClassStats || !cachedRequests || !cachedInventory
+	);
+	let cardsLoading = $state(
+		!cachedUsers || !cachedClassStats || !cachedRequests || !cachedInventory
+	);
+	let recentUsersRequestsLoading = $state(!cachedUsers || !cachedRequests);
+	let classInventoryLoading = $state(!cachedClassStats || !cachedInventory);
+	let systemPerformanceLoading = $state(!initialReport);
 	let sseConnected = $state(false);
 	let report = $state<AnalyticsReport | null>(initialReport);
 	let currentTime = $state(new Date());
@@ -34,6 +62,7 @@
 	let _unsubscribeClass: (() => void) | null = null;
 	let _unsubscribeBorrow: (() => void) | null = null;
 	let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+	let inFlightLoadId = 0;
 
 	function scheduleRefresh(forceRefresh = false): void {
 		if (refreshTimer !== null) clearTimeout(refreshTimer);
@@ -47,16 +76,16 @@
 	let totalUsers = $state(0);
 	let usersByRole = $state<Record<string, number>>({});
 	let recentUsers = $state<UserResponse[]>([]);
-	
+
 	let classStats = $state<ClassCodeStats | null>(null);
 	let activeClasses = $state(0);
-	
+
 	let totalRequests = $state(0);
 	let pendingRequests = $state(0);
 	let activeLoans = $state(0);
 	let overdueRequests = $state(0);
 	let recentRequests = $state<BorrowRequestRecord[]>([]);
-	
+
 	let totalInventory = $state(0);
 	let lowStockItems = $state(0);
 	let outOfStockItems = $state(0);
@@ -81,18 +110,25 @@
 	if (cachedRequests) {
 		totalRequests = cachedRequests.total;
 		recentRequests = cachedRequests.requests;
-		pendingRequests = cachedRequests.requests.filter((r: BorrowRequestRecord) => r.status === 'pending_instructor').length;
-		activeLoans = cachedRequests.requests.filter((r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return').length;
-		overdueRequests = cachedRequests.requests.filter((r: BorrowRequestRecord) => 
-			(r.status === 'borrowed' || r.status === 'pending_return') && 
-			new Date(r.returnDate) < new Date()
+		pendingRequests = cachedRequests.requests.filter(
+			(r: BorrowRequestRecord) => r.status === 'pending_instructor'
+		).length;
+		activeLoans = cachedRequests.requests.filter(
+			(r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return'
+		).length;
+		overdueRequests = cachedRequests.requests.filter(
+			(r: BorrowRequestRecord) =>
+				(r.status === 'borrowed' || r.status === 'pending_return') &&
+				new Date(r.returnDate) < new Date()
 		).length;
 	}
 
 	if (cachedInventory) {
 		totalInventory = cachedInventory.total;
 		totalCategories = new Set(cachedInventory.items.map((i: InventoryItem) => i.categoryId)).size;
-		lowStockItems = cachedInventory.items.filter((i: InventoryItem) => i.quantity > 0 && i.quantity <= 5).length;
+		lowStockItems = cachedInventory.items.filter(
+			(i: InventoryItem) => i.quantity > 0 && i.quantity <= 5
+		).length;
 		outOfStockItems = cachedInventory.items.filter((i: InventoryItem) => i.quantity === 0).length;
 	}
 
@@ -113,7 +149,11 @@
 	}
 
 	function formatDate(d: string | Date): string {
-		return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+		return new Date(d).toLocaleDateString('en-US', {
+			month: 'short',
+			day: 'numeric',
+			year: 'numeric'
+		});
 	}
 
 	function formatTime(d: string | Date): string {
@@ -122,107 +162,172 @@
 
 	function getRoleBadgeColor(role: string): string {
 		switch (role) {
-			case 'superadmin': return 'bg-purple-100 text-purple-700 border-purple-200';
-			case 'custodian': return 'bg-blue-100 text-blue-700 border-blue-200';
-			case 'instructor': return 'bg-pink-100 text-pink-700 border-pink-200';
-			case 'student': return 'bg-gray-100 text-gray-700 border-gray-200';
-			default: return 'bg-gray-100 text-gray-600 border-gray-200';
+			case 'superadmin':
+				return 'bg-purple-100 text-purple-700 border-purple-200';
+			case 'custodian':
+				return 'bg-blue-100 text-blue-700 border-blue-200';
+			case 'instructor':
+				return 'bg-pink-100 text-pink-700 border-pink-200';
+			case 'student':
+				return 'bg-gray-100 text-gray-700 border-gray-200';
+			default:
+				return 'bg-gray-100 text-gray-600 border-gray-200';
 		}
 	}
 
 	function getStatusBadgeColor(status: string): string {
 		switch (status) {
-			case 'pending_instructor': return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-			case 'approved_instructor': return 'bg-blue-100 text-blue-700 border-blue-200';
-			case 'ready_for_pickup': return 'bg-cyan-100 text-cyan-700 border-cyan-200';
-			case 'borrowed': return 'bg-violet-100 text-violet-700 border-violet-200';
-			case 'pending_return': return 'bg-indigo-100 text-indigo-700 border-indigo-200';
-			case 'returned': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-			case 'rejected': return 'bg-red-100 text-red-700 border-red-200';
-			default: return 'bg-gray-100 text-gray-600 border-gray-200';
+			case 'pending_instructor':
+				return 'bg-yellow-100 text-yellow-700 border-yellow-200';
+			case 'approved_instructor':
+				return 'bg-blue-100 text-blue-700 border-blue-200';
+			case 'ready_for_pickup':
+				return 'bg-cyan-100 text-cyan-700 border-cyan-200';
+			case 'borrowed':
+				return 'bg-violet-100 text-violet-700 border-violet-200';
+			case 'pending_return':
+				return 'bg-indigo-100 text-indigo-700 border-indigo-200';
+			case 'returned':
+				return 'bg-emerald-100 text-emerald-700 border-emerald-200';
+			case 'rejected':
+				return 'bg-red-100 text-red-700 border-red-200';
+			default:
+				return 'bg-gray-100 text-gray-600 border-gray-200';
 		}
 	}
 
 	function formatStatus(status: string): string {
-		return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+		return status
+			.split('_')
+			.map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+			.join(' ');
 	}
 
 	// ── Data Loading ──────────────────────────────────────────────────────────
 	async function loadDashboardData(showLoader = true, forceRefresh = true) {
-		if (showLoader) loading = true;
+		const hasCache =
+			!!report &&
+			!!recentUsers.length &&
+			!!classStats &&
+			!!recentRequests.length &&
+			totalInventory > 0;
+
+		if (showLoader && !hasCache) {
+			cardsLoading = true;
+			recentUsersRequestsLoading = true;
+			classInventoryLoading = true;
+			systemPerformanceLoading = true;
+		}
+
+		const loadId = ++inFlightLoadId;
+
 		try {
-			// Load analytics report
-			const analyticsPromise = fetchAnalytics({ period: 'month', forceRefresh });
-
-			// Load users data
 			const usersPromise = usersAPI.getAll({ limit: 5, forceRefresh });
-
-			// Load class codes stats
 			const classStatsPromise = classCodesAPI.getStats(forceRefresh);
-
-			// Load requests data
 			const requestsPromise = borrowRequestsAPI.list(
 				{ limit: 10, sortBy: 'createdAt' },
 				{ forceRefresh }
 			);
-
-			// Load inventory data
 			const inventoryPromise = inventoryItemsAPI.getAll({ forceRefresh });
+			const analyticsPromise = fetchAnalytics({ period: 'month', forceRefresh });
 
-			// Execute all promises
-			const [analyticsRes, usersRes, classStatsRes, requestsRes, inventoryRes] = await Promise.all([
-				analyticsPromise,
+			const results = await Promise.allSettled([
 				usersPromise,
 				classStatsPromise,
 				requestsPromise,
-				inventoryPromise
+				inventoryPromise,
+				analyticsPromise
 			]);
 
-			// Set analytics
-			report = analyticsRes;
+			if (loadId !== inFlightLoadId) return;
 
-			// Set users data
-			totalUsers = usersRes.pagination.total;
-			recentUsers = usersRes.users;
-			
-			// Calculate users by role
-			const roleCount: Record<string, number> = {};
-			usersRes.users.forEach((u: UserResponse) => {
-				roleCount[u.role] = (roleCount[u.role] || 0) + 1;
-			});
-			usersByRole = roleCount;
+			const usersRes = results[0];
+			const classRes = results[1];
+			const reqsRes = results[2];
+			const invRes = results[3];
+			const analyticsRes = results[4];
 
-			// Set class stats
-			classStats = classStatsRes;
-			activeClasses = classStatsRes.activeClasses;
+			// 1. Cards (KPI Strip & Health counts)
+			if (usersRes.status === 'fulfilled') {
+				const usersResVal = usersRes.value;
+				totalUsers = usersResVal.pagination.total;
+				recentUsers = usersResVal.users;
+				const roleCount: Record<string, number> = {};
+				usersResVal.users.forEach((u: UserResponse) => {
+					roleCount[u.role] = (roleCount[u.role] || 0) + 1;
+				});
+				usersByRole = roleCount;
+			}
+			if (classRes.status === 'fulfilled') {
+				classStats = classRes.value;
+				activeClasses = classRes.value.activeClasses;
+			}
+			if (reqsRes.status === 'fulfilled') {
+				const requestsResVal = reqsRes.value;
+				totalRequests = requestsResVal.total;
+				recentRequests = requestsResVal.requests;
+				pendingRequests = requestsResVal.requests.filter(
+					(r: BorrowRequestRecord) => r.status === 'pending_instructor'
+				).length;
+				activeLoans = requestsResVal.requests.filter(
+					(r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return'
+				).length;
+				overdueRequests = requestsResVal.requests.filter(
+					(r: BorrowRequestRecord) =>
+						(r.status === 'borrowed' || r.status === 'pending_return') &&
+						new Date(r.returnDate) < new Date()
+				).length;
+			}
+			if (invRes.status === 'fulfilled') {
+				const inventoryResVal = invRes.value;
+				totalInventory = inventoryResVal.total;
+				totalCategories = new Set(inventoryResVal.items.map((i: InventoryItem) => i.categoryId))
+					.size;
+				lowStockItems = inventoryResVal.items.filter(
+					(i: InventoryItem) => i.quantity > 0 && i.quantity <= 5
+				).length;
+				outOfStockItems = inventoryResVal.items.filter(
+					(i: InventoryItem) => i.quantity === 0
+				).length;
+			}
+			cardsLoading = false;
 
-			// Set requests data
-			totalRequests = requestsRes.total;
-			recentRequests = requestsRes.requests;
-			pendingRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'pending_instructor').length;
-			activeLoans = requestsRes.requests.filter((r: BorrowRequestRecord) => r.status === 'borrowed' || r.status === 'pending_return').length;
-			overdueRequests = requestsRes.requests.filter((r: BorrowRequestRecord) => 
-				(r.status === 'borrowed' || r.status === 'pending_return') && 
-				new Date(r.returnDate) < new Date()
-			).length;
+			// 2. Recent Users and Recent Requests
+			await new Promise((r) => setTimeout(r, 120));
+			if (loadId !== inFlightLoadId) return;
+			recentUsersRequestsLoading = false;
 
-			// Set inventory data - use total from API response, not items.length
-			totalInventory = inventoryRes.total;
-			totalCategories = new Set(inventoryRes.items.map((i: InventoryItem) => i.categoryId)).size;
-			lowStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity > 0 && i.quantity <= 5).length;
-			outOfStockItems = inventoryRes.items.filter((i: InventoryItem) => i.quantity === 0).length;
+			// 3. Class Overview and Inventory Health
+			await new Promise((r) => setTimeout(r, 120));
+			if (loadId !== inFlightLoadId) return;
+			classInventoryLoading = false;
 
+			// 4. System Performance (Last 30 Days)
+			await new Promise((r) => setTimeout(r, 120));
+			if (loadId !== inFlightLoadId) return;
+			if (analyticsRes.status === 'fulfilled') {
+				report = analyticsRes.value;
+			}
+			systemPerformanceLoading = false;
 		} catch (error: any) {
 			toastStore.error(error.message || 'Failed to load dashboard data', 'Error');
 		} finally {
 			loading = false;
+			cardsLoading = false;
+			recentUsersRequestsLoading = false;
+			classInventoryLoading = false;
+			systemPerformanceLoading = false;
 		}
 	}
 
 	// ── Lifecycle ─────────────────────────────────────────────────────────────
 	onMount(() => {
 		if ($justLoggedIn) {
-			toastStore.success('Welcome back! You have successfully logged in.', 'Login Successful', 5000);
+			toastStore.success(
+				'Welcome back! You have successfully logged in.',
+				'Login Successful',
+				5000
+			);
 			authStore.clearJustLoggedIn();
 		}
 
@@ -253,8 +358,12 @@
 			void loadDashboardData(false, true);
 		}, 30_000);
 
-		const onFocus = () => { void loadDashboardData(false, true); };
-		const onVisible = () => { if (document.visibilityState === 'visible') void loadDashboardData(false, true); };
+		const onFocus = () => {
+			void loadDashboardData(false, true);
+		};
+		const onVisible = () => {
+			if (document.visibilityState === 'visible') void loadDashboardData(false, true);
+		};
 		window.addEventListener('focus', onFocus);
 		document.addEventListener('visibilitychange', onVisible);
 
@@ -274,82 +383,136 @@
 <svelte:head><title>Dashboard - Superadmin</title></svelte:head>
 
 <div class="space-y-6">
-
 	<!-- ── Header ─────────────────────────────────────────────────────────── -->
 	<div class="flex items-start justify-between gap-3">
 		<div class="min-w-0">
 			<h1 class="text-2xl font-bold text-gray-900 sm:text-3xl">{greeting}, {$user?.firstName}</h1>
 			<p class="mt-0.5 text-sm text-gray-500">Superadmin Control Center — System-Wide Overview</p>
 		</div>
-
 	</div>
 
-	{#if loading}
-		<!-- ── Skeleton ──────────────────────────────────────────────────── -->
-		<DashboardSkeletonLoader />
+	{#if cardsLoading}
+		<div class="animate-pulse space-y-6">
+			<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+				{#each Array(4) as _}
+					<div class="space-y-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+						<Skeleton class="h-3 w-24" /><Skeleton class="h-8 w-14" /><Skeleton class="h-3 w-20" />
+					</div>
+				{/each}
+			</div>
+			<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+				{#each Array(4) as _}
+					<div class="space-y-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+						<Skeleton class="h-3 w-24" /><Skeleton class="h-8 w-14" /><Skeleton class="h-3 w-20" />
+					</div>
+				{/each}
+			</div>
+		</div>
 	{:else}
-
 		<!-- ── KPI Strip ───────────────────────────────────────────────────── -->
 		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-
-			<div class="rounded-xl border border-purple-200 bg-purple-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+			<div
+				class="rounded-xl border border-purple-200 bg-purple-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-semibold uppercase tracking-wide text-purple-800 sm:text-xs">Total Users</p>
-						<p class="mt-1 text-2xl font-bold text-purple-700 sm:mt-2 sm:text-3xl">{totalUsers.toLocaleString()}</p>
-						<a href="/superadmin/users" class="mt-0.5 flex items-center gap-1 text-xs font-medium text-purple-600 hover:text-purple-700">
+						<p
+							class="truncate text-xs font-semibold tracking-wide text-purple-800 uppercase sm:text-xs"
+						>
+							Total Users
+						</p>
+						<p class="mt-1 text-2xl font-bold text-purple-700 sm:mt-2 sm:text-3xl">
+							{totalUsers.toLocaleString()}
+						</p>
+						<a
+							href="/superadmin/users"
+							class="mt-0.5 flex items-center gap-1 text-xs font-medium text-purple-600 hover:text-purple-700"
+						>
 							Manage users <ArrowRight size={10} />
 						</a>
 					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12"
+					>
 						<Users size={18} class="text-purple-600 sm:hidden" aria-hidden="true" />
 						<Users size={24} class="hidden text-purple-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
 			</div>
 
-			<div class="rounded-xl border border-pink-200 bg-pink-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+			<div
+				class="rounded-xl border border-pink-200 bg-pink-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-semibold uppercase tracking-wide text-pink-800">Active Classes</p>
+						<p class="truncate text-xs font-semibold tracking-wide text-pink-800 uppercase">
+							Active Classes
+						</p>
 						<p class="mt-1 text-2xl font-bold text-pink-700 sm:mt-2 sm:text-3xl">{activeClasses}</p>
-						<a href="/superadmin/class-codes" class="mt-0.5 flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+						<a
+							href="/superadmin/class-codes"
+							class="mt-0.5 flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700"
+						>
 							View classes <ArrowRight size={10} />
 						</a>
 					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12">
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pink-100 sm:h-12 sm:w-12"
+					>
 						<GraduationCap size={18} class="text-pink-600 sm:hidden" aria-hidden="true" />
 						<GraduationCap size={24} class="hidden text-pink-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
 			</div>
 
-			<div class="rounded-xl border border-blue-200 bg-blue-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+			<div
+				class="rounded-xl border border-blue-200 bg-blue-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-semibold uppercase tracking-wide text-blue-800">Total Requests</p>
-						<p class="mt-1 text-2xl font-bold text-blue-700 sm:mt-2 sm:text-3xl">{totalRequests.toLocaleString()}</p>
-						<a href="/superadmin/requests" class="mt-0.5 flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700">
+						<p class="truncate text-xs font-semibold tracking-wide text-blue-800 uppercase">
+							Total Requests
+						</p>
+						<p class="mt-1 text-2xl font-bold text-blue-700 sm:mt-2 sm:text-3xl">
+							{totalRequests.toLocaleString()}
+						</p>
+						<a
+							href="/superadmin/requests"
+							class="mt-0.5 flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+						>
 							View requests <ArrowRight size={10} />
 						</a>
 					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12">
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-100 sm:h-12 sm:w-12"
+					>
 						<ClipboardList size={18} class="text-blue-600 sm:hidden" aria-hidden="true" />
 						<ClipboardList size={24} class="hidden text-blue-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
 			</div>
 
-			<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+			<div
+				class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-semibold uppercase tracking-wide text-emerald-800">Inventory Items</p>
-						<p class="mt-1 text-2xl font-bold text-emerald-700 sm:mt-2 sm:text-3xl">{totalInventory.toLocaleString()}</p>
-						<a href="/superadmin/inventory" class="mt-0.5 flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700">
+						<p class="truncate text-xs font-semibold tracking-wide text-emerald-800 uppercase">
+							Inventory Items
+						</p>
+						<p class="mt-1 text-2xl font-bold text-emerald-700 sm:mt-2 sm:text-3xl">
+							{totalInventory.toLocaleString()}
+						</p>
+						<a
+							href="/superadmin/inventory"
+							class="mt-0.5 flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
+						>
 							View inventory <ArrowRight size={10} />
 						</a>
 					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12"
+					>
 						<Package size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
 						<Package size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
 					</div>
@@ -359,67 +522,120 @@
 
 		<!-- ── System Health & Alerts ────────────────────────────────────────── -->
 		<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-
-			<div class="rounded-xl border border-yellow-200 bg-yellow-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+			<div
+				class="rounded-xl border border-yellow-200 bg-yellow-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-semibold uppercase tracking-wide text-yellow-700">Pending</p>
-						<p class="mt-1 text-2xl font-bold text-yellow-700 sm:mt-2 sm:text-3xl">{pendingRequests}</p>
+						<p class="truncate text-xs font-semibold tracking-wide text-yellow-700 uppercase">
+							Pending
+						</p>
+						<p class="mt-1 text-2xl font-bold text-yellow-700 sm:mt-2 sm:text-3xl">
+							{pendingRequests}
+						</p>
 						<p class="mt-0.5 text-xs text-yellow-600">Awaiting approval</p>
 					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:h-12 sm:w-12">
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:h-12 sm:w-12"
+					>
 						<Clock size={18} class="text-yellow-600 sm:hidden" aria-hidden="true" />
 						<Clock size={24} class="hidden text-yellow-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
 			</div>
 
-			<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+			<div
+				class="rounded-xl border border-violet-200 bg-violet-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-semibold uppercase tracking-wide text-violet-700">Active Loans</p>
+						<p class="truncate text-xs font-semibold tracking-wide text-violet-700 uppercase">
+							Active Loans
+						</p>
 						<p class="mt-1 text-2xl font-bold text-violet-700 sm:mt-2 sm:text-3xl">{activeLoans}</p>
 						<p class="mt-0.5 text-xs text-violet-600">Currently borrowed</p>
 					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 sm:h-12 sm:w-12">
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-violet-100 sm:h-12 sm:w-12"
+					>
 						<PackageOpen size={18} class="text-violet-600 sm:hidden" aria-hidden="true" />
 						<PackageOpen size={24} class="hidden text-violet-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
 			</div>
 
-			<div class="rounded-xl border border-red-200 bg-red-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+			<div
+				class="rounded-xl border border-red-200 bg-red-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-semibold uppercase tracking-wide text-red-700">Overdue</p>
-						<p class="mt-1 text-2xl font-bold text-red-700 sm:mt-2 sm:text-3xl">{overdueRequests}</p>
+						<p class="truncate text-xs font-semibold tracking-wide text-red-700 uppercase">
+							Overdue
+						</p>
+						<p class="mt-1 text-2xl font-bold text-red-700 sm:mt-2 sm:text-3xl">
+							{overdueRequests}
+						</p>
 						<p class="mt-0.5 text-xs text-red-600">Past return date</p>
 					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12"
+					>
 						<AlertTriangle size={18} class="text-red-600 sm:hidden" aria-hidden="true" />
 						<AlertTriangle size={24} class="hidden text-red-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
 			</div>
 
-			<div class="rounded-xl border border-orange-200 bg-orange-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5">
+			<div
+				class="rounded-xl border border-orange-200 bg-orange-50 p-3 shadow-sm transition-shadow hover:shadow-md sm:p-5"
+			>
 				<div class="flex items-center justify-between gap-2">
 					<div class="min-w-0">
-						<p class="truncate text-xs font-semibold uppercase tracking-wide text-orange-700">Low Stock</p>
-						<p class="mt-1 text-2xl font-bold text-orange-700 sm:mt-2 sm:text-3xl">{lowStockItems + outOfStockItems}</p>
+						<p class="truncate text-xs font-semibold tracking-wide text-orange-700 uppercase">
+							Low Stock
+						</p>
+						<p class="mt-1 text-2xl font-bold text-orange-700 sm:mt-2 sm:text-3xl">
+							{lowStockItems + outOfStockItems}
+						</p>
 						<p class="mt-0.5 text-xs text-orange-600">{outOfStockItems} out of stock</p>
 					</div>
-					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 sm:h-12 sm:w-12">
+					<div
+						class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-orange-100 sm:h-12 sm:w-12"
+					>
 						<ShieldAlert size={18} class="text-orange-600 sm:hidden" aria-hidden="true" />
 						<ShieldAlert size={24} class="hidden text-orange-600 sm:block" aria-hidden="true" />
 					</div>
 				</div>
 			</div>
 		</div>
+	{/if}
 
-		<!-- ── Main Content Grid ──────────────────────────────────────────────── -->
+	<!-- ── Main Content Grid ──────────────────────────────────────────────── -->
+	{#if recentUsersRequestsLoading}
+		<div class="grid animate-pulse grid-cols-1 gap-6 lg:grid-cols-2">
+			{#each Array(2) as _}
+				<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+					<div class="flex justify-between">
+						<Skeleton class="h-5 w-40" />
+						<Skeleton class="h-4 w-16" />
+					</div>
+					<div class="space-y-3">
+						{#each Array(5) as _}
+							<div class="flex items-center gap-3">
+								<Skeleton variant="circle" class="h-10 w-10" />
+								<div class="flex-1 space-y-2">
+									<Skeleton class="h-4 w-3/4" />
+									<Skeleton class="h-3 w-1/2" />
+								</div>
+								<Skeleton class="h-5 w-16" />
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/each}
+		</div>
+	{:else}
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-
 			<!-- Recent Users -->
 			<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 				<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
@@ -427,7 +643,10 @@
 						<Users size={16} class="text-purple-500" />
 						<h2 class="text-sm font-semibold text-gray-900">Recent Users</h2>
 					</div>
-					<a href="/superadmin/users" class="flex items-center gap-1 text-xs font-medium text-purple-600 hover:text-purple-700">
+					<a
+						href="/superadmin/users"
+						class="flex items-center gap-1 text-xs font-medium text-purple-600 hover:text-purple-700"
+					>
 						View all <ArrowRight size={13} />
 					</a>
 				</div>
@@ -441,19 +660,32 @@
 				{:else}
 					<div class="divide-y divide-gray-50">
 						{#each recentUsers as user}
-							<div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
-								<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-pink-500 to-rose-600 text-sm font-semibold text-white">
+							<div class="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-gray-50">
+								<div
+									class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-pink-500 to-rose-600 text-sm font-semibold text-white"
+								>
 									{#if user.profilePhotoUrl}
-										<img src={user.profilePhotoUrl} alt="{user.firstName} {user.lastName}" class="h-full w-full object-cover" />
+										<img
+											src={user.profilePhotoUrl}
+											alt="{user.firstName} {user.lastName}"
+											class="h-full w-full object-cover"
+										/>
 									{:else}
 										{getInitials(`${user.firstName} ${user.lastName}`)}
 									{/if}
 								</div>
 								<div class="min-w-0 flex-1">
-									<p class="truncate text-sm font-semibold text-gray-900">{user.firstName} {user.lastName}</p>
+									<p class="truncate text-sm font-semibold text-gray-900">
+										{user.firstName}
+										{user.lastName}
+									</p>
 									<p class="truncate text-xs text-gray-500">{user.email}</p>
 								</div>
-								<span class="shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold {getRoleBadgeColor(user.role)}">
+								<span
+									class="shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold {getRoleBadgeColor(
+										user.role
+									)}"
+								>
 									{user.role}
 								</span>
 							</div>
@@ -469,7 +701,10 @@
 						<ClipboardList size={16} class="text-blue-500" />
 						<h2 class="text-sm font-semibold text-gray-900">Recent Requests</h2>
 					</div>
-					<a href="/superadmin/requests" class="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700">
+					<a
+						href="/superadmin/requests"
+						class="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700"
+					>
 						View all <ArrowRight size={13} />
 					</a>
 				</div>
@@ -483,19 +718,35 @@
 				{:else}
 					<div class="divide-y divide-gray-50">
 						{#each recentRequests.slice(0, 5) as request}
-							<div class="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors">
-								<div class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-pink-500 to-rose-600 text-sm font-semibold text-white">
+							<div class="flex items-center gap-3 px-5 py-3 transition-colors hover:bg-gray-50">
+								<div
+									class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-linear-to-br from-pink-500 to-rose-600 text-sm font-semibold text-white"
+								>
 									{#if request.student?.profilePhotoUrl}
-										<img src={request.student.profilePhotoUrl} alt={request.student.fullName} class="h-full w-full object-cover" />
+										<img
+											src={request.student.profilePhotoUrl}
+											alt={request.student.fullName}
+											class="h-full w-full object-cover"
+										/>
 									{:else}
 										{getInitials(request.student?.fullName || 'Student')}
 									{/if}
 								</div>
 								<div class="min-w-0 flex-1">
-									<p class="truncate text-sm font-semibold text-gray-900">{request.student?.fullName || 'Unknown Student'}</p>
-									<p class="text-xs text-gray-500">{request.items.length} item{request.items.length !== 1 ? 's' : ''} · {formatDate(request.createdAt)}</p>
+									<p class="truncate text-sm font-semibold text-gray-900">
+										{request.student?.fullName || 'Unknown Student'}
+									</p>
+									<p class="text-xs text-gray-500">
+										{request.items.length} item{request.items.length !== 1 ? 's' : ''} · {formatDate(
+											request.createdAt
+										)}
+									</p>
 								</div>
-								<span class="shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold {getStatusBadgeColor(request.status)}">
+								<span
+									class="shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-semibold {getStatusBadgeColor(
+										request.status
+									)}"
+								>
 									{formatStatus(request.status)}
 								</span>
 							</div>
@@ -503,7 +754,30 @@
 					</div>
 				{/if}
 			</div>
+		</div>
+	{/if}
 
+	{#if classInventoryLoading}
+		<div class="grid animate-pulse grid-cols-1 gap-6 lg:grid-cols-2">
+			{#each Array(2) as _}
+				<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+					<div class="flex justify-between">
+						<Skeleton class="h-5 w-40" />
+						<Skeleton class="h-4 w-16" />
+					</div>
+					<div class="grid grid-cols-2 gap-4">
+						{#each Array(4) as _}
+							<div class="space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-4">
+								<Skeleton class="mx-auto h-7 w-12" />
+								<Skeleton class="mx-auto h-3 w-20" />
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/each}
+		</div>
+	{:else}
+		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
 			<!-- Class Statistics -->
 			{#if classStats}
 				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
@@ -512,7 +786,10 @@
 							<GraduationCap size={16} class="text-pink-500" />
 							<h2 class="text-sm font-semibold text-gray-900">Class Overview</h2>
 						</div>
-						<a href="/superadmin/class-codes" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
+						<a
+							href="/superadmin/class-codes"
+							class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700"
+						>
 							Manage <ArrowRight size={13} />
 						</a>
 					</div>
@@ -520,19 +797,19 @@
 						<div class="grid grid-cols-2 gap-4">
 							<div class="rounded-lg border border-gray-100 bg-gray-50 p-4 text-center">
 								<p class="text-2xl font-bold text-gray-900">{classStats.activeClasses}</p>
-								<p class="text-xs text-gray-500 mt-1">Active Classes</p>
+								<p class="mt-1 text-xs text-gray-500">Active Classes</p>
 							</div>
 							<div class="rounded-lg border border-gray-100 bg-gray-50 p-4 text-center">
 								<p class="text-2xl font-bold text-pink-600">{classStats.totalStudents}</p>
-								<p class="text-xs text-gray-500 mt-1">Total Students</p>
+								<p class="mt-1 text-xs text-gray-500">Total Students</p>
 							</div>
 							<div class="rounded-lg border border-gray-100 bg-gray-50 p-4 text-center">
 								<p class="text-2xl font-bold text-blue-600">{classStats.avgClassSize.toFixed(1)}</p>
-								<p class="text-xs text-gray-500 mt-1">Avg Class Size</p>
+								<p class="mt-1 text-xs text-gray-500">Avg Class Size</p>
 							</div>
 							<div class="rounded-lg border border-gray-100 bg-gray-50 p-4 text-center">
 								<p class="text-2xl font-bold text-purple-600">{classStats.totalInstructors}</p>
-								<p class="text-xs text-gray-500 mt-1">Instructors</p>
+								<p class="mt-1 text-xs text-gray-500">Instructors</p>
 							</div>
 						</div>
 					</div>
@@ -546,7 +823,10 @@
 						<Package size={16} class="text-emerald-500" />
 						<h2 class="text-sm font-semibold text-gray-900">Inventory Health</h2>
 					</div>
-					<a href="/superadmin/inventory" class="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700">
+					<a
+						href="/superadmin/inventory"
+						class="flex items-center gap-1 text-xs font-medium text-emerald-600 hover:text-emerald-700"
+					>
 						View all <ArrowRight size={13} />
 					</a>
 				</div>
@@ -554,68 +834,106 @@
 					<div class="grid grid-cols-2 gap-4">
 						<div class="rounded-lg border border-gray-100 bg-gray-50 p-4 text-center">
 							<p class="text-2xl font-bold text-gray-900">{totalInventory}</p>
-							<p class="text-xs text-gray-500 mt-1">Total Items</p>
+							<p class="mt-1 text-xs text-gray-500">Total Items</p>
 						</div>
 						<div class="rounded-lg border border-gray-100 bg-gray-50 p-4 text-center">
 							<p class="text-2xl font-bold text-emerald-600">{totalCategories}</p>
-							<p class="text-xs text-gray-500 mt-1">Categories</p>
+							<p class="mt-1 text-xs text-gray-500">Categories</p>
 						</div>
 						<div class="rounded-lg border border-orange-100 bg-orange-50 p-4 text-center">
 							<p class="text-2xl font-bold text-orange-600">{lowStockItems}</p>
-							<p class="text-xs text-orange-600 mt-1">Low Stock</p>
+							<p class="mt-1 text-xs text-orange-600">Low Stock</p>
 						</div>
 						<div class="rounded-lg border border-red-100 bg-red-50 p-4 text-center">
 							<p class="text-2xl font-bold text-red-600">{outOfStockItems}</p>
-							<p class="text-xs text-red-600 mt-1">Out of Stock</p>
+							<p class="mt-1 text-xs text-red-600">Out of Stock</p>
 						</div>
 					</div>
 				</div>
 			</div>
-
 		</div>
+	{/if}
 
-		<!-- ── Analytics Summary (if available) ───────────────────────────────── -->
-		{#if report}
-			<div class="overflow-hidden rounded-xl bg-linear-to-br from-pink-50 to-purple-50 shadow-sm ring-1 ring-pink-100">
-				<div class="flex items-center justify-between border-b border-pink-100 bg-white/50 px-5 py-4">
-					<div class="flex items-center gap-2">
-						<Activity size={16} class="text-pink-500" />
-						<h2 class="text-sm font-semibold text-gray-900">System Performance (Last 30 Days)</h2>
+	<!-- ── Analytics Summary (if available) ───────────────────────────────── -->
+	{#if systemPerformanceLoading}
+		<div
+			class="animate-pulse space-y-4 overflow-hidden rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100"
+		>
+			<div class="flex justify-between">
+				<Skeleton class="h-5 w-48" />
+				<Skeleton class="h-4 w-16" />
+			</div>
+			<div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+				{#each Array(4) as _}
+					<div class="space-y-2 rounded-lg border border-gray-100 bg-gray-50 p-4 text-center">
+						<Skeleton class="mx-auto h-3 w-16" />
+						<Skeleton class="mx-auto h-7 w-12" />
 					</div>
-					<a href="/superadmin/analytics" class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700">
-						Full analytics <ArrowRight size={13} />
-					</a>
+				{/each}
+			</div>
+		</div>
+	{:else if report}
+		<div
+			class="overflow-hidden rounded-xl bg-linear-to-br from-pink-50 to-purple-50 shadow-sm ring-1 ring-pink-100"
+		>
+			<div class="flex items-center justify-between border-b border-pink-100 bg-white/50 px-5 py-4">
+				<div class="flex items-center gap-2">
+					<Activity size={16} class="text-pink-500" />
+					<h2 class="text-sm font-semibold text-gray-900">System Performance (Last 30 Days)</h2>
 				</div>
-				<div class="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
-					<div class="rounded-lg border border-white bg-white/70 p-4 text-center backdrop-blur-sm">
-						<div class="flex items-center justify-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-							<TrendingUp size={12} /> Approval Time
-						</div>
-						<p class="text-2xl font-bold text-pink-600">{report.borrowRequests.turnaround.avgApprovalHours.toFixed(1)}h</p>
+				<a
+					href="/superadmin/analytics"
+					class="flex items-center gap-1 text-xs font-medium text-pink-600 hover:text-pink-700"
+				>
+					Full analytics <ArrowRight size={13} />
+				</a>
+			</div>
+			<div class="grid grid-cols-2 gap-4 p-5 sm:grid-cols-4">
+				<div class="rounded-lg border border-white bg-white/70 p-4 text-center backdrop-blur-sm">
+					<div
+						class="mb-2 flex items-center justify-center gap-1 text-xs font-semibold tracking-wide text-gray-500 uppercase"
+					>
+						<TrendingUp size={12} /> Approval Time
 					</div>
-					<div class="rounded-lg border border-white bg-white/70 p-4 text-center backdrop-blur-sm">
-						<div class="flex items-center justify-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-							<Clock size={12} /> Release Time
-						</div>
-						<p class="text-2xl font-bold text-blue-600">{report.borrowRequests.turnaround.avgReleaseHours.toFixed(1)}h</p>
+					<p class="text-2xl font-bold text-pink-600">
+						{report.borrowRequests.turnaround.avgApprovalHours.toFixed(1)}h
+					</p>
+				</div>
+				<div class="rounded-lg border border-white bg-white/70 p-4 text-center backdrop-blur-sm">
+					<div
+						class="mb-2 flex items-center justify-center gap-1 text-xs font-semibold tracking-wide text-gray-500 uppercase"
+					>
+						<Clock size={12} /> Release Time
 					</div>
-					<div class="rounded-lg border border-white bg-white/70 p-4 text-center backdrop-blur-sm">
-						<div class="flex items-center justify-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-							<CheckCircle2 size={12} /> Return Time
-						</div>
-						<p class="text-2xl font-bold text-purple-600">{report.borrowRequests.turnaround.avgReturnHours.toFixed(1)}h</p>
+					<p class="text-2xl font-bold text-blue-600">
+						{report.borrowRequests.turnaround.avgReleaseHours.toFixed(1)}h
+					</p>
+				</div>
+				<div class="rounded-lg border border-white bg-white/70 p-4 text-center backdrop-blur-sm">
+					<div
+						class="mb-2 flex items-center justify-center gap-1 text-xs font-semibold tracking-wide text-gray-500 uppercase"
+					>
+						<CheckCircle2 size={12} /> Return Time
 					</div>
-					<div class="rounded-lg border border-white bg-white/70 p-4 text-center backdrop-blur-sm">
-						<div class="flex items-center justify-center gap-1 text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
-							<AlertTriangle size={12} /> Risk Level
-						</div>
-						<p class="text-2xl font-bold {report.borrowRequests.overdueCount > 0 ? 'text-red-600' : 'text-emerald-600'}">
-							{report.borrowRequests.overdueCount > 0 ? 'Medium' : 'Low'}
-						</p>
+					<p class="text-2xl font-bold text-purple-600">
+						{report.borrowRequests.turnaround.avgReturnHours.toFixed(1)}h
+					</p>
+				</div>
+				<div class="rounded-lg border border-white bg-white/70 p-4 text-center backdrop-blur-sm">
+					<div
+						class="mb-2 flex items-center justify-center gap-1 text-xs font-semibold tracking-wide text-gray-500 uppercase"
+					>
+						<AlertTriangle size={12} /> Risk Level
 					</div>
+					<p
+						class="text-2xl font-bold {report.borrowRequests.overdueCount > 0
+							? 'text-red-600'
+							: 'text-emerald-600'}"
+					>
+						{report.borrowRequests.overdueCount > 0 ? 'Medium' : 'Low'}
+					</p>
 				</div>
 			</div>
-		{/if}
-
+		</div>
 	{/if}
 </div>

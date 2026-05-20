@@ -51,6 +51,12 @@
 	const initialStats = browser ? statisticsAPI.peek('all') : null;
 
 	let loading = $state(!initialRequests || !initialStats);
+	let trustScoreLoading = $state(!initialStats);
+	let cardsLoading = $state(!initialRequests);
+	let returnPerfHealthReplLoading = $state(!initialStats);
+	let activeLoansNotificationsLoading = $state(!initialRequests);
+	let pendingReqPerformanceLoading = $state(!initialRequests);
+	let recentHistoryLoading = $state(!initialRequests);
 	let allRequests = $state<DashboardRequest[]>([]);
 	let performanceStats = $state<StudentStatisticsData | null>(initialStats);
 	let showScoreBreakdown = $state(false);
@@ -140,24 +146,93 @@
 	}
 
 	async function loadDashboard(force = false) {
-		const [requestsResult, statsResult] = await Promise.allSettled([
-			borrowRequestsAPI.list({ limit: 100 }, { forceRefresh: force }),
-			statisticsAPI.get({ forceRefresh: force, period: 'all' })
-		]);
+		const hasCache = !!performanceStats && allRequests.length > 0;
 
-		if (requestsResult.status === 'fulfilled') {
-			allRequests = requestsResult.value.requests.map(mapToCard);
-		} else {
+		try {
+			// 1. Trust Score (loaded from statisticsAPI.get)
+			if (force || !hasCache) {
+				trustScoreLoading = true;
+			}
+			const trustResult = await Promise.allSettled([
+				statisticsAPI.get({ forceRefresh: force, period: 'all' })
+			]);
+			if (trustResult[0].status === 'fulfilled') {
+				performanceStats = trustResult[0].value;
+			}
+			trustScoreLoading = false;
+
+			// 2. cards (loaded from borrowRequestsAPI.list)
+			if (force || !hasCache) {
+				cardsLoading = true;
+			}
+			const cardsResult = await Promise.allSettled([
+				borrowRequestsAPI.list({ limit: 100 }, { forceRefresh: force })
+			]);
+			if (cardsResult[0].status === 'fulfilled') {
+				allRequests = cardsResult[0].value.requests.map(mapToCard);
+			}
+			cardsLoading = false;
+
+			// 3. Return Performance, Item Health, and Replacement Record (loaded from statisticsAPI.get)
+			if (force || !hasCache) {
+				returnPerfHealthReplLoading = true;
+			}
+			const statsResult = await Promise.allSettled([
+				statisticsAPI.get({ forceRefresh: force, period: 'all' })
+			]);
+			if (statsResult[0].status === 'fulfilled') {
+				performanceStats = statsResult[0].value;
+			}
+			returnPerfHealthReplLoading = false;
+
+			// 4. Active Loans and Notifications (loaded from borrowRequestsAPI.list)
+			if (force || !hasCache) {
+				activeLoansNotificationsLoading = true;
+			}
+			const activeLoansResult = await Promise.allSettled([
+				borrowRequestsAPI.list({ limit: 100 }, { forceRefresh: force })
+			]);
+			if (activeLoansResult[0].status === 'fulfilled') {
+				allRequests = activeLoansResult[0].value.requests.map(mapToCard);
+			}
+			activeLoansNotificationsLoading = false;
+
+			// 5. Pending Requests and Performance (loaded from borrowRequestsAPI.list)
+			if (force || !hasCache) {
+				pendingReqPerformanceLoading = true;
+			}
+			const pendingResult = await Promise.allSettled([
+				borrowRequestsAPI.list({ limit: 100 }, { forceRefresh: force })
+			]);
+			if (pendingResult[0].status === 'fulfilled') {
+				allRequests = pendingResult[0].value.requests.map(mapToCard);
+			}
+			pendingReqPerformanceLoading = false;
+
+			// 6. Recent History (loaded from borrowRequestsAPI.list)
+			if (force || !hasCache) {
+				recentHistoryLoading = true;
+			}
+			const historyResult = await Promise.allSettled([
+				borrowRequestsAPI.list({ limit: 100 }, { forceRefresh: force })
+			]);
+			if (historyResult[0].status === 'fulfilled') {
+				allRequests = historyResult[0].value.requests.map(mapToCard);
+			}
+			recentHistoryLoading = false;
+
+		} catch (err) {
+			console.error('[Dashboard] Failed to load dashboard:', err);
 			toastStore.error('Failed to load dashboard data', 'Error');
+		} finally {
+			trustScoreLoading = false;
+			cardsLoading = false;
+			returnPerfHealthReplLoading = false;
+			activeLoansNotificationsLoading = false;
+			pendingReqPerformanceLoading = false;
+			recentHistoryLoading = false;
+			loading = false;
 		}
-
-		if (statsResult.status === 'fulfilled') {
-			performanceStats = statsResult.value;
-		} else {
-			performanceStats = null;
-		}
-
-		loading = false;
 	}
 
 	// ── derived metrics ───────────────────────────────────────────────────────
@@ -430,37 +505,18 @@
 		</a>
 	</div>
 
-	{#if loading}
-		<!-- ── Skeleton ────────────────────────────────────────────────────── -->
-		<div class="space-y-6" aria-busy="true">
-			<div class="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-				{#each Array(4) as _}
-					<div class="space-y-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-						<Skeleton class="h-3.5 w-28" />
-						<Skeleton class="h-9 w-16" />
-					</div>
-				{/each}
-			</div>
-			<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-				<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 lg:col-span-2">
+	{#if trustScoreLoading}
+		<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 animate-pulse">
+			<div class="flex items-center gap-4">
+				<Skeleton class="h-16 w-16 rounded-full sm:h-20 sm:w-20" />
+				<div class="min-w-0 flex-1 space-y-3">
 					<Skeleton class="h-5 w-40" />
-					{#each Array(3) as _}
-						<div class="space-y-2">
-							<Skeleton class="h-4 w-full" />
-							<Skeleton class="h-3.5 w-3/4" />
-						</div>
-					{/each}
-				</div>
-				<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-					<Skeleton class="h-5 w-32" />
-					{#each Array(4) as _}
-						<Skeleton class="h-10 w-full rounded-lg" />
-					{/each}
+					<Skeleton class="h-4 w-full" />
+					<Skeleton class="h-3 w-3/4" />
 				</div>
 			</div>
 		</div>
-	{:else}
-		{#if performanceStats}
+	{:else if performanceStats}
 			{@const trust = trustTierConfig(performanceStats.trustScore.tier)}
 			{@const score = performanceStats.trustScore.score}
 			<div class="rounded-xl bg-white p-3 shadow-sm ring-1 ring-gray-100 sm:p-4">
@@ -610,69 +666,90 @@
 			</div>
 		{/if}
 
-		<!-- ── KPI cards ───────────────────────────────────────────────────── -->
-		<div class="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
-			<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 shadow-sm sm:p-4">
-				<div
-					class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-violet-700 uppercase"
-				>
-					<Package size={12} />
-					<span>Active Loans</span>
-				</div>
-				<p class="mt-2 text-3xl font-bold text-violet-700 sm:text-4xl">{metrics.activeLoans}</p>
-				<p class="mt-0.5 text-xs text-violet-500">Borrowed or returning</p>
+		{#if cardsLoading}
+			<div class="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+				{#each Array(4) as _}
+					<div class="space-y-3 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 animate-pulse">
+						<Skeleton class="h-3.5 w-28" />
+						<Skeleton class="h-9 w-16" />
+					</div>
+				{/each}
 			</div>
-
-			<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 shadow-sm sm:p-4">
-				<div
-					class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-emerald-700 uppercase"
-				>
-					<CheckCircle2 size={12} />
-					<span>Completed</span>
+		{:else}
+			<!-- ── KPI cards ───────────────────────────────────────────────────── -->
+			<div class="grid grid-cols-2 gap-2 lg:grid-cols-4 lg:gap-3">
+				<div class="rounded-xl border border-violet-200 bg-violet-50 p-3 shadow-sm sm:p-4">
+					<div
+						class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-violet-700 uppercase"
+					>
+						<Package size={12} />
+						<span>Active Loans</span>
+					</div>
+					<p class="mt-2 text-3xl font-bold text-violet-700 sm:text-4xl">{metrics.activeLoans}</p>
+					<p class="mt-0.5 text-xs text-violet-500">Borrowed or returning</p>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-emerald-700 sm:text-4xl">{metrics.returnedCount}</p>
-				<p class="mt-0.5 text-xs text-emerald-500">Successfully returned</p>
-			</div>
 
-			<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 shadow-sm sm:p-4">
-				<div
-					class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-amber-700 uppercase"
-				>
-					<Clock size={12} />
-					<span>Pending</span>
+				<div class="rounded-xl border border-emerald-200 bg-emerald-50 p-3 shadow-sm sm:p-4">
+					<div
+						class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-emerald-700 uppercase"
+					>
+						<CheckCircle2 size={12} />
+						<span>Completed</span>
+					</div>
+					<p class="mt-2 text-3xl font-bold text-emerald-700 sm:text-4xl">{metrics.returnedCount}</p>
+					<p class="mt-0.5 text-xs text-emerald-500">Successfully returned</p>
 				</div>
-				<p class="mt-2 text-3xl font-bold text-amber-700 sm:text-4xl">{metrics.pendingCount}</p>
-				<p class="mt-0.5 text-xs text-amber-500">Awaiting action</p>
-			</div>
 
-			<div
-				class="rounded-xl border {metrics.overdueCount > 0
-					? 'border-red-200 bg-red-50'
-					: 'border-gray-200 bg-gray-50'} p-3 shadow-sm sm:p-4"
-			>
-				<div
-					class="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase {metrics.overdueCount >
-					0
-						? 'text-red-700'
-						: 'text-gray-600'}"
-				>
-					<TriangleAlert size={12} />
-					<span>Overdue</span>
+				<div class="rounded-xl border border-amber-200 bg-amber-50 p-3 shadow-sm sm:p-4">
+					<div
+						class="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-amber-700 uppercase"
+					>
+						<Clock size={12} />
+						<span>Pending</span>
+					</div>
+					<p class="mt-2 text-3xl font-bold text-amber-700 sm:text-4xl">{metrics.pendingCount}</p>
+					<p class="mt-0.5 text-xs text-amber-500">Awaiting action</p>
 				</div>
-				<p
-					class="mt-2 text-3xl font-bold {metrics.overdueCount > 0
-						? 'text-red-700'
-						: 'text-gray-700'} sm:text-4xl"
-				>
-					{metrics.overdueCount}
-				</p>
-				<p class="mt-0.5 text-xs {metrics.overdueCount > 0 ? 'text-red-500' : 'text-gray-500'}">
-					Past return date
-				</p>
-			</div>
-		</div>
 
-		{#if performanceStats}
+				<div
+					class="rounded-xl border {metrics.overdueCount > 0
+						? 'border-red-200 bg-red-50'
+						: 'border-gray-200 bg-gray-50'} p-3 shadow-sm sm:p-4"
+				>
+					<div
+						class="flex items-center gap-1.5 text-xs font-semibold tracking-wide uppercase {metrics.overdueCount >
+						0
+							? 'text-red-700'
+							: 'text-gray-600'}"
+					>
+						<TriangleAlert size={12} />
+						<span>Overdue</span>
+					</div>
+					<p
+						class="mt-2 text-3xl font-bold {metrics.overdueCount > 0
+							? 'text-red-700'
+							: 'text-gray-700'} sm:text-4xl"
+					>
+						{metrics.overdueCount}
+					</p>
+					<p class="mt-0.5 text-xs {metrics.overdueCount > 0 ? 'text-red-500' : 'text-gray-500'}">
+						Past return date
+					</p>
+				</div>
+			</div>
+		{/if}
+
+		{#if returnPerfHealthReplLoading}
+			<div class="grid gap-4 md:grid-cols-3">
+				{#each Array(3) as _}
+					<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 animate-pulse">
+						<Skeleton class="h-5 w-40" />
+						<Skeleton class="h-4 w-full" />
+						<Skeleton class="h-8 w-1/2" />
+					</div>
+				{/each}
+			</div>
+		{:else if performanceStats}
 			<!-- ── Performance Snapshot Cards ──────────────────────────────── -->
 			<div class="grid gap-4 md:grid-cols-3">
 				<!-- Return Performance -->
@@ -923,12 +1000,22 @@
 			</div>
 		{/if}
 
+
 		<!-- ── Main 2-col grid ─────────────────────────────────────────────── -->
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 			<!-- LEFT col ────────────────────────────────────────────────────── -->
 			<div class="space-y-6 lg:col-span-2">
 				<!-- Active Loans -->
-				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+				{#if activeLoansNotificationsLoading}
+					<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 animate-pulse">
+						<Skeleton class="h-5 w-40" />
+						<div class="space-y-2">
+							<Skeleton class="h-12 w-full" />
+							<Skeleton class="h-12 w-full" />
+						</div>
+					</div>
+				{:else}
+					<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 					<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
 						<div class="flex items-center gap-2">
 							<PackageOpen size={18} class="text-violet-600" />
@@ -1055,9 +1142,19 @@
 						</ul>
 					{/if}
 				</div>
+				{/if}
 
 				<!-- Pending Requests -->
-				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+				{#if pendingReqPerformanceLoading}
+					<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 animate-pulse">
+						<Skeleton class="h-5 w-40" />
+						<div class="space-y-2">
+							<Skeleton class="h-12 w-full" />
+							<Skeleton class="h-12 w-full" />
+						</div>
+					</div>
+				{:else}
+					<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 					<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
 						<div class="flex items-center gap-2">
 							<Clock size={18} class="text-yellow-500" />
@@ -1175,9 +1272,18 @@
 						</ul>
 					{/if}
 				</div>
+				{/if}
 
 				<!-- Recent History -->
-				{#if recentHistory.length > 0}
+				{#if recentHistoryLoading}
+					<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 animate-pulse">
+						<Skeleton class="h-5 w-40" />
+						<div class="space-y-2">
+							<Skeleton class="h-10 w-full" />
+							<Skeleton class="h-10 w-full" />
+						</div>
+					</div>
+				{:else if recentHistory.length > 0}
 					<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 						<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
 							<div class="flex items-center gap-2">
@@ -1225,7 +1331,16 @@
 			<!-- RIGHT sidebar ─────────────────────────────────────────────── -->
 			<div class="space-y-6 lg:sticky lg:top-6 lg:self-start">
 				<!-- Notifications -->
-				<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
+				{#if activeLoansNotificationsLoading}
+					<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 animate-pulse">
+						<Skeleton class="h-5 w-40" />
+						<div class="space-y-2">
+							<Skeleton class="h-10 w-full" />
+							<Skeleton class="h-10 w-full" />
+						</div>
+					</div>
+				{:else}
+					<div class="overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-gray-100">
 					<div class="flex items-center justify-between border-b border-gray-100 px-5 py-4">
 						<div class="flex items-center gap-2">
 							<BellRing size={17} class="text-orange-500" />
@@ -1276,30 +1391,39 @@
 						</div>
 					{/if}
 				</div>
+				{/if}
 
 				<!-- Performance -->
-				<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
-					<div class="mb-4 flex items-center gap-2">
-						<TrendingUp size={17} class="text-pink-600" />
-						<h2 class="text-sm font-semibold text-gray-900">Performance</h2>
-					</div>
-					<div class="space-y-3">
-						{#each requestOverview.rows as row}
-							<div class="grid grid-cols-[auto_1fr_auto_80px] items-center gap-3">
-								<span class="h-2.5 w-2.5 rounded-full {row.dot}"></span>
-								<p class="text-sm text-gray-600">{row.label}</p>
-								<p class="text-lg font-semibold {row.text}">{row.value}</p>
-								<div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-									<div
-										class="h-1.5 rounded-full {row.bar}"
-										style="width: {(row.value / requestOverview.max) * 100}%"
-									></div>
-								</div>
-							</div>
+				{#if pendingReqPerformanceLoading}
+					<div class="space-y-4 rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100 animate-pulse">
+						<Skeleton class="h-5 w-32" />
+						{#each Array(4) as _}
+							<Skeleton class="h-10 w-full rounded-lg" />
 						{/each}
 					</div>
-				</div>
+				{:else}
+					<div class="rounded-xl bg-white p-5 shadow-sm ring-1 ring-gray-100">
+						<div class="mb-4 flex items-center gap-2">
+							<TrendingUp size={17} class="text-pink-600" />
+							<h2 class="text-sm font-semibold text-gray-900">Performance</h2>
+						</div>
+						<div class="space-y-3">
+							{#each requestOverview.rows as row}
+								<div class="grid grid-cols-[auto_1fr_auto_80px] items-center gap-3">
+									<span class="h-2.5 w-2.5 rounded-full {row.dot}"></span>
+									<p class="text-sm text-gray-600">{row.label}</p>
+									<p class="text-lg font-semibold {row.text}">{row.value}</p>
+									<div class="h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
+										<div
+											class="h-1.5 rounded-full {row.bar}"
+											style="width: {(row.value / requestOverview.max) * 100}%"
+										></div>
+									</div>
+								</div>
+							{/each}
+						</div>
+					</div>
+				{/if}
 			</div>
 		</div>
-	{/if}
 </div>

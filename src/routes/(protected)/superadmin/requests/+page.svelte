@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { browser } from '$app/environment';
 	import { 
 		Search, 
 		Download, 
@@ -43,12 +44,32 @@
 
 	let requests = $state<BorrowRequestRecord[]>([]);
 	let pagination = $state({ page: 1, limit: 20, total: 0, totalPages: 1 });
-	let loading = $state(false);
+	let loading = $state(true);
+	let cardsLoading = $state(true);
+	let allLoading = $state(true);
+	let pendingLoading = $state(true);
+	let activeLoading = $state(true);
+	let overdueLoading = $state(true);
+	let historyLoading = $state(true);
+	let obligationsLoading = $state(true);
+	let inFlightLoadId = 0;
+
+	const activeTabLoading = $derived.by(() => {
+		switch (activeTab) {
+			case 'all': return allLoading;
+			case 'pending': return pendingLoading;
+			case 'active': return activeLoading;
+			case 'overdue': return overdueLoading;
+			case 'history': return historyLoading;
+			case 'obligations': return obligationsLoading;
+			default: return false;
+		}
+	});
+
 	let debounceTimer: ReturnType<typeof setTimeout>;
 
 	// ─── Replacement Obligations ──────────────────────────────────────────────
 	let obligations = $state<ReplacementObligation[]>([]);
-	let obligationsLoading = $state(false);
 
 	async function loadObligations(forceRefresh = true) {
 		obligationsLoading = true;
@@ -122,6 +143,13 @@
 			totalPages: cached.pages
 		};
 		loading = false;
+		cardsLoading = false;
+		allLoading = false;
+		pendingLoading = false;
+		activeLoading = false;
+		overdueLoading = false;
+		historyLoading = false;
+		obligationsLoading = false;
 		return true;
 	}
 
@@ -191,28 +219,126 @@
 		};
 	});
 
-	async function loadRequests(showLoader = true, forceRefresh = true) {
-		if (showLoader && requests.length === 0) loading = true;
+	async function loadRequestsProgressive(forceRefresh = false) {
+		const loadId = ++inFlightLoadId;
 		try {
-			const res = await borrowRequestsAPI.list(getListParams(), { forceRefresh });
+			const statsPromise = borrowRequestsAPI.list({ limit: 1000 }, { forceRefresh });
+			const obligationsPromise = replacementObligationsAPI.getObligations({ limit: 200 }, { forceRefresh });
+			const activeTabPromise = borrowRequestsAPI.list(getListParams(), { forceRefresh });
 
-			let list = res.requests;
-			if (activeTab === 'overdue') {
+			const results = await Promise.allSettled([statsPromise, obligationsPromise, activeTabPromise]);
+
+			if (loadId !== inFlightLoadId) return;
+
+			// Populate stats
+			const statsRes = results[0];
+			if (statsRes.status === 'fulfilled') {
+				const all = statsRes.value.requests;
 				const now = new Date();
-				list = list.filter(r => r.status === 'borrowed' && new Date(r.returnDate) < now);
+				stats = {
+					totalRequests: all.length,
+					pending: all.filter(r => r.status === 'pending_instructor').length,
+					active: all.filter(r => ['approved_instructor', 'ready_for_pickup', 'borrowed', 'pending_return', 'missing'].includes(r.status)).length,
+					overdue: all.filter(r => r.status === 'borrowed' && new Date(r.returnDate) < now).length,
+					completed: all.filter(r => ['returned', 'resolved'].includes(r.status)).length
+				};
 			}
 
-			requests = list;
-			pagination = {
-				page: res.page,
-				limit: res.limit,
-				total: res.total,
-				totalPages: res.pages
-			};
-		} catch (e: any) {
-			toastStore.error(e.message || 'Failed to load requests');
+			// Populate obligations
+			const obligationsRes = results[1];
+			if (obligationsRes.status === 'fulfilled') {
+				obligations = obligationsRes.value.obligations;
+			}
+
+			// Populate requests for active tab
+			const activeTabRes = results[2];
+			if (activeTabRes.status === 'fulfilled') {
+				let list = activeTabRes.value.requests;
+				if (activeTab === 'overdue') {
+					const now = new Date();
+					list = list.filter(r => r.status === 'borrowed' && new Date(r.returnDate) < now);
+				}
+				requests = list;
+				pagination = {
+					page: activeTabRes.value.page,
+					limit: activeTabRes.value.limit,
+					total: activeTabRes.value.total,
+					totalPages: activeTabRes.value.pages
+				};
+			}
+
+			cardsLoading = false;
+
+			// Settle tabs in sequence: all, pending, active, overdue, history, obligations
+			await new Promise(r => setTimeout(r, 80));
+			if (loadId !== inFlightLoadId) return;
+			allLoading = false;
+
+			await new Promise(r => setTimeout(r, 80));
+			if (loadId !== inFlightLoadId) return;
+			pendingLoading = false;
+
+			await new Promise(r => setTimeout(r, 80));
+			if (loadId !== inFlightLoadId) return;
+			activeLoading = false;
+
+			await new Promise(r => setTimeout(r, 80));
+			if (loadId !== inFlightLoadId) return;
+			overdueLoading = false;
+
+			await new Promise(r => setTimeout(r, 80));
+			if (loadId !== inFlightLoadId) return;
+			historyLoading = false;
+
+			await new Promise(r => setTimeout(r, 80));
+			if (loadId !== inFlightLoadId) return;
+			obligationsLoading = false;
+
+		} catch (error) {
+			console.error('Failed progressive requests load', error);
 		} finally {
-			loading = false;
+			if (loadId === inFlightLoadId) {
+				loading = false;
+				cardsLoading = false;
+				allLoading = false;
+				pendingLoading = false;
+				activeLoading = false;
+				overdueLoading = false;
+				historyLoading = false;
+				obligationsLoading = false;
+			}
+		}
+	}
+
+	async function loadRequests(showLoader = true, forceRefresh = true) {
+		if (!showLoader) {
+			try {
+				const res = await borrowRequestsAPI.list(getListParams(), { forceRefresh });
+				let list = res.requests;
+				if (activeTab === 'overdue') {
+					const now = new Date();
+					list = list.filter(r => r.status === 'borrowed' && new Date(r.returnDate) < now);
+				}
+				requests = list;
+				pagination = {
+					page: res.page,
+					limit: res.limit,
+					total: res.total,
+					totalPages: res.pages
+				};
+			} catch (e: any) {
+				toastStore.error(e.message || 'Failed to load requests');
+			}
+		} else {
+			if (requests.length === 0) {
+				if (activeTab === 'all') allLoading = true;
+				else if (activeTab === 'pending') pendingLoading = true;
+				else if (activeTab === 'active') activeLoading = true;
+				else if (activeTab === 'overdue') overdueLoading = true;
+				else if (activeTab === 'history') historyLoading = true;
+				else if (activeTab === 'obligations') obligationsLoading = true;
+			}
+			await loadRequestsProgressive(forceRefresh);
 		}
 	}
 
@@ -385,72 +511,88 @@
 
 	</div>
 
-	{#if loading && requests.length === 0}
+	{#if activeTabLoading && requests.length === 0}
 		<RequestsSkeletonLoader viewMode="list" />
 	{:else}
 		<!-- Stats -->
-	<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Requests</p>
-					<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{stats.totalRequests.toLocaleString()}</p>
+		{#if cardsLoading}
+			<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 animate-pulse">
+				{#each Array(5) as _, i}
+					<div class="rounded-lg bg-white p-3 shadow sm:p-5 h-[80px] sm:h-[116px] {i === 4 ? 'col-span-2 sm:col-span-1' : ''}">
+						<div class="flex items-center justify-between gap-2 h-full">
+							<div class="space-y-2 flex-1">
+								<div class="h-4 bg-gray-200 rounded w-2/3"></div>
+								<div class="h-6 bg-gray-200 rounded w-1/3"></div>
+							</div>
+							<div class="h-9 w-9 sm:h-12 sm:w-12 bg-gray-200 rounded-full"></div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		{:else}
+			<div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+				<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Total Requests</p>
+							<p class="mt-1 text-2xl font-semibold text-gray-900 sm:mt-2 sm:text-3xl">{stats.totalRequests.toLocaleString()}</p>
+						</div>
+						<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12">
+							<ClipboardList size={18} class="text-gray-500 sm:hidden" aria-hidden="true" />
+							<ClipboardList size={24} class="hidden text-gray-500 sm:block" aria-hidden="true" />
+						</div>
+					</div>
 				</div>
-				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 sm:h-12 sm:w-12">
-					<ClipboardList size={18} class="text-gray-500 sm:hidden" aria-hidden="true" />
-					<ClipboardList size={24} class="hidden text-gray-500 sm:block" aria-hidden="true" />
+				<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
+							<p class="mt-1 text-2xl font-semibold text-yellow-600 sm:mt-2 sm:text-3xl">{stats.pending}</p>
+						</div>
+						<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:h-12 sm:w-12">
+							<Clock size={18} class="text-yellow-600 sm:hidden" aria-hidden="true" />
+							<Clock size={24} class="hidden text-yellow-600 sm:block" aria-hidden="true" />
+						</div>
+					</div>
+				</div>
+				<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Loans</p>
+							<p class="mt-1 text-2xl font-semibold text-purple-600 sm:mt-2 sm:text-3xl">{stats.active}</p>
+						</div>
+						<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
+							<PackageOpen size={18} class="text-purple-600 sm:hidden" aria-hidden="true" />
+							<PackageOpen size={24} class="hidden text-purple-600 sm:block" aria-hidden="true" />
+						</div>
+					</div>
+				</div>
+				<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue</p>
+							<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">{stats.overdue}</p>
+						</div>
+						<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
+							<AlertTriangle size={18} class="text-red-600 sm:hidden" aria-hidden="true" />
+							<AlertTriangle size={24} class="hidden text-red-600 sm:block" aria-hidden="true" />
+						</div>
+					</div>
+				</div>
+				<div class="col-span-2 rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:col-span-1 sm:p-5">
+					<div class="flex items-center justify-between gap-2">
+						<div class="min-w-0">
+							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Completed</p>
+							<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">{stats.completed.toLocaleString()}</p>
+						</div>
+						<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
+							<CheckCircle size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
+							<CheckCircle size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
+						</div>
+					</div>
 				</div>
 			</div>
-		</div>
-		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Pending</p>
-					<p class="mt-1 text-2xl font-semibold text-yellow-600 sm:mt-2 sm:text-3xl">{stats.pending}</p>
-				</div>
-				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-yellow-100 sm:h-12 sm:w-12">
-					<Clock size={18} class="text-yellow-600 sm:hidden" aria-hidden="true" />
-					<Clock size={24} class="hidden text-yellow-600 sm:block" aria-hidden="true" />
-				</div>
-			</div>
-		</div>
-		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Loans</p>
-					<p class="mt-1 text-2xl font-semibold text-purple-600 sm:mt-2 sm:text-3xl">{stats.active}</p>
-				</div>
-				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-purple-100 sm:h-12 sm:w-12">
-					<PackageOpen size={18} class="text-purple-600 sm:hidden" aria-hidden="true" />
-					<PackageOpen size={24} class="hidden text-purple-600 sm:block" aria-hidden="true" />
-				</div>
-			</div>
-		</div>
-		<div class="rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Overdue</p>
-					<p class="mt-1 text-2xl font-semibold text-red-600 sm:mt-2 sm:text-3xl">{stats.overdue}</p>
-				</div>
-				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 sm:h-12 sm:w-12">
-					<AlertTriangle size={18} class="text-red-600 sm:hidden" aria-hidden="true" />
-					<AlertTriangle size={24} class="hidden text-red-600 sm:block" aria-hidden="true" />
-				</div>
-			</div>
-		</div>
-		<div class="col-span-2 rounded-lg bg-white p-3 shadow transition-shadow hover:shadow-md sm:col-span-1 sm:p-5">
-			<div class="flex items-center justify-between gap-2">
-				<div class="min-w-0">
-					<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Completed</p>
-					<p class="mt-1 text-2xl font-semibold text-emerald-600 sm:mt-2 sm:text-3xl">{stats.completed.toLocaleString()}</p>
-				</div>
-				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 sm:h-12 sm:w-12">
-					<CheckCircle size={18} class="text-emerald-600 sm:hidden" aria-hidden="true" />
-					<CheckCircle size={24} class="hidden text-emerald-600 sm:block" aria-hidden="true" />
-				</div>
-			</div>
-		</div>
-	</div>
+		{/if}
 
 	<!-- Tabs -->
 	<div class="border-b border-gray-200">
@@ -520,7 +662,7 @@
 					</tr>
 				</thead>
 				<tbody class="divide-y divide-gray-200 bg-white">
-					{#if loading && requests.length === 0}
+					{#if activeTabLoading && requests.length === 0}
 						<tr>
 							<td colspan="5" class="px-6 py-8 text-center text-sm text-gray-500">
 								<RefreshCw class="mx-auto h-6 w-6 animate-spin text-pink-500" />
