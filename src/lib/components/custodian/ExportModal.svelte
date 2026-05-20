@@ -332,7 +332,7 @@
 									class="mt-1 h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
 								/>
 								<div class="min-w-0 flex-1">
-									<p class="text-xs font-bold text-gray-900">Required Tab as a Whole</p>
+									<p class="text-xs font-bold text-gray-900">Required</p>
 									<p class="text-[11px] leading-relaxed text-gray-500">Items marked as required</p>
 								</div>
 							</label>
@@ -345,8 +345,8 @@
 									class="mt-1 h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500 cursor-pointer"
 								/>
 								<div class="min-w-0 flex-1">
-									<p class="text-xs font-bold text-gray-900">Low Stock / Status</p>
-									<p class="text-[11px] leading-relaxed text-gray-500">Items needing restocking or attention</p>
+									<p class="text-xs font-bold text-gray-900">Low & Out of Stock</p>
+									<p class="text-[11px] leading-relaxed text-gray-500">Items needing restocking or immediate attention</p>
 								</div>
 							</label>
 						</div>

@@ -163,9 +163,12 @@ export const POST: RequestHandler = async (event) => {
 				if (!catExists) return json({ error: 'Category not found' }, { status: 404 });
 			}
 
-			const status: ItemStatus = getCurrentCount(0, body.quantity) > 0
-				? 'In Stock' as ItemStatus
-				: 'Out of Stock' as ItemStatus;
+			const currentCount = getCurrentCount(0, body.quantity);
+			const status: ItemStatus = currentCount === 0
+				? 'Out of Stock' as ItemStatus
+				: currentCount <= 5
+				? 'Low Stock' as ItemStatus
+				: 'In Stock' as ItemStatus;
 
 			const newItem: InventoryItem = {
 				name: itemName,
@@ -228,9 +231,12 @@ export const POST: RequestHandler = async (event) => {
 
 			const newQty = existingItem.quantity;
 			const newDonations = (existingItem.donations ?? 0) + body.quantity;
-			const newStatus: ItemStatus = getCurrentCount(newQty, newDonations) > 0
-				? 'In Stock' as ItemStatus
-				: 'Out of Stock' as ItemStatus;
+			const currentCount = getCurrentCount(newQty, newDonations);
+			const newStatus: ItemStatus = currentCount === 0
+				? 'Out of Stock' as ItemStatus
+				: currentCount <= 5
+				? 'Low Stock' as ItemStatus
+				: 'In Stock' as ItemStatus;
 
 			await itemsCol.updateOne(
 				{ _id: existingItemId },

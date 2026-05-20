@@ -581,19 +581,19 @@ export const GET: RequestHandler = async (event) => {
 			await createSheet('Inventory Items', 'Custodian Inventory Items Tab', allItems);
 		}
 
-		// 3. Required Tab as a Whole Worksheet
+		// 3. Required Worksheet
 		if (selectedSheets.has('required-tab')) {
 			const reqItems = allItems.filter((i) => i.isrequired === true);
 			await createSheet('Required Items', 'Frequently Requested Required Items', reqItems);
 		}
 
-		// 4. Low Stock/Status Worksheet
+		// 4. Low & Out of Stock Worksheet
 		if (selectedSheets.has('low-stock')) {
 			const lowStock = allItems.filter((i) => {
 				const total = (i.quantity ?? 0) + (i.donations ?? 0);
 				return total <= 5;
 			});
-			await createSheet('Low Stock Items', 'Inventory Items Needing Restocking', lowStock);
+			await createSheet('Low & Out of Stock', 'Low & Out of Stock Inventory Items', lowStock);
 		}
 
 		// Write buffer

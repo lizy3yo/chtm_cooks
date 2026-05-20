@@ -32,9 +32,11 @@
 	import ActionMenu from '$lib/components/ui/ActionMenu.svelte';
 	import ExportModal from '$lib/components/custodian/ExportModal.svelte';
 
-	type Tab = 'all-items' | 'required-items' | 'categories' | 'low-stock';
+	type Tab = 'all-items' | 'categories';
 
 	let activeTab = $state<Tab>('all-items');
+	let requiredFilter = $state<'all' | 'required' | 'regular'>('all');
+	let statusFilter = $state<'all' | 'in-stock' | 'low-stock' | 'out-of-stock'>('all');
 	let showAddItemModal = $state(false);
 
 	// Stock adjustment modal states
@@ -63,9 +65,7 @@
 
 	let cardsLoading = $state(!hasCachedData);
 	let itemsTabLoading = $state(!hasCachedData);
-	let requiredTabLoading = $state(!hasCachedData);
 	let categoriesTabLoading = $state(!hasCachedData);
-	let lowStockTabLoading = $state(!hasCachedData);
 	let inFlightLoadId = 0;
 	let firstPageResponse: any = null;
 
@@ -119,14 +119,8 @@
 			// Step 2: Load/display the items tab
 			itemsTabLoading = false;
 
-			// Step 3: Load/display the required tab
-			requiredTabLoading = false;
-
-			// Step 4: Load/display the categories tab
+			// Step 3: Load/display the categories tab
 			categoriesTabLoading = false;
-
-			// Step 5: Load/display the low stock tab
-			lowStockTabLoading = false;
 
 			// Load the remaining pages of items sequentially in the background
 			const totalPagesCount = firstPageResponse?.pages ?? 1;
@@ -145,9 +139,7 @@
 				initialLoadComplete = true;
 				cardsLoading = false;
 				itemsTabLoading = false;
-				requiredTabLoading = false;
 				categoriesTabLoading = false;
-				lowStockTabLoading = false;
 			}
 		}
 	}
@@ -791,9 +783,20 @@
 		newCategoryPicture = URL.createObjectURL(file);
 	}
 
+	function getItemStatus(item: InventoryItem): 'In Stock' | 'Low Stock' | 'Out of Stock' | 'Archived' {
+		if (item.archived) return 'Archived';
+		const total = (item.quantity ?? 0) + (item.donations ?? 0);
+		if (total === 0) return 'Out of Stock';
+		if (total <= 5) return 'Low Stock';
+		return 'In Stock';
+	}
+
 	const activeItems = $derived(items.filter((item) => !item.archived));
 	const lowStockItems = $derived(
-		activeItems.filter((item) => item.status === 'Low Stock' || item.status === 'Out of Stock')
+		activeItems.filter((item) => {
+			const status = getItemStatus(item);
+			return status === 'Low Stock' || status === 'Out of Stock';
+		})
 	);
 	const requiredItems = $derived(activeItems.filter((item) => item.isrequired === true));
 
@@ -840,8 +843,34 @@
 			const matchesCategory =
 				!selectedCategory ||
 				item.category?.toLowerCase()?.trim() === selectedCategory?.name?.toLowerCase()?.trim();
-			const matchesQuery = !q || (item.name || '').toLowerCase().includes(q);
-			return isActive && matchesCategory && matchesQuery;
+			const matchesQuery =
+				!q ||
+				(item.name || '').toLowerCase().includes(q) ||
+				(item.specification || '').toLowerCase().includes(q) ||
+				(item.description || '').toLowerCase().includes(q) ||
+				(item.id || '').toLowerCase().includes(q);
+
+			// Required status filter
+			let matchesRequired = true;
+			if (requiredFilter === 'required') {
+				matchesRequired = item.isrequired === true;
+			} else if (requiredFilter === 'regular') {
+				matchesRequired = item.isrequired !== true;
+			}
+
+			// Stock status filter
+			let matchesStatus = true;
+			const itemStatus = getItemStatus(item);
+			
+			if (statusFilter === 'in-stock') {
+				matchesStatus = itemStatus === 'In Stock';
+			} else if (statusFilter === 'low-stock') {
+				matchesStatus = itemStatus === 'Low Stock';
+			} else if (statusFilter === 'out-of-stock') {
+				matchesStatus = itemStatus === 'Out of Stock';
+			}
+
+			return isActive && matchesCategory && matchesQuery && matchesRequired && matchesStatus;
 		})
 	);
 	const sortedItems = $derived(
@@ -854,56 +883,6 @@
 	const totalPages = $derived(Math.max(1, Math.ceil(sortedItems.length / PAGE_SIZE)));
 	const displayItems = $derived(
 		sortedItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-	);
-
-	// Derived collections for Required Items with filtering & sorting & pagination
-	const filteredRequiredItems = $derived(
-		items.filter((item) => {
-			const isActive = !item.archived && item.isrequired === true;
-			const q = query.toLowerCase().trim();
-			const matchesCategory =
-				!selectedCategory ||
-				item.category?.toLowerCase()?.trim() === selectedCategory?.name?.toLowerCase()?.trim();
-			const matchesQuery = !q || (item.name || '').toLowerCase().includes(q);
-			return isActive && matchesCategory && matchesQuery;
-		})
-	);
-	const sortedRequiredItems = $derived(
-		[...filteredRequiredItems].sort((a, b) =>
-			sortOrder === 'az'
-				? (a.name || '').localeCompare(b.name || '')
-				: (b.name || '').localeCompare(a.name || '')
-		)
-	);
-	const requiredTotalPages = $derived(Math.max(1, Math.ceil(sortedRequiredItems.length / PAGE_SIZE)));
-	const displayRequiredItems = $derived(
-		sortedRequiredItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
-	);
-
-	// Derived collections for Low Stock Items with filtering & sorting & pagination
-	const filteredLowStockItems = $derived(
-		items.filter((item) => {
-			const totalCount = (item.quantity ?? 0) + (item.donations ?? 0);
-			const isLowStock = totalCount <= 5;
-			const isActive = !item.archived && isLowStock;
-			const q = query.toLowerCase().trim();
-			const matchesCategory =
-				!selectedCategory ||
-				item.category?.toLowerCase()?.trim() === selectedCategory?.name?.toLowerCase()?.trim();
-			const matchesQuery = !q || (item.name || '').toLowerCase().includes(q);
-			return isActive && matchesCategory && matchesQuery;
-		})
-	);
-	const sortedLowStockItems = $derived(
-		[...filteredLowStockItems].sort((a, b) =>
-			sortOrder === 'az'
-				? (a.name || '').localeCompare(b.name || '')
-				: (b.name || '').localeCompare(a.name || '')
-		)
-	);
-	const lowStockTotalPages = $derived(Math.max(1, Math.ceil(sortedLowStockItems.length / PAGE_SIZE)));
-	const displayLowStockItems = $derived(
-		sortedLowStockItems.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 	);
 
 
@@ -2911,6 +2890,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 
 		<!-- Item Details Modal -->
 		{#if selectedItem}
+			{@const status = getItemStatus(selectedItem)}
 			<div class="fixed inset-0 z-50 overflow-y-auto">
 				<button
 					type="button"
@@ -2980,7 +2960,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 											</svg>
 										</div>
 									{/if}
-
+ 
 									<div class="min-w-0 flex-1">
 										<h2 class="text-base font-bold text-gray-900 sm:text-lg lg:text-xl">
 											{selectedItem.name}
@@ -2988,15 +2968,15 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 										<p class="mt-0.5 text-xs text-gray-500 sm:text-sm">{selectedItem.category}</p>
 										<div class="mt-2 flex flex-wrap items-center gap-1.5 sm:gap-2">
 											<span
-												class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 shadow-sm ring-1 ring-black/5 sm:px-2.5 sm:py-1 {selectedItem.status ===
+												class="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 shadow-sm ring-1 ring-black/5 sm:px-2.5 sm:py-1 {status ===
 												'In Stock'
-													? 'bg-green-100 text-green-800'
-													: selectedItem.status === 'Low Stock'
-														? 'bg-amber-100 text-amber-800'
-														: 'bg-red-100 text-red-800'}"
+													? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/10'
+													: status === 'Low Stock'
+														? 'bg-amber-50 text-amber-700 ring-1 ring-amber-600/15'
+														: 'bg-red-50 text-red-700 ring-1 ring-red-600/10'}"
 											>
 												<span class="h-1.5 w-1.5 rounded-full bg-current"></span>
-												<span class="text-[10px] font-bold sm:text-xs">{selectedItem.status}</span>
+												<span class="text-[10px] font-bold sm:text-xs">{status}</span>
 											</span>
 											{#if selectedItem.isrequired}
 												<span
@@ -3153,7 +3133,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													</p>
 												</div>
 												<p class="truncate text-xs font-bold text-gray-900 sm:text-sm">
-													{selectedItem.status}
+													{status}
 												</p>
 											</div>
 										</div>
@@ -3284,13 +3264,13 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 									</div>
 
 									<!-- Low Stock Warning -->
-									{#if selectedItem.status === 'Low Stock' || selectedItem.status === 'Out of Stock'}
+									{#if status === 'Low Stock' || status === 'Out of Stock'}
 										<div
 											class="rounded-xl border-2 border-amber-200 bg-linear-to-br from-amber-50 to-amber-100/50 p-4 sm:rounded-2xl sm:p-5"
 										>
 											<div class="flex gap-2.5 sm:gap-3">
 												<div
-													class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl {selectedItem.status ===
+													class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl {status ===
 													'Out of Stock'
 														? 'bg-red-500'
 														: 'bg-amber-500'}"
@@ -3299,22 +3279,22 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 												</div>
 												<div class="min-w-0 flex-1">
 													<p
-														class="text-xs font-bold sm:text-sm {selectedItem.status ===
+														class="text-xs font-bold sm:text-sm {status ===
 														'Out of Stock'
 															? 'text-red-900'
 															: 'text-amber-900'}"
 													>
-														{selectedItem.status === 'Out of Stock'
+														{status === 'Out of Stock'
 															? 'Out of Stock'
 															: 'Low Stock Alert'}
 													</p>
 													<p
-														class="mt-1 text-xs sm:mt-1.5 sm:text-sm {selectedItem.status ===
+														class="mt-1 text-xs sm:mt-1.5 sm:text-sm {status ===
 														'Out of Stock'
 															? 'text-red-800'
 															: 'text-amber-800'} leading-relaxed"
 													>
-														{#if selectedItem.status === 'Out of Stock'}
+														{#if status === 'Out of Stock'}
 															This item is currently out of stock. Consider restocking or marking as
 															unavailable for requests.
 														{:else}
@@ -3477,13 +3457,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 	<!-- Global Skeleton Loading State -->
 	{#if false}
 		<InventorySkeletonLoader
-			view={activeTab === 'categories'
-				? 'categories'
-				: activeTab === 'low-stock'
-					? 'low-stock'
-					: activeTab === 'required-items'
-						? 'all-items'
-						: 'all-items'}
+			view={activeTab === 'categories' ? 'categories' : 'all-items'}
 		/>
 	{:else}
 		<!-- Stats Overview -->
@@ -3503,7 +3477,17 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 			</div>
 		{:else}
 			<div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
-				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				<button
+					type="button"
+					onclick={() => {
+						switchTab('all-items');
+						requiredFilter = 'all';
+						statusFilter = 'all';
+						selectedCategory = null;
+						query = '';
+					}}
+					class="w-full text-left rounded-lg bg-white p-3 shadow sm:p-5 hover:shadow-md hover:border-pink-200/50 hover:bg-gray-50/50 border border-transparent transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-pink-500/20 cursor-pointer"
+				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
 							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Active Items</p>
@@ -3518,8 +3502,18 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							<Package size={24} class="hidden text-blue-600 sm:block" />
 						</div>
 					</div>
-				</div>
-				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				</button>
+				<button
+					type="button"
+					onclick={() => {
+						if (activeTab !== 'categories') {
+							switchTab('categories');
+						} else {
+							switchTab('all-items');
+						}
+					}}
+					class="w-full text-left rounded-lg bg-white p-3 shadow sm:p-5 hover:shadow-md hover:border-pink-200/50 hover:bg-gray-50/50 border border-transparent transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-pink-500/20 cursor-pointer"
+				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
 							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Categories</p>
@@ -3534,8 +3528,16 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							<FolderTree size={24} class="hidden text-purple-600 sm:block" />
 						</div>
 					</div>
-				</div>
-				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				</button>
+				<button
+					type="button"
+					onclick={() => {
+						switchTab('all-items');
+						statusFilter = 'low-stock';
+						requiredFilter = 'all';
+					}}
+					class="w-full text-left rounded-lg bg-white p-3 shadow sm:p-5 hover:shadow-md hover:border-pink-200/50 hover:bg-gray-50/50 border border-transparent transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-pink-500/20 cursor-pointer"
+				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
 							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Low Stock</p>
@@ -3550,8 +3552,16 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							<AlertTriangle size={24} class="hidden text-red-600 sm:block" />
 						</div>
 					</div>
-				</div>
-				<div class="rounded-lg bg-white p-3 shadow sm:p-5">
+				</button>
+				<button
+					type="button"
+					onclick={() => {
+						switchTab('all-items');
+						requiredFilter = 'required';
+						statusFilter = 'all';
+					}}
+					class="w-full text-left rounded-lg bg-white p-3 shadow sm:p-5 hover:shadow-md hover:border-pink-200/50 hover:bg-gray-50/50 border border-transparent transition-all duration-200 active:scale-98 focus:outline-none focus:ring-2 focus:ring-pink-500/20 cursor-pointer"
+				>
 					<div class="flex items-center justify-between gap-2">
 						<div class="min-w-0">
 							<p class="truncate text-xs font-medium text-gray-600 sm:text-sm">Required Items</p>
@@ -3566,7 +3576,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							<Star size={24} class="hidden text-amber-600 sm:block" />
 						</div>
 					</div>
-				</div>
+				</button>
 			</div>
 		{/if}
 
@@ -3586,24 +3596,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 							? 'bg-pink-100 text-pink-600'
 							: 'bg-gray-100 text-gray-600'}"
 					>
-						{selectedCategory ? filteredItems.length : activeItems.length}
-					</span>
-				</button>
-
-				<button
-					onclick={() => switchTab('required-items')}
-					class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap transition-colors sm:text-sm
-					{activeTab === 'required-items'
-						? 'border-emerald-500 text-emerald-600'
-						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-				>
-					Required
-					<span
-						class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'required-items'
-							? 'bg-emerald-100 text-emerald-600'
-							: 'bg-gray-100 text-gray-600'}"
-					>
-						{requiredItems.length}
+						{filteredItems.length}
 					</span>
 				</button>
 
@@ -3623,23 +3616,6 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						{categories.length}
 					</span>
 				</button>
-
-				<button
-					onclick={() => switchTab('low-stock')}
-					class="flex flex-1 items-center justify-center gap-1 border-b-2 px-1 py-3 text-[11px] font-medium whitespace-nowrap transition-colors sm:text-sm
-					{activeTab === 'low-stock'
-						? 'border-pink-500 text-pink-600'
-						: 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'}"
-				>
-					Low Stock
-					<span
-						class="rounded-full px-1.5 py-0.5 text-[10px] {activeTab === 'low-stock'
-							? 'bg-red-100 text-red-600'
-							: 'bg-gray-100 text-gray-600'}"
-					>
-						{lowStockItems.length}
-					</span>
-				</button>
 			</nav>
 		</div>
 
@@ -3652,50 +3628,148 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					<!-- All Items View -->
 					<div class="p-4 sm:p-6">
 					<div class="mb-4 flex flex-col gap-3">
-						{#if selectedCategory}
-							<div class="flex items-center gap-2">
-								<span
-									class="inline-flex items-center rounded-full bg-pink-100 px-3 py-1 text-sm font-medium text-pink-800"
-									>Showing: {selectedCategory.name}</span
-								>
-								<button
-									onclick={clearCategoryFilter}
-									class="rounded-md border border-gray-300 bg-white px-3 py-1 text-sm text-gray-700 hover:bg-gray-50"
-									>Clear</button
-								>
-							</div>
-						{/if}
-						<!-- Search + Sort row -->
-						<div class="flex gap-2">
-							<div class="relative flex-1">
+						<!-- Premium Industry Standard Filter controls -->
+						<div class="flex flex-col gap-3">
+							<!-- 1. Full-Width Search Field -->
+							<div class="relative w-full">
 								<input
 									type="text"
-									placeholder="Search items..."
+									placeholder="Search by name, description, or code..."
 									bind:value={query}
-									class="w-full rounded-lg border border-gray-300 py-2 pr-3 pl-9 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
+									class="w-full rounded-lg border border-gray-200 py-2.5 pl-10 pr-4 text-sm bg-white shadow-sm transition-all hover:border-gray-300 focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
 								/>
-								<svg
-									class="absolute top-2.5 left-3 h-4 w-4 text-gray-400"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
+								<div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
+									<svg
+										class="h-4 w-4 text-gray-400"
+										fill="none"
+										stroke="currentColor"
 										stroke-width="2"
-										d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-									/>
-								</svg>
+										viewBox="0 0 24 24"
+									>
+										<path
+											stroke-linecap="round"
+											stroke-linejoin="round"
+											d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+										/>
+									</svg>
+								</div>
 							</div>
-							<select
-								bind:value={sortOrder}
-								class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
-							>
-								<option value="az">A – Z</option>
-								<option value="za">Z – A</option>
-							</select>
+
+							<!-- 2. Three Column Dropdowns -->
+							<div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+								<!-- Category Selector -->
+								<div class="relative w-full">
+									<select
+										value={selectedCategory?.id || 'all'}
+										onchange={(e) => {
+											const val = e.currentTarget.value;
+											if (val === 'all') {
+												selectedCategory = null;
+											} else {
+												selectedCategory = categories.find(c => c.id === val) || null;
+											}
+										}}
+										class="w-full rounded-lg border border-gray-200 py-2.5 pl-3.5 pr-10 text-sm text-gray-700 bg-white shadow-sm transition-all hover:bg-gray-50/80 hover:border-gray-300 focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none appearance-none cursor-pointer"
+									>
+										<option value="all">All Categories</option>
+										{#each categories as category}
+											<option value={category.id}>{category.name}</option>
+										{/each}
+									</select>
+									<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+										<svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+										</svg>
+									</div>
+								</div>
+
+								<!-- Stock Status Filter -->
+								<div class="relative w-full">
+									<select
+										bind:value={statusFilter}
+										class="w-full rounded-lg border border-gray-200 py-2.5 pl-3.5 pr-10 text-sm text-gray-700 bg-white shadow-sm transition-all hover:bg-gray-50/80 hover:border-gray-300 focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none appearance-none cursor-pointer"
+									>
+										<option value="all">All Statuses</option>
+										<option value="in-stock">In Stock</option>
+										<option value="low-stock">Low Stock</option>
+										<option value="out-of-stock">Out of Stock</option>
+									</select>
+									<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+										<svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+										</svg>
+									</div>
+								</div>
+
+								<!-- Alphabetical Sort Filter -->
+								<div class="relative w-full">
+									<select
+										bind:value={sortOrder}
+										class="w-full rounded-lg border border-gray-200 py-2.5 pl-3.5 pr-10 text-sm text-gray-700 bg-white shadow-sm transition-all hover:bg-gray-50/80 hover:border-gray-300 focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none appearance-none cursor-pointer"
+									>
+										<option value="az">Name (A-Z)</option>
+										<option value="za">Name (Z-A)</option>
+									</select>
+									<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+										<svg class="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+										</svg>
+									</div>
+								</div>
+							</div>
 						</div>
+
+						<!-- Active Filters Tags Strip -->
+						{#if selectedCategory || requiredFilter !== 'all' || statusFilter !== 'all'}
+							<div class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-150 bg-gray-50/50 p-2">
+								<span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">Active Filters:</span>
+
+								{#if selectedCategory}
+									<span class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 ring-1 ring-blue-600/10">
+										Category: {selectedCategory.name}
+										<button onclick={clearCategoryFilter} class="group rounded-full p-0.5 hover:bg-blue-100" aria-label="Clear category filter">
+											<svg class="h-3 w-3 text-blue-600 group-hover:text-blue-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+											</svg>
+										</button>
+									</span>
+								{/if}
+
+								{#if requiredFilter !== 'all'}
+									<span class="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700 ring-1 ring-purple-600/10">
+										Type: {requiredFilter === 'required' ? 'Required Only' : 'Regular Only'}
+										<button onclick={() => requiredFilter = 'all'} class="group rounded-full p-0.5 hover:bg-purple-100" aria-label="Clear required filter">
+											<svg class="h-3 w-3 text-purple-600 group-hover:text-purple-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+											</svg>
+										</button>
+									</span>
+								{/if}
+
+								{#if statusFilter !== 'all'}
+									<span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-600/10">
+										Status: {statusFilter === 'in-stock' ? 'In Stock' : statusFilter === 'low-stock' ? 'Low Stock' : 'Out of Stock'}
+										<button onclick={() => statusFilter = 'all'} class="group rounded-full p-0.5 hover:bg-amber-100" aria-label="Clear status filter">
+											<svg class="h-3 w-3 text-amber-600 group-hover:text-amber-800" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+											</svg>
+										</button>
+									</span>
+								{/if}
+
+								<button
+									onclick={() => {
+										query = '';
+										selectedCategory = null;
+										requiredFilter = 'all';
+										statusFilter = 'all';
+									}}
+									class="ml-auto text-xs font-semibold text-pink-600 hover:text-pink-800 hover:underline cursor-pointer"
+								>
+									Clear All
+								</button>
+							</div>
+						{/if}
 					</div>
 
 					{#if displayItems.length === 0}
@@ -3759,6 +3833,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 						<!-- Mobile card list — hidden on sm+ -->
 						<div class="divide-y divide-gray-100 sm:hidden">
 							{#each displayItems as item, i}
+								{@const status = getItemStatus(item)}
 								<button
 									class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
 									onclick={() => openModal(item)}
@@ -3799,16 +3874,27 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800"
 													>{item.category}</span
 												>
-												{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+												{#if status === 'Out of Stock'}
 													<span
-														class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700"
-														>{item.status}</span
+														class="inline-flex items-center gap-1 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 ring-1 ring-red-600/10"
 													>
+														<span class="h-1.5 w-1.5 rounded-full bg-red-500"></span>
+														Out of Stock
+													</span>
+												{:else if status === 'Low Stock'}
+													<span
+														class="inline-flex items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-600/15"
+													>
+														<span class="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+														Low Stock
+													</span>
 												{:else}
 													<span
-														class="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700"
-														>{item.status}</span
+														class="inline-flex items-center gap-1 rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-emerald-600/10"
 													>
+														<span class="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+														In Stock
+													</span>
 												{/if}
 												<span class="text-[10px] text-gray-400"
 													>Qty: {item.quantity} · EOM: {item.eomCount}</span
@@ -3870,6 +3956,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 								</thead>
 								<tbody class="divide-y divide-gray-200 bg-white">
 									{#each displayItems as item, i}
+										{@const status = getItemStatus(item)}
 										<tr
 											class="cursor-pointer transition-colors hover:bg-gray-50"
 											onclick={() => openModal(item)}
@@ -3925,9 +4012,22 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 													getCurrentCount(item.quantity, item.donations ?? 0)}</td
 											>
 											<td class="px-6 py-4 whitespace-nowrap">
-												{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
+												{#if status === 'Out of Stock'}
 													<span
-														class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800"
+														class="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-700 ring-1 ring-red-600/10"
+													>
+														<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
+															><path
+																fill-rule="evenodd"
+																d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+																clip-rule="evenodd"
+															/></svg
+														>
+														Out of Stock
+													</span>
+												{:else if status === 'Low Stock'}
+													<span
+														class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-600/15"
 													>
 														<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
 															><path
@@ -3936,11 +4036,11 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 																clip-rule="evenodd"
 															/></svg
 														>
-														{item.status}
+														Low Stock
 													</span>
 												{:else}
 													<span
-														class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800"
+														class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-600/10"
 													>
 														<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
 															><path
@@ -3949,7 +4049,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 																clip-rule="evenodd"
 															/></svg
 														>
-														{item.status}
+														In Stock
 													</span>
 												{/if}
 											</td>
@@ -4552,696 +4652,7 @@ Kitchen Stove,4-burner with oven,Gas regulator,,2,1,2,Station 1`;
 					</div>
 				{/if}
 				{/if}
-			{:else if activeTab === 'required-items'}
-				{#if requiredTabLoading}
-					<InventorySkeletonLoader view="all-items" />
-				{:else}
-					<!-- Required Items View -->
-					<div class="p-4 sm:p-6">
-					<div class="mb-4 flex flex-col gap-3">
-						<div>
-							<h3 class="text-base font-semibold text-gray-900 sm:text-lg">Required Items</h3>
-							<p class="mt-1 text-sm text-gray-500">
-								Items that always appear on student request forms regardless of availability
-							</p>
-						</div>
-						<!-- Search + Sort row -->
-						<div class="flex gap-2">
-							<div class="relative flex-1">
-								<input
-									type="text"
-									placeholder="Search items..."
-									bind:value={query}
-									class="w-full rounded-lg border border-gray-300 py-2 pr-3 pl-9 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
-								/>
-								<svg
-									class="absolute top-2.5 left-3 h-4 w-4 text-gray-400"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-									/>
-								</svg>
-							</div>
-							<select
-								bind:value={sortOrder}
-								class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
-							>
-								<option value="az">A – Z</option>
-								<option value="za">Z – A</option>
-							</select>
-						</div>
-					</div>
 
-					{#if displayRequiredItems.length === 0}
-						<div
-							class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white"
-							style="min-height: 600px;"
-						>
-							<div class="px-4 text-center">
-								<div
-									class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100"
-								>
-									<svg
-										class="h-8 w-8 text-emerald-600"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
-										/>
-									</svg>
-								</div>
-								<h3 class="mt-6 text-lg font-semibold text-gray-900">
-									No Required items configured
-								</h3>
-								<p class="mx-auto mt-2 max-w-sm text-sm text-gray-600">
-									Mark items as Required from the Items tab to have them always appear on student
-									request forms, regardless of stock availability.
-								</p>
-								<div class="mt-6 flex items-center justify-center gap-3">
-									<button
-										onclick={() => switchTab('all-items')}
-										class="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none"
-									>
-										<svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M15 19l-7-7 7-7"
-											/>
-										</svg>
-										Go to Items
-									</button>
-								</div>
-							</div>
-						</div>
-					{:else}
-						<!-- Mobile card list -->
-						<div class="divide-y divide-gray-100 sm:hidden">
-							{#each displayRequiredItems as item, i}
-								<button
-									class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
-									onclick={() => openModal(item)}
-								>
-									<div class="flex items-center gap-3">
-										<span
-											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600"
-										>
-											{(currentPage - 1) * PAGE_SIZE + i + 1}
-										</span>
-										<div
-											class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
-										>
-											{#if item.picture}
-												<img
-													src={item.picture}
-													alt={item.name}
-													class="h-full w-full object-cover"
-													loading="lazy"
-												/>
-											{:else}
-												<ItemImagePlaceholder size="sm" />
-											{/if}
-										</div>
-										<div class="min-w-0 flex-1">
-											<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-											<p class="truncate text-xs text-gray-500">
-												{item.specification || item.category}
-											</p>
-											<div class="mt-1 flex flex-wrap items-center gap-1">
-												<span
-													class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800"
-													>Required</span
-												>
-												<span
-													class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800"
-													>{item.category}</span
-												>
-												{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-													<span
-														class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700"
-														>{item.status}</span
-													>
-												{:else}
-													<span
-														class="rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700"
-														>{item.status}</span
-													>
-												{/if}
-												<span class="text-[10px] text-gray-400"
-													>Qty: {getCurrentCount(item.quantity, item.donations ?? 0)} · EOM: {item.eomCount}</span
-												>
-											</div>
-										</div>
-										<svg
-											class="h-4 w-4 shrink-0 text-gray-300"
-											fill="none"
-											stroke="currentColor"
-											viewBox="0 0 24 24"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M9 5l7 7-7 7"
-											/>
-										</svg>
-									</div>
-								</button>
-							{/each}
-						</div>
-
-						<!-- Desktop table -->
-						<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
-							<table class="min-w-full divide-y divide-gray-200">
-								<thead class="bg-gray-50">
-									<tr>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Item Name</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Category</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Specification</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Tools / Equipment</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Current Count</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Max Per Request</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Status</th
-										>
-										<th
-											class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Actions</th
-										>
-									</tr>
-								</thead>
-								<tbody class="divide-y divide-gray-200 bg-white">
-									{#each displayRequiredItems as item, i}
-										<tr
-											class="cursor-pointer transition-colors hover:bg-gray-50"
-											onclick={() => openModal(item)}
-										>
-											<td class="px-6 py-4 whitespace-nowrap">
-												<div class="flex items-center gap-3">
-													<span
-														class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700"
-														>{(currentPage - 1) * PAGE_SIZE + i + 1}</span
-													>
-													<div
-														class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
-													>
-														{#if item.picture}
-															<img
-																src={item.picture}
-																alt={item.name}
-																class="h-full w-full object-cover"
-																loading="lazy"
-															/>
-														{:else}
-															<ItemImagePlaceholder size="sm" />
-														{/if}
-													</div>
-													<div class="flex flex-col gap-0.5">
-														<span
-															class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-purple-800 uppercase ring-1 ring-purple-200"
-														>
-															<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"
-																><path
-																	d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
-																/></svg
-															>
-															required
-														</span>
-														<div class="text-sm font-medium text-gray-900">{item.name}</div>
-													</div>
-												</div>
-											</td>
-											<td class="px-6 py-4 whitespace-nowrap">
-												<span
-													class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800"
-													>{item.category}</span
-												>
-											</td>
-											<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
-											<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment || '—'}</td>
-											<td class="px-6 py-4 text-sm font-medium whitespace-nowrap text-gray-900"
-												>{getCurrentCount(item.quantity, item.donations ?? 0)}</td
-											>
-											<td class="px-6 py-4 whitespace-nowrap">
-												{#if item.maxQuantityPerRequest}
-													<span
-														class="inline-flex items-center gap-1.5 rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-800"
-													>
-														<svg
-															class="h-3.5 w-3.5"
-															fill="none"
-															stroke="currentColor"
-															viewBox="0 0 24 24"
-														>
-															<path
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																stroke-width="2"
-																d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-															/>
-														</svg>
-														{item.maxQuantityPerRequest}
-													</span>
-												{:else}
-													<span class="text-xs text-gray-400">No limit</span>
-												{/if}
-											</td>
-											<td class="px-6 py-4 whitespace-nowrap">
-												{#if item.status === 'Low Stock' || item.status === 'Out of Stock'}
-													<span
-														class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800"
-													>
-														<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
-															><path
-																fill-rule="evenodd"
-																d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-																clip-rule="evenodd"
-															/></svg
-														>
-														{item.status}
-													</span>
-												{:else}
-													<span
-														class="inline-flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-1 text-xs font-semibold text-green-800"
-													>
-														<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
-															><path
-																fill-rule="evenodd"
-																d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-																clip-rule="evenodd"
-															/></svg
-														>
-														{item.status}
-													</span>
-												{/if}
-											</td>
-											<td
-												class="px-4 py-4 text-right whitespace-nowrap"
-												onclick={(e) => e.stopPropagation()}
-											>
-												<ActionMenu
-													align="right"
-													triggerLabel="Item actions"
-													items={[
-														{
-															label: item.isrequired ? 'Remove Required' : 'Mark Required',
-															icon: Star,
-															variant: 'purple',
-															action: () => togglerequiredStatus(item)
-														},
-														{
-															label: 'Adjust Stock',
-															icon: Sliders,
-															variant: 'default',
-															action: () => openAdjustStock(item)
-														},
-														{
-															label: 'Edit Item',
-															icon: Edit,
-															variant: 'default',
-															action: () => editItem(item)
-														},
-														{
-															label: 'Archive',
-															icon: Archive,
-															variant: 'warning',
-															action: () => archiveItem(item)
-														},
-														{
-															label: 'Remove',
-															icon: Trash2,
-															variant: 'danger',
-															action: () => deleteItem(item)
-														}
-													]}
-												/>
-											</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
-
-						<!-- Pagination -->
-						{#if requiredTotalPages > 1}
-							<Pagination
-								currentPage={currentPage}
-								totalPages={requiredTotalPages}
-								totalItems={sortedRequiredItems.length}
-								itemsPerPage={PAGE_SIZE}
-								onPageChange={(p) => (currentPage = p)}
-							/>
-						{/if}					{/if}
-				</div>
-				{/if}
-			{:else if activeTab === 'low-stock'}
-				{#if lowStockTabLoading}
-					<InventorySkeletonLoader view="low-stock" />
-				{:else}
-					<!-- Low Stock View -->
-					<div class="p-6">
-					<div class="mb-6 flex flex-col gap-3">
-						<div>
-							<h3 class="text-lg font-semibold text-gray-900">Low Stock Alerts</h3>
-							<p class="mt-1 text-sm text-gray-500">Items that need restocking</p>
-						</div>
-						<!-- Search + Sort row -->
-						<div class="flex gap-2">
-							<div class="relative flex-1">
-								<input
-									type="text"
-									placeholder="Search items..."
-									bind:value={query}
-									class="w-full rounded-lg border border-gray-300 py-2 pr-3 pl-9 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
-								/>
-								<svg
-									class="absolute top-2.5 left-3 h-4 w-4 text-gray-400"
-									fill="none"
-									stroke="currentColor"
-									viewBox="0 0 24 24"
-								>
-									<path
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										stroke-width="2"
-										d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-									/>
-								</svg>
-							</div>
-							<select
-								bind:value={sortOrder}
-								class="rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-pink-500 focus:ring-1 focus:ring-pink-500 focus:outline-none"
-							>
-								<option value="az">A – Z</option>
-								<option value="za">Z – A</option>
-							</select>
-						</div>
-					</div>
-
-					{#if displayLowStockItems.length === 0}
-						<div
-							class="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-white"
-							style="min-height: 600px;"
-						>
-							<div class="px-4 text-center">
-								<div
-									class="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100"
-								>
-									<svg
-										class="h-8 w-8 text-green-600"
-										fill="none"
-										stroke="currentColor"
-										viewBox="0 0 24 24"
-									>
-										<path
-											stroke-linecap="round"
-											stroke-linejoin="round"
-											stroke-width="2"
-											d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-										/>
-									</svg>
-								</div>
-								<h3 class="mt-6 text-lg font-semibold text-gray-900">
-									All items adequately stocked
-								</h3>
-								<p class="mx-auto mt-2 max-w-sm text-sm text-gray-600">
-									No items require immediate restocking. Your inventory levels are healthy.
-								</p>
-								<div class="mt-6 flex items-center justify-center gap-3">
-									<button
-										onclick={() => switchTab('all-items')}
-										class="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 focus:outline-none"
-									>
-										View All Items
-									</button>
-								</div>
-							</div>
-						</div>
-					{:else}
-						<!-- Mobile card list -->
-						<div class="divide-y divide-gray-100 sm:hidden">
-							{#each displayLowStockItems as item, i}
-								<button
-									class="w-full px-4 py-3 text-left transition-colors hover:bg-gray-50 active:bg-gray-100"
-									onclick={() => openModal(item)}
-								>
-									<div class="flex items-center gap-3">
-										<span
-											class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600"
-										>
-											{(currentPage - 1) * PAGE_SIZE + i + 1}
-										</span>
-										<div
-											class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
-										>
-											{#if item.picture}
-												<img
-													src={item.picture}
-													alt={item.name}
-													class="h-full w-full object-cover"
-													loading="lazy"
-												/>
-											{:else}
-												<ItemImagePlaceholder size="sm" />
-											{/if}
-										</div>
-										<div class="min-w-0 flex-1">
-											<p class="truncate text-sm font-semibold text-gray-900">{item.name}</p>
-											<p class="truncate text-xs text-gray-500">
-												{item.specification || item.category}
-											</p>
-											<div class="mt-1 flex flex-wrap items-center gap-1">
-												{#if item.isrequired}
-													<span
-														class="rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800"
-														>Required</span
-													>
-												{/if}
-												<span
-													class="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-800"
-													>{item.category}</span
-												>
-												<span
-													class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700"
-													>{item.status}</span
-												>
-												<span class="text-[10px] text-gray-400"
-													>Qty: {getCurrentCount(item.quantity, item.donations ?? 0)} · EOM: {item.eomCount}</span
-												>
-											</div>
-										</div>
-										<svg
-											class="h-4 w-4 shrink-0 text-gray-300"
-											fill="none"
-											stroke="currentColor"
-											viewBox="0 0 24 24"
-										>
-											<path
-												stroke-linecap="round"
-												stroke-linejoin="round"
-												stroke-width="2"
-												d="M9 5l7 7-7 7"
-											/>
-										</svg>
-									</div>
-								</button>
-							{/each}
-						</div>
-
-						<!-- Desktop table -->
-						<div class="hidden overflow-x-auto sm:block" style="min-height: 600px;">
-							<table class="min-w-full divide-y divide-gray-200">
-								<thead class="bg-gray-50">
-									<tr>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Item Name</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Category</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Specification</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Tools / Equipment</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Current Count</th
-										>
-										<th
-											class="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Status</th
-										>
-										<th
-											class="px-6 py-3 text-right text-xs font-medium tracking-wider text-gray-500 uppercase"
-											>Actions</th
-										>
-									</tr>
-								</thead>
-								<tbody class="divide-y divide-gray-200 bg-white">
-									{#each displayLowStockItems as item, i}
-										<tr
-											class="cursor-pointer transition-colors hover:bg-gray-50"
-											onclick={() => openModal(item)}
-										>
-											<td class="px-6 py-4 whitespace-nowrap">
-												<div class="flex items-center gap-3">
-													<span
-														class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-700"
-														>{(currentPage - 1) * PAGE_SIZE + i + 1}</span
-													>
-													<div
-														class="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100"
-													>
-														{#if item.picture}
-															<img
-																src={item.picture}
-																alt={item.name}
-																class="h-full w-full object-cover"
-																loading="lazy"
-															/>
-														{:else}
-															<ItemImagePlaceholder size="sm" />
-														{/if}
-													</div>
-													<div class="flex flex-col gap-0.5">
-														{#if item.isrequired}
-															<span
-																class="inline-flex w-fit items-center gap-1 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-purple-800 uppercase ring-1 ring-purple-200"
-															>
-																<svg class="h-2.5 w-2.5" fill="currentColor" viewBox="0 0 20 20"
-																	><path
-																		d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"
-																	/></svg
-																>
-																required
-															</span>
-														{/if}
-														<div class="text-sm font-medium text-gray-900">{item.name}</div>
-													</div>
-												</div>
-											</td>
-											<td class="px-6 py-4 whitespace-nowrap">
-												<span
-													class="inline-flex rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-800"
-													>{item.category}</span
-												>
-											</td>
-											<td class="px-6 py-4 text-sm text-gray-700">{item.specification || '—'}</td>
-											<td class="px-6 py-4 text-sm text-gray-700">{item.toolsOrEquipment || '—'}</td>
-											<td class="px-6 py-4 text-sm font-medium whitespace-nowrap text-gray-900"
-												>{getCurrentCount(item.quantity, item.donations ?? 0)}</td
-											>
-											<td class="px-6 py-4 whitespace-nowrap">
-												<span
-													class="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-800"
-												>
-													<svg class="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20"
-														><path
-															fill-rule="evenodd"
-															d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-															clip-rule="evenodd"
-														/></svg
-													>
-													{item.status}
-												</span>
-											</td>
-											<td
-												class="px-4 py-4 text-right whitespace-nowrap"
-												onclick={(e) => e.stopPropagation()}
-											>
-												<ActionMenu
-													align="right"
-													triggerLabel="Item actions"
-													items={[
-														{
-															label: item.isrequired ? 'Remove Required' : 'Mark Required',
-															icon: Star,
-															variant: 'purple',
-															action: () => togglerequiredStatus(item)
-														},
-														{
-															label: 'Adjust Stock',
-															icon: Sliders,
-															variant: 'default',
-															action: () => openAdjustStock(item)
-														},
-														{
-															label: 'Edit Item',
-															icon: Edit,
-															variant: 'default',
-															action: () => editItem(item)
-														},
-														{
-															label: 'Archive',
-															icon: Archive,
-															variant: 'warning',
-															action: () => archiveItem(item)
-														},
-														{
-															label: 'Remove',
-															icon: Trash2,
-															variant: 'danger',
-															action: () => deleteItem(item)
-														}
-													]}
-												/>
-											</td>
-										</tr>
-									{/each}
-								</tbody>
-							</table>
-						</div>
-
-						<!-- Pagination -->
-						{#if lowStockTotalPages > 1}
-							<Pagination
-								currentPage={currentPage}
-								totalPages={lowStockTotalPages}
-								totalItems={sortedLowStockItems.length}
-								itemsPerPage={PAGE_SIZE}
-								onPageChange={(p) => (currentPage = p)}
-							/>
-						{/if}
-					{/if}
-				</div>
-				{/if}
 			{/if}
 		</div>
 	{/if}

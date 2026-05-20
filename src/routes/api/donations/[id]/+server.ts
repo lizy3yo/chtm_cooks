@@ -126,9 +126,12 @@ export const PATCH: RequestHandler = async (event) => {
 
 			if (linkedInventoryItem) {
 				const newDonations = (linkedInventoryItem.donations ?? 0) + body.quantityToAdd;
-				const newStatus: ItemStatus = getCurrentCount(linkedInventoryItem.quantity, newDonations) > 0
-					? 'In Stock' as ItemStatus
-					: 'Out of Stock' as ItemStatus;
+				const currentCount = getCurrentCount(linkedInventoryItem.quantity, newDonations);
+				const newStatus: ItemStatus = currentCount === 0
+					? 'Out of Stock' as ItemStatus
+					: currentCount <= 5
+					? 'Low Stock' as ItemStatus
+					: 'In Stock' as ItemStatus;
 
 				await inventoryItemsCol.updateOne(
 					{ _id: result.inventoryItemId, archived: false },
@@ -231,9 +234,12 @@ export const PUT: RequestHandler = async (event) => {
 
 			if (linkedInventoryItem) {
 				const newDonations = (linkedInventoryItem.donations ?? 0) + quantityDelta;
-				const newStatus: ItemStatus = getCurrentCount(linkedInventoryItem.quantity, newDonations) > 0
-					? 'In Stock' as ItemStatus
-					: 'Out of Stock' as ItemStatus;
+				const currentCount = getCurrentCount(linkedInventoryItem.quantity, newDonations);
+				const newStatus: ItemStatus = currentCount === 0
+					? 'Out of Stock' as ItemStatus
+					: currentCount <= 5
+					? 'Low Stock' as ItemStatus
+					: 'In Stock' as ItemStatus;
 
 				await inventoryItemsCol.updateOne(
 					{ _id: result.inventoryItemId, archived: false },
